@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { ArrowLeft, Calendar, MapPin, Lightbulb, History, FileText, CheckCircle, Edit, Save, X } from 'lucide-react';
 import { cn, formatLabel } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { MeetingPrep } from '@/components/meetings/MeetingPrep';
 import { ContactTimeline } from '@/components/contacts/ContactTimeline';
 import { MeetingBrief } from '@/types';
@@ -116,6 +117,7 @@ export default function MeetingBriefPage() {
             if (!response.ok) throw new Error('Failed to complete meeting');
 
             toast.success('Meeting marked as completed!');
+            window.dispatchEvent(new CustomEvent('meeting:refresh'));
             router.push('/meetings');
         } catch (error) {
             console.error('Error completing meeting:', error);
@@ -158,9 +160,35 @@ export default function MeetingBriefPage() {
     if (loading) {
         return (
             <AppShell>
-                <div className="max-w-7xl mx-auto text-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                    <p className="text-body">Loading meeting brief...</p>
+                <div className="max-w-5xl mx-auto py-8 px-4 animate-in fade-in duration-500">
+                    {/* Skeleton Header */}
+                    <div className="mb-10 space-y-6">
+                        <Skeleton className="h-4 w-32 rounded-full" />
+                        <div className="space-y-4">
+                            <Skeleton className="h-6 w-48 rounded-full" />
+                            <Skeleton className="h-12 w-3/4 rounded-2xl" />
+                            <div className="flex gap-4">
+                                <Skeleton className="h-6 w-64 rounded-xl" />
+                                <Skeleton className="h-6 w-48 rounded-xl" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Skeleton Tabs */}
+                    <div className="flex gap-2 mb-12">
+                        <Skeleton className="h-10 w-32 rounded-2xl" />
+                        <Skeleton className="h-10 w-32 rounded-2xl" />
+                        <Skeleton className="h-10 w-32 rounded-2xl" />
+                    </div>
+
+                    {/* Skeleton Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                        <Skeleton className="h-96 rounded-3xl" />
+                        <div className="lg:col-span-3 space-y-8">
+                            <Skeleton className="h-48 rounded-3xl" />
+                            <Skeleton className="h-96 rounded-3xl" />
+                        </div>
+                    </div>
                 </div>
             </AppShell>
         );

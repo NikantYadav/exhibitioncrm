@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { CaptureDropdown } from '@/components/capture/CaptureDropdown';
 import { cn, formatLabel } from '@/lib/utils';
+import { MeetingsCalendar } from '@/components/meetings/MeetingsCalendar';
 
 export default function HomePage() {
     const [loading, setLoading] = useState(true);
@@ -30,6 +31,20 @@ export default function HomePage() {
 
     useEffect(() => {
         fetchDashboardData();
+
+        const handleRefresh = () => fetchDashboardData();
+        const handleFocus = () => {
+            // Optional: debounce or check time since last fetch
+            fetchDashboardData();
+        };
+
+        window.addEventListener('meeting:refresh', handleRefresh);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            window.removeEventListener('meeting:refresh', handleRefresh);
+            window.removeEventListener('focus', handleFocus);
+        };
     }, []);
 
     const fetchDashboardData = async () => {
@@ -130,7 +145,7 @@ export default function HomePage() {
                                 </Link>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
                                 {upcomingMeetings.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center opacity-40">
                                         <div className="w-12 h-12 bg-stone-50 rounded-2xl flex items-center justify-center mb-4 border border-stone-100">
@@ -139,31 +154,12 @@ export default function HomePage() {
                                         <p className="text-xs font-bold uppercase tracking-widest">No meetings today</p>
                                     </div>
                                 ) : (
-                                    <div className="space-y-1">
-                                        {upcomingMeetings.map((meeting: any) => (
-                                            <Link key={meeting.id} href={`/meetings/${meeting.id}`} className="flex items-center gap-4 p-4 hover:bg-stone-50 rounded-xl transition-all group">
-                                                <div className="h-10 w-10 rounded-full bg-stone-100 text-stone-600 border border-stone-200 flex items-center justify-center text-[10px] font-bold shrink-0">
-                                                    {meeting.contact?.first_name?.[0]}{meeting.contact?.last_name?.[0]}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <h3 className="text-sm font-bold text-stone-900 truncate group-hover:text-indigo-600 transition-colors">
-                                                        {meeting.contact?.first_name} {meeting.contact?.last_name || ''}
-                                                    </h3>
-                                                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-tight">
-                                                        {meeting.contact?.company?.name || 'Visitor'} • {meeting.meeting_location || formatLabel(meeting.meeting_type)}
-                                                    </p>
-                                                </div>
-                                                <div className="text-right shrink-0">
-                                                    <p className="text-sm font-bold text-stone-900 tracking-tighter">
-                                                        {new Date(meeting.meeting_date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                                                    </p>
-                                                    <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">
-                                                        {new Date(meeting.meeting_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                                                    </p>
-                                                </div>
-                                            </Link>
-                                        ))}
-                                    </div>
+                                    <MeetingsCalendar
+                                        meetings={upcomingMeetings}
+                                        initialView="day"
+                                        showToolbar={true}
+                                        availableViews={['day', 'week']}
+                                    />
                                 )}
                             </div>
                         </section>

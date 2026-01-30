@@ -71,33 +71,48 @@ export async function PATCH(
         const { id } = params;
         const updates = await request.json();
 
-        // Update meeting brief
+        // 1. Fetch current meeting first to check original time
+        const { data: currentMeeting, error: fetchError } = await supabase
+            .from('meeting_briefs')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !currentMeeting) {
+            return NextResponse.json({ error: 'Meeting not found' }, { status: 404 });
+        }
+
+        const finalUpdates = { ...updates };
+        let completionDate = new Date().toISOString(); // Default to now for logging
+
+        // 2. Apply smart date logic if completing
+        if (updates.status === 'completed' && currentMeeting.status !== 'completed') {
+            const scheduledDate = new Date(currentMeeting.meeting_date);
+            const now = new Date();
+
+            // Only update time if completing BEFORE scheduled time
+            if (now < scheduledDate) {
+                finalUpdates.meeting_date = now.toISOString();
+                completionDate = now.toISOString();
+            } else {
+                // Otherwise keep the original scheduled time
+                completionDate = currentMeeting.meeting_date;
+            }
+        }
+
+        // 3. Update meeting brief
         const { data: meeting, error } = await supabase
             .from('meeting_briefs')
-            .update(updates)
+            .update(finalUpdates)
             .eq('id', id)
             .select()
             .single();
 
-        if (error) {
-            throw error;
-        }
+        if (error) throw error;
 
-        // If status is being updated to completed, log an interaction and update date
-        if (updates.status === 'completed') {
-            const completionDate = new Date().toISOString();
-
-            // Re-update the meeting with the completion date
-            const { data: updatedMeeting, error: updateError } = await supabase
-                .from('meeting_briefs')
-                .update({ ...updates, meeting_date: completionDate })
-                .eq('id', id)
-                .select()
-                .single();
-
-            if (updateError) throw updateError;
-
-            const humanMeetingType = (updatedMeeting.meeting_type || 'in_person')
+        // 4. Log interaction if completed
+        if (updates.status === 'completed' && currentMeeting.status !== 'completed') {
+            const humanMeetingType = (meeting.meeting_type || 'in_person')
                 .replace(/_/g, ' ')
                 .split(' ')
                 .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -106,17 +121,15 @@ export async function PATCH(
             await supabase
                 .from('interactions')
                 .insert({
-                    contact_id: updatedMeeting.contact_id,
+                    contact_id: meeting.contact_id,
                     interaction_type: 'meeting',
                     summary: `Completed meeting: ${humanMeetingType}`,
-                    interaction_date: completionDate,
+                    interaction_date: completionDate, // Log with the effective meeting time
                     details: {
-                        meeting_id: updatedMeeting.id,
-                        notes: updates.post_meeting_notes || updatedMeeting.post_meeting_notes
+                        meeting_id: meeting.id,
+                        notes: updates.post_meeting_notes || meeting.post_meeting_notes
                     }
                 });
-
-            return NextResponse.json({ meeting: updatedMeeting });
         }
 
         return NextResponse.json({ meeting });

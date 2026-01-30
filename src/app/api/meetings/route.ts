@@ -7,18 +7,22 @@ export async function GET(request: NextRequest) {
         const supabase = createClient();
 
         const searchParams = request.nextUrl.searchParams;
-        const status = searchParams.get('status') || 'scheduled';
+        const status = searchParams.get('status');
 
-        // Fetch meeting briefs
-        const { data: meetings, error } = await supabase
+        let query = supabase
             .from('meeting_briefs')
             .select(`
                 *,
                 contact:contacts(*,company:companies(*)),
                 company:companies(*)
             `)
-            .eq('status', status)
             .order('meeting_date', { ascending: true });
+
+        if (status) {
+            query = query.eq('status', status);
+        }
+
+        const { data: meetings, error } = await query;
 
         if (error) {
             // Handle table not found (missing migration) gracefully

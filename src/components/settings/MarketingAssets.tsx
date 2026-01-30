@@ -12,6 +12,15 @@ interface MarketingAssetsProps {
     initialAssets: MarketingAsset[];
 }
 
+const ALLOWED_MIME_TYPES = [
+    'application/pdf',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/markdown'
+];
+
 export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
     const [items, setItems] = useState<MarketingAsset[]>(initialAssets);
     const [isAdding, setIsAdding] = useState(false);
@@ -131,9 +140,15 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
                                 type="file"
                                 id="asset-upload"
                                 className="hidden"
+                                accept={ALLOWED_MIME_TYPES.join(',')}
                                 onChange={(e) => {
-                                    if (e.target.files?.[0]) {
-                                        setSelectedFile(e.target.files[0]);
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+                                            toast.error('Unsupported file type');
+                                            return;
+                                        }
+                                        setSelectedFile(file);
                                     }
                                 }}
                             />
@@ -153,7 +168,7 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
                                         <>
                                             <Upload className="w-8 h-8 text-stone-300" />
                                             <p className="text-sm font-bold text-stone-400">Click to upload document</p>
-                                            <p className="text-xs text-stone-300">PDF, DOC, DOCX up to 10MB</p>
+                                            <p className="text-xs text-stone-300">PDF, Word, PPT, Markdown up to 10MB</p>
                                         </>
                                     )}
                                 </div>

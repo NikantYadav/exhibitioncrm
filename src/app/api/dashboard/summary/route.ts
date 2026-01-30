@@ -60,6 +60,9 @@ export async function GET(request: NextRequest) {
             .limit(3);
 
         // 3. Get Upcoming Meetings
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
         const { data: upcomingMeetings, error: meetingError } = await supabase
             .from('meeting_briefs')
             .select(`
@@ -67,12 +70,12 @@ export async function GET(request: NextRequest) {
                 meeting_date,
                 meeting_type,
                 meeting_location,
+                status,
                 contact:contacts(id, first_name, last_name, avatar_url, company:companies(name))
             `)
-            .eq('status', 'scheduled')
-            .gte('meeting_date', new Date().toISOString())
+            .gte('meeting_date', todayStart.toISOString())
             .order('meeting_date', { ascending: true })
-            .limit(5);
+            .limit(20);
 
         if (meetingError && meetingError.code !== 'PGRST205') {
             throw meetingError;
