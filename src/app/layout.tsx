@@ -8,6 +8,8 @@ export const metadata: Metadata = {
 
 import { Toaster } from 'sonner';
 
+import { LayoutProvider } from '@/components/layout/LayoutContext';
+
 export default function RootLayout({
     children,
 }: {
@@ -16,7 +18,9 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body>
-                {children}
+                <LayoutProvider>
+                    {children}
+                </LayoutProvider>
                 <Toaster richColors position="top-right" />
             </body>
         </html>

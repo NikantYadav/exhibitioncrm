@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Search, Target, Mail } from 'lucide-react';
 
-import { Header } from '@/components/layout/Header';
+import { AppShell } from '@/components/layout/AppShell';
 
 export default function PreparationLayout({
     children,
@@ -24,46 +24,46 @@ export default function PreparationLayout({
     ];
 
     return (
-        <div className="min-h-screen bg-stone-50">
-            <Header />
+        <AppShell>
+            <div className="space-y-6">
+                <div className="premium-card bg-white overflow-hidden">
+                    <div className="px-8 py-6">
+                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                            <div>
+                                <h1 className="text-2xl font-black text-stone-900 tracking-tight">Event Preparation</h1>
+                                <p className="text-sm font-medium text-stone-400 mt-1 italic">Research attendees, build target lists, and draft outreach.</p>
+                            </div>
 
-            <div className="bg-white border-b border-stone-200">
-                <div className="px-8 py-6 max-w-[1600px] mx-auto">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                        <div>
-                            <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Event Preparation</h1>
-                            <p className="text-sm text-stone-500 mt-1">Research attendees, build target lists, and draft outreach.</p>
+                            <nav className="flex items-center gap-1 bg-stone-100/50 p-1 rounded-xl border border-stone-200/40">
+                                {tabs.map((tab) => {
+                                    const Icon = tab.icon;
+                                    const isActive = pathname === tab.href;
+                                    return (
+                                        <Link
+                                            key={tab.name}
+                                            href={tab.href}
+                                            className={`
+                                                flex items-center px-5 py-2 text-sm font-bold rounded-lg transition-all
+                                                ${isActive
+                                                    ? 'bg-white text-stone-900 shadow-sm border border-stone-100'
+                                                    : 'text-stone-400 hover:text-stone-600 hover:bg-white/50'}
+                                            `}
+                                        >
+                                            <Icon className={`mr-2 h-4 w-4 ${isActive ? 'text-stone-900' : 'text-stone-300'}`} />
+                                            {tab.name}
+                                        </Link>
+                                    );
+                                })}
+                            </nav>
                         </div>
-
-                        <nav className="flex items-center gap-1 bg-stone-50 p-1 rounded-xl border border-stone-200/60">
-                            {tabs.map((tab) => {
-                                const Icon = tab.icon;
-                                const isActive = pathname === tab.href;
-                                return (
-                                    <Link
-                                        key={tab.name}
-                                        href={tab.href}
-                                        className={`
-                                            flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all
-                                            ${isActive
-                                                ? 'bg-white text-indigo-600 shadow-sm border border-stone-200/60'
-                                                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'}
-                                        `}
-                                    >
-                                        <Icon className={`mr-2 h-4 w-4 ${isActive ? 'text-indigo-600' : 'text-stone-400'}`} />
-                                        {tab.name}
-                                    </Link>
-                                );
-                            })}
-                        </nav>
                     </div>
                 </div>
-            </div>
 
-            <main className="max-w-[1600px] mx-auto p-8">
-                {children}
-            </main>
-        </div>
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {children}
+                </div>
+            </div>
+        </AppShell>
     );
 }
 

@@ -3,7 +3,7 @@
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
 import {
-    Plug,
+    Plug2,
     Zap,
     ShieldCheck,
     Share2,
@@ -11,49 +11,50 @@ import {
     Mail,
     MessageSquare,
     Globe,
-    Lock
+    Lock,
+    Command
 } from 'lucide-react';
 
 export default function IntegrationsPage() {
     const plannedIntegrations = [
         {
-            name: 'Salesforce',
-            description: 'Sync your exhibition leads directly to your CRM with real-time field mapping.',
+            name: 'Salesforce CRM',
+            description: 'Direct bi-directional sync for leads, opportunities, and contact history.',
             icon: Database,
             color: 'bg-blue-50 text-blue-600',
             status: 'Q3 2026'
         },
         {
-            name: 'HubSpot',
-            description: 'Automated workflow triggers based on lead capture and interaction notes.',
+            name: 'HubSpot Marketing',
+            description: 'Automatic campaign tagging and workflow triggers for captured leads.',
             icon: Zap,
             color: 'bg-orange-50 text-orange-600',
             status: 'Q3 2026'
         },
         {
-            name: 'Zapier',
-            description: 'Connect with over 5,000+ apps to automate your exhibition follow-up process.',
+            name: 'Zapier Automation',
+            description: 'Connect exhibition data to 5,000+ custom business workflows.',
             icon: Share2,
             color: 'bg-stone-50 text-stone-900',
             status: 'In Development'
         },
         {
-            name: 'Outlook & Gmail',
-            description: 'Send follow-up drafts directly from your primary business email account.',
+            name: 'Microsoft Outlook',
+            description: 'Sync drafts and contacts directly to your enterprise mailbox.',
             icon: Mail,
             color: 'bg-indigo-50 text-indigo-600',
             status: 'Q2 2026'
         },
         {
-            name: 'Slack',
-            description: 'Get real-time team notifications when high-priority leads are captured.',
+            name: 'Slack Teams',
+            description: 'Real-time alerts for high-value captures and team follow-up coordination.',
             icon: MessageSquare,
             color: 'bg-purple-50 text-purple-600',
             status: 'Coming Soon'
         },
         {
-            name: 'LinkedIn',
-            description: 'Directly connect with captured leads and view enriched profile data.',
+            name: 'LinkedIn Sales',
+            description: 'Identify and connect with exhibition leads via LinkedIn Sales Navigator.',
             icon: Globe,
             color: 'bg-sky-50 text-sky-600',
             status: 'Planned'
@@ -62,60 +63,67 @@ export default function IntegrationsPage() {
 
     return (
         <AppShell>
-            <div className="max-w-6xl mx-auto py-12 px-4">
+            <div className="max-w-5xl mx-auto py-8">
                 {/* Hero Section */}
-                <div className="text-center mb-20 space-y-6">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-semibold mb-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <Plug className="w-4 h-4" />
-                        <span>Integrations Ecosystem</span>
+                <div className="mb-16">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-stone-900 text-white rounded-lg">
+                            <Plug2 className="w-5 h-5" />
+                        </div>
+                        <span className="text-xs font-black uppercase tracking-widest text-stone-400">Integrations</span>
                     </div>
-                    <h1 className="text-5xl md:text-6xl font-black text-stone-900 tracking-tight leading-tight">
-                        Power up your <span className="text-indigo-600">workstack.</span>
+                    <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-4">
+                        Extend your exhibition <br /><span className="text-stone-400 italic font-medium">capabilities.</span>
                     </h1>
-                    <p className="text-xl text-stone-500 max-w-2xl mx-auto font-medium">
-                        Connect your exhibition captures with the tools you use every day.
-                        We're building seamless bridges to your favorite CRMs and productivity apps.
+                    <p className="text-lg text-stone-500 max-w-xl font-medium leading-relaxed">
+                        We're building mission-critical integrations to ensure your exhibition data flows seamlessly into your existing enterprise stack.
                     </p>
                 </div>
 
                 {/* Coming Soon Grid */}
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
                     {plannedIntegrations.map((item, index) => (
                         <div
                             key={item.name}
-                            className="premium-card p-8 group hover:border-indigo-200 transition-all duration-300 relative overflow-hidden animate-in fade-in slide-in-from-bottom-8"
-                            style={{ animationDelay: `${index * 100}ms`, animationFillMode: 'both' }}
+                            className="premium-card p-8 group hover:border-stone-900 transition-all duration-500 relative flex flex-col items-start translate-gpu"
                         >
-                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                <item.icon size={80} />
+                            <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-500">
+                                <item.icon size={100} strokeWidth={1} />
                             </div>
 
-                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 shadow-sm ${item.color}`}>
-                                <item.icon className="w-7 h-7" />
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-8 shadow-sm ${item.color} group-hover:scale-110 transition-transform`}>
+                                <item.icon className="w-6 h-6" />
                             </div>
 
-                            <span className="inline-block text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-2">
-                                {item.status}
-                            </span>
-                            <h3 className="text-xl font-bold text-stone-900 mb-3">{item.name}</h3>
-                            <p className="text-sm text-stone-500 leading-relaxed">
-                                {item.description}
-                            </p>
+                            <div className="mt-auto">
+                                <span className="inline-block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-2 group-hover:text-stone-900 transition-colors">
+                                    Release: {item.status}
+                                </span>
+                                <h3 className="text-lg font-black text-stone-900 mb-2">{item.name}</h3>
+                                <p className="text-sm text-stone-500 font-medium leading-relaxed">
+                                    {item.description}
+                                </p>
+                            </div>
                         </div>
                     ))}
                 </div>
 
-
-                {/* Footer Security Note */}
-                <div className="mt-12 flex items-center justify-center gap-6 text-stone-400 text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                        <Lock className="w-4 h-4" />
-                        <span>Secure API Connections</span>
+                {/* Footer Notes */}
+                <div className="pt-12 border-t border-stone-100 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60 grayscale hover:grayscale-0 transition-all">
+                    <div className="flex items-center gap-8">
+                        <div className="flex items-center gap-2 text-stone-900 text-xs font-bold">
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>Enterprise Security</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-stone-900 text-xs font-bold">
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>GDPR Compliant</span>
+                        </div>
                     </div>
-                    <div className="w-1 h-1 bg-stone-200 rounded-full" />
-                    <div className="flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>GDPR Compliant Sync</span>
+
+                    <div className="flex items-center gap-2 px-3 py-1 bg-stone-100 rounded-full text-[10px] font-bold text-stone-500">
+                        <Command className="w-3 h-3" />
+                        <span>Integration Mode: Auto-Sync Only</span>
                     </div>
                 </div>
             </div>

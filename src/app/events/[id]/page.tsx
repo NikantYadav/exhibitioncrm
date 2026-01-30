@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { Header } from '@/components/layout/Header';
+import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EventStats } from '@/components/events/EventStats';
@@ -77,9 +77,8 @@ export default function EventDetailPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen pb-12" style={{ background: '#f9fafb' }}>
-                <Header />
-                <main className="container pt-8 space-y-8">
+            <AppShell>
+                <div className="space-y-8">
                     <Skeleton className="h-10 w-48 mb-6" />
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-1">
@@ -94,35 +93,33 @@ export default function EventDetailPage() {
                             <Skeleton className="h-[400px] rounded-3xl" />
                         </div>
                     </div>
-                </main>
-            </div>
+                </div>
+            </AppShell>
         );
     }
 
     if (!event) {
         return (
-            <div className="min-h-screen" style={{ background: '#f9fafb' }}>
-                <Header />
-                <main className="container" style={{ paddingTop: '2rem' }}>
-                    <div className="card">
-                        <p>Event not found</p>
-                    </div>
-                </main>
-            </div>
+            <AppShell>
+                <div className="premium-card p-12 text-center">
+                    <p className="text-body">Event not found</p>
+                    <Button onClick={() => router.push('/events')} className="mt-4">
+                        Back to Events
+                    </Button>
+                </div>
+            </AppShell>
         );
     }
 
     return (
-        <div className="min-h-screen" style={{ background: '#f9fafb' }}>
-            <Header />
-
-            <main className="container" style={{ paddingTop: '2rem', paddingBottom: '2rem' }}>
+        <AppShell>
+            <div className="space-y-6">
                 {/* Back Button */}
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => router.push('/events')}
-                    style={{ marginBottom: '1.5rem' }}
+                    className="text-stone-500 hover:text-stone-900"
                 >
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Events
@@ -149,32 +146,32 @@ export default function EventDetailPage() {
                         </div>
 
                         {/* Tabs */}
-                        <div className="card" style={{ padding: 0 }}>
+                        <div className="premium-card overflow-hidden">
                             {/* Tab Headers */}
-                            <div className="flex border-b border-gray-200">
+                            <div className="flex border-b border-stone-100 bg-stone-50/50">
                                 <button
                                     onClick={() => setActiveTab('research')}
-                                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'research'
-                                        ? 'border-blue-600 text-blue-600'
-                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                    className={`px-6 py-4 text-sm font-bold border-b-2 transition-all ${activeTab === 'research'
+                                        ? 'border-stone-900 text-stone-900 bg-white'
+                                        : 'border-transparent text-stone-400 hover:text-stone-600'
                                         }`}
                                 >
                                     Research & Prep
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('captures')}
-                                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'captures'
-                                        ? 'border-blue-600 text-blue-600'
-                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                    className={`px-6 py-4 text-sm font-bold border-b-2 transition-all ${activeTab === 'captures'
+                                        ? 'border-stone-900 text-stone-900 bg-white'
+                                        : 'border-transparent text-stone-400 hover:text-stone-600'
                                         }`}
                                 >
                                     Captures
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('followups')}
-                                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'followups'
-                                        ? 'border-blue-600 text-blue-600'
-                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                    className={`px-6 py-4 text-sm font-bold border-b-2 transition-all ${activeTab === 'followups'
+                                        ? 'border-stone-900 text-stone-900 bg-white'
+                                        : 'border-transparent text-stone-400 hover:text-stone-600'
                                         }`}
                                 >
                                     Follow-ups
@@ -187,12 +184,12 @@ export default function EventDetailPage() {
                                 {activeTab === 'research' && (
                                     <div className="space-y-6">
                                         {/* Sub-Tabs */}
-                                        <div className="flex gap-1 bg-gray-50 p-1 rounded-lg w-fit mb-6">
+                                        <div className="flex gap-1 bg-stone-100/50 p-1 rounded-xl w-fit mb-6">
                                             <button
                                                 onClick={() => setActivePrepTab('targets')}
-                                                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${activePrepTab === 'targets'
-                                                    ? 'bg-white text-blue-600 shadow-sm'
-                                                    : 'text-gray-500 hover:text-gray-700'
+                                                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activePrepTab === 'targets'
+                                                    ? 'bg-white text-stone-900 shadow-sm'
+                                                    : 'text-stone-400 hover:text-stone-600'
                                                     }`}
                                             >
                                                 Target List
@@ -200,9 +197,9 @@ export default function EventDetailPage() {
 
                                             <button
                                                 onClick={() => setActivePrepTab('emails')}
-                                                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${activePrepTab === 'emails'
-                                                    ? 'bg-white text-blue-600 shadow-sm'
-                                                    : 'text-gray-500 hover:text-gray-700'
+                                                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activePrepTab === 'emails'
+                                                    ? 'bg-white text-stone-900 shadow-sm'
+                                                    : 'text-stone-400 hover:text-stone-600'
                                                     }`}
                                             >
                                                 Email Drafts
@@ -218,8 +215,6 @@ export default function EventDetailPage() {
                                                 onDeleteTarget={handleDeleteTarget}
                                             />
                                         )}
-
-
 
                                         {/* Email Drafts Section */}
                                         {activePrepTab === 'emails' && (
@@ -252,7 +247,7 @@ export default function EventDetailPage() {
                         </div>
                     </div>
                 </div>
-            </main>
+            </div>
 
             {/* Modals */}
             <CompanySearchModal
@@ -393,6 +388,6 @@ export default function EventDetailPage() {
                 target={viewingTarget || undefined}
                 onEdit={() => viewingTarget && handleEditTarget(viewingTarget)}
             />
-        </div>
+        </AppShell>
     );
 }

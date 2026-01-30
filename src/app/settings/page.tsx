@@ -99,14 +99,6 @@ export default function SettingsPage() {
                             </div>
                         </section>
 
-                        <div className="bg-stone-50 rounded-[2rem] p-8 space-y-4 border border-stone-200/50">
-                            <div className="space-y-4">
-                                <h3 className="text-xl font-black leading-tight text-stone-900">System Ready.</h3>
-                                <p className="text-stone-500 text-sm leading-relaxed">
-                                    All profile data and uploaded assets are synchronized and accessible by AI for meeting synthesis.
-                                </p>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>

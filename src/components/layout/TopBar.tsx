@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/Button';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
+import { toast } from 'sonner';
+
+import { NotificationsDropdown } from './NotificationsDropdown';
+
 export function TopBar() {
     const pathname = usePathname();
 
@@ -44,26 +48,21 @@ export function TopBar() {
                         size="icon"
                         className="h-9 w-9 rounded-xl text-stone-500 hover:text-stone-900 hover:bg-stone-50"
                         aria-label="Help"
+                        onClick={() => toast.info('Help center is coming soon.')}
                     >
                         <HelpCircle className="h-4 w-4" />
                     </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 rounded-xl text-stone-500 hover:text-stone-900 hover:bg-stone-50"
-                        aria-label="Mail"
-                    >
-                        <Mail className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 rounded-xl text-stone-500 hover:text-stone-900 hover:bg-stone-50 relative"
-                        aria-label="Notifications"
-                    >
-                        <Bell className="h-4 w-4" />
-                        <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-indigo-500 border border-white" />
-                    </Button>
+                    <Link href="/follow-ups">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-xl text-stone-500 hover:text-stone-900 hover:bg-stone-50"
+                            aria-label="Mail"
+                        >
+                            <Mail className="h-4 w-4" />
+                        </Button>
+                    </Link>
+                    <NotificationsDropdown />
                 </div>
 
                 <div className="flex items-center gap-3 pl-1">
