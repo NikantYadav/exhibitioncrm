@@ -39,9 +39,8 @@ export default function EmailDrafter({ targets, eventId }: { targets: any[], eve
         setIsGenerating(true);
         const genToast = toast.loading('Drafting email with AI...');
 
-        const selectedAssetNames = availableAssets
-            .filter(a => selectedAssetIds.includes(a.id))
-            .map(a => a.name);
+        const selectedAssets = availableAssets
+            .filter(a => selectedAssetIds.includes(a.id));
 
         const data = {
             type: emailType,
@@ -52,7 +51,7 @@ export default function EmailDrafter({ targets, eventId }: { targets: any[], eve
             },
             event: { name: 'the Exhibition' }, // Ideally fetch real event name
             context: `Background: ${selectedTarget.company.description}. \nTalking Points: ${selectedTarget.talking_points || 'None'}`,
-            attachments: selectedAssetNames
+            attachments: selectedAssets
         };
 
         const response = await generateEmailDraftAction(data);

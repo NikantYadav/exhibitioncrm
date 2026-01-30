@@ -36,24 +36,22 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-12">
-                    {/* Main Workbench (Profile & Assets) */}
+                    {/* Main Workbench (Profile) */}
                     <div className="xl:col-span-2 space-y-12">
-                        <ProfileSection>
-                            <MarketingAssets initialAssets={assets} />
-                        </ProfileSection>
+                        <ProfileSection />
                     </div>
 
-                    {/* Data Management Sidebar */}
+                    {/* Sidebar (Data & Assets) */}
                     <div className="space-y-12">
-                        <section>
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2 bg-stone-100 rounded-lg">
+                        <section className="premium-card overflow-hidden">
+                            <div className="px-8 py-6 border-b border-stone-100 bg-stone-50/30 flex items-center gap-3">
+                                <div className="p-2 bg-white rounded-lg shadow-sm border border-stone-100">
                                     <Database className="w-4 h-4 text-stone-600" />
                                 </div>
-                                <h2 className="text-sm font-bold text-stone-900 uppercase tracking-widest text-[10px]">Data Management</h2>
+                                <h2 className="text-sm font-black text-stone-900 uppercase tracking-widest">Data Management</h2>
                             </div>
 
-                            <div className="premium-card p-8 space-y-8">
+                            <div className="p-8 space-y-8">
                                 <div>
                                     <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-4">Export Data</h4>
                                     <div className="grid grid-cols-2 gap-3">
@@ -99,6 +97,15 @@ export default function SettingsPage() {
                             </div>
                         </section>
 
+                        <section className="premium-card overflow-hidden">
+                            {!loading ? (
+                                <MarketingAssets initialAssets={assets} />
+                            ) : (
+                                <div className="p-8 flex justify-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-stone-900"></div>
+                                </div>
+                            )}
+                        </section>
                     </div>
                 </div>
             </div>

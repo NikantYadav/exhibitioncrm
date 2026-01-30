@@ -5,7 +5,7 @@
 
 import { tavily } from '@tavily/core';
 import { AIService } from './ai';
-import { getUserProfile, buildProfileContext } from './profile-service';
+import { getFullAIContext } from './profile-service';
 
 // Initialize Tavily client
 const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY || '' });
@@ -184,9 +184,8 @@ export class CompanyResearchService {
         }
     ): Promise<string[]> {
         try {
-            // Get user profile for context
-            const profile = await getUserProfile();
-            const profileContext = buildProfileContext(profile);
+            // Get full augmented context (Profile + RAG Global)
+            const profileContext = await getFullAIContext();
 
             let context = `Company: ${companyData.name}
 Industry: ${companyData.industry || 'Unknown'}

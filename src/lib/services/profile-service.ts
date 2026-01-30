@@ -4,6 +4,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { UserProfile } from '@/app/actions/profile-actions';
+import { EmbeddingsService } from './embeddings';
 
 let cachedProfile: UserProfile | null = null;
 let lastFetch: number = 0;
@@ -103,4 +104,20 @@ export function buildProfileContext(profile: UserProfile | null): string {
     }
 
     return parts.join('. ');
+}
+
+/**
+ * Get comprehensive context (Profile + RAG Global Context)
+ */
+export async function getFullAIContext(): Promise<string> {
+    const profile = await getUserProfile();
+    const profileContext = buildProfileContext(profile);
+
+    try {
+        const ragContext = await EmbeddingsService.getGlobalContext();
+        return `${profileContext}${ragContext}`;
+    } catch (error) {
+        console.error('Failed to get RAG context for profile:', error);
+        return profileContext;
+    }
 }

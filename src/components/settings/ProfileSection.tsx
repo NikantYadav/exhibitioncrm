@@ -6,14 +6,10 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { getProfile, updateProfile, UserProfile } from '@/app/actions/profile-actions';
-import { User, Building2, Briefcase, Save, Loader2, Edit, X, Globe, Mail, Phone, Linkedin, Twitter } from 'lucide-react';
+import { User, Building2, Briefcase, Save, Loader2, Edit, X, Globe, Mail, Phone, Linkedin } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface ProfileSectionProps {
-    children?: React.ReactNode;
-}
-
-export function ProfileSection({ children }: ProfileSectionProps) {
+export function ProfileSection() {
     const [profile, setProfile] = useState<UserProfile>({
         profile_type: 'company',
         name: '',
@@ -22,6 +18,7 @@ export function ProfileSection({ children }: ProfileSectionProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [initialProfile, setInitialProfile] = useState<UserProfile | null>(null);
 
     useEffect(() => {
         loadProfile();
@@ -32,6 +29,7 @@ export function ProfileSection({ children }: ProfileSectionProps) {
         const result = await getProfile();
         if (result.profile) {
             setProfile(result.profile);
+            setInitialProfile(result.profile);
         }
         setIsLoading(false);
     };
@@ -75,14 +73,16 @@ export function ProfileSection({ children }: ProfileSectionProps) {
                         </div>
                         <div>
                             <h3 className="text-section-header">Profile</h3>
-                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Personal information for AI</p>
                         </div>
                     </div>
                     {!isEditing && (
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setIsEditing(true)}
+                            onClick={() => {
+                                setInitialProfile(profile);
+                                setIsEditing(true);
+                            }}
                             className="rounded-full px-4 border-stone-300 hover:bg-stone-900 hover:text-white transition-all duration-300"
                         >
                             <Edit className="h-4 w-4 mr-2" />
@@ -151,11 +151,11 @@ export function ProfileSection({ children }: ProfileSectionProps) {
                                             className="bg-stone-50/50 border-stone-200"
                                         />
                                         <Textarea
-                                            label="Value Proposition"
+                                            label="Who we are"
                                             rows={4}
                                             value={profile.value_proposition || ''}
                                             onChange={(e) => updateField('value_proposition', e.target.value)}
-                                            placeholder="Why choose you?"
+                                            placeholder="A brief description of your company..."
                                             className="bg-stone-50/50 border-stone-200"
                                         />
                                     </div>
@@ -187,34 +187,27 @@ export function ProfileSection({ children }: ProfileSectionProps) {
 
                                     <div className="space-y-4 pt-4">
                                         <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Contact Links</span>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-4">
                                             <Input
                                                 label="Website"
                                                 value={profile.website || ''}
                                                 onChange={(e) => updateField('website', e.target.value)}
                                                 placeholder="https://..."
-                                                className="bg-stone-50/50 border-stone-200"
+                                                className="bg-white border-stone-200 rounded-xl px-4"
                                             />
                                             <Input
-                                                label="LinkedIn"
+                                                label="LinkedIn Username"
                                                 value={profile.linkedin_url || ''}
                                                 onChange={(e) => updateField('linkedin_url', e.target.value)}
-                                                placeholder="Profile link"
-                                                className="bg-stone-50/50 border-stone-200"
-                                            />
-                                            <Input
-                                                label="X"
-                                                value={profile.twitter_url || ''}
-                                                onChange={(e) => updateField('twitter_url', e.target.value)}
-                                                placeholder="Handle"
-                                                className="bg-stone-50/50 border-stone-200"
+                                                placeholder="e.g. johndoe"
+                                                className="bg-white border-stone-200 rounded-xl px-4"
                                             />
                                             <Input
                                                 label="Email"
                                                 value={profile.email || ''}
                                                 onChange={(e) => updateField('email', e.target.value)}
                                                 placeholder="example@..."
-                                                className="bg-stone-50/50 border-stone-200"
+                                                className="bg-white border-stone-200 rounded-xl px-4"
                                             />
                                         </div>
                                     </div>
@@ -225,8 +218,10 @@ export function ProfileSection({ children }: ProfileSectionProps) {
                                 <Button
                                     variant="ghost"
                                     onClick={() => {
+                                        if (initialProfile) {
+                                            setProfile(initialProfile);
+                                        }
                                         setIsEditing(false);
-                                        loadProfile();
                                     }}
                                     className="text-stone-500 hover:text-stone-900"
                                 >
@@ -247,82 +242,103 @@ export function ProfileSection({ children }: ProfileSectionProps) {
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-                            <div className="md:col-span-2 space-y-12">
-                                <div className="space-y-3">
-                                    <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Overview</h4>
-                                    <h1 className="text-4xl font-black text-stone-900 tracking-tight">{profile.name}</h1>
-                                    <p className="text-xl text-stone-500 font-medium italic">{profile.tagline || 'No description set'}</p>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-8 border-t border-stone-100">
-                                    <div className="space-y-4">
-                                        <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Industry</span>
-                                            <p className="text-stone-800 font-bold">{profile.industry || 'Not set'}</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Location</span>
-                                            <p className="text-stone-800 font-bold">{profile.location || 'Not set'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Status</span>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full bg-green-500" />
-                                                <p className="text-stone-800 font-bold capitalize">{profile.profile_type}</p>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">AI Tone</span>
-                                            <p className="text-stone-800 font-bold capitalize">{profile.ai_tone}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-6 pt-8 border-t border-stone-100">
-                                    <div className="space-y-3">
-                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Value Proposition</span>
-                                        <p className="text-stone-700 leading-relaxed italic text-lg opacity-80">
-                                            "{profile.value_proposition || 'Describe your values here.'}"
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* MARKETING ASSETS INTEGRATION POINT */}
-                                {children && (
-                                    <div className="pt-12 border-t border-stone-100">
-                                        {children}
-                                    </div>
-                                )}
+                        <div className="space-y-10">
+                            <div className="space-y-3">
+                                <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Overview</h4>
+                                <h1 className="text-4xl font-black text-stone-900 tracking-tight">{profile.name}</h1>
+                                <p className="text-xl text-stone-500 font-medium italic leading-relaxed">{profile.tagline || 'No description set'}</p>
                             </div>
 
-                            <div className="space-y-8">
-                                <div className="bg-stone-50/50 rounded-3xl p-6 space-y-4 border border-stone-100">
-                                    <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Contact Information</h4>
-                                    <div className="space-y-4">
-                                        {[
-                                            { icon: Globe, val: profile.website, label: 'Website' },
-                                            { icon: Mail, val: profile.email, label: 'Email' },
-                                            { icon: Phone, val: profile.phone, label: 'Phone' },
-                                            { icon: Linkedin, val: profile.linkedin_url, label: 'LinkedIn' },
-                                            { icon: Twitter, val: profile.twitter_url, label: 'X' }
-                                        ].map((item, i) => (
-                                            <div key={i} className="flex items-center gap-3">
-                                                <item.icon className="w-4 h-4 text-stone-400" />
-                                                <span className={`text-sm ${item.val ? 'text-stone-900 font-bold' : 'text-stone-300 italic'}`}>
-                                                    {item.val || `${item.label}`}
-                                                </span>
-                                            </div>
-                                        ))}
+                            {/* Unified Info Board */}
+                            <div className="bg-stone-50/50 rounded-3xl p-8 border border-stone-200/60 shadow-sm">
+                                {/* Key Attributes Grid */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Industry</span>
+                                        <p className="text-stone-900 font-bold truncate" title={profile.industry || ''}>{profile.industry || 'Not set'}</p>
+                                    </div>
+                                    <div className="space-y-1 min-w-0">
+                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Location</span>
+                                        <p className="text-stone-900 font-bold break-words leading-tight">{profile.location || 'Not set'}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Status</span>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                                            <p className="text-stone-900 font-bold capitalize truncate">{profile.profile_type}</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">AI Tone</span>
+                                        <p className="text-stone-900 font-bold capitalize truncate">{profile.ai_tone}</p>
                                     </div>
                                 </div>
 
-                                <div className="bg-stone-900 rounded-3xl p-6 text-white space-y-3 shadow-xl shadow-stone-200">
-                                    <h4 className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">AI Context</h4>
-                                    <p className="text-xs text-stone-400 leading-relaxed">
-                                        This info is shared with AI to help it understand you better during synthesis.
+                                <div className="h-px bg-stone-200/80 my-8" />
+
+                                {/* Horizontal Contact Row */}
+                                <div className="flex flex-wrap items-center gap-x-12 gap-y-6">
+                                    {profile.website && (
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-1.5 bg-white rounded-lg border border-stone-100 shadow-sm shrink-0">
+                                                <Globe className="w-3.5 h-3.5 text-stone-400" />
+                                            </div>
+                                            <a
+                                                href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-sm text-stone-900 font-bold hover:text-indigo-600 underline decoration-stone-200 underline-offset-4 transition-colors"
+                                            >
+                                                {profile.website.replace(/^https?:\/\//, '')}
+                                            </a>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-1.5 bg-white rounded-lg border border-stone-100 shadow-sm shrink-0">
+                                            <Mail className="w-3.5 h-3.5 text-stone-400" />
+                                        </div>
+                                        <span className="text-sm text-stone-900 font-bold whitespace-nowrap">
+                                            {profile.email || 'No email'}
+                                        </span>
+                                    </div>
+                                    {profile.phone && (
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-1.5 bg-white rounded-lg border border-stone-100 shadow-sm shrink-0">
+                                                <Phone className="w-3.5 h-3.5 text-stone-400" />
+                                            </div>
+                                            <span className="text-sm text-stone-900 font-bold whitespace-nowrap">{profile.phone}</span>
+                                        </div>
+                                    )}
+                                    {profile.linkedin_url && (
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-1.5 bg-white rounded-lg border border-stone-100 shadow-sm shrink-0">
+                                                <Linkedin className="w-3.5 h-3.5 text-stone-400" />
+                                            </div>
+                                            <a
+                                                href={profile.linkedin_url.startsWith('http') ? profile.linkedin_url : `https://linkedin.com/in/${profile.linkedin_url}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-sm text-stone-900 font-bold hover:text-indigo-600 underline decoration-stone-200 underline-offset-4 transition-colors"
+                                            >
+                                                {profile.linkedin_url.replace(/\/$/, '').split('/').pop() || 'LinkedIn'}
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Full Width Text Sections */}
+                            <div className="space-y-12 py-4">
+                                <div className="space-y-3">
+                                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Description</span>
+                                    <p className="text-stone-700 leading-relaxed italic text-lg opacity-90">
+                                        "{profile.value_proposition || 'Tell your story here.'}"
+                                    </p>
+                                </div>
+                                <div className="space-y-3">
+                                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Products & Services</span>
+                                    <p className="text-stone-700 leading-relaxed font-medium text-lg">
+                                        {profile.products_services || 'List your offerings here.'}
                                     </p>
                                 </div>
                             </div>

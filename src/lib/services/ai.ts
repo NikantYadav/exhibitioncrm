@@ -3,9 +3,19 @@ import { LiteLLMService, LiteLLMMessage } from './litellm-service';
 // Legacy OpenAI import for backward compatibility
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+// OpenAI instance for legacy fallback (lazy initialized)
+let openaiInstance: OpenAI | null = null;
+const getOpenAI = () => {
+    if (!openaiInstance) {
+        if (!process.env.OPENAI_API_KEY) {
+            throw new Error('OPENAI_API_KEY is missing');
+        }
+        openaiInstance = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+        });
+    }
+    return openaiInstance;
+};
 
 // Initialize LiteLLM with Gemini as default
 const litellm = new LiteLLMService({
@@ -66,7 +76,7 @@ export class AIService {
             maxTokens?: number;
         }
     ): Promise<string> {
-        const response = await openai.chat.completions.create({
+        const response = await getOpenAI().chat.completions.create({
             model: options?.model || 'gpt-4-turbo-preview',
             messages,
             temperature: options?.temperature || 0.7,
@@ -112,7 +122,7 @@ export class AIService {
             temperature?: number;
         }
     ): AsyncGenerator<string> {
-        const stream = await openai.chat.completions.create({
+        const stream = await getOpenAI().chat.completions.create({
             model: options?.model || 'gpt-4-turbo-preview',
             messages,
             temperature: options?.temperature || 0.7,
@@ -171,5 +181,11 @@ export class AIService {
      */
     static parseJSON<T>(text: string): T {
         return litellm.cleanAndParseJSON<T>(text);
+    }
+    /**
+     * Generate embedding for text
+     */
+    static async generateEmbedding(text: string): Promise<number[]> {
+        return litellm.generateEmbedding(text);
     }
 }

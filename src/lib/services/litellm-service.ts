@@ -398,6 +398,24 @@ export class LiteLLMService {
     }
 
     /**
+     * Generate embedding for text
+     */
+    async generateEmbedding(text: string): Promise<number[]> {
+        if (this.config.provider !== 'gemini') {
+            throw new Error('Embeddings are currently only implemented for Gemini in this service');
+        }
+
+        return this.withGemini(async (apiKey) => {
+            const { GoogleGenerativeAI } = await import('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+
+            const result = await model.embedContent(text);
+            return result.embedding.values;
+        });
+    }
+
+    /**
      * Clean and parse JSON from AI response
      */
     public cleanAndParseJSON<T>(text: string): T {
