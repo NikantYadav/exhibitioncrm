@@ -41,12 +41,12 @@ export function AppShell({ children }: AppShellProps) {
                         "group relative flex items-center justify-center p-4 rounded-2xl shadow-2xl transition-all duration-300 overflow-hidden",
                         "bg-stone-900 text-white hover:bg-stone-800"
                     )}
-                    title="Quick Record"
+                    title="New Note"
                 >
                     <div className="relative z-10 flex items-center gap-0 group-hover:gap-3 transition-all duration-300">
                         <Plus className="h-6 w-6 stroke-[3px]" />
                         <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-in-out font-black text-xs uppercase tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100">
-                            Fast Note
+                            Add Note
                         </span>
                     </div>
                 </button>

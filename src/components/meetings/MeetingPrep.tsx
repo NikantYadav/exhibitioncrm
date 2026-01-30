@@ -26,16 +26,16 @@ export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: M
                 <div className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-stone-100 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-500">
                     <Sparkles className="h-8 w-8 text-stone-400" />
                 </div>
-                <h3 className="text-xl font-bold text-stone-900 mb-2">Synthesize Intelligence</h3>
+                <h3 className="text-xl font-bold text-stone-900 mb-2">AI Insights</h3>
                 <p className="text-stone-500 mb-8 max-w-sm mx-auto text-sm leading-relaxed">
-                    Let AI analyze the complete relationship graph and historical documents to prepare your briefing.
+                    Let AI analyze your interaction history and documents to prepare for your meeting.
                 </p>
                 <Button
                     onClick={onGenerate}
                     className="bg-stone-900 hover:bg-black text-white px-8 rounded-full shadow-lg shadow-stone-200"
                 >
                     <Sparkles className="h-4 w-4 mr-2" />
-                    Commence Synthesis
+                    Generate Insights
                 </Button>
             </div>
         );
@@ -49,8 +49,8 @@ export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: M
                     <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-stone-400" />
                 </div>
                 <div className="text-center space-y-1">
-                    <p className="text-stone-900 font-bold tracking-tight">Synthesizing Relationship Graph</p>
-                    <p className="text-stone-400 text-xs uppercase tracking-[0.2em]">Cross-referencing docs & history</p>
+                    <p className="text-stone-900 font-bold tracking-tight">Generating AI Insights</p>
+                    <p className="text-stone-400 text-xs uppercase tracking-[0.2em]">Analyzing history and documents</p>
                 </div>
             </div>
         );
@@ -68,7 +68,7 @@ export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: M
                         disabled={isGenerating}
                     >
                         <RefreshCw className={`h-4 w-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
-                        Refresh Intelligence
+                        Refresh Insights
                     </Button>
                 </div>
             )}
@@ -82,8 +82,8 @@ export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: M
                                 <User className="h-5 w-5" />
                             </div>
                             <div>
-                                <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Identity Synthesis</h3>
-                                <p className="text-xl font-bold text-stone-900">Executive Profile</p>
+                                <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">AI Summary</h3>
+                                <p className="text-xl font-bold text-stone-900">Contact Overview</p>
                             </div>
                         </div>
                         <p className="text-2xl font-medium text-stone-800 leading-[1.6] italic pr-12">
@@ -100,7 +100,7 @@ export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: M
                         <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-600 flex items-center justify-center">
                             <HistoryIcon className="h-4 w-4" />
                         </div>
-                        <h3 className="text-sm font-bold text-stone-900 uppercase tracking-widest">History Context</h3>
+                        <h3 className="text-sm font-bold text-stone-900 uppercase tracking-widest">Meeting Context</h3>
                     </div>
 
                     <div className="space-y-6">
@@ -129,7 +129,7 @@ export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: M
                         <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-600 flex items-center justify-center">
                             <MessageSquare className="h-4 w-4" />
                         </div>
-                        <h3 className="text-sm font-bold text-stone-900 uppercase tracking-widest">Strategic Topics</h3>
+                        <h3 className="text-sm font-bold text-stone-900 uppercase tracking-widest">Talking Points</h3>
                     </div>
 
                     <ul className="space-y-4">

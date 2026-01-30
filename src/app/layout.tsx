@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-    title: 'Exhibition CRM - Personal Assistant for Events',
-    description: 'Capture leads, remember interactions, and manage relationships at exhibitions and meetings',
+    title: 'exhibit.ai - Intelligent Relationship Manager',
+    description: 'Capture leads, remember interactions, and manage relationships with AI intelligence',
 };
 
 import { Toaster } from 'sonner';

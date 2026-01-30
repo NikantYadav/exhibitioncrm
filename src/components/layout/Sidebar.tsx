@@ -46,14 +46,19 @@ export function Sidebar() {
                 <div className={cn("flex items-center w-full py-8", isSidebarCollapsed ? "justify-center" : "px-6")}>
                     <Link
                         href="/"
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-stone-900 text-white shadow-xl shadow-stone-900/10 transition-all font-black text-xl"
+                        className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-stone-900 text-white shadow-xl shadow-stone-900/20 transition-all duration-500 hover:scale-105 active:scale-95"
                     >
-                        R
+                        {/* Custom Brand Mark */}
+                        <div className="relative w-5 h-5 flex items-center justify-center">
+                            <div className="absolute inset-0 border-2 border-white/20 rounded-sm rotate-45 group-hover:rotate-180 transition-transform duration-1000" />
+                            <div className="absolute inset-0 border-2 border-white/40 rounded-sm -rotate-45 group-hover:rotate-0 transition-transform duration-1000" />
+                            <div className="w-1.5 h-1.5 bg-white rounded-full group-hover:scale-125 transition-transform duration-500 shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
+                        </div>
                     </Link>
                     {!isSidebarCollapsed && (
                         <div className="ml-4">
-                            <span className="font-black text-stone-900 tracking-tighter text-xl uppercase leading-none">Registry</span>
-                            <span className="block text-[8px] font-black text-stone-400 uppercase tracking-widest leading-none mt-1">Networking Hub</span>
+                            <span className="font-black text-stone-900 tracking-tighter text-xl lowercase leading-none">exhibit.ai</span>
+                            <span className="block text-[8px] font-black text-stone-400 uppercase tracking-widest leading-none mt-1">Intelligent CRM</span>
                         </div>
                     )}
                 </div>

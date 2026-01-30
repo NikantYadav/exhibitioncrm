@@ -104,7 +104,7 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
         if (!capturedImage) return;
 
         setIsProcessing(true);
-        const processingToast = toast.loading('Extracting information...');
+        const processingToast = toast.loading('Reading card info...');
         try {
             const analyzeResponse = await fetch('/api/ai/analyze-card', {
                 method: 'POST',
@@ -340,7 +340,7 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
                                     className="flex-[2.5] h-12 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-widest text-[10px] shadow-xl shadow-stone-900/10 transition-all active:scale-95"
                                 >
                                     {isProcessing ? <Loader2 className="mr-3 h-4 w-4 animate-spin text-white" /> : <Check className="mr-3 h-4 w-4 text-white" strokeWidth={3} />}
-                                    Save Details
+                                    Continue
                                 </Button>
                             </div>
                         </div>
@@ -437,7 +437,7 @@ function EventAssignment({ initialEventId, onBack, onAssign, leadName }: {
                     <ChevronLeft className="h-5 w-5" />
                 </Button>
                 <div>
-                    <h3 className="font-bold text-xl text-stone-900">Link to Event</h3>
+                    <h3 className="font-bold text-xl text-stone-900">Assign to Event</h3>
                     <p className="text-sm text-stone-500 font-medium italic">Contact: {leadName}</p>
                 </div>
             </div>

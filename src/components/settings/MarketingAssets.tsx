@@ -115,8 +115,8 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
         <div className="space-y-0">
             <div className="px-8 py-6 border-b border-stone-100 bg-stone-50/30 flex items-center justify-between">
                 <div>
-                    <h3 className="text-xs font-black text-stone-900 uppercase tracking-[0.2em]">Marketing Assets</h3>
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.1em] mt-1 italic">Collateral Nexus</p>
+                    <h3 className="text-xs font-black text-stone-900 uppercase tracking-[0.2em]">Assets</h3>
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.1em] mt-1 italic">Manage your materials</p>
                 </div>
                 <Button
                     onClick={() => setIsAdding(!isAdding)}
@@ -124,7 +124,7 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
                     className="h-9 px-5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-widest text-[10px] shadow-lg shadow-stone-900/10 transition-all active:scale-95"
                 >
                     <Upload className="h-3.5 w-3.5 mr-2" strokeWidth={2.5} />
-                    Deploy Asset
+                    Upload Asset
                 </Button>
             </div>
 
@@ -171,7 +171,7 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
                                             <div className="p-3 bg-white/10 rounded-xl group-hover/upload:bg-white/20 transition-colors">
                                                 <Upload className="w-6 h-6 text-white" strokeWidth={2.5} />
                                             </div>
-                                            <p className="text-sm font-black text-white/80">Select strategic document</p>
+                                            <p className="text-sm font-black text-white/80">Select document</p>
                                             <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">PDF, Word, PPT (Max 10MB)</p>
                                         </>
                                     )}
@@ -199,7 +199,7 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
                                 {isUploading ? (
                                     <>Processing...</>
                                 ) : (
-                                    <>Commit Asset</>
+                                    <>Upload Asset</>
                                 )}
                             </Button>
                         </div>
@@ -243,8 +243,8 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
                             <div className="h-16 w-16 bg-white border border-stone-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-stone-300 shadow-sm">
                                 <Database className="w-8 h-8" strokeWidth={1.5} />
                             </div>
-                            <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em]">Depository Empty</p>
-                            <p className="text-sm font-medium text-stone-400 mt-2 italic">Upload collateral for relationship acceleration.</p>
+                            <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em]">No Assets Found</p>
+                            <p className="text-sm font-medium text-stone-400 mt-2 italic">Upload materials to use in your meetings.</p>
                         </div>
                     )}
                 </div>

@@ -13,6 +13,8 @@ import { Contact } from '@/types';
 import { cn } from '@/lib/utils';
 import { RelationshipMemory, MemoryContext } from '@/components/contacts/RelationshipMemory';
 import { DocumentUpload } from '@/components/contacts/DocumentUpload';
+import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
 import { getRelationshipMemoryAction } from '@/app/actions/memory';
 import {
     ArrowLeft,
@@ -53,6 +55,15 @@ export default function ContactDetailPage() {
     const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
     const [enriching, setEnriching] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editForm, setEditForm] = useState({
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone: '',
+        job_title: '',
+        linkedin_url: ''
+    });
 
     // Memory & Documents state
     const [memory, setMemory] = useState<MemoryContext | undefined>(undefined);
@@ -98,8 +109,42 @@ export default function ContactDetailPage() {
             const contactRes = await fetch(`/api/contacts/${contactId}`);
             const contactData = await contactRes.json();
             setContact(contactData.data);
+            if (contactData.data) {
+                setEditForm({
+                    first_name: contactData.data.first_name || '',
+                    last_name: contactData.data.last_name || '',
+                    email: contactData.data.email || '',
+                    phone: contactData.data.phone || '',
+                    job_title: contactData.data.job_title || '',
+                    linkedin_url: contactData.data.linkedin_url || ''
+                });
+            }
         } catch (error) {
             console.error('Failed to fetch contact details:', error);
+        }
+    };
+
+    const handleUpdateContact = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const updateToast = toast.loading('Updating contact...');
+        try {
+            const response = await fetch(`/api/contacts/${contactId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editForm),
+            });
+
+            if (response.ok) {
+                toast.success('Contact updated', { id: updateToast });
+                setShowEditModal(false);
+                fetchContactData();
+            } else {
+                const error = await response.json();
+                toast.error(error.error || 'Failed to update contact', { id: updateToast });
+            }
+        } catch (error) {
+            console.error('Failed to update contact:', error);
+            toast.error('Error updating contact', { id: updateToast });
         }
     };
 
@@ -451,16 +496,17 @@ export default function ContactDetailPage() {
                         className="hover:bg-stone-50 text-stone-900 font-black uppercase tracking-widest text-[10px] px-0 h-10 w-fit group"
                     >
                         <ArrowLeft className="mr-3 h-4 w-4 transition-transform group-hover:-translate-x-1" strokeWidth={3} />
-                        Intelligence Registry
+                        Contacts
                     </Button>
 
                     <div className="flex items-center gap-4">
                         <Button
                             variant="outline"
+                            onClick={() => setShowEditModal(true)}
                             className="h-11 px-8 border-stone-200 text-stone-900 hover:bg-stone-50 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
                         >
                             <Edit className="mr-2 h-4 w-4" strokeWidth={2.5} />
-                            Modify Identity
+                            Edit Profile
                         </Button>
                         <Button
                             onClick={handleDeleteContact}
@@ -468,7 +514,7 @@ export default function ContactDetailPage() {
                             className="h-11 px-8 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border-none"
                         >
                             <Trash2 className="mr-2 h-4 w-4" strokeWidth={2.5} />
-                            {deleting ? 'Purging...' : 'Extract Identify'}
+                            {deleting ? 'Deleting...' : 'Delete Contact'}
                         </Button>
                     </div>
                 </div>
@@ -517,9 +563,9 @@ export default function ContactDetailPage() {
                                 </div>
                             </div>
 
-                            {/* Communication Registry */}
+                            {/* Communication Details */}
                             <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-8 space-y-6">
-                                <h3 className="text-[10px] font-black text-stone-300 uppercase tracking-[0.3em] px-2">Access Protocols</h3>
+                                <h3 className="text-[10px] font-black text-stone-300 uppercase tracking-[0.3em] px-2">Details</h3>
                                 <div className="space-y-4">
                                     {contact.email && (
                                         <div className="flex items-center gap-5 p-3 rounded-2xl hover:bg-stone-50 transition-colors group cursor-pointer border border-transparent hover:border-stone-100">
@@ -527,7 +573,7 @@ export default function ContactDetailPage() {
                                                 <Mail className="h-5 w-5" strokeWidth={2.5} />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Primary Uplink</p>
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Email</p>
                                                 <a href={`mailto:${contact.email}`} className="text-sm font-black text-stone-900 truncate block hover:text-stone-600 transition-colors">
                                                     {contact.email}
                                                 </a>
@@ -541,7 +587,7 @@ export default function ContactDetailPage() {
                                                 <Phone className="h-5 w-5" strokeWidth={2.5} />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Voice Proxy</p>
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Phone</p>
                                                 <a href={`tel:${contact.phone}`} className="text-sm font-black text-stone-900 truncate block hover:text-stone-600 transition-colors">
                                                     {contact.phone}
                                                 </a>
@@ -552,7 +598,7 @@ export default function ContactDetailPage() {
                                     {contact.linkedin_url && (
                                         <div className="flex items-center gap-5 p-3 rounded-2xl hover:bg-stone-50 transition-colors group cursor-pointer border border-transparent hover:border-stone-100">
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Network Identity</p>
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">LinkedIn</p>
                                                 <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-sm font-black text-stone-900 truncate block hover:text-stone-600 transition-colors">
                                                     Secure Link
                                                 </a>
@@ -564,7 +610,7 @@ export default function ContactDetailPage() {
 
                             {/* Quick Action Hub */}
                             <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-8 hover:shadow-md transition-shadow">
-                                <h3 className="text-[10px] font-black text-stone-300 uppercase tracking-[0.3em] px-2 mb-6">Strategic Actions</h3>
+                                <h3 className="text-[10px] font-black text-stone-300 uppercase tracking-[0.3em] px-2 mb-6">Actions</h3>
                                 <ContactQuickActions
                                     email={contact.email}
                                     phone={contact.phone}
@@ -582,10 +628,10 @@ export default function ContactDetailPage() {
                                 <div className="relative z-10">
                                     <h3 className="text-white font-black text-xl tracking-tight mb-3 flex items-center gap-3">
                                         <Sparkles className="h-5 w-5" strokeWidth={2.5} />
-                                        Advanced Enrichment
+                                        AI Research
                                     </h3>
                                     <p className="text-stone-400 text-xs font-medium leading-relaxed mb-8 italic">
-                                        "Synthesize mutual strategic interests and company telemetry automatically."
+                                        Identify shared interests and company news automatically.
                                     </p>
                                     <Button
                                         size="lg"
@@ -598,7 +644,7 @@ export default function ContactDetailPage() {
                                         ) : (
                                             <Command className="mr-3 h-4 w-4 text-stone-900" strokeWidth={3} />
                                         )}
-                                        {enriching ? 'Enriching Registry...' : 'Initialize Enrichment'}
+                                        {enriching ? 'Researching...' : 'Start Research'}
                                     </Button>
                                 </div>
                             </div>
@@ -610,7 +656,7 @@ export default function ContactDetailPage() {
                         <div className="bg-white rounded-[3rem] border border-stone-100 shadow-sm p-10 min-h-[800px] hover:shadow-md transition-shadow">
                             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-12">
                                 <h2 className="text-2xl font-black text-stone-900 tracking-tighter">
-                                    Operational Timeline
+                                    Timeline
                                 </h2>
 
                                 {/* Filter Management */}
@@ -638,7 +684,7 @@ export default function ContactDetailPage() {
                                     <InlineNoteEditor
                                         onSave={handleSaveNote}
                                         onCancel={() => setShowNoteEditor(false)}
-                                        placeholder="Capture intelligence about this profile..."
+                                        placeholder="Add a note about this contact..."
                                     />
                                 </div>
                             )}
@@ -661,7 +707,7 @@ export default function ContactDetailPage() {
                                         className="flex-1 h-14 hover:bg-white hover:shadow-xl hover:shadow-stone-900/5 rounded-[1.5rem] transition-all font-black uppercase tracking-widest text-[10px] text-stone-600 hover:text-stone-900"
                                     >
                                         <FileText className="mr-3 h-4 w-4 text-stone-900" strokeWidth={2.5} />
-                                        Deploy Text Note
+                                        Add Note
                                     </Button>
                                     <div className="w-px h-8 bg-stone-200 self-center opacity-50"></div>
                                     <Button
@@ -670,7 +716,7 @@ export default function ContactDetailPage() {
                                         className="flex-1 h-14 hover:bg-white hover:shadow-xl hover:shadow-stone-900/5 rounded-[1.5rem] transition-all font-black uppercase tracking-widest text-[10px] text-stone-600 hover:text-stone-900"
                                     >
                                         <Mic className="mr-3 h-4 w-4 text-stone-900" strokeWidth={2.5} />
-                                        Initialize Voice Capture
+                                        Record Voice
                                     </Button>
                                 </div>
                             )}
@@ -683,6 +729,59 @@ export default function ContactDetailPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Edit Contact Modal */}
+                <Modal
+                    isOpen={showEditModal}
+                    onClose={() => setShowEditModal(false)}
+                    title="Edit Contact"
+                    size="lg"
+                >
+                    <form onSubmit={handleUpdateContact} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input
+                                label="First Name"
+                                required
+                                value={editForm.first_name}
+                                onChange={(e: any) => setEditForm({ ...editForm, first_name: e.target.value })}
+                            />
+                            <Input
+                                label="Last Name"
+                                value={editForm.last_name}
+                                onChange={(e: any) => setEditForm({ ...editForm, last_name: e.target.value })}
+                            />
+                        </div>
+                        <Input
+                            label="Email"
+                            type="email"
+                            value={editForm.email}
+                            onChange={(e: any) => setEditForm({ ...editForm, email: e.target.value })}
+                        />
+                        <Input
+                            label="Phone"
+                            value={editForm.phone}
+                            onChange={(e: any) => setEditForm({ ...editForm, phone: e.target.value })}
+                        />
+                        <Input
+                            label="Job Title"
+                            value={editForm.job_title}
+                            onChange={(e: any) => setEditForm({ ...editForm, job_title: e.target.value })}
+                        />
+                        <Input
+                            label="LinkedIn URL"
+                            value={editForm.linkedin_url}
+                            onChange={(e: any) => setEditForm({ ...editForm, linkedin_url: e.target.value })}
+                        />
+                        <div className="flex justify-end gap-3 mt-6">
+                            <Button type="button" variant="outline" onClick={() => setShowEditModal(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" variant="primary">
+                                Save Changes
+                            </Button>
+                        </div>
+                    </form>
+                </Modal>
             </div>
         </AppShell>
     );

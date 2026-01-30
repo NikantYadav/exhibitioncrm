@@ -79,20 +79,20 @@ export default function ContactsPage() {
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
                         <div>
                             <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-2">Contacts</h1>
-                            <p className="text-sm font-medium text-stone-500 italic">{contacts.length} strategic connections in your arsenal</p>
+                            <p className="text-sm font-medium text-stone-500 italic">{contacts.length} contacts in your network</p>
                         </div>
                         <div className="flex items-center gap-4">
                             <a href="/api/export/excel" download>
                                 <Button variant="outline" className="h-11 px-6 rounded-xl border-stone-200 hover:bg-stone-50 text-stone-900 font-bold transition-all shadow-sm">
                                     <Download className="mr-2 h-4 w-4" strokeWidth={2.5} />
-                                    Archive Intelligence
+                                    Export List
                                 </Button>
                             </a>
                             <CaptureDropdown
                                 trigger={
                                     <Button className="h-11 px-8 bg-stone-900 hover:bg-stone-800 text-white rounded-xl shadow-xl shadow-stone-900/10 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95">
                                         <UserPlus className="mr-2 h-4 w-4" strokeWidth={2.5} />
-                                        Deploy New Link
+                                        Add Contact
                                     </Button>
                                 }
                             />
@@ -106,7 +106,7 @@ export default function ContactsPage() {
                         </div>
                         <input
                             type="text"
-                            placeholder="Identify contact by name, domain, or collective..."
+                            placeholder="Search by name, company, or email..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full h-14 pl-16 pr-6 bg-white border border-stone-100 rounded-2xl text-stone-900 placeholder:text-stone-400 font-bold focus:outline-none focus:ring-4 focus:ring-stone-900/5 focus:border-stone-900 transition-all shadow-sm"
@@ -136,19 +136,19 @@ export default function ContactsPage() {
                             <UserPlus className="h-8 w-8" strokeWidth={2.5} />
                         </div>
                         <h3 className="text-2xl font-black text-stone-900 mb-3 tracking-tight">
-                            {searchQuery ? 'Nexus Search Failed' : 'Connection Depository Empty'}
+                            {searchQuery ? 'No contacts found' : 'No contacts yet'}
                         </h3>
                         <p className="text-stone-500 font-medium italic mb-10 max-w-[380px]">
                             {searchQuery
-                                ? 'No entities matched your strategic search parameters. Reconfigure and try again.'
-                                : 'Initialize your network. Capture business intelligence or manualize new connections.'}
+                                ? 'No contacts matched your search. Try adjusting your filters.'
+                                : 'Start building your network. Add a contact manually or scan a business card.'}
                         </p>
                         {!searchQuery && (
                             <CaptureDropdown
                                 trigger={
                                     <Button size="lg" className="h-14 px-10 rounded-2xl bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-stone-900/20 active:scale-95 transition-all">
                                         <Plus className="mr-3 h-5 w-5" strokeWidth={3} />
-                                        Deploy First Link
+                                        Add First Contact
                                     </Button>
                                 }
                             />

@@ -221,7 +221,7 @@ export default function MeetingBriefPage() {
                         className="group mb-8 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 hover:text-stone-900 transition-colors"
                     >
                         <ArrowLeft className="h-3 w-3 transition-transform group-hover:-translate-x-1" />
-                        Return to Dashboard
+                        Meetings
                     </button>
 
                     <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8">
@@ -233,7 +233,7 @@ export default function MeetingBriefPage() {
 
                             <div>
                                 <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-stone-900 mb-3">
-                                    {meeting.status === 'completed' ? 'Interaction Archive' : 'Meeting Briefing'}
+                                    {meeting.status === 'completed' ? 'Meeting Details' : 'Meeting Overview'}
                                 </h1>
                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xl text-stone-500">
                                     <span className="text-stone-400">Discussion with</span>
@@ -248,7 +248,7 @@ export default function MeetingBriefPage() {
                             <div className="flex flex-wrap items-center gap-6 text-sm text-stone-500">
                                 <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full bg-stone-300" />
-                                    <span className="font-medium">{formatLabel(meeting.meeting_type)} Engagement</span>
+                                    <span className="font-medium">{formatLabel(meeting.meeting_type)} Meeting</span>
                                 </div>
                                 {meeting.meeting_location && (
                                     <div className="flex items-center gap-2">
@@ -282,7 +282,7 @@ export default function MeetingBriefPage() {
                                     : 'text-stone-500 hover:text-stone-700'
                                     }`}
                             >
-                                Briefing
+                                Meeting
                             </button>
                         )}
                         <button
@@ -292,7 +292,7 @@ export default function MeetingBriefPage() {
                                 : 'text-stone-500 hover:text-stone-700'
                                 }`}
                         >
-                            {meeting.status === 'completed' ? 'Archive Summary' : 'Session Prep'}
+                            {meeting.status === 'completed' ? 'Meeting Notes' : 'Meeting Prep'}
                         </button>
                         <button
                             onClick={() => setActiveTab('history')}
@@ -313,7 +313,7 @@ export default function MeetingBriefPage() {
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                             {/* Contact Info */}
                             <div className="premium-card p-8 lg:col-span-1">
-                                <h2 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mb-6">Contact Profile</h2>
+                                <h2 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mb-6">Contact Info</h2>
                                 <div className="space-y-6">
                                     <div>
                                         <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Full Name</p>
@@ -326,7 +326,7 @@ export default function MeetingBriefPage() {
                                     </div>
                                     {meeting.contact.job_title && (
                                         <div>
-                                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Designation</p>
+                                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Job Title</p>
                                             <p className="text-stone-700 font-medium">{meeting.contact.job_title}</p>
                                         </div>
                                     )}
@@ -344,7 +344,7 @@ export default function MeetingBriefPage() {
                                     </div>
                                     {meeting.event && (
                                         <div className="pt-4 border-t border-stone-100">
-                                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Acquisition Event</p>
+                                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Linked Event</p>
                                             <Link
                                                 href={`/events/${meeting.event.id}`}
                                                 className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-stone-50 text-xs font-bold text-stone-600 border border-stone-100 hover:bg-stone-100 transition-colors"
@@ -359,12 +359,12 @@ export default function MeetingBriefPage() {
                             {/* Briefing Intelligence Summary (Visible only when upcoming) */}
                             {meeting.status === 'scheduled' && (
                                 <div className="lg:col-span-3 premium-card p-8 flex flex-col justify-center bg-stone-50/20">
-                                    <h2 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mb-4">Briefing Status</h2>
+                                    <h2 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mb-4">Status</h2>
                                     <p className="text-2xl font-bold text-stone-900 leading-snug">
-                                        Preparing for {formatLabel(meeting.meeting_type)} Engagement
+                                        Preparing for {formatLabel(meeting.meeting_type)} Meeting
                                     </p>
                                     <p className="text-stone-500 mt-2 max-w-lg">
-                                        Use the <span className="text-stone-900 font-bold">Session Prep</span> tab to define your meeting objectives and outcomes before commencing.
+                                        Use the <span className="text-stone-900 font-bold">Meeting Prep</span> tab to define your meeting objectives before getting started.
                                     </p>
                                 </div>
                             )}
@@ -376,7 +376,7 @@ export default function MeetingBriefPage() {
                                 <div className="p-2 bg-stone-100 rounded-lg">
                                     <Lightbulb className="w-4 h-4 text-stone-600" />
                                 </div>
-                                <h2 className="text-sm font-bold text-stone-900 uppercase tracking-widest">Meeting Intelligence</h2>
+                                <h2 className="text-sm font-bold text-stone-900 uppercase tracking-widest">AI Research</h2>
                             </div>
                             <MeetingPrep
                                 contactId={meeting.contact.id}
@@ -391,7 +391,7 @@ export default function MeetingBriefPage() {
 
                 {activeTab === 'history' && (
                     <div className="premium-card p-6">
-                        <h2 className="text-section-header mb-6">Interaction Timeline</h2>
+                        <h2 className="text-section-header mb-6">Timeline</h2>
                         <ContactTimeline
                             timeline={timeline}
                             onRefresh={fetchMeetingData}
@@ -407,7 +407,7 @@ export default function MeetingBriefPage() {
                             <div className="relative overflow-hidden rounded-3xl bg-stone-900 p-8 text-white shadow-2xl">
                                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                                     <div className="space-y-2">
-                                        <h2 className="text-3xl font-bold tracking-tight">Meeting Outcome</h2>
+                                        <h2 className="text-3xl font-bold tracking-tight">Meeting Summary</h2>
                                         <p className="text-stone-400 text-sm max-w-md leading-relaxed">
                                             The discussion with {contactName} on {new Date(meeting.meeting_date).toLocaleDateString()} has been synthesized into your relationship timeline.
                                         </p>
@@ -425,7 +425,7 @@ export default function MeetingBriefPage() {
                                         <FileText className="w-5 h-5 text-stone-600" />
                                     </div>
                                     <h3 className="text-section-header">
-                                        {meeting.status === 'completed' ? 'Synthesis & Outcomes' : 'Strategic Preparation'}
+                                        {meeting.status === 'completed' ? 'Meeting Summary' : 'Meeting Prep'}
                                     </h3>
                                 </div>
                                 {!isEditingNotes && (
@@ -436,7 +436,7 @@ export default function MeetingBriefPage() {
                                         className="rounded-full px-4 border-stone-300 hover:bg-stone-900 hover:text-white transition-all duration-300"
                                     >
                                         <Edit className="h-4 w-4 mr-2" />
-                                        {postNotes ? 'Refine' : (meeting.status === 'completed' ? 'Add Outcomes' : 'Set Objectives')}
+                                        {postNotes ? 'Edit' : (meeting.status === 'completed' ? 'Add Notes' : 'Set Objectives')}
                                     </Button>
                                 )}
                             </div>
@@ -473,7 +473,7 @@ export default function MeetingBriefPage() {
                                                 className="bg-stone-900 hover:bg-black text-white px-8 rounded-full shadow-lg shadow-stone-200"
                                             >
                                                 <Save className="h-4 w-4 mr-2" />
-                                                Commit to Memory
+                                                Save Notes
                                             </Button>
                                         </div>
                                     </div>
@@ -501,10 +501,10 @@ export default function MeetingBriefPage() {
                                                     <Edit className="h-6 w-6 text-stone-400" />
                                                 </div>
                                                 <p className="text-stone-500 font-medium">
-                                                    {meeting.status === 'completed' ? 'No outcome recorded yet' : 'No prep recorded yet'}
+                                                    {meeting.status === 'completed' ? 'No notes yet' : 'No prep yet'}
                                                 </p>
                                                 <p className="text-stone-400 text-sm">
-                                                    {meeting.status === 'completed' ? 'Click to begin the archive process' : 'Click to define your objectives'}
+                                                    {meeting.status === 'completed' ? 'Click to add notes' : 'Click to define your objectives'}
                                                 </p>
                                             </div>
                                         )}

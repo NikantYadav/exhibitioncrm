@@ -63,6 +63,13 @@ export async function PUT(
     }
 }
 
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    return PUT(request, { params });
+}
+
 export async function DELETE(
     request: NextRequest,
     { params }: { params: { id: string } }

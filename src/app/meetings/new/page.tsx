@@ -114,10 +114,10 @@ export default function NewMeetingPage() {
                     className="text-stone-400 hover:text-stone-900 transition-all mb-6 flex items-center gap-2 group font-bold text-xs uppercase tracking-widest"
                 >
                     <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" strokeWidth={2.5} />
-                    Back to Schedule
+                    Meetings
                 </button>
 
-                <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-8">Schedule New Briefing</h1>
+                <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-8">Schedule Meeting</h1>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
                     {/* Contact Selection */}
@@ -126,7 +126,7 @@ export default function NewMeetingPage() {
                             <div className="p-2 bg-stone-900 text-white rounded-lg shadow-md">
                                 <Search className="w-4 h-4" strokeWidth={2.5} />
                             </div>
-                            <h2 className="text-xs font-black text-stone-900 uppercase tracking-[0.2em]">1. Select Contact</h2>
+                            <h2 className="text-xs font-black text-stone-900 uppercase tracking-[0.2em]">1. Choose Contact</h2>
                         </div>
 
                         {selectedContact ? (
@@ -159,7 +159,7 @@ export default function NewMeetingPage() {
                                 <div className="relative">
                                     <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" />
                                     <Input
-                                        placeholder="Search for a contact to brief..."
+                                        placeholder="Search for a contact..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="pl-12 h-12 rounded-xl bg-stone-50/50 border-stone-100 focus:bg-white transition-all shadow-inner"
@@ -167,7 +167,7 @@ export default function NewMeetingPage() {
                                 </div>
 
                                 {loading ? (
-                                    <div className="p-8 text-center text-xs font-bold text-stone-400 uppercase tracking-widest animate-pulse">Scanning contact database...</div>
+                                    <div className="p-8 text-center text-xs font-bold text-stone-400 uppercase tracking-widest animate-pulse">Searching contacts...</div>
                                 ) : filteredContacts.length > 0 ? (
                                     <div className="max-h-60 overflow-y-auto border border-stone-100 rounded-2xl divide-y divide-stone-50 shadow-sm bg-white">
                                         {filteredContacts.map(contact => (
@@ -204,12 +204,12 @@ export default function NewMeetingPage() {
                             <div className="p-2 bg-stone-900 text-white rounded-lg shadow-md">
                                 <Calendar className="w-4 h-4" strokeWidth={2.5} />
                             </div>
-                            <h2 className="text-xs font-black text-stone-900 uppercase tracking-[0.2em]">2. Briefing Parameters</h2>
+                            <h2 className="text-xs font-black text-stone-900 uppercase tracking-[0.2em]">2. Meeting Details</h2>
                         </div>
 
                         <div className="grid grid-cols-2 gap-6">
                             <Input
-                                label="Execution Date"
+                                label="Date"
                                 type="date"
                                 required
                                 value={formData.meeting_date}
@@ -228,7 +228,7 @@ export default function NewMeetingPage() {
 
                         <div className="grid grid-cols-2 gap-6">
                             <Select
-                                label="Engagement Channel"
+                                label="Meeting Type"
                                 value={formData.meeting_type}
                                 onChange={(e) => setFormData({ ...formData, meeting_type: e.target.value })}
                                 className="h-11 rounded-xl"
@@ -238,7 +238,7 @@ export default function NewMeetingPage() {
                                 <option value="phone">Direct Voice Call</option>
                             </Select>
                             <Input
-                                label="Strategic Location / Asset"
+                                label="Location"
                                 placeholder="e.g. Hall 4 Booth 202, Zoom URL"
                                 value={formData.meeting_location}
                                 onChange={(e) => setFormData({ ...formData, meeting_location: e.target.value })}
@@ -247,8 +247,8 @@ export default function NewMeetingPage() {
                         </div>
 
                         <Textarea
-                            label="Briefing Objectives & Context"
-                            placeholder="Specify core discussion points or strategic outcomes for this engagement..."
+                            label="Notes"
+                            placeholder="Enter any notes for this meeting..."
                             rows={6}
                             value={formData.pre_meeting_notes}
                             onChange={(e) => setFormData({ ...formData, pre_meeting_notes: e.target.value })}
@@ -263,9 +263,9 @@ export default function NewMeetingPage() {
                                 <Info className="h-5 w-5 text-white" strokeWidth={2.5} />
                             </div>
                             <div>
-                                <p className="text-xs font-black uppercase tracking-widest mb-1 opacity-60">Intelligence Note</p>
+                                <p className="text-xs font-black uppercase tracking-widest mb-1 opacity-60">AI Insight</p>
                                 <p className="text-sm font-medium leading-relaxed">
-                                    Our AI will synthesize talking points from interaction history and real-time market research upon briefing creation.
+                                    AI will suggest talking points based on your interaction history and market research.
                                 </p>
                             </div>
                         </div>
@@ -278,14 +278,14 @@ export default function NewMeetingPage() {
                             onClick={() => router.back()}
                             disabled={submitting}
                         >
-                            Abort
+                            Cancel
                         </button>
                         <Button
                             type="submit"
                             className="h-14 px-10 bg-stone-900 hover:bg-stone-800 text-white rounded-[1.25rem] shadow-xl shadow-stone-900/20 font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.02] active:scale-[0.98]"
                             disabled={submitting || !selectedContact}
                         >
-                            {submitting ? 'Initializing Brief...' : 'Schedule Engagement'}
+                            {submitting ? 'Scheduling...' : 'Schedule Meeting'}
                         </Button>
                     </div>
                 </form>

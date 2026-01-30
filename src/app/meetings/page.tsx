@@ -64,14 +64,14 @@ export default function MeetingsPage() {
 
     return (
         <AppShell>
-            <div className="max-w-7xl mx-auto px-4 py-8 h-[calc(100vh-8rem)] flex flex-col">
+            <div className="max-w-7xl mx-auto px-4 py-8 min-h-[calc(100vh-4rem)] flex flex-col">
                 {/* Tactical Header */}
                 <div className="mb-10 shrink-0">
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
                         <div>
-                            <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-2">Operational Intelligence</h1>
+                            <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-2">Meetings</h1>
                             <p className="text-sm font-medium text-stone-500 italic">
-                                Orchestrate strategic calls and high-value onsite briefings.
+                                Schedule and track your meetings with contacts.
                             </p>
                         </div>
                         <Button
@@ -79,7 +79,7 @@ export default function MeetingsPage() {
                             className="bg-stone-900 hover:bg-stone-800 text-white rounded-xl px-8 h-12 shadow-xl shadow-stone-900/10 font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all"
                         >
                             <Plus className="mr-2 h-4 w-4" strokeWidth={3} />
-                            Initialize Briefing
+                            Schedule Meeting
                         </Button>
                     </div>
                 </div>
@@ -95,16 +95,16 @@ export default function MeetingsPage() {
                             <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-[2rem] bg-stone-900 text-white shadow-2xl shadow-stone-900/20 group hover:scale-110 transition-transform">
                                 <Calendar className="h-10 w-10" strokeWidth={2.5} />
                             </div>
-                            <h3 className="text-2xl font-black text-stone-900 mb-3 tracking-tight">Intelligence Registry Empty</h3>
+                            <h3 className="text-2xl font-black text-stone-900 mb-3 tracking-tight">No meetings scheduled</h3>
                             <p className="text-sm text-stone-500 mb-10 max-w-sm mx-auto font-medium italic leading-relaxed">
-                                No briefings detected. Initialize your first strategic encounter to track intelligence velocity.
+                                You haven't scheduled any meetings yet. Add your first meeting to get started.
                             </p>
                             <Button
                                 onClick={handleCreateMeeting}
                                 className="h-12 px-8 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-stone-900/10 active:scale-95 transition-all"
                             >
                                 <Plus className="mr-2 h-4 w-4" strokeWidth={3} />
-                                Deploy First Briefing
+                                Schedule First Meeting
                             </Button>
                         </div>
                     ) : (

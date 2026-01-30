@@ -59,8 +59,8 @@ export function EnrichmentPanel({ suggestions, onAccept, onReject, onEdit }: Enr
         <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-6 border border-indigo-100">
             <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="h-5 w-5 text-purple-600" />
-                <h3 className="font-semibold text-gray-900">AI Enrichment Suggestions</h3>
-                <span className="text-xs text-gray-500 ml-auto">Estimated from public data</span>
+                <h3 className="font-semibold text-gray-900">AI Research Suggestions</h3>
+                <span className="text-xs text-gray-500 ml-auto">Found from public data</span>
             </div>
 
             <div className="space-y-3">

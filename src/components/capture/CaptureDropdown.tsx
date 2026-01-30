@@ -56,11 +56,11 @@ export function CaptureDropdown({ eventId, className, trigger, align = 'right' }
     };
 
     const captureOptions = [
-        { id: 'camera' as CaptureMode, label: 'Business Card', icon: Camera, desc: 'AI card extraction' },
-        { id: 'qr' as CaptureMode, label: 'QR Scan', icon: QrCode, desc: 'Digital profile sync' },
-        { id: 'voice' as CaptureMode, label: 'Voice Note', icon: Mic, desc: 'Quick voice capture' },
-        { id: 'manual' as CaptureMode, label: 'Manual Entry', icon: Keyboard, desc: 'Direct input' },
-        { id: 'upload' as CaptureMode, label: 'From Gallery', icon: Upload, desc: 'Upload photo', border: true },
+        { id: 'camera' as CaptureMode, label: 'Scan Card', icon: Camera, desc: 'AI card extraction' },
+        { id: 'qr' as CaptureMode, label: 'Scan QR', icon: QrCode, desc: 'Digital profile sync' },
+        { id: 'voice' as CaptureMode, label: 'Voice', icon: Mic, desc: 'Quick voice capture' },
+        { id: 'manual' as CaptureMode, label: 'Manual', icon: Keyboard, desc: 'Direct input' },
+        { id: 'upload' as CaptureMode, label: 'Upload', icon: Upload, desc: 'Upload photo', border: true },
     ];
 
     return (
@@ -75,7 +75,7 @@ export function CaptureDropdown({ eventId, className, trigger, align = 'right' }
                     className="h-11 px-6 rounded-xl bg-stone-900 hover:bg-stone-800 text-white shadow-lg shadow-stone-900/20 transition-all flex items-center gap-2 font-black uppercase tracking-widest text-[10px]"
                 >
                     <Zap className="h-4 w-4 text-white" fill="currentColor" />
-                    Add Contact
+                    Capture Lead
                     <ChevronDown className={cn("h-4 w-4 transition-transform opacity-50", isOpen && "rotate-180")} />
                 </Button>
             )}
@@ -111,7 +111,7 @@ export function CaptureDropdown({ eventId, className, trigger, align = 'right' }
                 isOpen={showModal}
                 onClose={() => setShowModal(false)}
                 size="lg"
-                title={activeCaptureMode ? `${formatLabel(activeCaptureMode)}` : 'Add Contact'}
+                title={activeCaptureMode ? `${formatLabel(activeCaptureMode)}` : 'Capture Lead'}
             >
                 <div className="p-1">
                     <CaptureFlow

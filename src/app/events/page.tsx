@@ -115,10 +115,10 @@ export default function EventsPage() {
                 <div className="mb-12">
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
                         <div>
-                            <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-2">Major Events</h1>
+                            <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-2">Events</h1>
                             <p className="text-sm font-medium text-stone-500 italic">
-                                {filteredEvents.length} active intelligence theaters
-                                {events.length !== filteredEvents.length && ` (from ${events.length} total operations)`}
+                                {filteredEvents.length} active events
+                                {events.length !== filteredEvents.length && ` (from ${events.length} total events)`}
                             </p>
                         </div>
                         <Button
@@ -126,7 +126,7 @@ export default function EventsPage() {
                             className="h-11 px-8 bg-stone-900 hover:bg-stone-800 text-white rounded-xl shadow-xl shadow-stone-900/10 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
                         >
                             <Plus className="mr-2 h-4 w-4" strokeWidth={2.5} />
-                            Deploy Operation
+                            Add Event
                         </Button>
                     </div>
 
@@ -139,7 +139,7 @@ export default function EventsPage() {
                                 </div>
                                 <input
                                     type="text"
-                                    placeholder="Identify event by designation or sector..."
+                                    placeholder="Search events..."
                                     className="w-full h-12 pl-14 pr-10 bg-stone-50/50 border border-stone-100 rounded-xl text-sm font-bold placeholder:text-stone-400 focus:outline-none focus:ring-4 focus:ring-stone-900/5 focus:border-stone-900 transition-all"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -156,7 +156,7 @@ export default function EventsPage() {
 
                             <div className="flex flex-wrap items-center gap-6 w-full xl:w-auto">
                                 <div className="flex items-center gap-4 min-w-[200px]">
-                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Pulse:</span>
+                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Status:</span>
                                     <select
                                         className="flex-1 h-12 bg-stone-50/50 border border-stone-100 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-stone-900/5 focus:border-stone-900 transition-all appearance-none cursor-pointer text-stone-600"
                                         value={filterStatus}
@@ -170,16 +170,16 @@ export default function EventsPage() {
                                 </div>
 
                                 <div className="flex items-center gap-4 min-w-[200px]">
-                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Class:</span>
+                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Type:</span>
                                     <select
                                         className="flex-1 h-12 bg-stone-50/50 border border-stone-100 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-stone-900/5 focus:border-stone-900 transition-all appearance-none cursor-pointer text-stone-600"
                                         value={filterType}
                                         onChange={(e) => setFilterType(e.target.value)}
                                     >
-                                        <option value="all">All Archetypes</option>
+                                        <option value="all">All Types</option>
                                         <option value="exhibition">Exhibition</option>
                                         <option value="conference">Conference</option>
-                                        <option value="meeting">Briefing</option>
+                                        <option value="meeting">Meeting</option>
                                     </select>
                                 </div>
 
@@ -188,7 +188,7 @@ export default function EventsPage() {
                                         onClick={resetFilters}
                                         className="text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900 transition-colors px-4"
                                     >
-                                        Reset Ops
+                                        Reset Filters
                                     </button>
                                 )}
                             </div>
@@ -230,22 +230,22 @@ export default function EventsPage() {
                         </div>
                         <h3 className="text-2xl font-black text-stone-900 mb-3 tracking-tight">
                             {searchQuery || filterStatus !== 'all' || filterType !== 'all'
-                                ? "Intelligence Recon Failed"
-                                : "Theater of Operations Empty"}
+                                ? "No events found"
+                                : "No events yet"}
                         </h3>
                         <p className="text-stone-500 font-medium italic mb-10 max-w-[380px]">
                             {searchQuery || filterStatus !== 'all' || filterType !== 'all'
-                                ? "No operations matched your strategic parameters. Reconfigure intel filters."
-                                : "Initialize your first exhibition or conference theater to begin lead acquisition."}
+                                ? "Try adjusting your search filters to find what you're looking for."
+                                : "Add your first exhibition or conference to get started."}
                         </p>
                         {searchQuery || filterStatus !== 'all' || filterType !== 'all' ? (
                             <Button onClick={resetFilters} className="h-14 px-10 rounded-2xl bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-stone-900/20 active:scale-95 transition-all">
-                                Reset Intelligence
+                                Reset Filters
                             </Button>
                         ) : (
                             <Button onClick={() => setShowModal(true)} size="lg" className="h-14 px-10 rounded-2xl bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-stone-900/20 active:scale-95 transition-all">
                                 <Plus className="mr-3 h-5 w-5" strokeWidth={3} />
-                                Deploy First Theater
+                                Add First Event
                             </Button>
                         )}
                     </div>
