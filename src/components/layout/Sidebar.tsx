@@ -23,7 +23,6 @@ const navItems = [
     { href: '/contacts', icon: Users, label: 'Contacts' },
     { href: '/follow-ups', icon: Mail, label: 'Follow-Ups' },
     { href: '/meetings', icon: MessageSquare, label: 'Meetings' },
-    { href: '/profile', icon: User, label: 'Profile' },
     { href: '/integrations', icon: Plug, label: 'Integrations' },
 ];
 

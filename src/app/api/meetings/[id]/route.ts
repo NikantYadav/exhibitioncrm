@@ -83,6 +83,22 @@ export async function PATCH(
             throw error;
         }
 
+        // If status is being updated to completed, log an interaction
+        if (updates.status === 'completed') {
+            await supabase
+                .from('interactions')
+                .insert({
+                    contact_id: meeting.contact_id,
+                    interaction_type: 'meeting',
+                    summary: `Completed meeting: ${meeting.meeting_type}`,
+                    interaction_date: meeting.meeting_date,
+                    details: {
+                        meeting_id: meeting.id,
+                        notes: updates.post_meeting_notes || meeting.post_meeting_notes
+                    }
+                });
+        }
+
         return NextResponse.json({ meeting });
     } catch (error) {
         console.error('Update meeting error:', error);

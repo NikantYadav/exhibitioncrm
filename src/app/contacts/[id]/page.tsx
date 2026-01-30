@@ -120,7 +120,7 @@ export default function ContactDetailPage() {
 
     const handleSaveNote = async (content: string) => {
         const currentStatus = contact?.follow_up_status;
-        
+
         try {
             const response = await fetch('/api/notes', {
                 method: 'POST',
@@ -136,7 +136,7 @@ export default function ContactDetailPage() {
                 setShowNoteEditor(false);
                 toast.success('Note saved!');
                 fetchTimeline(); // Refresh only the timeline
-                
+
                 // Check if status was updated by AI analysis after a short delay
                 if (currentStatus === 'not_contacted') {
                     setTimeout(async () => {
@@ -144,7 +144,7 @@ export default function ContactDetailPage() {
                             const contactRes = await fetch(`/api/contacts/${contactId}`);
                             const contactData = await contactRes.json();
                             const newStatus = contactData.data?.follow_up_status;
-                            
+
                             if (newStatus && newStatus !== currentStatus) {
                                 const statusLabels = {
                                     'contacted': 'Contacted',
@@ -152,12 +152,12 @@ export default function ContactDetailPage() {
                                     'followed_up': 'Followed Up',
                                     'ignore': 'No Follow-up Needed'
                                 };
-                                
+
                                 toast.success(
                                     `AI detected interaction - Status updated to "${statusLabels[newStatus as keyof typeof statusLabels] || newStatus}"`,
                                     { duration: 4000 }
                                 );
-                                
+
                                 // Update local contact state
                                 setContact(prev => prev ? { ...prev, follow_up_status: newStatus } : null);
                             }
@@ -262,7 +262,7 @@ export default function ContactDetailPage() {
 
                                         toast.success('Transcription complete!');
                                         fetchTimeline(); // Refresh to show transcript
-                                        
+
                                         // Check if status was updated by AI analysis after transcription
                                         if (contact?.follow_up_status === 'not_contacted') {
                                             setTimeout(async () => {
@@ -270,7 +270,7 @@ export default function ContactDetailPage() {
                                                     const contactRes = await fetch(`/api/contacts/${contactId}`);
                                                     const contactData = await contactRes.json();
                                                     const newStatus = contactData.data?.follow_up_status;
-                                                    
+
                                                     if (newStatus && newStatus !== 'not_contacted') {
                                                         const statusLabels = {
                                                             'contacted': 'Contacted',
@@ -278,12 +278,12 @@ export default function ContactDetailPage() {
                                                             'followed_up': 'Followed Up',
                                                             'ignore': 'No Follow-up Needed'
                                                         };
-                                                        
+
                                                         toast.success(
                                                             `AI detected interaction in voice note - Status updated to "${statusLabels[newStatus as keyof typeof statusLabels] || newStatus}"`,
                                                             { duration: 4000 }
                                                         );
-                                                        
+
                                                         // Update local contact state
                                                         setContact(prev => prev ? { ...prev, follow_up_status: newStatus } : null);
                                                     }
@@ -487,17 +487,17 @@ export default function ContactDetailPage() {
                                     <h1 className="text-xl font-bold text-gray-900 text-center">
                                         {contact.first_name} {contact.last_name || ''}
                                     </h1>
-                                    
+
                                     {/* Follow-up Status Badge */}
                                     {contact.follow_up_status && (
                                         <div className="mt-2">
-                                            <Badge 
+                                            <Badge
                                                 variant={
                                                     contact.follow_up_status === 'contacted' ? 'success' :
-                                                    contact.follow_up_status === 'needs_followup' ? 'warning' :
-                                                    contact.follow_up_status === 'followed_up' ? 'info' :
-                                                    contact.follow_up_status === 'ignore' ? 'secondary' :
-                                                    'outline'
+                                                        contact.follow_up_status === 'needs_followup' ? 'warning' :
+                                                            contact.follow_up_status === 'followed_up' ? 'info' :
+                                                                contact.follow_up_status === 'ignore' ? 'secondary' :
+                                                                    'outline'
                                                 }
                                                 className="text-xs"
                                             >
@@ -699,6 +699,7 @@ export default function ContactDetailPage() {
                             <ContactTimeline
                                 timeline={timeline}
                                 onAddNote={() => setShowNoteEditor(true)}
+                                onRefresh={fetchTimeline}
                             />
                         </div>
                     </div>

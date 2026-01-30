@@ -22,15 +22,20 @@ interface MeetingPrepProps {
 export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: MeetingPrepProps) {
     if (!prepData && !isGenerating) {
         return (
-            <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-                <Sparkles className="h-12 w-12 text-indigo-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Generate Meeting Brief</h3>
-                <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-                    Use AI to analyze your history, documents, and contact profile to prepare a comprehensive briefing.
+            <div className="text-center py-20 bg-stone-50/50 rounded-[2rem] border-2 border-dashed border-stone-200 group hover:border-stone-400 transition-all duration-500">
+                <div className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-stone-100 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-500">
+                    <Sparkles className="h-8 w-8 text-stone-400" />
+                </div>
+                <h3 className="text-xl font-bold text-stone-900 mb-2">Synthesize Intelligence</h3>
+                <p className="text-stone-500 mb-8 max-w-sm mx-auto text-sm leading-relaxed">
+                    Let AI analyze the complete relationship graph and historical documents to prepare your briefing.
                 </p>
-                <Button onClick={onGenerate} className="bg-indigo-600 hover:bg-indigo-700">
+                <Button
+                    onClick={onGenerate}
+                    className="bg-stone-900 hover:bg-black text-white px-8 rounded-full shadow-lg shadow-stone-200"
+                >
                     <Sparkles className="h-4 w-4 mr-2" />
-                    Generate Intelligence
+                    Commence Synthesis
                 </Button>
             </div>
         );
@@ -38,10 +43,15 @@ export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: M
 
     if (isGenerating) {
         return (
-            <div className="flex flex-col items-center justify-center py-20">
-                <Loader2 className="h-10 w-10 text-indigo-600 animate-spin mb-4" />
-                <p className="text-gray-600 font-medium">Analyzing contact history and documents...</p>
-                <p className="text-gray-400 text-sm mt-2">This may take a moment</p>
+            <div className="flex flex-col items-center justify-center py-32 space-y-6">
+                <div className="relative">
+                    <div className="h-16 w-16 rounded-full border-4 border-stone-100 border-t-stone-900 animate-spin" />
+                    <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-stone-400" />
+                </div>
+                <div className="text-center space-y-1">
+                    <p className="text-stone-900 font-bold tracking-tight">Synthesizing Relationship Graph</p>
+                    <p className="text-stone-400 text-xs uppercase tracking-[0.2em]">Cross-referencing docs & history</p>
+                </div>
             </div>
         );
     }
@@ -63,62 +73,76 @@ export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: M
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Who is this */}
-                <Card className="md:col-span-2 bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
-                    <CardContent className="p-6">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="p-2 bg-white rounded-lg shadow-sm">
-                                <User className="h-5 w-5 text-indigo-600" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Executive Profile Section */}
+                <div className="md:col-span-2 premium-card p-10 overflow-hidden relative group">
+                    <div className="relative z-10 space-y-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-stone-900 text-white flex items-center justify-center shadow-lg shadow-stone-200">
+                                <User className="h-5 w-5" />
                             </div>
-                            <h3 className="font-semibold text-indigo-900">Who is this?</h3>
+                            <div>
+                                <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Identity Synthesis</h3>
+                                <p className="text-xl font-bold text-stone-900">Executive Profile</p>
+                            </div>
                         </div>
-                        <p className="text-indigo-800 leading-relaxed">
+                        <p className="text-2xl font-medium text-stone-800 leading-[1.6] italic pr-12">
                             {prepData?.who_is_this}
                         </p>
-                    </CardContent>
-                </Card>
+                    </div>
+                    {/* Architectural Accent */}
+                    <div className="absolute top-0 right-0 w-32 h-full bg-stone-50/50 skew-x-[-15deg] translate-x-16 pointer-events-none" />
+                </div>
 
-                {/* Relationship */}
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="p-2 bg-gray-100 rounded-lg">
-                                <HistoryIcon className="h-5 w-5 text-gray-600" />
-                            </div>
-                            <h3 className="font-semibold text-gray-900">How you know them</h3>
+                {/* Contextual History */}
+                <div className="premium-card p-8 space-y-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-600 flex items-center justify-center">
+                            <HistoryIcon className="h-4 w-4" />
                         </div>
-                        <p className="text-gray-600 text-sm">
-                            {prepData?.relationship_summary}
-                        </p>
-                        <div className="mt-4 pt-4 border-t border-gray-100">
-                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Highlights</h4>
-                            <div className="text-sm text-gray-600">
-                                {prepData?.interaction_highlights}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                        <h3 className="text-sm font-bold text-stone-900 uppercase tracking-widest">History Context</h3>
+                    </div>
 
-                {/* Talking Points */}
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="p-2 bg-green-50 rounded-lg">
-                                <MessageSquare className="h-5 w-5 text-green-600" />
-                            </div>
-                            <h3 className="font-semibold text-gray-900">Suggested Topics</h3>
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">The Connection</span>
+                            <p className="text-stone-700 leading-relaxed">
+                                {prepData?.relationship_summary}
+                            </p>
                         </div>
-                        <ul className="space-y-3">
-                            {prepData?.key_talking_points?.map((point, i) => (
-                                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                    <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-green-500 flex-shrink-0" />
+
+                        <div className="pt-6 border-t border-stone-100">
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-stone-900 uppercase tracking-widest mb-3">
+                                <Sparkles className="h-3 w-3" />
+                                Key Highlights
+                            </div>
+                            <p className="text-stone-600 text-sm leading-relaxed italic">
+                                "{prepData?.interaction_highlights}"
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* High-Value Topics */}
+                <div className="premium-card p-8 space-y-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-600 flex items-center justify-center">
+                            <MessageSquare className="h-4 w-4" />
+                        </div>
+                        <h3 className="text-sm font-bold text-stone-900 uppercase tracking-widest">Strategic Topics</h3>
+                    </div>
+
+                    <ul className="space-y-4">
+                        {prepData?.key_talking_points?.map((point, i) => (
+                            <li key={i} className="flex items-start gap-4 group">
+                                <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-stone-300 group-hover:scale-150 group-hover:bg-stone-900 transition-all duration-300" />
+                                <span className="text-stone-700 text-sm leading-relaxed font-medium">
                                     {point}
-                                </li>
-                            ))}
-                        </ul>
-                    </CardContent>
-                </Card>
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
             </div>
         </div>
     );

@@ -42,6 +42,17 @@ export async function GET(
             notes = notesData || [];
         }
 
+        // Fetch meeting briefs if applicable
+        let meetings: any[] = [];
+        if (!type || type === 'all' || type === 'meeting') {
+            const { data: meetingsData } = await supabase
+                .from('meeting_briefs')
+                .select('*, event:events(*)')
+                .eq('contact_id', id)
+                .order('meeting_date', { ascending: false });
+            meetings = meetingsData || [];
+        }
+
         // Fetch captures for this contact to fill in missing image_urls
         const { data: captures } = await supabase
             .from('captures')
@@ -49,9 +60,18 @@ export async function GET(
             .eq('contact_id', id)
             .order('created_at', { ascending: false });
 
+        // Filter out interactions that are duplicates of meeting briefs
+        const meetingIds = new Set(meetings.map(m => m.id));
+        const filteredInteractions = (interactions || []).filter(i => {
+            if (i.interaction_type === 'meeting' && i.details?.meeting_id && meetingIds.has(i.details.meeting_id)) {
+                return false;
+            }
+            return true;
+        });
+
         // Combine and sort by date
         const timeline = [
-            ...(interactions || []).map((i: any) => {
+            ...filteredInteractions.map((i: any) => {
                 const item = {
                     ...i,
                     type: 'interaction',
@@ -85,6 +105,11 @@ export async function GET(
                 ...n,
                 type: 'note',
                 date: n.created_at
+            })),
+            ...(meetings || []).map((m: any) => ({
+                ...m,
+                type: 'meeting',
+                date: m.meeting_date
             }))
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
