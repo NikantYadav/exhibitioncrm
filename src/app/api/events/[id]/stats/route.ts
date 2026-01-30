@@ -38,7 +38,9 @@ export async function GET(
 
         // Calculate breakdown
         const followUpsCount = eventContacts?.filter(c => c.follow_up_status === 'followed_up').length || 0;
-        const needsFollowupCount = eventContacts?.filter(c => c.follow_up_status === 'needs_followup').length || 0;
+        const needsFollowupCount = eventContacts?.filter(c =>
+            c.follow_up_status === 'needs_followup' || c.follow_up_status === 'needs_follow_up'
+        ).length || 0;
         const notContactedCount = eventContacts?.filter(c => !c.follow_up_status || c.follow_up_status === 'not_contacted').length || 0;
 
         // We also need to check for sent emails in case follow_up_status isn't updated

@@ -131,6 +131,10 @@ export function FollowUpsSection({ eventId, event, onRefresh }: FollowUpsSection
         }
     ];
 
+    const total = (followUpData.not_contacted?.length || 0) +
+        (followUpData.needs_followup?.length || 0) +
+        (followUpData.followed_up?.length || 0);
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -138,9 +142,6 @@ export function FollowUpsSection({ eventId, event, onRefresh }: FollowUpsSection
                     <Mail className="h-5 w-5 text-stone-400" />
                     Follow-up Tracker
                 </h3>
-                <p className="text-sm text-stone-500">
-
-                </p>
             </div>
 
             <FollowUpKanban

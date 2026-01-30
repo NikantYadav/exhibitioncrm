@@ -36,19 +36,12 @@ export function EventStats({ stats }: EventStatsProps) {
             icon: Users,
             color: 'text-green-600',
             bgColor: 'bg-green-50'
-        },
-        {
-            label: 'Follow-ups Sent',
-            value: stats.followUps,
-            icon: Mail,
-            color: 'text-amber-600',
-            bgColor: 'bg-amber-50'
         }
     ];
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {statItems.map((item) => {
                     const Icon = item.icon;
                     return (
@@ -78,7 +71,6 @@ export function EventStats({ stats }: EventStatsProps) {
                 <div className="bg-white rounded-lg border border-gray-200 p-4">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-gray-700 font-outfit">Follow-up Progress</span>
-                        <span className="text-sm font-bold text-indigo-600">{progress}%</span>
                     </div>
                     <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden flex">
                         <div

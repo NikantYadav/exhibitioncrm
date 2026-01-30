@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
                     job_title: extracted_data.job_title || extracted_data.title || null,
                     company_id: companyId,
                     notes: `${raw_text}\n\n[System Note: Captured at ${eventName}]`,
-                    follow_up_status: 'needs_follow_up',
+                    follow_up_status: 'not_contacted',
                     follow_up_urgency: 'medium'
                 })
                 .select()

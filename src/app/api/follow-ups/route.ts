@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
                 .select(`
                     *,
                     company:companies(*),
-                    interactions!inner(id, event_id, interaction_type),
+                    interactions!inner(id, event_id, interaction_type, interaction_date),
+                    notes(id, event_id, created_at),
                     email_drafts(*)
                 `)
                 .eq('interactions.event_id', eventId);
@@ -29,7 +30,8 @@ export async function GET(request: NextRequest) {
                 .select(`
                     *,
                     company:companies(*),
-                    interactions(id, interaction_type, event_id),
+                    interactions(id, interaction_type, event_id, interaction_date),
+                    notes(id, event_id, created_at),
                     email_drafts(*)
                 `);
         }
@@ -52,7 +54,26 @@ export async function GET(request: NextRequest) {
             const sentDrafts = drafts.filter((d: any) =>
                 d.status === 'sent' && (!eventId || d.event_id === eventId)
             );
-            const interactionCount = (contact.interactions as any[])?.length || 0;
+
+            // Calculate last interaction date from interactions, notes, and sent drafts
+            const interactionList = (contact.interactions as any[]) || [];
+            const noteList = (contact.notes as any[]) || [];
+
+            const dates: string[] = [];
+            interactionList.forEach((i: any) => i.interaction_date && dates.push(i.interaction_date));
+            noteList.forEach((n: any) => n.created_at && dates.push(n.created_at));
+            sentDrafts.forEach((d: any) => d.sent_at && dates.push(d.sent_at));
+
+            const lastInteraction = dates.length > 0
+                ? dates.reduce((latest, current) => {
+                    return new Date(current) > new Date(latest) ? current : latest;
+                })
+                : null;
+
+            // Add to contact object for the frontend
+            (contact as any).last_interaction = lastInteraction;
+
+            const interactionCount = interactionList.length + noteList.length;
 
             // Priority:
             // 1. Explicitly set follow_up_status
@@ -60,7 +81,7 @@ export async function GET(request: NextRequest) {
 
             if (contact.follow_up_status) {
                 if (contact.follow_up_status === 'followed_up') categorized.followed_up.push(contact);
-                else if (contact.follow_up_status === 'needs_followup') categorized.needs_followup.push(contact);
+                else if (contact.follow_up_status === 'needs_followup' || contact.follow_up_status === 'needs_follow_up') categorized.needs_followup.push(contact);
                 else categorized.not_contacted.push(contact);
             } else if (sentDrafts.length > 0) {
                 categorized.followed_up.push(contact);

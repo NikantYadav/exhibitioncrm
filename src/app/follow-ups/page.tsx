@@ -188,26 +188,45 @@ export default function FollowUpDashboard() {
                                             </div>
 
                                             {/* Progress Bars */}
-                                            <div className="flex-1 space-y-2 min-w-[300px]">
+                                            <div className="flex-1 min-w-[320px]">
                                                 {event.stats.total > 0 ? (
-                                                    <>
-                                                        <div className="flex items-center justify-between text-xs text-stone-600 mb-1">
-                                                            <span>Progress</span>
-                                                            <span className="font-medium">{Math.round((event.stats.followed_up / event.stats.total) * 100)}% Complete</span>
+                                                    <div className="bg-white rounded-lg border border-gray-100 p-4 shadow-sm">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Follow-up Progress</span>
                                                         </div>
-                                                        <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden flex">
-                                                            <div style={{ width: `${(event.stats.followed_up / event.stats.total) * 100}%` }} className="bg-emerald-500 h-full" />
-                                                            <div style={{ width: `${(event.stats.needs_followup / event.stats.total) * 100}%` }} className="bg-amber-400 h-full" />
-                                                            <div style={{ width: `${(event.stats.not_contacted / event.stats.total) * 100}%` }} className="bg-stone-300 h-full" />
+                                                        <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden flex mb-4">
+                                                            <div
+                                                                style={{ width: `${(event.stats.followed_up / event.stats.total) * 100}%` }}
+                                                                className="bg-emerald-500 h-full transition-all duration-500 shadow-sm"
+                                                            />
+                                                            <div
+                                                                style={{ width: `${(event.stats.needs_followup / event.stats.total) * 100}%` }}
+                                                                className="bg-amber-400 h-full transition-all duration-500 shadow-sm"
+                                                            />
+                                                            <div
+                                                                style={{ width: `${(event.stats.not_contacted / event.stats.total) * 100}%` }}
+                                                                className="bg-stone-200 h-full transition-all duration-500 shadow-sm"
+                                                            />
                                                         </div>
-                                                        <div className="flex justify-between text-[10px] text-stone-400">
-                                                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /> Done</span>
-                                                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-400" /> Pending</span>
-                                                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-stone-300" /> Unprocessed</span>
+                                                        <div className="flex justify-between items-center px-1">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                                                <span className="text-[10px] text-stone-500 font-medium">Followed Up ({event.stats.followed_up})</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <div className="w-2 h-2 rounded-full bg-amber-400" />
+                                                                <span className="text-[10px] text-stone-500 font-medium">Needs Attention ({event.stats.needs_followup})</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <div className="w-2 h-2 rounded-full bg-stone-300" />
+                                                                <span className="text-[10px] text-stone-500 font-medium">Not Contacted ({event.stats.not_contacted})</span>
+                                                            </div>
                                                         </div>
-                                                    </>
+                                                    </div>
                                                 ) : (
-                                                    <div className="text-sm text-stone-400 italic">No leads captured yet</div>
+                                                    <div className="h-full flex items-center justify-center border border-dashed border-stone-200 rounded-lg bg-stone-50/50 p-4">
+                                                        <p className="text-xs text-stone-400 italic">No leads captured yet</p>
+                                                    </div>
                                                 )}
                                             </div>
 

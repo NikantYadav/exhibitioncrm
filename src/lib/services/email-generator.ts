@@ -150,6 +150,45 @@ ${customContext ? `Additional context: ${customContext}` : ''}`;
     }
 
     /**
+     * Improve an existing email draft
+     */
+    static async improveEmail(text: string, instructions?: string): Promise<{
+        subject: string;
+        body: string;
+    }> {
+        const profile = await getUserProfile();
+        const profileContext = buildProfileContext(profile);
+
+        const prompt = `Improve the following email draft. Make it more professional, engaging, and clear while maintaining the original intent.
+
+My Profile Context:
+${profileContext}
+
+Current Draft:
+${text}
+
+${instructions ? `Improvement Instructions: ${instructions}` : ''}`;
+
+        try {
+            const result = await AIService.extractStructuredData<{
+                subject: string;
+                body: string;
+            }>(
+                prompt,
+                '{"subject": "string", "body": "string"}',
+                '{"subject": "Improved Subject", "body": "Improved Body..."}'
+            );
+            return result;
+        } catch (error) {
+            console.error('Email improvement error:', error);
+            return {
+                subject: 'Failed to improve email',
+                body: text
+            };
+        }
+    }
+
+    /**
      * Build context from interaction history
      */
     private static buildHistoryContext(
@@ -235,7 +274,7 @@ I wanted to confirm our upcoming meeting and make sure we're aligned on what we'
 
 I'm looking forward to learning more about ${contact.company?.name || 'your company'} and exploring how we might work together.
 
-Please let me know if there are any specific topics you'd like to cover, and I'll make sure to prepare accordingly.
+Please let me know if there any specific topics you'd like to cover, and I'll make sure to prepare accordingly.
 
 See you soon!
 
