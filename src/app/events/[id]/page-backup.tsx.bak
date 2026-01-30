@@ -1,0 +1,1161 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Header } from '@/components/layout/Header';
+import { Button } from '@/components/ui/Button';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { EventStats } from '@/components/events/EventStats';
+import { CompanySearchModal } from '@/components/events/CompanySearchModal';
+import { TargetCompanyModal } from '@/components/events/TargetCompanyModal';
+import { CompanyDetailModal } from '@/components/events/CompanyDetailModal';
+import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { CaptureFlow, CaptureMode } from '@/components/events/CaptureFlow';
+import { Event, TargetCompany, Capture, Company } from '@/types';
+import { toast } from 'sonner';
+import {
+    Calendar,
+    MapPin,
+    ArrowLeft,
+    Target,
+    Camera,
+    Mail,
+    Download,
+    Edit,
+    Trash2,
+    MoreVertical,
+    IdCard,
+    QrCode,
+    Keyboard,
+    Mic,
+    Search,
+    Loader2,
+    Globe,
+    Building2,
+    Plus,
+    Check,
+    Wand2,
+    Paperclip,
+    FileText,
+    Send,
+    Save
+} from 'lucide-react';
+import {
+    searchCompanyAction,
+    addTargetCompany,
+    generateEmailDraftAction,
+    saveEmailDraftAction
+} from '@/app/actions/preparation';
+import { getAssets, MarketingAsset } from '@/app/actions/assets';
+import { CompanyResearchResult } from '@/lib/services/company-research';
+
+export default function EventDetailPage() {
+    const params = useParams();
+    const router = useRouter();
+    const eventId = params.id as string;
+
+    const [event, setEvent] = useState<Event | null>(null);
+    const [stats, setStats] = useState({
+        targets: 0,
+        captures: 0,
+        contacts: 0,
+        followUps: 0
+    });
+    const [targets, setTargets] = useState<TargetCompany[]>([]);
+    const [captures, setCaptures] = useState<Capture[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<'research' | 'captures' | 'followups'>('research');
+    const [activePrepTab, setActivePrepTab] = useState<'targets' | 'ai-search' | 'emails'>('targets');
+
+    // AI Research State
+    const [researchQuery, setResearchQuery] = useState('');
+    const [isResearching, setIsResearching] = useState(false);
+    const [researchResult, setResearchResult] = useState<CompanyResearchResult | null>(null);
+    const [researchError, setResearchError] = useState('');
+    const [isAddingResearch, setIsAddingResearch] = useState(false);
+    const [isAddedResearch, setIsAddedResearch] = useState(false);
+
+    // Email Drafter State
+    const [selectedEmailTargetId, setSelectedEmailTargetId] = useState<string>('');
+    const [contactName, setContactName] = useState('');
+    const [emailType, setEmailType] = useState('pre_event');
+    const [generatedDraft, setGeneratedDraft] = useState<{ subject: string, body: string } | null>(null);
+    const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
+    const [availableAssets, setAvailableAssets] = useState<MarketingAsset[]>([]);
+    const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+
+    const [showCompanySearch, setShowCompanySearch] = useState(false);
+    const [showTargetModal, setShowTargetModal] = useState(false);
+    const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+    const [selectedTarget, setSelectedTarget] = useState<TargetCompany | null>(null);
+    const [activeCaptureMode, setActiveCaptureMode] = useState<CaptureMode | null>(null);
+    const [showCaptureModal, setShowCaptureModal] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'target' | 'capture' } | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [viewingTarget, setViewingTarget] = useState<TargetCompany | null>(null);
+    const [showDetailModal, setShowDetailModal] = useState(false);
+
+    useEffect(() => {
+        if (eventId) {
+            fetchEventData();
+            getAssets().then(setAvailableAssets);
+        }
+    }, [eventId]);
+
+    const fetchEventData = async () => {
+        try {
+            // Fetch event details
+            const eventRes = await fetch(`/api/events/${eventId}`);
+            const eventData = await eventRes.json();
+            setEvent(eventData.data);
+
+            // Fetch stats
+            const statsRes = await fetch(`/api/events/${eventId}/stats`, { cache: 'no-store' });
+            const statsData = await statsRes.json();
+            console.log('Fetched Stats Data:', statsData);
+            setStats(statsData.data);
+
+            // Fetch targets
+            const targetsRes = await fetch(`/api/events/${eventId}/targets`);
+            const targetsData = await targetsRes.json();
+            setTargets(targetsData.data || []);
+
+            // Fetch captures
+            const capturesRes = await fetch(`/api/events/${eventId}/captures`);
+            const capturesData = await capturesRes.json();
+            setCaptures(capturesData.data || []);
+        } catch (error) {
+            console.error('Failed to fetch event data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getStatusBadge = (status: string) => {
+        const badges = {
+            upcoming: 'bg-blue-100 text-blue-700',
+            ongoing: 'bg-green-100 text-green-700',
+            completed: 'bg-gray-100 text-gray-700',
+        };
+        return badges[status as keyof typeof badges] || 'bg-gray-100 text-gray-700';
+    };
+
+    const handleCompanySelect = (company: Company) => {
+        setSelectedCompany(company);
+        setShowCompanySearch(false);
+        setShowTargetModal(true);
+    };
+
+    const handleViewTarget = (target: TargetCompany) => {
+        setViewingTarget(target);
+        setShowDetailModal(true);
+    };
+
+    const handleSaveTarget = async (data: any) => {
+        try {
+            const response = await fetch(`/api/events/${eventId}/targets`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    company_id: selectedCompany?.id,
+                    ...data
+                })
+            });
+
+            if (response.ok) {
+                setShowTargetModal(false);
+                setSelectedCompany(null);
+                fetchEventData();
+            }
+        } catch (error) {
+            console.error('Failed to save target:', error);
+        }
+    };
+
+    const handleDeleteTarget = async (targetId: string) => {
+        setItemToDelete({ id: targetId, type: 'target' });
+        setShowDeleteConfirm(true);
+    };
+
+    const handleDeleteCapture = async (e: React.MouseEvent, captureId: string) => {
+        e.stopPropagation();
+        setItemToDelete({ id: captureId, type: 'capture' });
+        setShowDeleteConfirm(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            const endpoint = itemToDelete.type === 'target'
+                ? `/api/events/${eventId}/targets/${itemToDelete.id}`
+                : `/api/captures/${itemToDelete.id}`;
+
+            const response = await fetch(endpoint, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                setShowDeleteConfirm(false);
+                setItemToDelete(null);
+                fetchEventData();
+                toast.success(`${itemToDelete.type === 'target' ? 'Target' : 'Capture'} deleted successfully`);
+            } else {
+                toast.error(`Failed to delete ${itemToDelete.type}`);
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            toast.error('An error occurred during deletion');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleOpenCapture = (mode: CaptureMode) => {
+        setActiveCaptureMode(mode);
+        setShowCaptureModal(true);
+    };
+
+    const handleCaptureComplete = () => {
+        setShowCaptureModal(false);
+        setActiveCaptureMode(null);
+        setActiveTab('captures');
+        fetchEventData();
+    };
+
+    const handleResearchSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!researchQuery.trim()) return;
+
+        setIsResearching(true);
+        setResearchError('');
+        setResearchResult(null);
+        setIsAddedResearch(false);
+
+        const formData = new FormData();
+        formData.append('query', researchQuery);
+
+        try {
+            const response = await searchCompanyAction(formData);
+            if (response.error) {
+                setResearchError(response.error);
+            } else if (response.result) {
+                setResearchResult(response.result);
+            }
+        } catch (error) {
+            setResearchError('Search failed');
+        } finally {
+            setIsResearching(false);
+        }
+    };
+
+    const handleAddResearchTarget = async () => {
+        if (!researchResult) return;
+        setIsAddingResearch(true);
+        try {
+            const response = await addTargetCompany(eventId, { name: researchResult.companyName }, researchResult);
+            if (response.success) {
+                setIsAddedResearch(true);
+                fetchEventData(); // Refresh target list
+                toast.success('Added to target list!');
+            } else {
+                setResearchError(response.error || 'Failed to add target');
+            }
+        } catch (error) {
+            setResearchError('Add failed');
+        } finally {
+            setIsAddingResearch(false);
+        }
+    };
+
+    const handleEmailGenerate = async () => {
+        const selectedTarget = targets.find(t => t.id === selectedEmailTargetId);
+        if (!selectedTarget) return;
+
+        setIsGeneratingEmail(true);
+        const genToast = toast.loading('Drafting email with AI...');
+
+        const selectedAssetNames = availableAssets
+            .filter(a => selectedAssetIds.includes(a.id))
+            .map(a => a.name);
+
+        const data = {
+            type: emailType,
+            contact: {
+                first_name: contactName.split(' ')[0],
+                last_name: contactName.split(' ').slice(1).join(' '),
+                company: { name: selectedTarget.company?.name }
+            },
+            event: { name: event?.name || 'the Exhibition' },
+            context: `Background: ${selectedTarget.company?.description}. \nTalking Points: ${selectedTarget.talking_points || 'None'}`,
+            attachments: selectedAssetNames
+        };
+
+        try {
+            const response = await generateEmailDraftAction(data);
+            if (response.result) {
+                setGeneratedDraft(response.result);
+                toast.success('Draft generated!', { id: genToast });
+            } else {
+                toast.error('Failed to generate draft', { id: genToast });
+            }
+        } catch (error) {
+            toast.error('Error generating email', { id: genToast });
+        } finally {
+            setIsGeneratingEmail(false);
+        }
+    };
+
+    const handleSaveEmailDraft = async () => {
+        const selectedTarget = targets.find(t => t.id === selectedEmailTargetId);
+        if (!generatedDraft || !selectedTarget) return;
+
+        setIsSavingDraft(true);
+        const savingToast = toast.loading('Saving draft...');
+
+        try {
+            const response = await saveEmailDraftAction({
+                companyId: selectedTarget.company?.id,
+                eventId: eventId,
+                contactName,
+                type: emailType,
+                subject: generatedDraft.subject,
+                body: generatedDraft.body
+            });
+
+            if (response.success) {
+                toast.success('Draft saved successfully!', { id: savingToast });
+                setGeneratedDraft(null);
+                setContactName('');
+                setSelectedEmailTargetId('');
+                setSelectedAssetIds([]);
+            } else {
+                toast.error(response.error || 'Failed to save draft', { id: savingToast });
+            }
+        } catch (error) {
+            toast.error('Error saving draft', { id: savingToast });
+        } finally {
+            setIsSavingDraft(false);
+        }
+    };
+
+    const toggleAsset = (id: string) => {
+        if (selectedAssetIds.includes(id)) {
+            setSelectedAssetIds(selectedAssetIds.filter(a => a !== id));
+        } else {
+            setSelectedAssetIds([...selectedAssetIds, id]);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen" style={{ background: '#f9fafb' }}>
+                <Header />
+                <main className="container" style={{ paddingTop: '2rem' }}>
+                    <div className="card">
+                        <LoadingSpinner />
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    if (!event) {
+        return (
+            <div className="min-h-screen" style={{ background: '#f9fafb' }}>
+                <Header />
+                <main className="container" style={{ paddingTop: '2rem' }}>
+                    <div className="card">
+                        <p>Event not found</p>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen" style={{ background: '#f9fafb' }}>
+            <Header />
+
+            <main className="container" style={{ paddingTop: '2rem', paddingBottom: '2rem' }}>
+                {/* Back Button */}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push('/events')}
+                    style={{ marginBottom: '1.5rem' }}
+                >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Events
+                </Button>
+
+                {/* Split Panel Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left Panel - Event Info */}
+                    <div className="lg:col-span-1">
+                        <div className="card sticky top-4">
+                            {/* Event Header */}
+                            <div className="mb-6">
+                                <div className="flex items-start justify-between mb-3">
+                                    <h1 className="text-2xl font-bold text-gray-900">
+                                        {event.name}
+                                    </h1>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(event.status)}`}>
+                                        {event.status}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-2 text-sm text-gray-600">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="h-4 w-4" />
+                                        <span>
+                                            {new Date(event.start_date).toLocaleDateString()}
+                                            {event.end_date && ` - ${new Date(event.end_date).toLocaleDateString()}`}
+                                        </span>
+                                    </div>
+                                    {event.location && (
+                                        <div className="flex items-center gap-2">
+                                            <MapPin className="h-4 w-4" />
+                                            <span>{event.location}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Description */}
+                            {event.description && (
+                                <div className="mb-6">
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                                        Description
+                                    </h3>
+                                    <p className="text-sm text-gray-600">
+                                        {event.description}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Quick Actions */}
+                            <div className="space-y-2">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                                    Quick Actions
+                                </h3>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full justify-start"
+                                    onClick={() => setActiveTab('research')}
+                                >
+                                    <Target className="mr-2 h-4 w-4" />
+                                    Add Target Company
+                                </Button>
+                                <div className="relative group">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full justify-start overflow-hidden relative"
+                                    >
+                                        <Camera className="mr-2 h-4 w-4" />
+                                        Capture Lead
+                                        <MoreVertical className="ml-auto h-4 w-4" />
+                                    </Button>
+
+                                    <div className="absolute left-0 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
+                                        <button
+                                            onClick={() => handleOpenCapture('camera')}
+                                            className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center gap-2"
+                                        >
+                                            <Camera className="h-4 w-4 text-blue-600" />
+                                            Scan Card
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenCapture('badge')}
+                                            className="w-full text-left px-4 py-2 text-sm hover:bg-cyan-50 flex items-center gap-2"
+                                        >
+                                            <IdCard className="h-4 w-4 text-cyan-600" />
+                                            Scan Badge
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenCapture('qr')}
+                                            className="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"
+                                        >
+                                            <QrCode className="h-4 w-4 text-amber-600" />
+                                            Scan QR Code
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenCapture('photo_note')}
+                                            className="w-full text-left px-4 py-2 text-sm hover:bg-teal-50 flex items-center gap-2"
+                                        >
+                                            <Camera className="h-4 w-4 text-teal-600" />
+                                            Photo + Notes
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenCapture('manual')}
+                                            className="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 flex items-center gap-2"
+                                        >
+                                            <Keyboard className="h-4 w-4 text-emerald-600" />
+                                            Manual Entry
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenCapture('voice')}
+                                            className="w-full text-left px-4 py-2 text-sm hover:bg-rose-50 flex items-center gap-2"
+                                        >
+                                            <Mic className="h-4 w-4 text-rose-600" />
+                                            Voice Note
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenCapture('upload')}
+                                            className="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 flex items-center gap-2 border-t border-gray-100"
+                                        >
+                                            <Download className="h-4 w-4 text-purple-600" />
+                                            Upload Photo
+                                        </button>
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full justify-start"
+                                >
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Export Data
+                                </Button>
+
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full justify-start"
+                                >
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Edit Event
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete Event
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Panel - Tabs */}
+                    <div className="lg:col-span-2">
+                        {/* Stats */}
+                        <div className="mb-6">
+                            <EventStats stats={stats} />
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="card" style={{ padding: 0 }}>
+                            {/* Tab Headers */}
+                            <div className="flex border-b border-gray-200">
+                                <button
+                                    onClick={() => setActiveTab('research')}
+                                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'research'
+                                        ? 'border-blue-600 text-blue-600'
+                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                        }`}
+                                >
+                                    Research & Prep
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('captures')}
+                                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'captures'
+                                        ? 'border-blue-600 text-blue-600'
+                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                        }`}
+                                >
+                                    Captures
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('followups')}
+                                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'followups'
+                                        ? 'border-blue-600 text-blue-600'
+                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                        }`}
+                                >
+                                    Follow-ups
+                                </button>
+                            </div>
+
+                            {/* Tab Content */}
+                            <div className="p-6">
+                                {/* Research & Prep Tab */}
+                                {activeTab === 'research' && (
+                                    <div className="space-y-6">
+                                        {/* Sub-Tabs */}
+                                        <div className="flex gap-1 bg-gray-50 p-1 rounded-lg w-fit mb-6">
+                                            <button
+                                                onClick={() => setActivePrepTab('targets')}
+                                                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${activePrepTab === 'targets'
+                                                    ? 'bg-white text-blue-600 shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-700'
+                                                    }`}
+                                            >
+                                                Target List
+                                            </button>
+                                            <button
+                                                onClick={() => setActivePrepTab('ai-search')}
+                                                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${activePrepTab === 'ai-search'
+                                                    ? 'bg-white text-blue-600 shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-700'
+                                                    }`}
+                                            >
+                                                AI Company Research
+                                            </button>
+                                            <button
+                                                onClick={() => setActivePrepTab('emails')}
+                                                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${activePrepTab === 'emails'
+                                                    ? 'bg-white text-blue-600 shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-700'
+                                                    }`}
+                                            >
+                                                Email Drafts
+                                            </button>
+                                        </div>
+
+                                        {/* Target List Section */}
+                                        {activePrepTab === 'targets' && (
+                                            <div>
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <h3 className="text-lg font-semibold">Target Companies</h3>
+                                                    <Button size="sm" onClick={() => setShowCompanySearch(true)}>
+                                                        <Target className="mr-2 h-4 w-4" />
+                                                        Add Target
+                                                    </Button>
+                                                </div>
+
+                                                {targets.length === 0 ? (
+                                                    <div className="text-center py-12">
+                                                        <Target className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                                                        <p className="text-gray-600 mb-4">No target companies yet</p>
+                                                        <Button size="sm" onClick={() => setShowCompanySearch(true)}>Add First Target</Button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-3">
+                                                        {targets.map((target) => (
+                                                            <div
+                                                                key={target.id}
+                                                                className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow group flex items-start justify-between cursor-pointer hover:border-blue-200"
+                                                                onClick={() => handleViewTarget(target)}
+                                                            >
+                                                                <div className="flex-1">
+                                                                    <div className="flex items-center gap-3 mb-1">
+                                                                        <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                                                            {target.company?.name}
+                                                                        </h4>
+                                                                        <span
+                                                                            className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider ${target.priority === 'high'
+                                                                                ? 'bg-red-100 text-red-700'
+                                                                                : target.priority === 'medium'
+                                                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                                                    : 'bg-gray-100 text-gray-700'
+                                                                                }`}
+                                                                        >
+                                                                            {target.priority}
+                                                                        </span>
+                                                                    </div>
+                                                                    {target.booth_location && (
+                                                                        <p className="text-sm text-gray-500 flex items-center gap-1">
+                                                                            <MapPin className="h-3 w-3" />
+                                                                            Booth: {target.booth_location}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="text-gray-400 hover:text-red-600 relative z-10"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteTarget(target.id);
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                )}
+
+                                {/* AI Research Section */}
+                                {activePrepTab === 'ai-search' && (
+                                    <div className="space-y-6">
+                                        <div className="bg-stone-50/50 p-6 rounded-2xl border border-stone-200">
+                                            <h3 className="font-semibold mb-3">AI Deep Research</h3>
+                                            <p className="text-sm text-stone-500 mb-4">Analyze any company profile based on their website or name.</p>
+                                            <form onSubmit={handleResearchSearch} className="flex gap-2">
+                                                <div className="relative flex-1">
+                                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search company or website (e.g. google.com)"
+                                                        className="w-full pl-9 pr-4 py-2 text-sm border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                                        value={researchQuery}
+                                                        onChange={(e) => setResearchQuery(e.target.value)}
+                                                    />
+                                                </div>
+                                                <Button
+                                                    loading={isResearching}
+                                                    type="submit"
+                                                    disabled={!researchQuery}
+                                                >
+                                                    Analyze
+                                                </Button>
+                                            </form>
+                                        </div>
+
+                                        {researchError && (
+                                            <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200 text-sm">
+                                                {researchError}
+                                            </div>
+                                        )}
+
+                                        {researchResult && (
+                                            <div className="border border-stone-200 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+                                                <div className="p-5 border-b border-stone-100 bg-white flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="text-xl font-bold text-stone-900">{researchResult.companyName}</h4>
+                                                        <p className="text-sm text-blue-600 flex items-center gap-1 mt-1">
+                                                            <Globe className="h-3 w-3" />
+                                                            {researchResult.website}
+                                                        </p>
+                                                    </div>
+                                                    <Button
+                                                        onClick={handleAddResearchTarget}
+                                                        loading={isAddingResearch}
+                                                        disabled={isAddedResearch}
+                                                        variant={isAddedResearch ? 'outline' : 'primary'}
+                                                        className={isAddedResearch ? 'border-green-200 text-green-700 hover:bg-green-50' : ''}
+                                                    >
+                                                        {isAddedResearch ? (
+                                                            <><Check className="h-4 w-4 mr-2" /> Added</>
+                                                        ) : (
+                                                            <><Plus className="h-4 w-4 mr-2" /> Target List</>
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/50">
+                                                    <div className="space-y-4">
+                                                        <div>
+                                                            <h5 className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-1">Company Overview</h5>
+                                                            <p className="text-sm text-stone-700 leading-relaxed">{researchResult.overview}</p>
+                                                        </div>
+                                                        <div>
+                                                            <h5 className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-1">Key Insights</h5>
+                                                            <ul className="space-y-1.5">
+                                                                {researchResult.keyInsights.slice(0, 3).map((insight, i) => (
+                                                                    <li key={i} className="text-sm text-stone-700 flex items-start gap-2">
+                                                                        <span className="text-blue-500 mt-1.5 h-1 w-1 rounded-full bg-blue-500 shrink-0" />
+                                                                        {insight}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-4">
+                                                        <div>
+                                                            <h5 className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-1">Industry & Layout</h5>
+                                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                                <span className="px-2 py-1 bg-white border border-stone-200 rounded text-xs text-stone-600">{researchResult.industry}</span>
+                                                                {researchResult.location && <span className="px-2 py-1 bg-white border border-stone-200 rounded text-xs text-stone-600">{researchResult.location}</span>}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <h5 className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-1">Competitors</h5>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {researchResult.competitors.slice(0, 3).map((comp, i) => (
+                                                                    <span key={i} className="bg-stone-100 text-stone-600 px-2 py-0.5 rounded text-xs">{comp}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Email Drafts Section */}
+                                {activePrepTab === 'emails' && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        <div className="space-y-4">
+                                            <div className="bg-stone-50/50 p-6 rounded-2xl border border-stone-200 space-y-4">
+                                                <h3 className="font-semibold mb-2">Compose Email</h3>
+                                                <div>
+                                                    <label className="text-xs font-semibold text-stone-500 uppercase mb-1 block">Recipient</label>
+                                                    <select
+                                                        className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                        value={selectedEmailTargetId}
+                                                        onChange={(e) => setSelectedEmailTargetId(e.target.value)}
+                                                    >
+                                                        <option value="">Select Target Company...</option>
+                                                        {targets.map(t => (
+                                                            <option key={t.id} value={t.id}>{t.company?.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-semibold text-stone-500 uppercase mb-1 block">Contact Name</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="e.g. Sarah Jenkins"
+                                                        className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                        value={contactName}
+                                                        onChange={(e) => setContactName(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-semibold text-stone-500 uppercase mb-1 block">Email Goal</label>
+                                                    <select
+                                                        className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                        value={emailType}
+                                                        onChange={(e) => setEmailType(e.target.value)}
+                                                    >
+                                                        <option value="pre_event">Pre-Event Outreach</option>
+                                                        <option value="follow_up">Post-Meeting Follow-up</option>
+                                                        <option value="pre_meeting">Meeting Confirmation</option>
+                                                    </select>
+                                                </div>
+
+                                                {availableAssets.length > 0 && (
+                                                    <div>
+                                                        <label className="text-xs font-semibold text-stone-500 uppercase mb-2 block flex items-center gap-1">
+                                                            <Paperclip className="h-3 w-3" /> Attachments
+                                                        </label>
+                                                        <div className="space-y-1.5 max-h-40 overflow-y-auto p-2 bg-white rounded-xl border border-stone-100">
+                                                            {availableAssets.map(asset => (
+                                                                <div
+                                                                    key={asset.id}
+                                                                    onClick={() => toggleAsset(asset.id)}
+                                                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all border ${selectedAssetIds.includes(asset.id) ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-stone-50 border-transparent text-stone-600 hover:bg-stone-100'}`}
+                                                                >
+                                                                    <Check className={`h-3 w-3 ${selectedAssetIds.includes(asset.id) ? 'opacity-100' : 'opacity-0'}`} />
+                                                                    <span className="text-xs truncate">{asset.name}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <Button
+                                                    className="w-full"
+                                                    loading={isGeneratingEmail}
+                                                    disabled={!selectedEmailTargetId || !contactName}
+                                                    onClick={handleEmailGenerate}
+                                                >
+                                                    <Wand2 className="h-4 w-4 mr-2" />
+                                                    Generate AI Draft
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="relative min-h-[400px]">
+                                            {generatedDraft ? (
+                                                <div className="bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col h-full overflow-hidden">
+                                                    <div className="p-4 border-b border-stone-100 bg-stone-50 flex justify-between items-center">
+                                                        <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">Preview</span>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            loading={isSavingDraft}
+                                                            onClick={handleSaveEmailDraft}
+                                                            className="bg-green-600 text-white hover:bg-green-700 border-none px-3 h-8 text-xs"
+                                                        >
+                                                            <Save className="h-3 w-3 mr-1.5" /> Save Draft
+                                                        </Button>
+                                                    </div>
+                                                    <div className="p-5 flex-1 space-y-4">
+                                                        <input
+                                                            className="w-full font-semibold border-none focus:ring-0 p-0 text-stone-900"
+                                                            value={generatedDraft.subject}
+                                                            onChange={(e) => setGeneratedDraft({ ...generatedDraft, subject: e.target.value })}
+                                                        />
+                                                        <textarea
+                                                            className="w-full h-[300px] border-none focus:ring-0 p-0 text-sm text-stone-600 leading-relaxed resize-none overflow-y-auto"
+                                                            value={generatedDraft.body}
+                                                            onChange={(e) => setGeneratedDraft({ ...generatedDraft, body: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="border-2 border-dashed border-stone-200 rounded-2xl flex flex-col items-center justify-center p-12 text-center h-full">
+                                                    <div className="bg-stone-100 p-4 rounded-full mb-4">
+                                                        <Mail className="h-8 w-8 text-stone-400" />
+                                                    </div>
+                                                    <h4 className="font-medium text-stone-900">No Draft Ready</h4>
+                                                    <p className="text-sm text-stone-500 mt-1 max-w-[200px]">Select a target company and generate an AI draft to get started.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                                )}
+
+                            {/* Captures Tab */}
+                            {activeTab === 'captures' && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-semibold">Business Card Captures</h3>
+                                        {captures.length > 0 && (
+                                            <div className="relative group">
+                                                <Button size="sm">
+                                                    <Camera className="mr-2 h-4 w-4" />
+                                                    Capture New
+                                                    <MoreVertical className="ml-2 h-4 w-4" />
+                                                </Button>
+                                                <div className="absolute right-0 w-48 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
+                                                    <button
+                                                        onClick={() => handleOpenCapture('camera')}
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center gap-2"
+                                                    >
+                                                        <Camera className="h-4 w-4 text-blue-600" />
+                                                        Scan Card
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenCapture('badge')}
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-cyan-50 flex items-center gap-2"
+                                                    >
+                                                        <IdCard className="h-4 w-4 text-cyan-600" />
+                                                        Scan Badge
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenCapture('qr')}
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"
+                                                    >
+                                                        <QrCode className="h-4 w-4 text-amber-600" />
+                                                        Scan QR Code
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenCapture('photo_note')}
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-teal-50 flex items-center gap-2"
+                                                    >
+                                                        <Camera className="h-4 w-4 text-teal-600" />
+                                                        Photo + Notes
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenCapture('manual')}
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 flex items-center gap-2"
+                                                    >
+                                                        <Keyboard className="h-4 w-4 text-emerald-600" />
+                                                        Manual Entry
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenCapture('voice')}
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-rose-50 flex items-center gap-2"
+                                                    >
+                                                        <Mic className="h-4 w-4 text-rose-600" />
+                                                        Voice Note
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenCapture('upload')}
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 flex items-center gap-2 border-t border-gray-100"
+                                                    >
+                                                        <Download className="h-4 w-4 text-purple-600" />
+                                                        Upload Photo
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {captures.length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <Camera className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                                            <p className="text-gray-600 mb-4">No captures yet</p>
+                                            <div className="flex justify-center">
+                                                <div className="relative group inline-block">
+                                                    <Button size="sm">
+                                                        Capture First Lead
+                                                        <MoreVertical className="ml-2 h-4 w-4" />
+                                                    </Button>
+                                                    <div className="absolute left-1/2 -translate-x-1/2 w-48 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
+                                                        <button
+                                                            onClick={() => handleOpenCapture('camera')}
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center gap-2"
+                                                        >
+                                                            <Camera className="h-4 w-4 text-blue-600" />
+                                                            Scan Card
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenCapture('badge')}
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-cyan-50 flex items-center gap-2"
+                                                        >
+                                                            <IdCard className="h-4 w-4 text-cyan-600" />
+                                                            Scan Badge
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenCapture('qr')}
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"
+                                                        >
+                                                            <QrCode className="h-4 w-4 text-amber-600" />
+                                                            Scan QR Code
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenCapture('photo_note')}
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-teal-50 flex items-center gap-2"
+                                                        >
+                                                            <Camera className="h-4 w-4 text-teal-600" />
+                                                            Photo + Notes
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenCapture('manual')}
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 flex items-center gap-2"
+                                                        >
+                                                            <Keyboard className="h-4 w-4 text-emerald-600" />
+                                                            Manual Entry
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenCapture('voice')}
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-rose-50 flex items-center gap-2"
+                                                        >
+                                                            <Mic className="h-4 w-4 text-rose-600" />
+                                                            Voice Note
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenCapture('upload')}
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 flex items-center gap-2 border-t border-gray-100"
+                                                        >
+                                                            <Download className="h-4 w-4 text-purple-600" />
+                                                            Upload Photo
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {captures.map((capture) => (
+                                                <button
+                                                    key={capture.id}
+                                                    onClick={() => capture.contact_id && router.push(`/contacts/${capture.contact_id}`)}
+                                                    className="w-full text-left border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all group"
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <p className="font-medium group-hover:text-blue-600 transition-colors">
+                                                                {capture.contact?.first_name} {capture.contact?.last_name || 'Unknown'}
+                                                            </p>
+                                                            <p className="text-sm text-gray-600">
+                                                                {new Date(capture.created_at).toLocaleDateString()}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span
+                                                                className={`px-2 py-1 rounded text-xs font-medium ${capture.status === 'completed'
+                                                                    ? 'bg-green-100 text-green-700'
+                                                                    : 'bg-yellow-100 text-yellow-700'
+                                                                    }`}
+                                                            >
+                                                                {capture.status}
+                                                            </span>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                                                onClick={(e) => handleDeleteCapture(e, capture.id)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Follow-ups Tab */}
+                            {activeTab === 'followups' && (
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-4">Follow-up Tracker</h3>
+                                    <div className="text-center py-12">
+                                        <Mail className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                                        <p className="text-gray-600">Follow-up system coming soon</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            {/* Modals */}
+            <CompanySearchModal
+                isOpen={showCompanySearch}
+                onClose={() => setShowCompanySearch(false)}
+                onSelect={handleCompanySelect}
+                eventId={eventId}
+            />
+
+            <TargetCompanyModal
+                isOpen={showTargetModal}
+                onClose={() => {
+                    setShowTargetModal(false);
+                    setSelectedCompany(null);
+                    setSelectedTarget(null);
+                }}
+                onSave={handleSaveTarget}
+                target={selectedTarget || undefined}
+                companyName={selectedTarget?.company?.name || selectedCompany?.name || ''}
+            />
+
+            <Modal
+                isOpen={showCaptureModal}
+                onClose={() => setShowCaptureModal(false)}
+                size="lg"
+            >
+                {activeCaptureMode && (
+                    <CaptureFlow
+                        eventId={eventId}
+                        mode={activeCaptureMode}
+                        onClose={() => setShowCaptureModal(false)}
+                        onComplete={handleCaptureComplete}
+                    />
+                )}
+            </Modal>
+
+            <ConfirmDialog
+                isOpen={showDeleteConfirm}
+                onClose={() => {
+                    setShowDeleteConfirm(false);
+                    setItemToDelete(null);
+                }}
+                onConfirm={handleConfirmDelete}
+                title={`Delete ${itemToDelete?.type === 'target' ? 'Target Company' : 'Lead Capture'}?`}
+                description={
+                    itemToDelete?.type === 'target'
+                        ? "Are you sure you want to remove this company from your target list? This action cannot be undone."
+                        : "Are you sure you want to delete this lead capture? All associated OCR data will be removed."
+                }
+                confirmText="Delete"
+                cancelText="Keep"
+                isLoading={isDeleting}
+            />
+
+            <CompanyDetailModal
+                isOpen={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                target={viewingTarget || undefined}
+                onEdit={() => {
+                    setShowDetailModal(false);
+                    setSelectedTarget(viewingTarget);
+                    setShowTargetModal(true);
+                }}
+            />
+        </div>
+    );
+}

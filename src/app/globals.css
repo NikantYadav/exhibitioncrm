@@ -1,0 +1,286 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Calm, near-monochrome palette with restrained indigo accent */
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 239 84% 67%;
+    --radius: 1.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+}
+
+/* Soft cool gradient wash - very subtle */
+body {
+  background: linear-gradient(180deg,
+      rgb(248, 250, 252) 0%,
+      rgb(252, 252, 253) 50%,
+      rgb(248, 250, 252) 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Faint noise texture overlay (1-2% opacity) */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Typography - fewer weights, rely on size/spacing hierarchy */
+.text-display {
+  @apply text-3xl font-semibold text-stone-900 tracking-tight;
+}
+
+.text-section-header {
+  @apply text-lg font-semibold text-stone-900 tracking-tight;
+}
+
+.text-card-title {
+  @apply text-sm font-semibold text-stone-900 tracking-tight;
+}
+
+.text-body {
+  @apply text-sm font-normal text-stone-600 leading-relaxed;
+}
+
+.text-caption {
+  @apply text-xs text-stone-500 leading-relaxed;
+}
+
+/* Calm shadow system - one shadow only */
+.card-shadow {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 30px rgba(0, 0, 0, 0.06);
+}
+
+.card-shadow-hover {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 30px rgba(0, 0, 0, 0.09);
+}
+
+/* Card styling with hairline border + inset highlight */
+.premium-card {
+  @apply rounded-2xl bg-white border border-stone-200/40 card-shadow;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 30px rgba(0, 0, 0, 0.06);
+}
+
+.premium-card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 30px rgba(0, 0, 0, 0.09);
+}
+
+/* Subtle hover lift */
+.transition-smooth {
+  transition: all 150ms ease-out;
+}
+
+/* Focus rings - calm indigo */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/30 focus-visible:border-indigo-400;
+}
+
+/* Avatar overlapping pattern */
+.avatar-overlap {
+  margin-left: -10px;
+}
+
+.avatar-overlap:first-child {
+  margin-left: 0;
+}
+
+/* Avatar with status dot */
+.avatar-status-dot {
+  @apply absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white;
+}
+
+/* Pill-style navigation tabs */
+.nav-pill {
+  @apply px-4 py-1.5 rounded-full text-sm font-medium transition-smooth cursor-pointer;
+}
+
+.nav-pill-active {
+  @apply bg-stone-900 text-white;
+}
+
+.nav-pill-inactive {
+  @apply text-stone-600 hover:text-stone-900 hover:bg-stone-100;
+}
+
+/* Journey stage connector lines */
+.journey-connector {
+  stroke: rgb(214, 211, 209, 0.6);
+  stroke-width: 1.5px;
+  fill: none;
+}
+
+/* Journey stage card */
+.journey-stage {
+  @apply rounded-xl bg-stone-50/50 border border-stone-200/40 p-4;
+  min-width: 280px;
+}
+
+.journey-stage-header {
+  @apply flex items-center justify-between mb-3 pb-2 border-b border-stone-200/40;
+}
+
+/* Lead card within journey stage */
+.lead-card {
+  @apply rounded-lg bg-white border border-stone-200/40 p-3 mb-2 transition-smooth hover:border-stone-300 cursor-pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.lead-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+/* Skeleton shimmer loader */
+.skeleton {
+  @apply bg-gradient-to-r from-stone-200 via-stone-100 to-stone-200 rounded-xl;
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Offline badge - calm amber tint */
+.offline-badge {
+  @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/60;
+}
+
+/* Generous spacing */
+.section-gap {
+  @apply mb-16;
+}
+
+.module-gap {
+  @apply mb-12;
+}
+
+/* Scrollbar styling */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent rounded-full;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-stone-200 rounded-full transition-colors;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-stone-300;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-stone-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-stone-400;
+}
+
+/* Touch targets */
+@media (hover: none) and (pointer: coarse) {
+
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Toned down left rail active state */
+.sidebar-active {
+  @apply bg-stone-900 text-white shadow-sm;
+}
+
+.sidebar-inactive {
+  @apply text-stone-500 hover:bg-stone-100 hover:text-stone-900;
+}
+
+/* Activity timeline item */
+.timeline-item {
+  @apply flex gap-3 p-3 rounded-lg hover:bg-stone-50 transition-smooth cursor-pointer;
+}
+
+.timeline-dot {
+  @apply h-2 w-2 rounded-full bg-stone-300 mt-2;
+}
+
+/* Meeting card with avatar */
+.meeting-card {
+  @apply flex items-start gap-3 p-4 rounded-xl border border-stone-200/40 bg-white transition-smooth hover:border-stone-300 cursor-pointer;
+}
+
+.meeting-card:hover {
+  transform: translateY(-1px);
+}
