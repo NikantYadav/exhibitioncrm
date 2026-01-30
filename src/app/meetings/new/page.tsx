@@ -100,7 +100,7 @@ export default function NewMeetingPage() {
             router.push(`/meetings/${data.meeting.id}`);
         } catch (error) {
             console.error('Error creating meeting:', error);
-            toast.error(error instanceof Error ? error.message : 'Failed to create meeting');
+            toast.error('Internal Server Error');
         } finally {
             setSubmitting(false);
         }

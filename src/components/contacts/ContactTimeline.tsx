@@ -203,9 +203,26 @@ export function ContactTimeline({ timeline, onAddNote, onRefresh, hideBriefingLi
                                                                 </span>
                                                             )}
                                                         </>
-                                                    ) : item.type === 'note'
-                                                        ? 'Note'
-                                                        : item.interaction_type ? item.interaction_type.charAt(0).toUpperCase() + item.interaction_type.slice(1) : 'Interaction'}
+                                                    ) : (
+                                                        <span className="flex items-center gap-2">
+                                                            {item.type === 'note'
+                                                                ? 'Note'
+                                                                : item.interaction_type
+                                                                    ? item.interaction_type.charAt(0).toUpperCase() + item.interaction_type.slice(1)
+                                                                    : 'Interaction'
+                                                            }
+                                                            {item.event && (
+                                                                <Link
+                                                                    href={`/events/${item.event.id}`}
+                                                                    className="flex items-center gap-1.5 text-[10px] font-bold text-stone-400 hover:text-stone-900 transition-colors uppercase tracking-widest bg-stone-100/50 hover:bg-stone-100 px-2.5 py-0.5 rounded-full border border-stone-200/50"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <MapPin className="h-2.5 w-2.5" />
+                                                                    {item.event.name}
+                                                                </Link>
+                                                            )}
+                                                        </span>
+                                                    )}
                                                 </p>
                                                 <p className="text-sm text-gray-600">
                                                     {item.type === 'meeting' ? (
@@ -310,18 +327,6 @@ export function ContactTimeline({ timeline, onAddNote, onRefresh, hideBriefingLi
                                         {item.interaction_type === 'capture' ? (
                                             <div className="text-sm text-gray-700 mt-2">
                                                 <span>Captured via <strong>{formatSource(item.details?.source)}</strong></span>
-                                                {item.event && (
-                                                    <>
-                                                        {' at '}
-                                                        <Link
-                                                            href={`/events/${item.event.id}`}
-                                                            className="text-indigo-600 hover:text-indigo-700 font-medium inline-flex items-center gap-0.5"
-                                                        >
-                                                            {item.event.name}
-                                                            <ExternalLink className="h-3 w-3" />
-                                                        </Link>
-                                                    </>
-                                                )}
                                             </div>
                                         ) : (
                                             <>
@@ -338,9 +343,11 @@ export function ContactTimeline({ timeline, onAddNote, onRefresh, hideBriefingLi
                                                                 AI Transcript
                                                             </div>
                                                         )}
-                                                        <p className="text-sm text-gray-700 italic bg-gray-50/50 p-3 rounded-lg border border-gray-100/50">
-                                                            "{item.content}"
-                                                        </p>
+                                                        <div className="relative group/note">
+                                                            <p className="text-sm text-gray-700 italic bg-gray-50/50 p-3 rounded-lg border border-gray-100/50">
+                                                                "{item.content}"
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </>

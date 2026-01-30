@@ -71,13 +71,15 @@ export function AIResearchSection({
                             </h3>
                             {researchResult.website && (
                                 <a
-                                    href={researchResult.website}
+                                    href={researchResult.website.startsWith('http')
+                                        ? researchResult.website
+                                        : `https://www.${researchResult.website.replace(/^www\./, '')}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-sm text-blue-600 hover:underline flex items-center gap-1"
                                 >
                                     <Globe className="h-3 w-3" />
-                                    {researchResult.website}
+                                    www.{researchResult.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
                                 </a>
                             )}
                         </div>

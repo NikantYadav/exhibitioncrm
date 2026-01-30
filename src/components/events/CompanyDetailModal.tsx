@@ -53,13 +53,15 @@ export function CompanyDetailModal({ isOpen, onClose, target, company, onEdit }:
                 <div className="flex flex-wrap gap-4 items-center text-sm text-stone-500 border-b border-stone-100 pb-6">
                     {activeCompany.website && (
                         <a
-                            href={activeCompany.website.startsWith('http') ? activeCompany.website : `https://${activeCompany.website}`}
+                            href={activeCompany.website.startsWith('http')
+                                ? activeCompany.website
+                                : `https://www.${activeCompany.website.replace(/^www\./, '')}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-1.5 hover:text-blue-600 transition-colors bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full font-medium"
                         >
                             <Globe className="h-4 w-4" />
-                            {activeCompany.website.replace(/^https?:\/\//, '')}
+                            www.{activeCompany.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
                             <ExternalLink className="h-3 w-3" />
                         </a>
                     )}

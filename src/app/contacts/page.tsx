@@ -53,7 +53,7 @@ export default function ContactsPage() {
                 setContacts(contacts.filter(c => c.id !== contact.id));
             } else {
                 const error = await response.json();
-                toast.error(error.error || 'Failed to delete contact', { id: deleteToast });
+                toast.error('Internal Server Error', { id: deleteToast });
             }
         } catch (error) {
             console.error('Failed to delete contact:', error);

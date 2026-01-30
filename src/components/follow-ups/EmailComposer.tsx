@@ -62,11 +62,11 @@ export function EmailComposer({ isOpen, onClose, contact, event }: EmailComposer
                 setAiShowResult(true);
                 toast.success('Draft generated!', { id: draftToast });
             } else {
-                toast.error('Failed to generate draft', { id: draftToast });
+                toast.error('Internal Server Error', { id: draftToast });
             }
         } catch (error) {
             console.error('Failed to generate draft:', error);
-            toast.error('Failed to generate draft', { id: draftToast });
+            toast.error('Internal Server Error', { id: draftToast });
         } finally {
             setGenerating(false);
         }
@@ -93,11 +93,11 @@ export function EmailComposer({ isOpen, onClose, contact, event }: EmailComposer
                 setRefineInstructions('');
                 toast.success('Email improved!', { id: improveToast });
             } else {
-                toast.error('Failed to improve email', { id: improveToast });
+                toast.error('Internal Server Error', { id: improveToast });
             }
         } catch (error) {
             console.error('Failed to improve email:', error);
-            toast.error('Failed to improve email', { id: improveToast });
+            toast.error('Internal Server Error', { id: improveToast });
         } finally {
             setImproving(false);
         }

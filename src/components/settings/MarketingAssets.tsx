@@ -84,7 +84,7 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
             }
         } catch (error: any) {
             console.error('Upload failed:', error);
-            toast.error(error.message || 'Failed to upload asset');
+            toast.error('Internal Server Error');
         } finally {
             setIsUploading(false);
         }
@@ -146,7 +146,7 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
                                     const file = e.target.files?.[0];
                                     if (file) {
                                         if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-                                            toast.error('Unsupported file type');
+                                            toast.error('This file type is not supported');
                                             return;
                                         }
                                         setSelectedFile(file);

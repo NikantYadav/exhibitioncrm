@@ -72,7 +72,7 @@ export function CompanySearchModal({ isOpen, onClose, onSelect, eventId }: Compa
         try {
             const data = await searchCompanyAction(query);
             if (data.error) {
-                toast.error(data.error);
+                toast.error('Internal Server Error');
             } else if (data.result) {
                 setFormData({
                     name: data.result.companyName || query,
@@ -117,7 +117,7 @@ export function CompanySearchModal({ isOpen, onClose, onSelect, eventId }: Compa
                 resetAll();
                 onClose();
             } else {
-                toast.error(data.error || 'Failed to save company');
+                toast.error('Internal Server Error');
             }
         } catch (error) {
             console.error('Failed to save company:', error);
@@ -231,7 +231,9 @@ export function CompanySearchModal({ isOpen, onClose, onSelect, eventId }: Compa
                                                         <p className="text-sm text-gray-600 font-medium">{company.industry}</p>
                                                     )}
                                                     {company.website && (
-                                                        <p className="text-xs text-blue-600 mt-0.5">{company.website}</p>
+                                                        <p className="text-xs text-blue-600 mt-0.5">
+                                                            www.{company.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
+                                                        </p>
                                                     )}
                                                 </div>
                                             </div>

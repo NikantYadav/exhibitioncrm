@@ -36,7 +36,7 @@ export async function GET(
         if (!type || type === 'all' || type === 'note') {
             const { data: notesData } = await supabase
                 .from('notes')
-                .select('*')
+                .select('*, event:events(*)')
                 .eq('contact_id', id)
                 .order('created_at', { ascending: false });
             notes = notesData || [];

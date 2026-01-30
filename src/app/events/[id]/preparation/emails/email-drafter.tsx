@@ -59,7 +59,7 @@ export default function EmailDrafter({ targets, eventId }: { targets: any[], eve
             setGeneratedDraft(response.result);
             toast.success('Draft generated!', { id: genToast });
         } else {
-            toast.error('Failed to generate draft', { id: genToast });
+            toast.error('Internal Server Error', { id: genToast });
         }
         setIsGenerating(false);
     };
@@ -85,7 +85,7 @@ export default function EmailDrafter({ targets, eventId }: { targets: any[], eve
             setSelectedTargetId('');
             setSelectedAssetIds([]);
         } else {
-            toast.error('Failed to save draft', { id: savingToast });
+            toast.error('Internal Server Error', { id: savingToast });
         }
         setIsSaving(false);
     };

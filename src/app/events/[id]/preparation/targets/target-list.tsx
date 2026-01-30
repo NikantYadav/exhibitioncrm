@@ -23,7 +23,7 @@ export default function TargetList({ initialTargets, eventId }: TargetListProps)
 
         const result = await updateTargetPriority(targetId, newPriority);
         if (result.error) {
-            toast.error('Failed to update priority');
+            toast.error('Internal Server Error');
         } else {
             toast.success('Priority updated');
         }
@@ -64,10 +64,10 @@ export default function TargetList({ initialTargets, eventId }: TargetListProps)
                 setExpandedIds(prev => new Set(prev).add(targetId));
                 toast.success('Talking points generated!', { id: genToast });
             } else {
-                toast.error('Failed to save talking points', { id: genToast });
+                toast.error('Internal Server Error', { id: genToast });
             }
         } else {
-            toast.error('Failed to generate talking points', { id: genToast });
+            toast.error('Internal Server Error', { id: genToast });
         }
 
         setLoadingIds(prev => {

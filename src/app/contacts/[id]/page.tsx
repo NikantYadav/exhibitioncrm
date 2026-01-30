@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ContactTimeline } from '@/components/contacts/ContactTimeline';
+import { EnrichmentPanel } from '@/components/contacts/EnrichmentPanel';
 import { ContactQuickActions } from '@/components/contacts/ContactQuickActions';
 import { InlineNoteEditor } from '@/components/contacts/InlineNoteEditor';
 import { VoiceNoteRecorder } from '@/components/capture/VoiceNoteRecorder';
@@ -29,7 +30,8 @@ import {
     FileText,
     Trash2,
     Loader2,
-    Command
+    Command,
+    ArrowUpRight
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
@@ -139,12 +141,11 @@ export default function ContactDetailPage() {
                 setShowEditModal(false);
                 fetchContactData();
             } else {
-                const error = await response.json();
-                toast.error(error.error || 'Failed to update contact', { id: updateToast });
+                toast.error('Internal Server Error', { id: updateToast });
             }
         } catch (error) {
             console.error('Failed to update contact:', error);
-            toast.error('Error updating contact', { id: updateToast });
+            toast.error('Internal Server Error', { id: updateToast });
         }
     };
 
@@ -224,27 +225,74 @@ export default function ContactDetailPage() {
         }
     };
 
+    const [enrichmentSuggestions, setEnrichmentSuggestions] = useState<any | null>(null);
+    const [showResearchModal, setShowResearchModal] = useState(false);
+
     const handleEnrichContact = async () => {
         setEnriching(true);
-        const enrichmentToast = toast.loading('Enriching contact data...');
+        setShowResearchModal(true);
         try {
             const response = await fetch(`/api/contacts/${contactId}/enrich`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
+                body: JSON.stringify({ review_only: true }) // Request review instead of direct update
             });
 
             if (response.ok) {
-                fetchContactData(); // Refresh contact data
-                toast.success('Contact enriched successfully!', { id: enrichmentToast });
+                const result = await response.json();
+                setEnrichmentSuggestions(result.data.enrichment);
             } else {
-                toast.error('Failed to enrich contact', { id: enrichmentToast });
+                toast.error('Failed to perform research');
+                setShowResearchModal(false);
             }
         } catch (error) {
             console.error('Failed to enrich contact:', error);
-            toast.error('Failed to enrich contact', { id: enrichmentToast });
+            toast.error('Failed to perform research');
+            setShowResearchModal(false);
         } finally {
             setEnriching(false);
+        }
+    };
+
+    const handleAcceptSuggestion = async (field: string, value: string) => {
+        // Optimistic update
+        const updateToast = toast.loading(`Updating ${field}...`);
+        try {
+            const body: any = {};
+            if (['industry', 'description', 'location', 'region', 'company_size', 'products_services', 'website'].includes(field)) {
+                // These belong to company
+                const companyRes = await fetch(`/api/companies/${contact?.company_id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [field]: value })
+                });
+                if (!companyRes.ok) throw new Error('Failed to update company');
+            } else {
+                // This belongs to contact
+                const contactRes = await fetch(`/api/contacts/${contactId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [field]: value })
+                });
+                if (!contactRes.ok) throw new Error('Failed to update contact');
+            }
+
+            toast.success(`Updated ${field}`, { id: updateToast });
+            fetchContactData(); // Refresh UI
+
+            // Remove from suggestions
+            const newSuggestions = { ...enrichmentSuggestions };
+            delete newSuggestions[field];
+            if (newSuggestions.confidence) delete newSuggestions.confidence[field];
+
+            if (Object.keys(newSuggestions).filter(k => k !== 'confidence' && k !== 'sources').length === 0) {
+                setEnrichmentSuggestions(null);
+                setShowResearchModal(false);
+            } else {
+                setEnrichmentSuggestions(newSuggestions);
+            }
+        } catch (error) {
+            toast.error(`Failed to update ${field}`, { id: updateToast });
         }
     };
 
@@ -352,8 +400,7 @@ export default function ContactDetailPage() {
                         })();
 
                     } else {
-                        const errData = await noteResponse.json().catch(() => ({}));
-                        toast.error(errData.error || 'Failed to save voice note', { id: savingToast });
+                        toast.error('Internal Server Error', { id: savingToast });
                     }
                 } catch (error) {
                     console.error('Save error:', error);
@@ -382,8 +429,7 @@ export default function ContactDetailPage() {
                 toast.success('Contact deleted successfully', { id: deleteToast });
                 router.push('/contacts');
             } else {
-                const error = await response.json();
-                toast.error(error.error || 'Failed to delete contact', { id: deleteToast });
+                toast.error('Internal Server Error', { id: deleteToast });
             }
         } catch (error) {
             console.error('Failed to delete contact:', error);
@@ -410,21 +456,21 @@ export default function ContactDetailPage() {
                         {/* Left Column Skeleton */}
                         <div className="lg:col-span-1">
                             <div className="sticky top-20 space-y-6">
-                                <div className="premium-card p-6 flex flex-col items-center">
+                                <div className="bg-white border border-stone-200/40 rounded-3xl p-6 flex flex-col items-center shadow-sm">
                                     <Skeleton className="w-32 h-32 rounded-full mb-4" />
                                     <Skeleton className="h-6 w-48 mb-2" />
                                     <Skeleton className="h-4 w-32 mb-1" />
                                     <Skeleton className="h-4 w-40" />
                                 </div>
 
-                                <div className="premium-card p-6 space-y-4">
+                                <div className="bg-white border border-stone-200/40 rounded-3xl p-6 space-y-4 shadow-sm">
                                     <Skeleton className="h-3 w-20 mb-4" />
                                     <Skeleton className="h-4 w-full" />
                                     <Skeleton className="h-4 w-full" />
                                     <Skeleton className="h-4 w-full" />
                                 </div>
 
-                                <div className="premium-card p-6 space-y-4">
+                                <div className="bg-white border border-stone-200/40 rounded-3xl p-6 space-y-4 shadow-sm">
                                     <Skeleton className="h-3 w-24 mb-4" />
                                     <Skeleton className="h-10 w-full rounded-xl" />
                                     <Skeleton className="h-10 w-full rounded-xl" />
@@ -434,7 +480,7 @@ export default function ContactDetailPage() {
 
                         {/* Right Column Skeleton */}
                         <div className="lg:col-span-2">
-                            <div className="premium-card p-6 space-y-8">
+                            <div className="bg-white border border-stone-200/40 rounded-3xl p-6 space-y-8 shadow-sm">
                                 <div className="space-y-4">
                                     <Skeleton className="h-6 w-48" />
                                     <div className="flex gap-2">
@@ -499,11 +545,23 @@ export default function ContactDetailPage() {
                         Contacts
                     </Button>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <Button
+                            onClick={handleEnrichContact}
+                            disabled={enriching}
+                            className="h-11 px-6 bg-stone-900 text-white hover:bg-stone-800 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-stone-900/10 border-none"
+                        >
+                            {enriching ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" strokeWidth={2.5} />
+                            ) : (
+                                <Sparkles className="mr-2 h-4 w-4" strokeWidth={2.5} />
+                            )}
+                            {enriching ? 'Researching...' : 'AI Research'}
+                        </Button>
                         <Button
                             variant="outline"
                             onClick={() => setShowEditModal(true)}
-                            className="h-11 px-8 border-stone-200 text-stone-900 hover:bg-stone-50 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
+                            className="h-11 px-6 border-stone-200 text-stone-900 hover:bg-stone-50 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
                         >
                             <Edit className="mr-2 h-4 w-4" strokeWidth={2.5} />
                             Edit Profile
@@ -511,13 +569,15 @@ export default function ContactDetailPage() {
                         <Button
                             onClick={handleDeleteContact}
                             disabled={deleting}
-                            className="h-11 px-8 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border-none"
+                            className="h-11 px-6 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border-none"
                         >
                             <Trash2 className="mr-2 h-4 w-4" strokeWidth={2.5} />
-                            {deleting ? 'Deleting...' : 'Delete Contact'}
+                            {deleting ? 'Deleting...' : 'Delete'}
                         </Button>
                     </div>
                 </div>
+
+                {/* Strategic Context Header */}
 
                 {/* Primary Data Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -597,16 +657,82 @@ export default function ContactDetailPage() {
 
                                     {contact.linkedin_url && (
                                         <div className="flex items-center gap-5 p-3 rounded-2xl hover:bg-stone-50 transition-colors group cursor-pointer border border-transparent hover:border-stone-100">
+                                            <div className="h-11 w-11 rounded-xl bg-stone-900 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                                <Linkedin className="h-5 w-5" strokeWidth={2.5} />
+                                            </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">LinkedIn</p>
-                                                <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-sm font-black text-stone-900 truncate block hover:text-stone-600 transition-colors">
-                                                    Secure Link
+                                                <a
+                                                    href={contact.linkedin_url.startsWith('http') ? contact.linkedin_url : `https://${contact.linkedin_url}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-sm font-black text-stone-900 truncate block hover:text-blue-600 transition-colors"
+                                                >
+                                                    {contact.linkedin_url.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, '').replace(/\/$/, '')}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {contact.company?.website && (
+                                        <div className="flex items-center gap-5 p-3 rounded-2xl hover:bg-stone-50 transition-colors group cursor-pointer border border-transparent hover:border-stone-100">
+                                            <div className="h-11 w-11 rounded-xl bg-stone-900 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                                <ArrowUpRight className="h-5 w-5" strokeWidth={2.5} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Corporate Website</p>
+                                                <a
+                                                    href={contact.company.website.startsWith('http')
+                                                        ? contact.company.website
+                                                        : `https://www.${contact.company.website.replace(/^www\./, '')}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-sm font-black text-stone-900 truncate block hover:text-stone-600 transition-colors"
+                                                >
+                                                    www.{contact.company.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
                                                 </a>
                                             </div>
                                         </div>
                                     )}
                                 </div>
                             </div>
+
+                            {/* Company Details (Enriched AI Data) */}
+                            {contact.company && (contact.company.industry || contact.company.location || contact.company.company_size || contact.company.products_services) && (
+                                <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-8 space-y-6">
+                                    <h3 className="text-[10px] font-black text-stone-300 uppercase tracking-[0.3em] px-2">Company Details</h3>
+                                    <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+                                        {contact.company.industry && (
+                                            <div>
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Industry</p>
+                                                <p className="text-xs font-black text-stone-900">{contact.company.industry}</p>
+                                            </div>
+                                        )}
+                                        {contact.company.location && (
+                                            <div>
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">HQ Location</p>
+                                                <p className="text-xs font-black text-stone-900">{contact.company.location}</p>
+                                            </div>
+                                        )}
+                                        {contact.company.company_size && (
+                                            <div>
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Scale</p>
+                                                <p className="text-xs font-black text-stone-900 cursor-default" title="Estimated Employees">
+                                                    {contact.company.company_size} People
+                                                </p>
+                                            </div>
+                                        )}
+                                        {contact.company.products_services && (
+                                            <div className="col-span-2 border-t border-stone-50 pt-4">
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-2">Core Solutions</p>
+                                                <p className="text-[11px] font-bold text-stone-600 leading-relaxed italic">
+                                                    {contact.company.products_services}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Quick Action Hub */}
                             <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-8 hover:shadow-md transition-shadow">
@@ -620,34 +746,6 @@ export default function ContactDetailPage() {
                                 />
                             </div>
 
-                            {/* AI Neural Enrichment */}
-                            <div className="relative group overflow-hidden bg-stone-900 rounded-[2.5rem] p-10 shadow-2xl shadow-stone-900/20">
-                                <div className="absolute top-0 right-0 p-8 opacity-[0.05] group-hover:scale-125 transition-transform duration-1000">
-                                    <Sparkles size={160} strokeWidth={1} />
-                                </div>
-                                <div className="relative z-10">
-                                    <h3 className="text-white font-black text-xl tracking-tight mb-3 flex items-center gap-3">
-                                        <Sparkles className="h-5 w-5" strokeWidth={2.5} />
-                                        AI Research
-                                    </h3>
-                                    <p className="text-stone-400 text-xs font-medium leading-relaxed mb-8 italic">
-                                        Identify shared interests and company news automatically.
-                                    </p>
-                                    <Button
-                                        size="lg"
-                                        className="w-full bg-white text-stone-900 hover:bg-stone-100 font-black text-[10px] uppercase tracking-widest h-14 rounded-xl shadow-xl border-none active:scale-95 transition-all"
-                                        onClick={handleEnrichContact}
-                                        disabled={enriching}
-                                    >
-                                        {enriching ? (
-                                            <Loader2 className="h-4 w-4 animate-spin mr-3" strokeWidth={3} />
-                                        ) : (
-                                            <Command className="mr-3 h-4 w-4 text-stone-900" strokeWidth={3} />
-                                        )}
-                                        {enriching ? 'Researching...' : 'Start Research'}
-                                    </Button>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -677,6 +775,24 @@ export default function ContactDetailPage() {
                                     ))}
                                 </div>
                             </div>
+
+                            {/* About Contact (Enriched AI Data) */}
+                            {contact.bio && (
+                                <div className="mb-12 p-8 bg-stone-900 rounded-[2.5rem] text-white shadow-2xl shadow-stone-900/10 relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+                                        <Sparkles className="h-12 w-12" />
+                                    </div>
+                                    <div className="relative z-10">
+                                        <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
+                                            <Sparkles className="h-3 w-3" />
+                                            About {contact.first_name}
+                                        </p>
+                                        <p className="text-lg font-bold leading-relaxed tracking-tight">
+                                            {contact.bio}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Briefing Input Interface */}
                             {showNoteEditor && (
@@ -729,6 +845,51 @@ export default function ContactDetailPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* AI Research Modal */}
+                <Modal
+                    isOpen={showResearchModal}
+                    onClose={() => {
+                        if (!enriching) {
+                            setShowResearchModal(false);
+                            setEnrichmentSuggestions(null);
+                        }
+                    }}
+                    title="AI Research"
+                    size="xl"
+                >
+                    <EnrichmentPanel
+                        loading={enriching}
+                        suggestions={enrichmentSuggestions}
+                        currentValues={{
+                            bio: contact.bio,
+                            website: contact.company?.website,
+                            industry: contact.company?.industry,
+                            description: contact.company?.description,
+                            location: contact.company?.location,
+                            products_services: contact.company?.products_services,
+                            company_size: contact.company?.company_size,
+                            linkedin_url: contact.linkedin_url
+                        }}
+                        onAccept={handleAcceptSuggestion}
+                        onReject={(field) => {
+                            const newSuggestions = { ...enrichmentSuggestions };
+                            delete newSuggestions[field];
+                            if (newSuggestions.confidence) delete newSuggestions.confidence[field];
+                            if (Object.keys(newSuggestions).filter(k => k !== 'confidence' && k !== 'sources').length === 0) {
+                                setEnrichmentSuggestions(null);
+                                setShowResearchModal(false);
+                            } else {
+                                setEnrichmentSuggestions(newSuggestions);
+                            }
+                        }}
+                        onEdit={handleAcceptSuggestion}
+                        onCloseRequest={() => {
+                            setEnrichmentSuggestions(null);
+                            setShowResearchModal(false);
+                        }}
+                    />
+                </Modal>
 
                 {/* Edit Contact Modal */}
                 <Modal

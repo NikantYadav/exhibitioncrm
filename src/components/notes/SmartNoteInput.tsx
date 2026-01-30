@@ -53,7 +53,7 @@ export function SmartNoteInput({ onProcess, isProcessing }: SmartNoteInputProps)
             console.error('Speech recognition error:', event.error);
             setIsListening(false);
             if (event.error !== 'no-speech') {
-                toast.error(`Speech recognition error: ${event.error}`);
+                toast.error('Internal Server Error');
             }
         };
 

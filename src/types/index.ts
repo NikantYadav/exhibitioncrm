@@ -37,6 +37,7 @@ export interface Contact {
     phone?: string;
     job_title?: string;
     linkedin_url?: string;
+    bio?: string;
     notes?: string;
     avatar_url?: string;
     created_at: string;

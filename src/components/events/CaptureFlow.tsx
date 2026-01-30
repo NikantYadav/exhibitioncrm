@@ -140,7 +140,7 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
             setStep('assign');
         } catch (error: any) {
             console.error('Processing error:', error);
-            toast.error(error.message || 'Failed to process image', { id: processingToast });
+            toast.error('Internal Server Error', { id: processingToast });
         } finally {
             setIsProcessing(false);
         }
@@ -172,11 +172,11 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
                 toast.success('Contact successfully saved!', { id: finalizeToast });
                 onComplete(result);
             } else {
-                toast.error(result.error || 'Failed to save contact', { id: finalizeToast });
+                toast.error('Internal Server Error', { id: finalizeToast });
             }
         } catch (error) {
             console.error('Finalize error:', error);
-            toast.error('Connection error while saving', { id: finalizeToast });
+            toast.error('Internal Server Error', { id: finalizeToast });
         }
     };
 
@@ -423,10 +423,10 @@ function EventAssignment({ initialEventId, onBack, onAssign, leadName }: {
                 // Signal other pages to refresh their event lists
                 window.dispatchEvent(new CustomEvent('events:refresh'));
             } else {
-                toast.error(data.error || 'Failed to create event', { id: loadingToast });
+                toast.error('Internal Server Error', { id: loadingToast });
             }
         } catch (err) {
-            toast.error('Error reaching server', { id: loadingToast });
+            toast.error('Internal Server Error', { id: loadingToast });
         }
     };
 

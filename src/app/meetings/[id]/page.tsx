@@ -55,7 +55,7 @@ export default function MeetingBriefPage() {
             }
         } catch (error) {
             console.error('Error fetching meeting:', error);
-            toast.error('Failed to load meeting details');
+            toast.error('Internal Server Error');
         } finally {
             setLoading(false);
         }
@@ -74,10 +74,10 @@ export default function MeetingBriefPage() {
                 setIsEditingNotes(false);
                 fetchMeetingData();
             } else {
-                toast.error('Failed to update prep');
+                toast.error('Internal Server Error');
             }
         } catch (error) {
-            toast.error('An error occurred');
+            toast.error('Internal Server Error');
         }
     };
 
@@ -98,11 +98,11 @@ export default function MeetingBriefPage() {
                 window.dispatchEvent(new CustomEvent('timeline:refresh'));
                 fetchMeetingData();
             } else {
-                toast.error('Failed to save notes');
+                toast.error('Internal Server Error');
             }
         } catch (error) {
             console.error('Save notes error:', error);
-            toast.error('An error occurred while saving');
+            toast.error('Internal Server Error');
         }
     };
 
@@ -121,7 +121,7 @@ export default function MeetingBriefPage() {
             router.push('/meetings');
         } catch (error) {
             console.error('Error completing meeting:', error);
-            toast.error('Failed to complete meeting');
+            toast.error('Internal Server Error');
         }
     };
 
@@ -146,7 +146,7 @@ export default function MeetingBriefPage() {
             toast.success('Meeting intelligence generated!');
         } catch (error) {
             console.error('Error generating prep:', error);
-            toast.error('Failed to generate meeting intelligence');
+            toast.error('Internal Server Error');
         } finally {
             setIsGenerating(false);
         }

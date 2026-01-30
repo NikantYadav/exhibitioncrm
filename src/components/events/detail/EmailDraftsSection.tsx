@@ -139,7 +139,7 @@ export function EmailDraftsSection({ eventId, targets }: EmailDraftsSectionProps
             toast.success('Draft deleted');
         } catch (error: any) {
             console.error('Delete error:', error);
-            toast.error('Failed to delete draft: ' + (error.message || 'Unknown error'));
+            toast.error('Internal Server Error');
         }
     };
 

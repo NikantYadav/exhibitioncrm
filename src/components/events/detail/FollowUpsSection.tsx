@@ -45,7 +45,7 @@ export function FollowUpsSection({ eventId, event, onRefresh }: FollowUpsSection
             setFollowUpData(data.data);
         } catch (error) {
             console.error('Failed to fetch follow-ups:', error);
-            toast.error('Failed to load follow-ups');
+            toast.error('Internal Server Error');
         } finally {
             setLoading(false);
         }
@@ -90,7 +90,7 @@ export function FollowUpsSection({ eventId, event, onRefresh }: FollowUpsSection
             }
         } catch (error) {
             console.error('Failed to move contact:', error);
-            toast.error('Failed to update status');
+            toast.error('Internal Server Error');
             fetchFollowUps(); // Revert on failure
         }
     };
