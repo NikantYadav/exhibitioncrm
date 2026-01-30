@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/Button'; // Assuming Button exists
 import { Textarea } from '@/components/ui/Textarea'; // Assuming Textarea exists
 import { Mic, Send, Loader2, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface SmartNoteInputProps {
     onProcess: (content: string) => Promise<void>;
@@ -21,16 +22,46 @@ export function SmartNoteInput({ onProcess, isProcessing }: SmartNoteInputProps)
     };
 
     const toggleListening = () => {
-        // Mock voice recognition
-        if (!isListening) {
-            setIsListening(true);
-            setTimeout(() => {
-                setContent((prev) => prev + " Met with Sarah at the conference today. She's interested...");
-                setIsListening(false);
-            }, 2000);
-        } else {
+        if (isListening) {
             setIsListening(false);
+            return;
         }
+
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            toast.error('Speech recognition is not supported in this browser.');
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            setIsListening(true);
+            toast.info('Listening...', { duration: 1000 });
+        };
+
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            setContent((prev) => prev + (prev.trim() ? ' ' : '') + transcript);
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+            setIsListening(false);
+            if (event.error !== 'no-speech') {
+                toast.error(`Speech recognition error: ${event.error}`);
+            }
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+        };
+
+        recognition.start();
     };
 
     return (

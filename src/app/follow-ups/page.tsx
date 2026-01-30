@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
-import { ArrowRight, Calendar, Users, Mail, CheckCircle, Clock, XCircle, BarChart3, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowRight, Calendar, Users, Mail, CheckCircle, Clock, XCircle, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Skeleton } from '@/components/ui/Skeleton';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FollowUpsSection } from '@/components/events/detail/FollowUpsSection';
@@ -91,8 +92,18 @@ export default function FollowUpDashboard() {
     if (loading) {
         return (
             <AppShell>
-                <div className="flex h-[50vh] items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                <div className="max-w-7xl mx-auto space-y-8">
+                    <div>
+                        <Skeleton className="h-10 w-64 mb-2" />
+                        <Skeleton className="h-4 w-96" />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+                    </div>
+                    <div className="space-y-4 pt-4">
+                        <Skeleton className="h-6 w-48 mb-4" />
+                        {[1, 2, 3].map(i => <Skeleton key={i} className="h-32 rounded-2xl w-full" />)}
+                    </div>
                 </div>
             </AppShell>
         );

@@ -114,13 +114,19 @@ export async function POST(request: NextRequest) {
                     .eq('id', capture.id);
 
                 // Create interaction history
+                const humanCaptureType = (capture_type || 'card_scan')
+                    .replace(/_/g, ' ')
+                    .split(' ')
+                    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(' ');
+
                 await supabase
                     .from('interactions')
                     .insert({
                         contact_id: contact.id,
                         event_id: event_id || null,
                         interaction_type: 'capture',
-                        summary: `Captured via ${capture_type} at ${eventName}`,
+                        summary: `Captured via ${humanCaptureType} at ${eventName}`,
                         details: {
                             source: capture_type,
                             raw_text: raw_text,

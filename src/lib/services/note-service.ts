@@ -117,20 +117,6 @@ Return JSON.`;
 
         if (error) throw error;
 
-        // Also log interaction
-        if (note.contact_id) {
-            await supabase.from('interactions').insert({
-                contact_id: note.contact_id,
-                event_id: note.event_id,
-                interaction_type: 'note',
-                summary: 'Added smart note',
-                details: {
-                    note_id: savedNote.id,
-                    snippet: note.formatted_content.substring(0, 100)
-                }
-            });
-        }
-
         return savedNote;
     }
 }

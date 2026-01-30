@@ -135,6 +135,7 @@ export default function ContactDetailPage() {
             if (response.ok) {
                 setShowNoteEditor(false);
                 toast.success('Note saved!');
+                window.dispatchEvent(new CustomEvent('timeline:refresh'));
                 fetchTimeline(); // Refresh only the timeline
 
                 // Check if status was updated by AI analysis after a short delay
@@ -230,6 +231,7 @@ export default function ContactDetailPage() {
 
                         setShowVoiceRecorder(false);
                         toast.success('Voice note saved! Transcribing in background...', { id: savingToast });
+                        window.dispatchEvent(new CustomEvent('timeline:refresh'));
                         fetchTimeline(); // Show the audio note immediately
 
                         // 2. Background Transcription
@@ -261,6 +263,7 @@ export default function ContactDetailPage() {
                                         });
 
                                         toast.success('Transcription complete!');
+                                        window.dispatchEvent(new CustomEvent('timeline:refresh'));
                                         fetchTimeline(); // Refresh to show transcript
 
                                         // Check if status was updated by AI analysis after transcription

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import * as Tooltip from '@radix-ui/react-tooltip';
+import { CaptureDropdown } from '@/components/capture/CaptureDropdown';
 
 const navItems = [
     { href: '/', icon: Home, label: 'Dashboard' },
@@ -44,6 +45,36 @@ export function Sidebar() {
                     {/* Navigation - softer active state */}
                     <nav className="flex flex-1 flex-col gap-1">
                         {navItems.map((item) => {
+                            if (item.href === '/capture') {
+                                return (
+                                    <Tooltip.Root key={item.href}>
+                                        <CaptureDropdown
+                                            align="left"
+                                            trigger={
+                                                <Tooltip.Trigger asChild>
+                                                    <button
+                                                        className={cn(
+                                                            "flex h-11 w-11 items-center justify-center rounded-xl transition-smooth sidebar-inactive outline-none border-none cursor-pointer"
+                                                        )}
+                                                    >
+                                                        <item.icon className="h-5 w-5" strokeWidth={2} />
+                                                    </button>
+                                                </Tooltip.Trigger>
+                                            }
+                                        />
+                                        <Tooltip.Portal>
+                                            <Tooltip.Content
+                                                side="right"
+                                                className="rounded-lg bg-stone-900 px-3 py-2 text-sm text-white shadow-lg z-[100]"
+                                                sideOffset={8}
+                                            >
+                                                {item.label}
+                                            </Tooltip.Content>
+                                        </Tooltip.Portal>
+                                    </Tooltip.Root>
+                                );
+                            }
+
                             const isActive = pathname === item.href;
                             const Icon = item.icon;
 
@@ -65,7 +96,7 @@ export function Sidebar() {
                                     <Tooltip.Portal>
                                         <Tooltip.Content
                                             side="right"
-                                            className="rounded-lg bg-stone-900 px-3 py-2 text-sm text-white shadow-lg"
+                                            className="rounded-lg bg-stone-900 px-3 py-2 text-sm text-white shadow-lg z-[100]"
                                             sideOffset={8}
                                         >
                                             {item.label}

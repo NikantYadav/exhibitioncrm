@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { OfflineIndicator } from '../ui/OfflineIndicator';
 import { Button } from '@/components/ui/Button';
+import { CaptureDropdown } from '@/components/capture/CaptureDropdown';
 
 export function Header() {
     const pathname = usePathname();
@@ -25,14 +26,27 @@ export function Header() {
 
                 <nav className="flex items-center gap-6">
                     {navItems.map((item) => {
+                        if (item.href === '/capture') {
+                            return (
+                                <CaptureDropdown
+                                    key={item.href}
+                                    align="left"
+                                    trigger={
+                                        <button className="text-sm font-medium text-stone-600 hover:text-stone-900 transition-colors">
+                                            {item.label}
+                                        </button>
+                                    }
+                                />
+                            );
+                        }
                         const isActive = pathname === item.href;
                         return (
                             <Link
                                 key={item.href}
                                 href={item.href}
                                 className={`text-sm font-medium transition-colors ${isActive
-                                        ? 'text-stone-900'
-                                        : 'text-stone-600 hover:text-stone-900'
+                                    ? 'text-stone-900'
+                                    : 'text-stone-600 hover:text-stone-900'
                                     }`}
                             >
                                 {item.label}

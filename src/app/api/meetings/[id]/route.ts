@@ -83,20 +83,40 @@ export async function PATCH(
             throw error;
         }
 
-        // If status is being updated to completed, log an interaction
+        // If status is being updated to completed, log an interaction and update date
         if (updates.status === 'completed') {
+            const completionDate = new Date().toISOString();
+
+            // Re-update the meeting with the completion date
+            const { data: updatedMeeting, error: updateError } = await supabase
+                .from('meeting_briefs')
+                .update({ ...updates, meeting_date: completionDate })
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (updateError) throw updateError;
+
+            const humanMeetingType = (updatedMeeting.meeting_type || 'in_person')
+                .replace(/_/g, ' ')
+                .split(' ')
+                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(' ');
+
             await supabase
                 .from('interactions')
                 .insert({
-                    contact_id: meeting.contact_id,
+                    contact_id: updatedMeeting.contact_id,
                     interaction_type: 'meeting',
-                    summary: `Completed meeting: ${meeting.meeting_type}`,
-                    interaction_date: meeting.meeting_date,
+                    summary: `Completed meeting: ${humanMeetingType}`,
+                    interaction_date: completionDate,
                     details: {
-                        meeting_id: meeting.id,
-                        notes: updates.post_meeting_notes || meeting.post_meeting_notes
+                        meeting_id: updatedMeeting.id,
+                        notes: updates.post_meeting_notes || updatedMeeting.post_meeting_notes
                     }
                 });
+
+            return NextResponse.json({ meeting: updatedMeeting });
         }
 
         return NextResponse.json({ meeting });

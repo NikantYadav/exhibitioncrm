@@ -9,7 +9,11 @@ import { getProfile, updateProfile, UserProfile } from '@/app/actions/profile-ac
 import { User, Building2, Briefcase, Save, Loader2, Edit, X, Globe, Mail, Phone, Linkedin, Twitter } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function ProfileSection() {
+interface ProfileSectionProps {
+    children?: React.ReactNode;
+}
+
+export function ProfileSection({ children }: ProfileSectionProps) {
     const [profile, setProfile] = useState<UserProfile>({
         profile_type: 'company',
         name: '',
@@ -34,14 +38,14 @@ export function ProfileSection() {
 
     const handleSave = async () => {
         setIsSaving(true);
-        const savingToast = toast.loading('Syncing profile archives...');
+        const savingToast = toast.loading('Saving profile...');
         const result = await updateProfile(profile);
         if (result.success) {
-            toast.success('Identity verified and updated', { id: savingToast });
+            toast.success('Profile updated', { id: savingToast });
             setIsEditing(false);
             loadProfile();
         } else {
-            toast.error('Sync failed: ' + result.error, { id: savingToast });
+            toast.error('Failed to save: ' + result.error, { id: savingToast });
         }
         setIsSaving(false);
     };
@@ -55,7 +59,7 @@ export function ProfileSection() {
             <div className="flex items-center justify-center h-48 premium-card">
                 <div className="flex flex-col items-center gap-4">
                     <Loader2 className="h-8 w-8 animate-spin text-stone-400" />
-                    <p className="text-stone-500 font-medium text-sm">Accessing Identity Archives...</p>
+                    <p className="text-stone-500 font-medium text-sm">Loading profile info...</p>
                 </div>
             </div>
         );
@@ -70,8 +74,8 @@ export function ProfileSection() {
                             <User className="w-5 h-5 text-stone-600" />
                         </div>
                         <div>
-                            <h3 className="text-section-header">Corporate Identity</h3>
-                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Base context for AI synthesis</p>
+                            <h3 className="text-section-header">Profile</h3>
+                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Personal information for AI</p>
                         </div>
                     </div>
                     {!isEditing && (
@@ -82,7 +86,7 @@ export function ProfileSection() {
                             className="rounded-full px-4 border-stone-300 hover:bg-stone-900 hover:text-white transition-all duration-300"
                         >
                             <Edit className="h-4 w-4 mr-2" />
-                            Refine Profile
+                            Edit Profile
                         </Button>
                     )}
                 </div>
@@ -92,12 +96,12 @@ export function ProfileSection() {
                         <div className="space-y-10">
                             {/* Profile Type */}
                             <div className="space-y-4">
-                                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Deployment Type</span>
+                                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Profile Type</span>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     {[
-                                        { id: 'company', label: 'Enterprise', icon: Building2, desc: 'Corporate details' },
-                                        { id: 'individual', label: 'Executive', icon: User, desc: 'Personal branding' },
-                                        { id: 'employee', label: 'Associate', icon: Briefcase, desc: 'Representing entity' }
+                                        { id: 'company', label: 'Company', icon: Building2, desc: 'Corporate details' },
+                                        { id: 'individual', label: 'Individual', icon: User, desc: 'Personal branding' },
+                                        { id: 'employee', label: 'Employee', icon: Briefcase, desc: 'Work profile' }
                                     ].map((type) => (
                                         <button
                                             key={type.id}
@@ -119,25 +123,25 @@ export function ProfileSection() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-6">
                                     <div className="space-y-4">
-                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Essential Data</span>
+                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Basic Info</span>
                                         <Input
-                                            label={profile.profile_type === 'company' ? 'Legal Entity Name' : 'Full Name'}
+                                            label={profile.profile_type === 'company' ? 'Company Name' : 'Full Name'}
                                             value={profile.name}
                                             onChange={(e) => updateField('name', e.target.value)}
                                             placeholder="..."
                                             className="bg-stone-50/50 border-stone-200"
                                         />
                                         <Input
-                                            label="Public Tagline"
+                                            label="Tagline"
                                             value={profile.tagline || ''}
                                             onChange={(e) => updateField('tagline', e.target.value)}
-                                            placeholder="Elevator pitch..."
+                                            placeholder="A short description..."
                                             className="bg-stone-50/50 border-stone-200"
                                         />
                                     </div>
 
                                     <div className="space-y-4">
-                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Strategy & Value</span>
+                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Business Details</span>
                                         <Textarea
                                             label="Products/Services"
                                             rows={4}
@@ -151,7 +155,7 @@ export function ProfileSection() {
                                             rows={4}
                                             value={profile.value_proposition || ''}
                                             onChange={(e) => updateField('value_proposition', e.target.value)}
-                                            placeholder="Why you?"
+                                            placeholder="Why choose you?"
                                             className="bg-stone-50/50 border-stone-200"
                                         />
                                     </div>
@@ -159,30 +163,30 @@ export function ProfileSection() {
 
                                 <div className="space-y-6">
                                     <div className="space-y-4">
-                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">AI Intelligence Tuning</span>
+                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">AI Tone & Context</span>
                                         <Select
-                                            label="AI Persona Tone"
+                                            label="AI Voice"
                                             value={profile.ai_tone || 'professional'}
                                             onChange={(e) => updateField('ai_tone', e.target.value)}
                                             className="bg-stone-50/50 border-stone-200"
                                         >
-                                            <option value="professional">Architect (Professional)</option>
-                                            <option value="casual">Collaborator (Casual)</option>
-                                            <option value="formal">Ambassador (Formal)</option>
-                                            <option value="friendly">Guide (Friendly)</option>
+                                            <option value="professional">Professional</option>
+                                            <option value="casual">Casual</option>
+                                            <option value="formal">Formal</option>
+                                            <option value="friendly">Friendly</option>
                                         </Select>
                                         <Textarea
-                                            label="Advanced AI Context"
+                                            label="Extra context for AI"
                                             rows={6}
                                             value={profile.additional_context || ''}
                                             onChange={(e) => updateField('additional_context', e.target.value)}
-                                            placeholder="Deep context for AI synthesis..."
+                                            placeholder="Anything else for AI to know..."
                                             className="bg-stone-50/50 border-stone-200"
                                         />
                                     </div>
 
                                     <div className="space-y-4 pt-4">
-                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Public Channels</span>
+                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Contact Links</span>
                                         <div className="grid grid-cols-2 gap-4">
                                             <Input
                                                 label="Website"
@@ -195,21 +199,21 @@ export function ProfileSection() {
                                                 label="LinkedIn"
                                                 value={profile.linkedin_url || ''}
                                                 onChange={(e) => updateField('linkedin_url', e.target.value)}
-                                                placeholder="Profile URL"
+                                                placeholder="Profile link"
                                                 className="bg-stone-50/50 border-stone-200"
                                             />
                                             <Input
-                                                label="X (Twitter)"
+                                                label="X"
                                                 value={profile.twitter_url || ''}
                                                 onChange={(e) => updateField('twitter_url', e.target.value)}
-                                                placeholder="Handle or URL"
+                                                placeholder="Handle"
                                                 className="bg-stone-50/50 border-stone-200"
                                             />
                                             <Input
                                                 label="Email"
                                                 value={profile.email || ''}
                                                 onChange={(e) => updateField('email', e.target.value)}
-                                                placeholder="contact@..."
+                                                placeholder="example@..."
                                                 className="bg-stone-50/50 border-stone-200"
                                             />
                                         </div>
@@ -238,58 +242,65 @@ export function ProfileSection() {
                                     ) : (
                                         <Save className="w-4 h-4 mr-2" />
                                     )}
-                                    Verify Changes
+                                    Save Changes
                                 </Button>
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div className="md:col-span-2 space-y-10">
-                                <div className="space-y-2">
-                                    <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Profile Overview</h4>
-                                    <h1 className="text-4xl font-bold text-stone-900">{profile.name}</h1>
-                                    <p className="text-xl text-stone-500 font-medium italic">{profile.tagline || 'No tagline set'}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+                            <div className="md:col-span-2 space-y-12">
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Overview</h4>
+                                    <h1 className="text-4xl font-black text-stone-900 tracking-tight">{profile.name}</h1>
+                                    <p className="text-xl text-stone-500 font-medium italic">{profile.tagline || 'No description set'}</p>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-6 border-t border-stone-100">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-8 border-t border-stone-100">
                                     <div className="space-y-4">
                                         <div className="space-y-1">
                                             <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Industry</span>
-                                            <p className="text-stone-800 font-semibold">{profile.industry || 'Not specified'}</p>
+                                            <p className="text-stone-800 font-bold">{profile.industry || 'Not set'}</p>
                                         </div>
                                         <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Global Location</span>
-                                            <p className="text-stone-800 font-semibold">{profile.location || 'Not specified'}</p>
+                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Location</span>
+                                            <p className="text-stone-800 font-bold">{profile.location || 'Not set'}</p>
                                         </div>
                                     </div>
                                     <div className="space-y-4">
                                         <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Profile Status</span>
+                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Status</span>
                                             <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                                                <p className="text-stone-800 font-semibold capitalize">{profile.profile_type} Active</p>
+                                                <p className="text-stone-800 font-bold capitalize">{profile.profile_type}</p>
                                             </div>
                                         </div>
                                         <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">AI Tone Tuning</span>
-                                            <p className="text-stone-800 font-semibold capitalize">{profile.ai_tone}</p>
+                                            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">AI Tone</span>
+                                            <p className="text-stone-800 font-bold capitalize">{profile.ai_tone}</p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-6 pt-6 border-t border-stone-100">
+                                <div className="space-y-6 pt-8 border-t border-stone-100">
                                     <div className="space-y-3">
                                         <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Value Proposition</span>
-                                        <p className="text-stone-700 leading-relaxed italic pr-12">
-                                            "{profile.value_proposition || 'Define your value to help AI understand your core mission.'}"
+                                        <p className="text-stone-700 leading-relaxed italic text-lg opacity-80">
+                                            "{profile.value_proposition || 'Describe your values here.'}"
                                         </p>
                                     </div>
                                 </div>
+
+                                {/* MARKETING ASSETS INTEGRATION POINT */}
+                                {children && (
+                                    <div className="pt-12 border-t border-stone-100">
+                                        {children}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-8">
-                                <div className="premium-card bg-stone-50/50 p-6 space-y-4 border-none shadow-none">
-                                    <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Public Channels</h4>
+                                <div className="bg-stone-50/50 rounded-3xl p-6 space-y-4 border border-stone-100">
+                                    <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Contact Information</h4>
                                     <div className="space-y-4">
                                         {[
                                             { icon: Globe, val: profile.website, label: 'Website' },
@@ -300,18 +311,18 @@ export function ProfileSection() {
                                         ].map((item, i) => (
                                             <div key={i} className="flex items-center gap-3">
                                                 <item.icon className="w-4 h-4 text-stone-400" />
-                                                <span className={`text-sm ${item.val ? 'text-stone-900 font-medium' : 'text-stone-300 italic'}`}>
-                                                    {item.val || `${item.label} not set`}
+                                                <span className={`text-sm ${item.val ? 'text-stone-900 font-bold' : 'text-stone-300 italic'}`}>
+                                                    {item.val || `${item.label}`}
                                                 </span>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
 
-                                <div className="bg-stone-900 rounded-3xl p-6 text-white space-y-3">
-                                    <h4 className="text-[10px] font-bold text-stone-600 uppercase tracking-widest">AI Deployment</h4>
+                                <div className="bg-stone-900 rounded-3xl p-6 text-white space-y-3 shadow-xl shadow-stone-200">
+                                    <h4 className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">AI Context</h4>
                                     <p className="text-xs text-stone-400 leading-relaxed">
-                                        Your identity archives are currently accessible by AI for deep context synthesis.
+                                        This info is shared with AI to help it understand you better during synthesis.
                                     </p>
                                 </div>
                             </div>

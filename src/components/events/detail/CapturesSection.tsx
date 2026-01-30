@@ -8,14 +8,15 @@ import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 
 interface CapturesSectionProps {
+    eventId: string;
     captures: Capture[];
-    onOpenCapture: (mode: CaptureMode) => void;
     onDeleteCapture: (e: React.MouseEvent, captureId: string) => void;
 }
 
 import { toast } from 'sonner';
+import { CaptureDropdown } from '@/components/capture/CaptureDropdown';
 
-export function CapturesSection({ captures, onOpenCapture, onDeleteCapture }: CapturesSectionProps) {
+export function CapturesSection({ eventId, captures, onDeleteCapture }: CapturesSectionProps) {
     const router = useRouter();
     const [selectedCapturePreview, setSelectedCapturePreview] = useState<Capture | null>(null);
     const [showPreview, setShowPreview] = useState(false);
@@ -33,65 +34,16 @@ export function CapturesSection({ captures, onOpenCapture, onDeleteCapture }: Ca
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Business Card Captures</h3>
                 {filteredCaptures.length > 0 && (
-                    <div className="relative group">
-                        <Button size="sm">
-                            <Camera className="mr-2 h-4 w-4" />
-                            New Capture
-                            <MoreVertical className="ml-2 h-4 w-4" />
-                        </Button>
-
-                        <div className="absolute right-0 w-56 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
-                            <button
-                                onClick={() => onOpenCapture('camera')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center gap-2"
-                            >
-                                <Camera className="h-4 w-4 text-blue-600" />
-                                Scan Card
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('badge')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-cyan-50 flex items-center gap-2"
-                            >
-                                <IdCard className="h-4 w-4 text-cyan-600" />
-                                Scan Badge
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('qr')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"
-                            >
-                                <QrCode className="h-4 w-4 text-amber-600" />
-                                Scan QR Code
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('photo_note')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-teal-50 flex items-center gap-2"
-                            >
-                                <Camera className="h-4 w-4 text-teal-600" />
-                                Photo + Notes
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('manual')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 flex items-center gap-2"
-                            >
-                                <Keyboard className="h-4 w-4 text-emerald-600" />
-                                Manual Entry
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('voice')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-rose-50 flex items-center gap-2"
-                            >
-                                <Mic className="h-4 w-4 text-rose-600" />
-                                Voice Note
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('upload')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 flex items-center gap-2 border-t border-gray-100"
-                            >
-                                <Download className="h-4 w-4 text-purple-600" />
-                                Upload Photo
-                            </button>
-                        </div>
-                    </div>
+                    <CaptureDropdown
+                        eventId={eventId}
+                        trigger={
+                            <Button size="sm">
+                                <Camera className="mr-2 h-4 w-4" />
+                                New Capture
+                                <MoreVertical className="ml-2 h-4 w-4" />
+                            </Button>
+                        }
+                    />
                 )}
             </div>
 
@@ -99,65 +51,16 @@ export function CapturesSection({ captures, onOpenCapture, onDeleteCapture }: Ca
                 <div className="text-center py-12">
                     <Camera className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                     <p className="text-gray-600 mb-4">No captures yet</p>
-                    <div className="relative group inline-block">
-                        <Button size="sm">
-                            <Camera className="mr-2 h-4 w-4" />
-                            Start Capturing
-                            <MoreVertical className="ml-2 h-4 w-4" />
-                        </Button>
-
-                        <div className="absolute left-1/2 -translate-x-1/2 w-56 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
-                            <button
-                                onClick={() => onOpenCapture('camera')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center gap-2"
-                            >
-                                <Camera className="h-4 w-4 text-blue-600" />
-                                Scan Card
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('badge')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-cyan-50 flex items-center gap-2"
-                            >
-                                <IdCard className="h-4 w-4 text-cyan-600" />
-                                Scan Badge
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('qr')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"
-                            >
-                                <QrCode className="h-4 w-4 text-amber-600" />
-                                Scan QR Code
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('photo_note')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-teal-50 flex items-center gap-2"
-                            >
-                                <Camera className="h-4 w-4 text-teal-600" />
-                                Photo + Notes
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('manual')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 flex items-center gap-2"
-                            >
-                                <Keyboard className="h-4 w-4 text-emerald-600" />
-                                Manual Entry
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('voice')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-rose-50 flex items-center gap-2"
-                            >
-                                <Mic className="h-4 w-4 text-rose-600" />
-                                Voice Note
-                            </button>
-                            <button
-                                onClick={() => onOpenCapture('upload')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 flex items-center gap-2 border-t border-gray-100"
-                            >
-                                <Download className="h-4 w-4 text-purple-600" />
-                                Upload Photo
-                            </button>
-                        </div>
-                    </div>
+                    <CaptureDropdown
+                        eventId={eventId}
+                        trigger={
+                            <Button size="sm">
+                                <Camera className="mr-2 h-4 w-4" />
+                                Start Capturing
+                                <MoreVertical className="ml-2 h-4 w-4" />
+                            </Button>
+                        }
+                    />
                 </div>
             ) : (
                 <div className="space-y-3">

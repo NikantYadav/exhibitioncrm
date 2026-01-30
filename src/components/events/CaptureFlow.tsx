@@ -19,10 +19,15 @@ import {
     Loader2,
     RefreshCw,
     IdCard,
-    Download
+    Download,
+    Plus,
+    Search,
+    ChevronRight,
+    ChevronLeft,
+    CheckCircle2,
+    MapPin
 } from 'lucide-react';
 
-// Dynamic imports to prevent SSR issues
 const QrScanner = dynamic(() => import('@/components/capture/QrScanner'), {
     ssr: false,
     loading: () => <div className="h-[400px] flex items-center justify-center text-white bg-black rounded-lg">Loading Scanner...</div>
@@ -33,20 +38,11 @@ const VoiceRecorder = dynamic(() => import('@/components/capture/VoiceRecorder')
     loading: () => <div className="p-12 text-center text-gray-500">Loading Recorder...</div>
 });
 
-const BadgeScanner = dynamic(() => import('@/components/capture/BadgeScanner').then(mod => ({ default: mod.BadgeScanner })), {
-    ssr: false,
-    loading: () => <div className="h-[400px] flex items-center justify-center text-white bg-black rounded-lg">Loading Badge Scanner...</div>
-});
-
-const PhotoNoteCapture = dynamic(() => import('@/components/capture/PhotoNoteCapture').then(mod => ({ default: mod.PhotoNoteCapture })), {
-    ssr: false,
-    loading: () => <div className="h-[400px] flex items-center justify-center text-white bg-black rounded-lg">Loading Photo Capture...</div>
-});
-
-export type CaptureMode = 'camera' | 'upload' | 'manual' | 'qr' | 'voice' | 'badge' | 'photo_note';
+// Capture modes: Smart Scan (AI), QR, Voice, Manual, Upload
+export type CaptureMode = 'camera' | 'qr' | 'manual' | 'voice' | 'upload';
 
 interface CaptureFlowProps {
-    eventId: string;
+    eventId?: string;
     mode: CaptureMode | null;
     onClose: () => void;
     onComplete: (data: any) => void;
@@ -56,6 +52,10 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
     const [captureMode, setCaptureMode] = useState<CaptureMode | null>(mode);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [step, setStep] = useState<'capture' | 'assign'>('capture');
+    const [pendingData, setPendingData] = useState<any>(null);
+
+    // For manual mode tracking
     const [manualData, setManualData] = useState({
         first_name: '',
         last_name: '',
@@ -63,17 +63,16 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
         phone: '',
         company_name: '',
         job_title: '',
-        notes: '',
-        event_id: eventId
+        notes: ''
     });
 
     const camera = useCamera({ facingMode: 'environment' });
 
     useEffect(() => {
         setCaptureMode(mode);
-        if (!mode) {
-            setCapturedImage(null);
-        }
+        setStep('capture');
+        setPendingData(null);
+        setCapturedImage(null);
     }, [mode]);
 
     const handleCameraCapture = () => {
@@ -97,17 +96,16 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
 
     const handleQrScan = (rawValue: string) => {
         toast.success(`QR Code Scanned: ${rawValue}`);
-        // In a real app, we'd process this. For now just close.
-        onComplete({ qr_data: rawValue });
+        setPendingData({ qr_data: rawValue, type: 'qr' });
+        setStep('assign');
     };
 
-    const processCard = async () => {
+    const processImage = async () => {
         if (!capturedImage) return;
 
         setIsProcessing(true);
-        const processingToast = toast.loading('AI is analyzing business card...');
+        const processingToast = toast.loading('Extracting information...');
         try {
-            // Step 1: Analyze image with advanced AI (multimodal)
             const analyzeResponse = await fetch('/api/ai/analyze-card', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -116,78 +114,69 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
 
             if (!analyzeResponse.ok) {
                 const errorData = await analyzeResponse.json();
-                throw new Error(errorData.error || 'AI analysis failed');
+                throw new Error(errorData.error || 'Extraction failed');
             }
 
             const { data: aiResult } = await analyzeResponse.json();
-            console.log('Advanced AI Results:', aiResult);
 
-            // Step 2: Create the capture record with the AI data
-            const response = await fetch('/api/captures', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    image: capturedImage,
-                    capture_type: captureMode === 'camera' ? 'card_scan' : 'photo_upload',
-                    event_id: eventId,
-                    extracted_data: {
-                        name: aiResult.name || `${aiResult.first_name} ${aiResult.last_name}`.trim(),
-                        first_name: aiResult.first_name,
-                        last_name: aiResult.last_name,
-                        email: aiResult.email,
-                        phone: aiResult.phone,
-                        company: aiResult.company,
-                        jobTitle: aiResult.job_title,
-                        website: aiResult.website,
-                        address: aiResult.address
-                    },
-                    raw_text: JSON.stringify(aiResult, null, 2)
-                }),
+            setPendingData({
+                image: capturedImage,
+                capture_type: captureMode === 'camera' ? 'smart_scan' : 'photo_upload',
+                extracted_data: {
+                    name: aiResult.name || `${aiResult.first_name} ${aiResult.last_name}`.trim(),
+                    first_name: aiResult.first_name,
+                    last_name: aiResult.last_name,
+                    email: aiResult.email,
+                    phone: aiResult.phone,
+                    company: aiResult.company,
+                    jobTitle: aiResult.job_title,
+                    website: aiResult.website,
+                    address: aiResult.address
+                },
+                raw_text: JSON.stringify(aiResult, null, 2)
             });
 
-            const result = await response.json();
-
-            if (response.ok) {
-                toast.success('Lead captured with AI!', { id: processingToast });
-                onComplete(result);
-            } else if (response.status === 422) {
-                toast.error(result.error || 'Failed to find contact info', { id: processingToast, duration: 5000 });
-            } else {
-                toast.error(result.error || 'Failed to process card', { id: processingToast });
-            }
+            toast.success('Information extracted!', { id: processingToast });
+            setStep('assign');
         } catch (error: any) {
             console.error('Processing error:', error);
-            toast.error(error.message || 'Failed to process card', { id: processingToast });
+            toast.error(error.message || 'Failed to process image', { id: processingToast });
         } finally {
             setIsProcessing(false);
         }
     };
 
-    const handleManualSave = async () => {
-        if (!manualData.first_name) {
-            toast.error('First name is required');
-            return;
-        }
+    const finalizeCapture = async (selectedEventId: string) => {
+        if (!pendingData) return;
 
-        const loadingToast = toast.loading('Creating contact...');
+        const finalizeToast = toast.loading('Saving lead to event...');
         try {
-            const response = await fetch('/api/contacts', {
+            let endpoint = '/api/captures';
+            let body = { ...pendingData, event_id: selectedEventId };
+
+            // If it was manual entry, we use the contacts API
+            if (captureMode === 'manual') {
+                endpoint = '/api/contacts';
+                body = { ...manualData, event_id: selectedEventId } as any;
+            }
+
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(manualData),
+                body: JSON.stringify(body),
             });
 
             const result = await response.json();
 
             if (response.ok) {
-                toast.success('Contact created successfully!', { id: loadingToast });
+                toast.success('Lead successfully saved!', { id: finalizeToast });
                 onComplete(result);
             } else {
-                toast.error(result.error || 'Failed to create contact', { id: loadingToast });
+                toast.error(result.error || 'Failed to save lead', { id: finalizeToast });
             }
         } catch (error) {
-            console.error('Manual save error:', error);
-            toast.error('Failed to create contact', { id: loadingToast });
+            console.error('Finalize error:', error);
+            toast.error('Connection error while saving', { id: finalizeToast });
         }
     };
 
@@ -195,229 +184,399 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
 
     return (
         <div className="w-full">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onClose}
-                    className="text-gray-500 hover:text-gray-900"
-                >
-                    <X className="mr-2 h-4 w-4" />
-                    Cancel
-                </Button>
-                <h3 className="font-bold text-lg capitalize">
-                    {captureMode.replace('_', ' ')}
-                </h3>
-                <div className="w-20" />
-            </div>
+            {/* Step 1: Capture */}
+            {step === 'capture' && (
+                <>
+                    {/* Redundant title removed as it's in the modal header */}
 
-            {/* Content areas based on mode */}
-            {captureMode === 'camera' && !capturedImage && (
-                <div className="bg-black rounded-xl overflow-hidden relative min-h-[400px] flex items-center justify-center">
-                    {!camera.isActive ? (
-                        <div className="text-center p-8 text-white">
-                            <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                            <h3 className="text-lg font-bold mb-2">Camera Access Needed</h3>
-                            <Button onClick={camera.startCamera} size="sm" className="bg-white text-black hover:bg-gray-200">
-                                Enable Camera
-                            </Button>
-                        </div>
-                    ) : (
-                        <>
-                            <video
-                                ref={camera.videoRef}
-                                autoPlay
-                                playsInline
-                                className="w-full max-h-[500px] object-cover"
-                            />
-                            <div className="absolute bottom-6 left-0 right-0 flex justify-center">
-                                <button
-                                    onClick={handleCameraCapture}
-                                    className="h-16 w-16 rounded-full border-4 border-white flex items-center justify-center bg-white/20 hover:bg-white/40 transition-colors"
+                    {captureMode === 'camera' && !capturedImage && (
+                        <div className="bg-black rounded-2xl overflow-hidden relative min-h-[450px] flex flex-col shadow-2xl">
+                            {/* Permission/Start View */}
+                            <div className={cn("flex-1 flex flex-col items-center justify-center p-12 text-white text-center transition-opacity duration-300", camera.isActive ? "hidden" : "opacity-100")}>
+                                <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-6">
+                                    <Camera className="h-10 w-10 opacity-50" />
+                                </div>
+                                <h3 className="text-xl font-bold mb-3">Ready to Scan</h3>
+                                <p className="text-stone-400 text-sm mb-8 max-w-xs">We need your permission to scan documents using the camera.</p>
+                                <Button
+                                    onClick={camera.startCamera}
+                                    disabled={camera.isLoading}
+                                    className="bg-white text-black hover:bg-stone-200 px-8 h-12 rounded-xl font-bold transition-all"
                                 >
-                                    <div className="h-12 w-12 bg-white rounded-full" />
-                                </button>
+                                    {camera.isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Start Scanning'}
+                                </Button>
+                                {camera.error && (
+                                    <p className="mt-4 text-red-400 text-xs font-medium">{camera.error}</p>
+                                )}
                             </div>
-                        </>
+
+                            {/* Active Camera View - Always mounted but hidden if not active to keep Ref alive if possible, though strict logic toggles hidden */}
+                            <div className={cn("relative flex-1 flex flex-col items-center justify-center bg-black", !camera.isActive && "hidden")}>
+                                <video
+                                    ref={camera.videoRef}
+                                    autoPlay
+                                    playsInline
+                                    muted
+                                    className={cn(
+                                        "w-full h-full object-cover transition-opacity duration-500",
+                                        camera.isReady ? "opacity-100" : "opacity-0"
+                                    )}
+                                />
+                                {!camera.isReady && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Loader2 className="h-10 w-10 text-white animate-spin" />
+                                            <span className="text-white text-xs font-bold uppercase tracking-widest">Warming up sensor...</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="absolute inset-x-0 bottom-8 flex justify-center items-center gap-8 z-10">
+                                    <button
+                                        onClick={camera.stopCamera}
+                                        className="h-12 w-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-all"
+                                    >
+                                        <X className="h-6 w-6" />
+                                    </button>
+                                    <button
+                                        onClick={handleCameraCapture}
+                                        disabled={!camera.isReady}
+                                        className="h-20 w-20 rounded-full border-4 border-white flex items-center justify-center bg-white/20 hover:bg-white/40 active:scale-95 transition-all disabled:opacity-50"
+                                    >
+                                        <div className="h-14 w-14 bg-white rounded-full shadow-lg" />
+                                    </button>
+                                    <button
+                                        onClick={camera.switchCamera}
+                                        className="h-12 w-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-all"
+                                    >
+                                        <RefreshCw className="h-6 w-6" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     )}
-                </div>
-            )}
 
-            {captureMode === 'upload' && !capturedImage && (
-                <div className="border-dashed border-2 border-gray-200 rounded-xl p-12 text-center">
-                    <div className="h-16 w-16 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Upload className="h-8 w-8 text-purple-600" />
-                    </div>
-                    <p className="text-gray-500 mb-6">Select an image from your device</p>
-                    <label className="inline-flex">
-                        <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-                        <Button asChild className="cursor-pointer bg-purple-600 hover:bg-purple-700">
-                            <span>Select Image</span>
-                        </Button>
-                    </label>
-                </div>
-            )}
+                    {captureMode === 'upload' && !capturedImage && (
+                        <div className="border-2 border-dashed border-stone-200 rounded-3xl p-16 text-center hover:border-indigo-300 transition-colors group cursor-pointer bg-stone-50/50 relative">
+                            <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                            <div className="h-20 w-20 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                                <Upload className="h-10 w-10 text-indigo-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-stone-900 mb-2">Upload Photo</h3>
+                            <p className="text-stone-500 text-sm max-w-xs mx-auto">Select a business card photo from your gallery or files.</p>
+                        </div>
+                    )}
+                    {captureMode === 'qr' && (
+                        <QrScanner onScan={handleQrScan} />
+                    )}
 
-            {captureMode === 'qr' && (
-                <QrScanner onScan={handleQrScan} />
-            )}
-
-            {captureMode === 'voice' && (
-                <VoiceRecorder
-                    onComplete={(data) => onComplete({ type: 'voice', ...data })}
-                    onCancel={onClose}
-                />
-            )}
-
-            {captureMode === 'badge' && (
-                <BadgeScanner
-                    onComplete={async (data: any) => {
-                        const loadingToast = toast.loading('Saving badge data...');
-                        try {
-                            const response = await fetch('/api/captures', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    image: '',
-                                    capture_type: 'badge_scan',
-                                    event_id: eventId,
-                                    extracted_data: data,
-                                    raw_text: data.raw_text
-                                }),
-                            });
-                            const result = await response.json();
-                            if (response.ok) {
-                                toast.success('Lead captured from badge!', { id: loadingToast });
-                                onComplete(result);
-                            } else if (response.status === 422) {
-                                toast.error(result.error || 'Failed to find contact info', { id: loadingToast, duration: 5000 });
-                            } else {
-                                toast.error('Failed to save badge data', { id: loadingToast });
-                            }
-                        } catch (error) {
-                            toast.error('Error saving badge data', { id: loadingToast });
-                        }
-                    }}
-                    onCancel={onClose}
-                />
-            )}
-
-            {captureMode === 'photo_note' && (
-                <PhotoNoteCapture
-                    onComplete={async (imageData: string, notes: string, extractedText: string) => {
-                        const loadingToast = toast.loading('AI is processing photo...');
-                        try {
-                            // Step 1: AI analysis
-                            const analyzeResponse = await fetch('/api/ai/analyze-card', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ image: imageData }),
-                            });
-
-                            const { data: aiResult } = await analyzeResponse.json();
-                            console.log('Advanced AI Results (Photo + Note):', aiResult);
-
-                            // Step 2: Create capture
-                            const response = await fetch('/api/captures', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    image: imageData,
-                                    capture_type: 'photo_upload',
-                                    event_id: eventId,
-                                    extracted_data: {
-                                        name: aiResult.name || `${aiResult.first_name} ${aiResult.last_name}`.trim(),
-                                        first_name: aiResult.first_name,
-                                        last_name: aiResult.last_name,
-                                        email: aiResult.email,
-                                        phone: aiResult.phone,
-                                        company: aiResult.company,
-                                        jobTitle: aiResult.job_title
-                                    },
-                                    raw_text: `Notes: ${notes}\n\nAI Extracted: ${JSON.stringify(aiResult, null, 2)}`
-                                }),
-                            });
-                            const result = await response.json();
-                            if (response.ok) {
-                                toast.success('Lead captured with AI!', { id: loadingToast });
-                                onComplete(result);
-                            } else if (response.status === 422) {
-                                toast.error(result.error || 'Failed to find contact info', { id: loadingToast, duration: 5000 });
-                            } else {
-                                toast.error('Failed to save photo', { id: loadingToast });
-                            }
-                        } catch (error) {
-                            console.error('AI Catch error:', error);
-                            toast.error('Error saving photo', { id: loadingToast });
-                        }
-                    }}
-                    onCancel={onClose}
-                />
-            )}
-
-            {captureMode === 'manual' && (
-                <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <Input
-                            label="First Name"
-                            placeholder="John"
-                            value={manualData.first_name}
-                            onChange={(e) => setManualData({ ...manualData, first_name: e.target.value })}
+                    {captureMode === 'voice' && (
+                        <VoiceRecorder
+                            onComplete={(data) => {
+                                setPendingData({ ...data, type: 'voice' });
+                                setStep('assign');
+                            }}
+                            onCancel={onClose}
                         />
-                        <Input
-                            label="Last Name"
-                            placeholder="Doe"
-                            value={manualData.last_name}
-                            onChange={(e) => setManualData({ ...manualData, last_name: e.target.value })}
-                        />
-                    </div>
-                    <Input
-                        label="Email"
-                        type="email"
-                        placeholder="john@example.com"
-                        value={manualData.email}
-                        onChange={(e) => setManualData({ ...manualData, email: e.target.value })}
-                    />
-                    <Input
-                        label="Company"
-                        placeholder="Acme Corp"
-                        value={manualData.company_name}
-                        onChange={(e) => setManualData({ ...manualData, company_name: e.target.value })}
-                    />
-                    <Textarea
-                        label="Notes"
-                        placeholder="Add details..."
-                        value={manualData.notes}
-                        onChange={(e) => setManualData({ ...manualData, notes: e.target.value })}
-                    />
-                    <div className="flex justify-end pt-4">
-                        <Button onClick={handleManualSave} className="bg-emerald-600 hover:bg-emerald-700">
-                            <Check className="mr-2 h-4 w-4" />
-                            Save Lead
-                        </Button>
-                    </div>
-                </div>
+                    )}
+
+                    {captureMode === 'manual' && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">First Name</label>
+                                    <Input placeholder="John" value={manualData.first_name} onChange={(e) => setManualData({ ...manualData, first_name: e.target.value })} className="rounded-xl" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Last Name</label>
+                                    <Input placeholder="Doe" value={manualData.last_name} onChange={(e) => setManualData({ ...manualData, last_name: e.target.value })} className="rounded-xl" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Email</label>
+                                    <Input type="email" placeholder="john@example.com" value={manualData.email} onChange={(e) => setManualData({ ...manualData, email: e.target.value })} className="rounded-xl" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Phone</label>
+                                    <Input placeholder="+1 (555) 000-0000" value={manualData.phone} onChange={(e) => setManualData({ ...manualData, phone: e.target.value })} className="rounded-xl" />
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Company</label>
+                                <Input placeholder="Acme Corp" value={manualData.company_name} onChange={(e) => setManualData({ ...manualData, company_name: e.target.value })} className="rounded-xl" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Notes</label>
+                                <Textarea placeholder="Add details..." value={manualData.notes} onChange={(e) => setManualData({ ...manualData, notes: e.target.value })} className="rounded-xl min-h-[100px]" />
+                            </div>
+                            <div className="flex justify-end pt-4">
+                                <Button
+                                    onClick={() => setStep('assign')}
+                                    disabled={!manualData.first_name.trim()}
+                                    className="bg-stone-900 text-white hover:bg-stone-800 h-12 px-8 rounded-xl font-bold disabled:opacity-50"
+                                >
+                                    Next: Select Event <ChevronRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {capturedImage && (
+                        <div className="mt-8 space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                            <div className="bg-stone-100 rounded-2xl p-4 flex justify-center overflow-hidden border border-stone-200">
+                                <img src={capturedImage} alt="Captured" className="max-h-[350px] rounded-lg shadow-xl" />
+                            </div>
+                            <div className="flex gap-4">
+                                <Button variant="outline" className="flex-1 h-12 rounded-xl border-stone-200" onClick={() => setCapturedImage(null)}>
+                                    <RefreshCw className="mr-2 h-4 w-4" /> Retake
+                                </Button>
+                                <Button
+                                    onClick={processImage}
+                                    disabled={isProcessing}
+                                    className="flex-[2] h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                                >
+                                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                                    Auto-extract Details
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
 
-            {/* Preview and Process for Card/Upload */}
-            {capturedImage && (
-                <div className="space-y-4">
-                    <div className="bg-gray-100 rounded-lg p-4 flex justify-center">
-                        <img src={capturedImage} alt="Captured" className="max-h-[400px] rounded shadow-lg" />
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <Button variant="ghost" size="sm" onClick={() => setCapturedImage(null)}>
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Retake
-                        </Button>
-                        <Button onClick={processCard} disabled={isProcessing}>
-                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                            Process Card
-                        </Button>
-                    </div>
-                </div>
+            {/* Step 2: Assign Event */}
+            {step === 'assign' && (
+                <EventAssignment
+                    initialEventId={eventId}
+                    onBack={() => setStep('capture')}
+                    onAssign={finalizeCapture}
+                    leadName={pendingData?.extracted_data?.name || manualData.first_name + ' ' + manualData.last_name}
+                />
             )}
         </div>
     );
 }
+
+// Sub-component for Event Assignment
+function EventAssignment({ initialEventId, onBack, onAssign, leadName }: {
+    initialEventId?: string,
+    onBack: () => void,
+    onAssign: (id: string) => void,
+    leadName: string
+}) {
+    const [events, setEvents] = useState<any[]>([]);
+    const [search, setSearch] = useState('');
+    const [selectedId, setSelectedId] = useState(initialEventId || '');
+    const [loading, setLoading] = useState(true);
+    const [isCreating, setIsCreating] = useState(false);
+    const [newEventData, setNewEventData] = useState({
+        name: '',
+        location: '',
+        event_type: 'exhibition' as 'exhibition' | 'conference' | 'meeting'
+    });
+
+    useEffect(() => {
+        fetch('/api/events')
+            .then(res => res.json())
+            .then(data => {
+                const list = data.data || [];
+                setEvents(list);
+                if (!initialEventId && list.length > 0) {
+                    const ongoing = list.find((e: any) => e.status === 'ongoing');
+                    setSelectedId(ongoing?.id || list[0].id);
+                }
+                setLoading(false);
+            });
+    }, [initialEventId]);
+
+    const filteredEvents = events.filter(e =>
+        e.name.toLowerCase().includes(search.toLowerCase())
+    );
+
+    const handleCreateEvent = async () => {
+        if (!newEventData.name.trim()) return;
+
+        const loadingToast = toast.loading('Creating event...');
+        try {
+            const res = await fetch('/api/events', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newEventData.name.trim(),
+                    location: newEventData.location.trim(),
+                    event_type: newEventData.event_type,
+                    start_date: new Date().toISOString(),
+                    status: 'ongoing'
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success('Event created!', { id: loadingToast });
+                setEvents([data.data, ...events]);
+                setSelectedId(data.data.id);
+                setIsCreating(false);
+                setNewEventData({ name: '', location: '', event_type: 'exhibition' });
+                // Signal other pages to refresh their event lists
+                window.dispatchEvent(new CustomEvent('events:refresh'));
+            } else {
+                toast.error(data.error || 'Failed to create event', { id: loadingToast });
+            }
+        } catch (err) {
+            toast.error('Error reaching server', { id: loadingToast });
+        }
+    };
+
+    return (
+        <div className="space-y-8 animate-in backdrop-blur-sm">
+            <div className="flex items-center gap-4 mb-2">
+                <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full">
+                    <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div>
+                    <h3 className="font-bold text-xl text-stone-900">Assign to Event</h3>
+                    <p className="text-sm text-stone-500 font-medium italic">Lead: {leadName}</p>
+                </div>
+            </div>
+
+            <div className="bg-white border border-stone-200 rounded-3xl p-6 shadow-sm overflow-hidden">
+                {!isCreating ? (
+                    <>
+                        <div className="relative mb-6">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-stone-400" />
+                            <Input
+                                placeholder="Search events..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="pl-12 h-14 bg-stone-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-100"
+                            />
+                        </div>
+
+                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar space-y-2 mb-8 px-1">
+                            {loading ? (
+                                [1, 2, 3].map(i => <div key={i} className="h-14 bg-stone-50 rounded-xl animate-pulse" />)
+                            ) : filteredEvents.length > 0 ? (
+                                filteredEvents.map(event => (
+                                    <button
+                                        key={event.id}
+                                        onClick={() => setSelectedId(event.id)}
+                                        className={cn(
+                                            "w-full flex items-center justify-between p-4 rounded-2xl transition-all border",
+                                            selectedId === event.id
+                                                ? "bg-indigo-50 border-indigo-200 text-indigo-900 shadow-sm"
+                                                : "bg-white border-stone-100 text-stone-600 hover:border-stone-300"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={cn(
+                                                "h-10 w-10 rounded-xl flex items-center justify-center font-bold text-xs",
+                                                selectedId === event.id ? "bg-indigo-600 text-white" : "bg-stone-100 text-stone-400"
+                                            )}>
+                                                {event.name[0].toUpperCase()}
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-bold text-sm">{event.name}</p>
+                                                <p className="text-[10px] uppercase font-bold tracking-widest opacity-60">
+                                                    {event.status} • {new Date(event.start_date).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {selectedId === event.id && <Check className="h-5 w-5" />}
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="py-8 text-center text-stone-400 font-medium">No events found matching your search.</div>
+                            )}
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                            <Button
+                                onClick={() => onAssign(selectedId)}
+                                disabled={!selectedId}
+                                className="w-full h-14 bg-stone-900 text-white hover:bg-stone-800 rounded-2xl font-bold flex items-center justify-center gap-2"
+                            >
+                                <CheckCircle2 className="h-5 w-5" />
+                                Finish & Save Lead
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsCreating(true)}
+                                className="w-full h-12 border-stone-200 rounded-2xl font-bold text-stone-600"
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> Create New Event
+                            </Button>
+                        </div>
+                    </>
+                ) : (
+                    <div className="space-y-4 animate-in zoom-in-95">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Event Name</label>
+                            <Input
+                                placeholder="E.g. Web Summit 2026"
+                                value={newEventData.name}
+                                onChange={(e) => setNewEventData({ ...newEventData, name: e.target.value })}
+                                className="h-12 rounded-2xl"
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Location</label>
+                            <div className="relative">
+                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-300" />
+                                <Input
+                                    placeholder="E.g. Lisbon, Portugal"
+                                    value={newEventData.location}
+                                    onChange={(e) => setNewEventData({ ...newEventData, location: e.target.value })}
+                                    className="h-12 pl-12 rounded-2xl"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Event Type</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {(['exhibition', 'conference', 'meeting'] as const).map((type) => (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => setNewEventData({ ...newEventData, event_type: type })}
+                                        className={cn(
+                                            "py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all",
+                                            newEventData.event_type === type
+                                                ? "bg-stone-900 text-white border-stone-900"
+                                                : "bg-white text-stone-500 border-stone-100 hover:border-stone-200"
+                                        )}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            <Button
+                                variant="ghost"
+                                onClick={() => setIsCreating(false)}
+                                className="flex-1 h-12 rounded-xl text-stone-400 font-bold"
+                            >
+                                Back
+                            </Button>
+                            <Button
+                                onClick={handleCreateEvent}
+                                disabled={!newEventData.name.trim()}
+                                className="flex-[2] h-12 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-bold shadow-lg shadow-indigo-200"
+                            >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Create Event
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// Adding missing imports
+import { cn } from '@/lib/utils';

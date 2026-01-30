@@ -1,10 +1,11 @@
 import { Camera, Users, Mail, FileText, Calendar, Mic, ExternalLink, Hash, Sparkles, Clock, MapPin, CheckCircle, AlertCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { VoiceNotePlayer } from '@/components/ui/VoiceNotePlayer';
 import Link from 'next/link';
+import { cn, formatLabel } from '@/lib/utils';
 
 interface TimelineItem {
     id: string;
@@ -95,10 +96,7 @@ export function ContactTimeline({ timeline, onAddNote, onRefresh, hideBriefingLi
 
     const formatSource = (source?: string) => {
         if (!source) return 'System';
-        return source
-            .split('_')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
+        return formatLabel(source);
     };
 
     const formatDate = (dateString: string) => {
@@ -112,6 +110,16 @@ export function ContactTimeline({ timeline, onAddNote, onRefresh, hideBriefingLi
         if (diffDays < 7) return `${diffDays} days ago`;
         return date.toLocaleDateString();
     };
+
+    useEffect(() => {
+        const handleRefresh = () => {
+            if (onRefresh) {
+                onRefresh();
+            }
+        };
+        window.addEventListener('timeline:refresh', handleRefresh);
+        return () => window.removeEventListener('timeline:refresh', handleRefresh);
+    }, [onRefresh]);
 
     return (
         <div className="space-y-4">
@@ -153,6 +161,7 @@ export function ContactTimeline({ timeline, onAddNote, onRefresh, hideBriefingLi
                                     if (res.ok) {
                                         toast.success('Post-meeting notes saved');
                                         setEditingMeetingId(null);
+                                        window.dispatchEvent(new CustomEvent('timeline:refresh'));
                                         if (onRefresh) {
                                             onRefresh();
                                         }
@@ -219,9 +228,9 @@ export function ContactTimeline({ timeline, onAddNote, onRefresh, hideBriefingLi
                                         {item.type === 'meeting' && (
                                             <div className="mt-3 space-y-2">
                                                 <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-                                                    <span className="flex items-center gap-1.5 capitalize">
+                                                    <span className="flex items-center gap-1.5">
                                                         <Hash className="w-3.5 h-3.5" />
-                                                        {item.meeting_type?.replace('_', ' ')}
+                                                        {formatLabel(item.meeting_type || '')}
                                                     </span>
                                                     {item.meeting_location && (
                                                         <span className="flex items-center gap-1.5">
@@ -406,7 +415,7 @@ export function ContactTimeline({ timeline, onAddNote, onRefresh, hideBriefingLi
                                                             <div className="grid grid-cols-1 gap-1.5 px-1">
                                                                 {visibleDetails.map(([key, value]) => (
                                                                     <div key={key} className="flex items-baseline gap-2 text-xs">
-                                                                        <span className="text-stone-400 font-medium min-w-[70px] capitalize">{key.replace(/_/g, ' ')}:</span>
+                                                                        <span className="text-stone-400 font-medium min-w-[70px]">{formatLabel(key)}:</span>
                                                                         <span className="text-stone-700 break-all">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
                                                                     </div>
                                                                 ))}

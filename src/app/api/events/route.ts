@@ -18,11 +18,20 @@ export async function GET(request: NextRequest) {
             // Set end of day for end date comparison
             end.setHours(23, 59, 59, 999);
 
-            let status = 'upcoming';
+            // Calculation logic
+            let status = event.status || 'upcoming';
+
+            // If it's upcoming in DB but time says it's now/past, update it
             if (now >= start && now <= end) {
                 status = 'ongoing';
             } else if (now > end) {
                 status = 'completed';
+            }
+
+            // Special case: If it was explicitly set to ongoing (e.g. from Capture Flow), 
+            // don't let a slight clock skew or "upcoming" calc downgrade it.
+            if (event.status === 'ongoing' && status === 'upcoming') {
+                status = 'ongoing';
             }
 
             return { ...event, status };

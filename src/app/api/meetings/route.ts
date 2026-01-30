@@ -93,7 +93,14 @@ export async function POST(request: NextRequest) {
                 if (interactions && interactions.length > 0) {
                     interactionSummary = `Previous interactions (${interactions.length}):\n${interactions
                         .slice(0, 5)
-                        .map(i => `• ${i.interaction_type}: ${i.summary || 'No summary'}`)
+                        .map(i => {
+                            const type = i.interaction_type
+                                .replace(/_/g, ' ')
+                                .split(' ')
+                                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                                .join(' ');
+                            return `• ${type}: ${i.summary || 'No summary'}`;
+                        })
                         .join('\n')}`;
                 }
             } catch (error) {

@@ -9,6 +9,7 @@ import { Sparkles, Mail, Send, Copy, Loader2, Trash2, ExternalLink } from 'lucid
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/client';
 import { TargetCompany } from '@/types';
+import { cn, formatLabel } from '@/lib/utils';
 
 interface EmailDraftsSectionProps {
     eventId: string;
@@ -246,7 +247,7 @@ export function EmailDraftsSection({ eventId, targets }: EmailDraftsSectionProps
                                                     'Company'}
                                             </h4>
                                             <p className="text-[10px] text-stone-400 font-medium uppercase tracking-wider">
-                                                {draft.email_type?.replace('_', ' ')}
+                                                {formatLabel(draft.email_type || '')}
                                             </p>
                                         </div>
                                     </div>

@@ -7,6 +7,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { ArrowLeft, Calendar, MapPin, Lightbulb, History, FileText, CheckCircle, Edit, Save, X } from 'lucide-react';
+import { cn, formatLabel } from '@/lib/utils';
 import { MeetingPrep } from '@/components/meetings/MeetingPrep';
 import { ContactTimeline } from '@/components/contacts/ContactTimeline';
 import { MeetingBrief } from '@/types';
@@ -93,6 +94,7 @@ export default function MeetingBriefPage() {
             if (response.ok) {
                 toast.success('Notes saved successfully');
                 setIsEditingNotes(false);
+                window.dispatchEvent(new CustomEvent('timeline:refresh'));
                 fetchMeetingData();
             } else {
                 toast.error('Failed to save notes');
@@ -218,7 +220,7 @@ export default function MeetingBriefPage() {
                             <div className="flex flex-wrap items-center gap-6 text-sm text-stone-500">
                                 <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full bg-stone-300" />
-                                    <span className="capitalize font-medium">{meeting.meeting_type.replace('_', ' ')} Engagement</span>
+                                    <span className="font-medium">{formatLabel(meeting.meeting_type)} Engagement</span>
                                 </div>
                                 {meeting.meeting_location && (
                                     <div className="flex items-center gap-2">
@@ -331,7 +333,7 @@ export default function MeetingBriefPage() {
                                 <div className="lg:col-span-3 premium-card p-8 flex flex-col justify-center bg-stone-50/20">
                                     <h2 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mb-4">Briefing Status</h2>
                                     <p className="text-2xl font-bold text-stone-900 leading-snug">
-                                        Preparing for {meeting.meeting_type.replace('_', ' ')} Engagement
+                                        Preparing for {formatLabel(meeting.meeting_type)} Engagement
                                     </p>
                                     <p className="text-stone-500 mt-2 max-w-lg">
                                         Use the <span className="text-stone-900 font-bold">Session Prep</span> tab to define your meeting objectives and outcomes before commencing.

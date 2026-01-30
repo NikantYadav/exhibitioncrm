@@ -86,15 +86,28 @@ export async function GET(request: NextRequest) {
                 interaction_type,
                 interaction_date,
                 summary,
-                contact:contacts(id, first_name, last_name, avatar_url)
+                contact:contacts(
+                    id, 
+                    first_name, 
+                    last_name, 
+                    avatar_url,
+                    company:companies(name)
+                )
             `)
             .order('interaction_date', { ascending: false })
             .limit(10);
 
-        // 5. Get Active Conversations
+        // 5. Get Active Conversations (Recent Leads)
         const { data: activeContacts } = await supabase
             .from('contacts')
-            .select('id, first_name, last_name, avatar_url')
+            .select(`
+                id, 
+                first_name, 
+                last_name, 
+                avatar_url,
+                job_title,
+                company:companies(name)
+            `)
             .order('updated_at', { ascending: false })
             .limit(5);
 

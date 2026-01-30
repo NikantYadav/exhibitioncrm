@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Avatar, AvatarFallback } from '@/components/ui/Avatar';
 import { Contact } from '@/types';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Search, Download, UserPlus, Mail, Phone, Briefcase, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { CaptureDropdown } from '@/components/capture/CaptureDropdown';
 
 export default function ContactsPage() {
     const router = useRouter();
@@ -86,12 +88,14 @@ export default function ContactsPage() {
                                     Export
                                 </Button>
                             </a>
-                            <Link href="/capture">
-                                <Button>
-                                    <UserPlus className="mr-2 h-4 w-4" strokeWidth={2} />
-                                    Add Contact
-                                </Button>
-                            </Link>
+                            <CaptureDropdown
+                                trigger={
+                                    <Button>
+                                        <UserPlus className="mr-2 h-4 w-4" strokeWidth={2} />
+                                        Add Contact
+                                    </Button>
+                                }
+                            />
                         </div>
                     </div>
 
@@ -110,9 +114,19 @@ export default function ContactsPage() {
 
                 {/* Contacts List */}
                 {loading ? (
-                    <div className="premium-card p-12 text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                        <p className="text-body">Loading contacts...</p>
+                    <div className="grid gap-4">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="premium-card p-6 flex items-center gap-4">
+                                <Skeleton className="h-12 w-12 rounded-full shrink-0" />
+                                <div className="flex-1 space-y-2">
+                                    <Skeleton className="h-6 w-1/4" />
+                                    <div className="flex gap-4">
+                                        <Skeleton className="h-4 w-32" />
+                                        <Skeleton className="h-4 w-32" />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : filteredContacts.length === 0 ? (
                     <div className="premium-card p-12 text-center">
@@ -128,12 +142,14 @@ export default function ContactsPage() {
                                 : 'Start by capturing a business card or adding a contact manually'}
                         </p>
                         {!searchQuery && (
-                            <Link href="/capture">
-                                <Button>
-                                    <UserPlus className="mr-2 h-4 w-4" strokeWidth={2} />
-                                    Add First Contact
-                                </Button>
-                            </Link>
+                            <CaptureDropdown
+                                trigger={
+                                    <Button>
+                                        <UserPlus className="mr-2 h-4 w-4" strokeWidth={2} />
+                                        Add First Contact
+                                    </Button>
+                                }
+                            />
                         )}
                     </div>
                 ) : (

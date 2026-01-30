@@ -42,6 +42,7 @@ export function QuickNoteModal({ isOpen, onClose }: QuickNoteModalProps) {
         const result = await saveSmartNoteAction(note);
         if (result.success) {
             toast.success('Note saved!', { id: savingToast });
+            window.dispatchEvent(new CustomEvent('timeline:refresh'));
             handleClose();
         } else {
             toast.error('Failed to save note', { id: savingToast });

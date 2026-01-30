@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { EventStats } from '@/components/events/EventStats';
 import { CompanySearchModal } from '@/components/events/CompanySearchModal';
 import { TargetCompanyModal } from '@/components/events/TargetCompanyModal';
@@ -77,10 +77,23 @@ export default function EventDetailPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen" style={{ background: '#f9fafb' }}>
+            <div className="min-h-screen pb-12" style={{ background: '#f9fafb' }}>
                 <Header />
-                <main className="container" style={{ paddingTop: '2rem' }}>
-                    <LoadingSpinner />
+                <main className="container pt-8 space-y-8">
+                    <Skeleton className="h-10 w-48 mb-6" />
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-1">
+                            <Skeleton className="h-[500px] rounded-3xl" />
+                        </div>
+                        <div className="lg:col-span-2 space-y-6">
+                            <div className="grid grid-cols-3 gap-4">
+                                <Skeleton className="h-28 rounded-2xl" />
+                                <Skeleton className="h-28 rounded-2xl" />
+                                <Skeleton className="h-28 rounded-2xl" />
+                            </div>
+                            <Skeleton className="h-[400px] rounded-3xl" />
+                        </div>
+                    </div>
                 </main>
             </div>
         );
@@ -221,8 +234,8 @@ export default function EventDetailPage() {
                                 {/* Captures Tab */}
                                 {activeTab === 'captures' && (
                                     <CapturesSection
+                                        eventId={eventId}
                                         captures={captures}
-                                        onOpenCapture={handleOpenCapture}
                                         onDeleteCapture={handleDeleteCapture}
                                     />
                                 )}

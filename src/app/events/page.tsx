@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { Event } from '@/types';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Calendar, MapPin, Clock, ChevronRight, Search, Filter, X } from 'lucide-react';
 
 export default function EventsPage() {
@@ -31,6 +32,16 @@ export default function EventsPage() {
 
     useEffect(() => {
         fetchEvents();
+
+        // Listen for sync/refresh events to update list without reload
+        const handleRefresh = () => fetchEvents();
+        window.addEventListener('sync:complete', handleRefresh);
+        window.addEventListener('events:refresh', handleRefresh);
+
+        return () => {
+            window.removeEventListener('sync:complete', handleRefresh);
+            window.removeEventListener('events:refresh', handleRefresh);
+        };
     }, []);
 
     const fetchEvents = async () => {
@@ -182,9 +193,26 @@ export default function EventsPage() {
                 </div>
 
                 {loading ? (
-                    <div className="premium-card p-12 text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                        <p className="text-body">Loading events...</p>
+                    <div className="grid gap-4">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="premium-card p-6 flex flex-col gap-4">
+                                <div className="flex justify-between items-start">
+                                    <div className="space-y-2 flex-1">
+                                        <div className="flex items-center gap-3">
+                                            <Skeleton className="h-6 w-1/3" />
+                                            <Skeleton className="h-5 w-20 rounded-full" />
+                                        </div>
+                                        <Skeleton className="h-4 w-1/2" />
+                                    </div>
+                                    <Skeleton className="h-5 w-5 rounded-md" />
+                                </div>
+                                <div className="flex gap-4">
+                                    <Skeleton className="h-4 w-24" />
+                                    <Skeleton className="h-4 w-24" />
+                                    <Skeleton className="h-4 w-32" />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : filteredEvents.length === 0 ? (
                     <div className="premium-card p-12 text-center">
