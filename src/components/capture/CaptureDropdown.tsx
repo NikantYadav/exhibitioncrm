@@ -56,11 +56,11 @@ export function CaptureDropdown({ eventId, className, trigger, align = 'right' }
     };
 
     const captureOptions = [
-        { id: 'camera' as CaptureMode, label: 'Smart Scan', icon: Camera, color: 'text-blue-600', hover: 'hover:bg-blue-50' },
-        { id: 'qr' as CaptureMode, label: 'Scan QR Code', icon: QrCode, color: 'text-amber-600', hover: 'hover:bg-amber-50' },
-        { id: 'voice' as CaptureMode, label: 'Voice Note', icon: Mic, color: 'text-rose-600', hover: 'hover:bg-rose-50' },
-        { id: 'manual' as CaptureMode, label: 'Manual Entry', icon: Keyboard, color: 'text-emerald-600', hover: 'hover:bg-emerald-50' },
-        { id: 'upload' as CaptureMode, label: 'Import Photo', icon: Upload, color: 'text-purple-600', hover: 'hover:bg-purple-50', border: true },
+        { id: 'camera' as CaptureMode, label: 'Business Card', icon: Camera, desc: 'AI card extraction' },
+        { id: 'qr' as CaptureMode, label: 'QR Scan', icon: QrCode, desc: 'Digital profile sync' },
+        { id: 'voice' as CaptureMode, label: 'Voice Note', icon: Mic, desc: 'Quick voice capture' },
+        { id: 'manual' as CaptureMode, label: 'Manual Entry', icon: Keyboard, desc: 'Direct input' },
+        { id: 'upload' as CaptureMode, label: 'From Gallery', icon: Upload, desc: 'Upload photo', border: true },
     ];
 
     return (
@@ -72,32 +72,35 @@ export function CaptureDropdown({ eventId, className, trigger, align = 'right' }
             ) : (
                 <Button
                     onClick={() => setIsOpen(!isOpen)}
-                    className="h-11 px-6 rounded-xl bg-stone-900 hover:bg-black text-white shadow-lg shadow-stone-200 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
+                    className="h-11 px-6 rounded-xl bg-stone-900 hover:bg-stone-800 text-white shadow-lg shadow-stone-900/20 transition-all flex items-center gap-2 font-black uppercase tracking-widest text-[10px]"
                 >
-                    <Zap className="h-4 w-4 text-amber-400" />
-                    New Capture
-                    <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                    <Zap className="h-4 w-4 text-white" fill="currentColor" />
+                    Add Contact
+                    <ChevronDown className={cn("h-4 w-4 transition-transform opacity-50", isOpen && "rotate-180")} />
                 </Button>
             )}
 
             {isOpen && (
                 <div className={cn(
-                    "absolute mt-2 w-56 bg-white border border-stone-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200",
+                    "absolute mt-2 w-52 bg-white border border-stone-100 rounded-[1.8rem] shadow-[0_20px_50px_rgba(0,0,0,0.12)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300",
                     align === 'right' ? "right-0" : "left-0"
                 )}>
-                    <div className="p-1.5">
+                    <div className="p-2 space-y-0.5">
                         {captureOptions.map((option) => (
                             <button
                                 key={option.id}
                                 onClick={() => handleOpenCapture(option.id)}
                                 className={cn(
-                                    "w-full text-left px-4 py-2.5 text-sm font-semibold flex items-center gap-3 rounded-xl transition-colors",
-                                    option.hover,
-                                    option.border && "mt-1 pt-3 border-t border-stone-100 rounded-t-none"
+                                    "w-full text-left p-2 rounded-xl transition-all flex items-center gap-3 group hover:bg-stone-50",
+                                    option.border && "mt-1 pt-2 border-t border-stone-100 rounded-t-none"
                                 )}
                             >
-                                <option.icon className={cn("h-4 w-4", option.color)} />
-                                <span className="text-stone-700">{option.label}</span>
+                                <div className="h-8 w-8 bg-stone-900 text-white rounded-[0.6rem] shadow-lg flex items-center justify-center shrink-0 transition-all">
+                                    <option.icon className="h-4 w-4" strokeWidth={3} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-black text-stone-900 leading-none uppercase tracking-widest">{option.label}</p>
+                                </div>
                             </button>
                         ))}
                     </div>
@@ -108,7 +111,7 @@ export function CaptureDropdown({ eventId, className, trigger, align = 'right' }
                 isOpen={showModal}
                 onClose={() => setShowModal(false)}
                 size="lg"
-                title={activeCaptureMode ? `${formatLabel(activeCaptureMode)} Capture` : 'Capture Lead'}
+                title={activeCaptureMode ? `${formatLabel(activeCaptureMode)}` : 'Add Contact'}
             >
                 <div className="p-1">
                     <CaptureFlow

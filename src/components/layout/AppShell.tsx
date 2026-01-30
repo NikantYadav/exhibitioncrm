@@ -22,12 +22,12 @@ export function AppShell({ children }: AppShellProps) {
 
             <div className={cn(
                 "flex flex-col min-h-screen transition-all duration-300 ease-in-out",
-                isSidebarCollapsed ? "pl-16" : "pl-64"
+                isSidebarCollapsed ? "pl-20" : "pl-72"
             )}>
                 <TopBar />
 
-                <main className="flex-1 p-8">
-                    <div className="mx-auto max-w-7xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <main className="flex-1 p-10">
+                    <div className="mx-auto max-w-7xl animate-in fade-in duration-500">
                         {children}
                     </div>
                 </main>
@@ -38,16 +38,15 @@ export function AppShell({ children }: AppShellProps) {
                 <button
                     onClick={() => setIsNoteModalOpen(true)}
                     className={cn(
-                        "group relative flex items-center justify-center p-4 rounded-2xl shadow-xl transition-all duration-300",
-                        "bg-stone-900 text-white hover:bg-indigo-600 hover:scale-110 active:scale-95",
-                        "before:absolute before:inset-0 before:rounded-2xl before:bg-indigo-600 before:scale-x-0 before:origin-right before:transition-transform group-hover:before:scale-x-100 group-hover:before:origin-left"
+                        "group relative flex items-center justify-center p-4 rounded-2xl shadow-2xl transition-all duration-300 overflow-hidden",
+                        "bg-stone-900 text-white hover:bg-stone-800"
                     )}
                     title="Quick Record"
                 >
-                    <div className="relative z-10 flex items-center gap-0 group-hover:gap-2 transition-all duration-300">
-                        <Plus className="h-6 w-6 transition-transform group-hover:rotate-90" />
-                        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-in-out font-bold text-sm whitespace-nowrap opacity-0 group-hover:opacity-100">
-                            Quick Note
+                    <div className="relative z-10 flex items-center gap-0 group-hover:gap-3 transition-all duration-300">
+                        <Plus className="h-6 w-6 stroke-[3px]" />
+                        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-in-out font-black text-xs uppercase tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100">
+                            Fast Note
                         </span>
                     </div>
                 </button>

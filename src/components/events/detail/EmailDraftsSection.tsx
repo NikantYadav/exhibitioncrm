@@ -150,152 +150,154 @@ export function EmailDraftsSection({ eventId, targets }: EmailDraftsSectionProps
     };
 
     return (
-        <div className="space-y-8">
-            {/* Generator Card */}
-            <div className="premium-card p-6 border-blue-100 bg-blue-50/30">
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="p-2 bg-blue-600 rounded-lg">
-                        <Sparkles className="h-4 w-4 text-white" />
-                    </div>
-                    <div>
-                        <h3 className="text-sm font-bold text-stone-900">AI Outreach Assistant</h3>
-                        <p className="text-xs text-stone-500">Draft personalized emails using company research and talking points.</p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Target Company</label>
-                        <select
-                            value={selectedTargetId}
-                            onChange={(e) => setSelectedTargetId(e.target.value)}
-                            className="w-full h-10 px-3 rounded-xl border border-stone-200 bg-white text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                        >
-                            <option value="">Select a company...</option>
-                            {targets.map(t => (
-                                <option key={t.id} value={t.id}>{t.company?.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Email Type</label>
-                        <select
-                            value={emailType}
-                            onChange={(e) => setEmailType(e.target.value)}
-                            className="w-full h-10 px-3 rounded-xl border border-stone-200 bg-white text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                        >
-                            <option value="pre_event">Pre-Event Outreach</option>
-                            <option value="follow_up">Post-Event Follow-up</option>
-                            <option value="pre_meeting">Meeting Request</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div className="space-y-1.5 mb-6">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Custom Context (Optional)</label>
-                    <Textarea
-                        placeholder="e.g. Mention we met at the coffee stand, or focus on their recent AI product launch..."
-                        value={customContext}
-                        onChange={(e) => setCustomContext(e.target.value)}
-                        className="min-h-[80px] text-sm"
-                    />
-                </div>
-
-                <Button
-                    className="w-full bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
-                    onClick={handleGenerate}
-                    disabled={isGenerating || !selectedTargetId}
-                >
-                    {isGenerating ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        <div className="space-y-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                {/* Drafts List */}
+                <div className="order-2 lg:order-1">
+                    <h3 className="text-[11px] font-black text-stone-900 uppercase tracking-widest mb-6 px-1">Recent Drafts</h3>
+                    {loadingDrafts ? (
+                        <div className="text-center py-20">
+                            <Loader2 className="h-10 w-10 animate-spin text-stone-200 mx-auto" strokeWidth={1} />
+                        </div>
+                    ) : drafts.length === 0 ? (
+                        <div className="text-center py-20 border border-dashed border-stone-100 rounded-[2.5rem] bg-stone-50/30">
+                            <Mail className="h-10 w-10 text-stone-200 mx-auto mb-4" strokeWidth={1.5} />
+                            <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest leading-none">Nothing Drafted</p>
+                        </div>
                     ) : (
-                        <Sparkles className="h-4 w-4 mr-2" />
+                        <div className="space-y-5">
+                            {drafts.map((draft) => (
+                                <div key={draft.id} className="bg-white rounded-[2.5rem] p-6 border border-stone-100 shadow-sm group hover:border-stone-200 transition-all">
+                                    <div className="flex items-start justify-between mb-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-11 w-11 rounded-xl bg-stone-900 flex items-center justify-center shadow-lg shadow-stone-900/10">
+                                                <Mail className="h-5 w-5 text-white" strokeWidth={3} />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-black text-stone-900 tracking-tight">
+                                                    {draft.company_name ||
+                                                        draft.contact?.company?.name ||
+                                                        draft.contacts?.companies?.name ||
+                                                        'Company'}
+                                                </h4>
+                                                <p className="text-[9px] text-stone-400 font-black uppercase tracking-widest mt-1">
+                                                    {formatLabel(draft.email_type || '')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-9 w-9 p-0 text-stone-300 hover:text-stone-900 rounded-xl"
+                                                onClick={() => handleDelete(draft.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-stone-50/50 rounded-2xl p-5 border border-stone-100 space-y-3 mb-6">
+                                        <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Subject: {draft.subject}</p>
+                                        <p className="text-sm font-bold text-stone-600 leading-relaxed whitespace-pre-wrap">{draft.body}</p>
+                                    </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-[10px] font-black text-stone-300 uppercase tracking-widest">
+                                            {new Date(draft.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-9 px-4 text-[9px] font-black uppercase tracking-widest border-stone-200 text-stone-600 hover:text-stone-900 hover:bg-stone-50 rounded-xl transition-all"
+                                                onClick={() => handleCopyToClipboard(draft.subject, draft.body)}
+                                            >
+                                                <Copy className="h-3.5 w-3.5 mr-2" strokeWidth={3} />
+                                                Copy
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                className="h-9 px-4 text-[9px] font-black uppercase tracking-widest bg-stone-900 text-white rounded-[2rem] shadow-xl shadow-stone-900/10 hover:bg-stone-800 transition-all"
+                                                onClick={() => {
+                                                    toast.info('Gmail integration coming soon!');
+                                                }}
+                                            >
+                                                <ExternalLink className="h-3.5 w-3.5 mr-2" strokeWidth={3} />
+                                                Open
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     )}
-                    Generate personalized draft
-                </Button>
-            </div>
+                </div>
 
-            {/* Drafts List */}
-            <div className="space-y-4">
-                <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest flex items-center gap-2 px-1">
-                    <Mail className="h-3.5 w-3.5" />
-                    Generated Drafts
-                </h3>
-
-                {loadingDrafts ? (
-                    <div className="text-center py-12">
-                        <Loader2 className="h-8 w-8 animate-spin text-stone-200 mx-auto" />
+                {/* Generator Card */}
+                <div className="order-1 lg:order-2 bg-stone-50/50 rounded-[2.5rem] p-8 border border-stone-100 shadow-sm h-fit sticky top-0">
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="p-3 bg-stone-900 rounded-[2rem] shadow-xl shadow-stone-900/10">
+                            <Sparkles className="h-5 w-5 text-white" strokeWidth={3} />
+                        </div>
+                        <div>
+                            <h3 className="text-[11px] font-black text-stone-900 uppercase tracking-widest">AI Draft Assistant</h3>
+                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Generate personalized outreach.</p>
+                        </div>
                     </div>
-                ) : drafts.length === 0 ? (
-                    <div className="text-center py-12 border-2 border-dashed border-stone-100 rounded-2xl">
-                        <p className="text-sm text-stone-400">No drafts generated for this event yet.</p>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {drafts.map((draft) => (
-                            <div key={draft.id} className="premium-card p-5 group transition-all hover:border-blue-200">
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 rounded-lg bg-stone-100 flex items-center justify-center">
-                                            <Mail className="h-4 w-4 text-stone-500" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-sm font-bold text-stone-900">
-                                                {draft.company_name ||
-                                                    draft.contact?.company?.name ||
-                                                    draft.contacts?.companies?.name ||
-                                                    'Company'}
-                                            </h4>
-                                            <p className="text-[10px] text-stone-400 font-medium uppercase tracking-wider">
-                                                {formatLabel(draft.email_type || '')}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 w-8 p-0 text-stone-400 hover:text-red-600"
-                                            onClick={() => handleDelete(draft.id)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
 
-                                <div className="bg-stone-50 rounded-xl p-4 border border-stone-100 space-y-2 mb-4">
-                                    <p className="text-sm font-bold text-stone-700">Subject: {draft.subject}</p>
-                                    <p className="text-sm text-stone-600 leading-relaxed whitespace-pre-wrap">{draft.body}</p>
-                                </div>
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest ml-1">Target Company</label>
+                            <select
+                                value={selectedTargetId}
+                                onChange={(e) => setSelectedTargetId(e.target.value)}
+                                className="w-full h-12 px-4 rounded-xl border border-stone-200 bg-white text-sm font-bold focus:ring-0 focus:border-stone-900 transition-all outline-none"
+                            >
+                                <option value="">Select Target...</option>
+                                {targets.map(t => (
+                                    <option key={t.id} value={t.id}>{t.company?.name}</option>
+                                ))}
+                            </select>
+                        </div>
 
-                                <div className="flex items-center justify-between">
-                                    <p className="text-[10px] text-stone-400">Created {new Date(draft.created_at).toLocaleDateString()}</p>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-8 text-xs font-medium border-stone-200"
-                                            onClick={() => handleCopyToClipboard(draft.subject, draft.body)}
-                                        >
-                                            <Copy className="h-3.5 w-3.5 mr-1.5" />
-                                            Copy
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            className="h-8 text-xs font-medium bg-stone-900 border-stone-200"
-                                            onClick={() => {
-                                                toast.info('Gmail integration coming soon!');
-                                            }}
-                                        >
-                                            <Send className="h-3.5 w-3.5 mr-1.5" />
-                                            Open in Gmail
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                        <div className="space-y-2">
+                            <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest ml-1">Context Type</label>
+                            <select
+                                value={emailType}
+                                onChange={(e) => setEmailType(e.target.value)}
+                                className="w-full h-12 px-4 rounded-xl border border-stone-200 bg-white text-sm font-bold focus:ring-0 focus:border-stone-900 transition-all outline-none"
+                            >
+                                <option value="pre_event">Pre-Event Outreach</option>
+                                <option value="follow_up">Post-Event Follow-up</option>
+                                <option value="pre_meeting">Meeting Request</option>
+                            </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest ml-1">Instructions (Optional)</label>
+                            <Textarea
+                                placeholder="e.g. Focus on cloud migration..."
+                                value={customContext}
+                                onChange={(e) => setCustomContext(e.target.value)}
+                                className="min-h-[120px] p-4 text-sm font-bold rounded-xl border-stone-200 focus:border-stone-900 transition-all resize-none bg-white"
+                            />
+                        </div>
+
+                        <Button
+                            className="w-full h-12 bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-xl shadow-stone-900/10 active:scale-95 transition-all"
+                            onClick={handleGenerate}
+                            disabled={isGenerating || !selectedTargetId}
+                        >
+                            {isGenerating ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-3" />
+                            ) : (
+                                <Sparkles className="h-4 w-4 mr-3" strokeWidth={3} />
+                            )}
+                            Generate Draft
+                        </Button>
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );

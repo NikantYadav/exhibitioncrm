@@ -44,71 +44,78 @@ export function FollowUpCard({ contact, onEmail, onMove, currentStatus, isDraggi
 
     return (
         <div
-            className={`premium-card p-4 transition-all ${isDragging ? 'opacity-50 rotate-2 shadow-xl ring-2 ring-indigo-500/20' : ''
+            className={`bg-white rounded-[2rem] p-5 border border-stone-100 transition-all duration-300 cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-50 rotate-2 shadow-2xl ring-4 ring-stone-900/5' : 'shadow-sm hover:border-stone-200'
                 }`}
         >
             <div className="flex items-start gap-3">
                 {/* Avatar */}
-                <Avatar className="w-10 h-10 border border-stone-100">
-                    <AvatarFallback className="text-sm bg-gradient-to-br from-indigo-500 to-indigo-600 text-white font-medium">
+                <Avatar className="h-10 w-10 rounded-xl border border-white shadow-sm shrink-0">
+                    <AvatarFallback className="text-xs bg-stone-900 text-white font-black tracking-tighter">
                         {getInitials()}
                     </AvatarFallback>
                 </Avatar>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-stone-900 truncate">
+                    <h4 className="font-bold text-stone-900 text-sm truncate tracking-tight group-hover:text-stone-600 transition-colors">
                         {contact.first_name} {contact.last_name || ''}
                     </h4>
                     {contact.company && (
-                        <p className="text-sm text-stone-500 truncate">{contact.company.name}</p>
+                        <p className="text-[11px] font-semibold text-stone-400 truncate mt-0.5">{contact.company.name}</p>
                     )}
-                    <p className="text-xs text-stone-400 mt-1">
-                        Last: {formatDate(contact.last_interaction)}
-                    </p>
+                    <div className="flex items-center gap-1.5 mt-2">
+                        <div className="h-1 w-1 rounded-full bg-stone-300" />
+                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">
+                            {formatDate(contact.last_interaction)}
+                        </p>
+                    </div>
                 </div>
+
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push(`/contacts/${contact.id}`)}
+                    className="h-8 w-8 p-0 rounded-lg text-stone-300 hover:text-stone-600 hover:bg-stone-50 transition-all shrink-0"
+                >
+                    <Eye className="h-4 w-4" />
+                </Button>
             </div>
 
-            {/* Actions */}
-            <div className="flex gap-2 mt-3">
+            {/* Actions Row */}
+            <div className="flex gap-2 mt-5">
                 <Button
                     size="sm"
                     variant="outline"
                     onClick={onEmail}
-                    className="flex-1"
+                    className="flex-1 h-9 text-[10px] font-black uppercase tracking-widest rounded-xl border-stone-200 hover:bg-stone-50 text-stone-900"
                 >
-                    <Mail className="h-3 w-3 mr-1" />
-                    Email
+                    <Mail className="h-3.5 w-3.5 mr-2" strokeWidth={3} />
+                    Connect
                 </Button>
                 {contact.phone && (
                     <Button
                         size="sm"
-                        variant="ghost"
+                        variant="outline"
                         asChild
+                        className="h-9 px-3 rounded-xl border-stone-200 hover:bg-stone-50 text-stone-900"
                     >
                         <a href={`tel:${contact.phone}`}>
-                            <Phone className="h-3 w-3" />
+                            <Phone className="h-3.5 w-3.5" strokeWidth={3} />
                         </a>
                     </Button>
                 )}
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => router.push(`/contacts/${contact.id}`)}
-                >
-                    <Eye className="h-3 w-3" />
-                </Button>
             </div>
 
-            {/* Move Actions */}
+            {/* Move Actions (Only shown in Kanban) */}
             {onMove && (
-                <div className="flex gap-2 mt-2 pt-2 border-t border-stone-50">
+                <div className="flex gap-1.5 mt-3 pt-3 border-t border-stone-100">
                     {currentStatus !== 'not_contacted' && (
                         <Button
                             size="sm"
                             variant="ghost"
-                            className="text-[10px] h-7 px-2 flex-1 text-stone-400 hover:text-stone-600"
+                            className="h-7 px-0 flex-1 text-[9px] font-black text-stone-400 hover:text-stone-600 uppercase tracking-tighter"
                             onClick={() => onMove('not_contacted')}
+                            title="Reset to New"
                         >
                             Reset
                         </Button>
@@ -117,20 +124,20 @@ export function FollowUpCard({ contact, onEmail, onMove, currentStatus, isDraggi
                         <Button
                             size="sm"
                             variant="ghost"
-                            className="text-[10px] h-7 px-2 flex-1 text-amber-600 hover:bg-amber-50"
+                            className="h-7 px-0 flex-1 text-[9px] font-black text-amber-500 hover:bg-amber-50 uppercase tracking-tighter"
                             onClick={() => onMove('needs_followup')}
                         >
-                            To Needs List
+                            Needs F/U
                         </Button>
                     )}
                     {currentStatus !== 'followed_up' && (
                         <Button
                             size="sm"
                             variant="ghost"
-                            className="text-[10px] h-7 px-2 flex-1 text-emerald-600 hover:bg-emerald-50"
+                            className="h-7 px-0 flex-1 text-[9px] font-black text-emerald-500 hover:bg-emerald-50 uppercase tracking-tighter"
                             onClick={() => onMove('followed_up')}
                         >
-                            Mark Followed
+                            Mark Done
                         </Button>
                     )}
                 </div>

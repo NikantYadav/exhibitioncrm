@@ -111,157 +111,153 @@ export default function FollowUpDashboard() {
 
     return (
         <AppShell>
-            <div className="max-w-7xl mx-auto space-y-8">
-                <div>
-                    <h1 className="text-display mb-2">Follow-Up Dashboard</h1>
-                    <p className="text-body text-stone-500">Overview of your post-event engagement performance</p>
+            <div className="max-w-7xl mx-auto px-4 py-8 space-y-12">
+                {/* Dashboard Header */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+                    <div>
+                        <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-2">Follow-ups</h1>
+                        <p className="text-sm font-medium text-stone-500">Track and manage your connections after the events.</p>
+                    </div>
                 </div>
 
-                {/* Global Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="bg-amber-50 border-amber-100">
-                        <CardContent className="p-6 flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-amber-700 mb-1">Needs Attention</p>
-                                <h3 className="text-3xl font-bold text-amber-900">{globalStats.needs_followup}</h3>
+                {/* Status Overview */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="bg-white border border-stone-100 rounded-[2.5rem] p-8 shadow-sm transition-all duration-300">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="p-3 bg-stone-900 text-white rounded-2xl shadow-xl shadow-stone-900/10">
+                                <Clock className="h-5 w-5" strokeWidth={3} />
                             </div>
-                            <div className="p-3 bg-amber-100 rounded-full text-amber-600">
-                                <Clock className="h-6 w-6" />
-                            </div>
-                        </CardContent>
-                    </Card>
+                            <span className="text-4xl font-black text-stone-900 tracking-tighter">{globalStats.needs_followup}</span>
+                        </div>
+                        <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Needs Follow-up</p>
+                    </div>
 
-                    <Card className="bg-stone-50 border-stone-100">
-                        <CardContent className="p-6 flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-stone-600 mb-1">Not Contacted</p>
-                                <h3 className="text-3xl font-bold text-stone-900">{globalStats.not_contacted}</h3>
+                    <div className="bg-white border border-stone-100 rounded-[2.5rem] p-8 shadow-sm transition-all duration-300">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="p-3 bg-stone-900 text-white rounded-2xl shadow-xl shadow-stone-900/10">
+                                <Users className="h-5 w-5" strokeWidth={3} />
                             </div>
-                            <div className="p-3 bg-stone-200 rounded-full text-stone-600">
-                                <XCircle className="h-6 w-6" />
-                            </div>
-                        </CardContent>
-                    </Card>
+                            <span className="text-4xl font-black text-stone-900 tracking-tighter">{globalStats.not_contacted}</span>
+                        </div>
+                        <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Not Contacted</p>
+                    </div>
 
-                    <Card className="bg-emerald-50 border-emerald-100">
-                        <CardContent className="p-6 flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-emerald-700 mb-1">Successfully Contacted</p>
-                                <h3 className="text-3xl font-bold text-emerald-900">{globalStats.followed_up}</h3>
+                    <div className="bg-white border border-stone-100 rounded-[2.5rem] p-8 shadow-sm transition-all duration-300">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="p-3 bg-stone-900 text-white rounded-2xl shadow-xl shadow-stone-900/10">
+                                <CheckCircle className="h-5 w-5" strokeWidth={3} />
                             </div>
-                            <div className="p-3 bg-emerald-100 rounded-full text-emerald-600">
-                                <CheckCircle className="h-6 w-6" />
-                            </div>
-                        </CardContent>
-                    </Card>
+                            <span className="text-4xl font-black text-stone-900 tracking-tighter">{globalStats.followed_up}</span>
+                        </div>
+                        <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Completed</p>
+                    </div>
                 </div>
 
                 {/* Event Breakdown */}
-                <div>
-                    <h2 className="text-lg font-semibold text-stone-900 mb-4 flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5 text-indigo-600" />
-                        Event Performance
+                <div className="space-y-8">
+                    <h2 className="text-[10px] font-black text-stone-900 uppercase tracking-[0.3em] flex items-center gap-3">
+                        <BarChart3 className="h-4 w-4 text-stone-900" strokeWidth={3} />
+                        Status by Event
                     </h2>
 
                     {eventStats.length === 0 ? (
-                        <div className="bg-stone-50 border border-stone-200 rounded-lg p-12 text-center text-stone-500">
-                            No active events with follow-up data found.
+                        <div className="bg-stone-50/50 rounded-[2.5rem] p-20 text-center border border-dashed border-stone-200 flex flex-col items-center">
+                            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-white border border-stone-100 text-stone-300 shadow-sm">
+                                <BarChart3 className="h-8 w-8" strokeWidth={2} />
+                            </div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">No contacts yet</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-6">
                             {eventStats.map(event => (
-                                <Card key={event.id} className="hover:shadow-md transition-shadow group">
-                                    <div className="p-6">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div key={event.id} className="group bg-white border border-stone-100 rounded-[2.5rem] overflow-hidden shadow-sm hover:border-stone-200 transition-all duration-300">
+                                    <div className="p-8">
+                                        <div className="grid grid-cols-1 xl:grid-cols-4 items-center gap-8 xl:gap-12">
 
                                             {/* Event Info */}
-                                            <div className="flex-1 min-w-[200px]">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h3 className="text-lg font-semibold text-stone-900 group-hover:text-indigo-600 transition-colors">
+                                            <div className="xl:col-span-1">
+                                                <div className="flex items-center gap-4 mb-3">
+                                                    <h3 className="text-xl font-black text-stone-900 tracking-tight truncate">
                                                         {event.name}
                                                     </h3>
                                                     {event.status === 'ongoing' && (
-                                                        <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
+                                                        <span className="bg-stone-900 text-white text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg">
                                                             Live
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="flex items-center text-sm text-stone-500 gap-4">
-                                                    <span className="flex items-center gap-1">
-                                                        <Calendar className="h-3.5 w-3.5" />
-                                                        {new Date(event.start_date).toLocaleDateString()}
-                                                    </span>
-                                                    <span className="flex items-center gap-1">
-                                                        <Users className="h-3.5 w-3.5" />
-                                                        {event.stats.total} leads
-                                                    </span>
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <div className="flex items-center gap-1.5 text-[9px] font-black text-stone-400 uppercase tracking-widest">
+                                                        <Calendar className="h-3 w-3 text-stone-900" strokeWidth={3} />
+                                                        {new Date(event.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 text-[9px] font-black text-stone-400 uppercase tracking-widest">
+                                                        <Users className="h-3 w-3 text-stone-900" strokeWidth={3} />
+                                                        {event.stats.total} contacts
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            {/* Progress Bars */}
-                                            <div className="flex-1 min-w-[320px]">
+                                            {/* Progress */}
+                                            <div className="xl:col-span-2">
                                                 {event.stats.total > 0 ? (
-                                                    <div className="bg-white rounded-lg border border-gray-100 p-4 shadow-sm">
+                                                    <div className="bg-stone-50/80 rounded-2xl border border-stone-100 p-5">
                                                         <div className="flex items-center justify-between mb-3">
-                                                            <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Follow-up Progress</span>
+                                                            <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Completion</span>
+                                                            <span className="text-[9px] font-black text-stone-900 tracking-tighter">
+                                                                {Math.round((event.stats.followed_up / event.stats.total) * 100)}%
+                                                            </span>
                                                         </div>
-                                                        <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden flex mb-4">
+                                                        <div className="w-full h-2.5 bg-stone-200/50 rounded-full overflow-hidden flex mb-4">
                                                             <div
                                                                 style={{ width: `${(event.stats.followed_up / event.stats.total) * 100}%` }}
-                                                                className="bg-emerald-500 h-full transition-all duration-500 shadow-sm"
+                                                                className="bg-stone-900 h-full transition-all duration-1000"
                                                             />
                                                             <div
                                                                 style={{ width: `${(event.stats.needs_followup / event.stats.total) * 100}%` }}
-                                                                className="bg-amber-400 h-full transition-all duration-500 shadow-sm"
-                                                            />
-                                                            <div
-                                                                style={{ width: `${(event.stats.not_contacted / event.stats.total) * 100}%` }}
-                                                                className="bg-stone-200 h-full transition-all duration-500 shadow-sm"
+                                                                className="bg-stone-400 h-full -ml-px transition-all duration-1000"
                                                             />
                                                         </div>
-                                                        <div className="flex justify-between items-center px-1">
+                                                        <div className="flex gap-4">
                                                             <div className="flex items-center gap-1.5">
-                                                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                                                <span className="text-[10px] text-stone-500 font-medium">Followed Up ({event.stats.followed_up})</span>
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-stone-900" />
+                                                                <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Sent ({event.stats.followed_up})</span>
                                                             </div>
                                                             <div className="flex items-center gap-1.5">
-                                                                <div className="w-2 h-2 rounded-full bg-amber-400" />
-                                                                <span className="text-[10px] text-stone-500 font-medium">Needs Attention ({event.stats.needs_followup})</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5">
-                                                                <div className="w-2 h-2 rounded-full bg-stone-300" />
-                                                                <span className="text-[10px] text-stone-500 font-medium">Not Contacted ({event.stats.not_contacted})</span>
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-stone-400" />
+                                                                <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Pending ({event.stats.needs_followup})</span>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <div className="h-full flex items-center justify-center border border-dashed border-stone-200 rounded-lg bg-stone-50/50 p-4">
-                                                        <p className="text-xs text-stone-400 italic">No leads captured yet</p>
+                                                    <div className="h-full flex items-center justify-center border border-dashed border-stone-200 rounded-2xl bg-stone-50/50 p-5">
+                                                        <p className="text-[9px] font-black text-stone-300 uppercase tracking-widest italic">No connections yet</p>
                                                     </div>
                                                 )}
                                             </div>
 
                                             {/* Action */}
-                                            <div>
+                                            <div className="xl:col-span-1 flex justify-end">
                                                 <Button
                                                     onClick={() => setExpandedEventId(expandedEventId === event.id ? null : event.id)}
-                                                    variant={expandedEventId === event.id ? "primary" : "outline"}
-                                                    className={`w-full md:w-auto transition-all ${expandedEventId === event.id ? '' : 'hover:border-indigo-600 hover:text-indigo-600'}`}
+                                                    className={`h-11 px-6 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 flex items-center gap-3 ${expandedEventId === event.id
+                                                        ? 'bg-stone-900 text-white shadow-stone-900/10'
+                                                        : 'bg-white border border-stone-200 text-stone-900 hover:bg-stone-50 hover:border-stone-300'}`}
                                                 >
-                                                    {expandedEventId === event.id ? 'Close Board' : 'Manage Follow-ups'}
-                                                    {expandedEventId === event.id ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
+                                                    {expandedEventId === event.id ? 'Close' : 'View Contacts'}
+                                                    {expandedEventId === event.id ? <ChevronUp className="h-4 w-4" strokeWidth={3} /> : <ChevronDown className="h-4 w-4" strokeWidth={3} />}
                                                 </Button>
                                             </div>
                                         </div>
 
-                                        {/* Expanded Content */}
+                                        {/* Leads List */}
                                         {expandedEventId === event.id && (
-                                            <div className="mt-8 pt-8 border-t border-gray-100 animate-in fade-in zoom-in-95 duration-300">
+                                            <div className="mt-10 pt-10 border-t border-stone-50 animate-in fade-in duration-500">
                                                 <FollowUpsSection eventId={event.id} event={event} onRefresh={refreshDashboard} />
                                             </div>
                                         )}
                                     </div>
-                                </Card>
+                                </div>
                             ))}
                         </div>
                     )}

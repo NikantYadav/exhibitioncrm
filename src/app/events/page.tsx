@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { Event } from '@/types';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Calendar, MapPin, Clock, ChevronRight, Search, Filter, X } from 'lucide-react';
+import { Calendar, MapPin, Clock, ChevronRight, Search, Filter, X, Plus, Briefcase } from 'lucide-react';
 
 export default function EventsPage() {
     const [events, setEvents] = useState<Event[]>([]);
@@ -110,179 +110,202 @@ export default function EventsPage() {
 
     return (
         <AppShell>
-            <div className="max-w-7xl mx-auto">
+            <div className="max-w-7xl mx-auto px-4 py-8">
                 {/* Page Header */}
-                <div className="mb-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div className="mb-12">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
                         <div>
-                            <h1 className="text-display mb-1">Events</h1>
-                            <p className="text-body">
-                                {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'} found
-                                {events.length !== filteredEvents.length && ` (out of ${events.length} total)`}
+                            <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-2">Major Events</h1>
+                            <p className="text-sm font-medium text-stone-500 italic">
+                                {filteredEvents.length} active intelligence theaters
+                                {events.length !== filteredEvents.length && ` (from ${events.length} total operations)`}
                             </p>
                         </div>
-                        <Button onClick={() => setShowModal(true)} className="w-full md:w-auto">
-                            + Create Event
+                        <Button
+                            onClick={() => setShowModal(true)}
+                            className="h-11 px-8 bg-stone-900 hover:bg-stone-800 text-white rounded-xl shadow-xl shadow-stone-900/10 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+                        >
+                            <Plus className="mr-2 h-4 w-4" strokeWidth={2.5} />
+                            Deploy Operation
                         </Button>
                     </div>
 
-                    {/* Filter Bar */}
-                    <div className="premium-card p-4 mb-8">
-                        <div className="flex flex-col lg:flex-row items-center gap-4">
-                            <div className="relative flex-1 w-full">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+                    {/* Filter Ecosystem */}
+                    <div className="bg-white rounded-[2rem] border border-stone-100 p-6 shadow-sm">
+                        <div className="flex flex-col xl:flex-row items-center gap-6">
+                            <div className="relative flex-1 w-full group">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1.5 bg-stone-900 rounded-lg text-white shadow-lg transition-transform group-focus-within:scale-110">
+                                    <Search className="w-3.5 h-3.5" strokeWidth={2.5} />
+                                </div>
                                 <input
                                     type="text"
-                                    placeholder="Search events by name or location..."
-                                    className="w-full pl-10 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                    placeholder="Identify event by designation or sector..."
+                                    className="w-full h-12 pl-14 pr-10 bg-stone-50/50 border border-stone-100 rounded-xl text-sm font-bold placeholder:text-stone-400 focus:outline-none focus:ring-4 focus:ring-stone-900/5 focus:border-stone-900 transition-all"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                                 {searchQuery && (
                                     <button
                                         onClick={() => setSearchQuery('')}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-stone-900 transition-colors"
                                     >
-                                        <X className="h-4 w-4" />
+                                        <X className="h-4 w-4" strokeWidth={2.5} />
                                     </button>
                                 )}
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
-                                <div className="flex items-center gap-2 min-w-[140px]">
-                                    <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Status:</span>
+                            <div className="flex flex-wrap items-center gap-6 w-full xl:w-auto">
+                                <div className="flex items-center gap-4 min-w-[200px]">
+                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Pulse:</span>
                                     <select
-                                        className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                        className="flex-1 h-12 bg-stone-50/50 border border-stone-100 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-stone-900/5 focus:border-stone-900 transition-all appearance-none cursor-pointer text-stone-600"
                                         value={filterStatus}
                                         onChange={(e) => setFilterStatus(e.target.value)}
                                     >
-                                        <option value="all">All Occurrences</option>
+                                        <option value="all">All Statuses</option>
                                         <option value="upcoming">Upcoming</option>
-                                        <option value="ongoing">Ongoing</option>
-                                        <option value="completed">Completed</option>
+                                        <option value="ongoing">Active Now</option>
+                                        <option value="completed">Analyzed</option>
                                     </select>
                                 </div>
 
-                                <div className="flex items-center gap-2 min-w-[140px]">
-                                    <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Type:</span>
+                                <div className="flex items-center gap-4 min-w-[200px]">
+                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Class:</span>
                                     <select
-                                        className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                        className="flex-1 h-12 bg-stone-50/50 border border-stone-100 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-stone-900/5 focus:border-stone-900 transition-all appearance-none cursor-pointer text-stone-600"
                                         value={filterType}
                                         onChange={(e) => setFilterType(e.target.value)}
                                     >
-                                        <option value="all">All Types</option>
+                                        <option value="all">All Archetypes</option>
                                         <option value="exhibition">Exhibition</option>
                                         <option value="conference">Conference</option>
-                                        <option value="meeting">Meeting</option>
+                                        <option value="meeting">Briefing</option>
                                     </select>
                                 </div>
 
                                 {(searchQuery || filterStatus !== 'all' || filterType !== 'all') && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
+                                    <button
                                         onClick={resetFilters}
-                                        className="text-stone-500 hover:text-stone-700"
+                                        className="text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900 transition-colors px-4"
                                     >
-                                        Clear Filters
-                                    </Button>
+                                        Reset Ops
+                                    </button>
                                 )}
                             </div>
                         </div>
                     </div>
                 </div>
 
+                {/* Events List */}
                 {loading ? (
-                    <div className="grid gap-4">
+                    <div className="grid gap-6">
                         {[1, 2, 3].map((i) => (
-                            <div key={i} className="premium-card p-6 flex flex-col gap-4">
+                            <div key={i} className="bg-white rounded-[2rem] border border-stone-100 p-8 flex flex-col gap-6">
                                 <div className="flex justify-between items-start">
-                                    <div className="space-y-2 flex-1">
-                                        <div className="flex items-center gap-3">
-                                            <Skeleton className="h-6 w-1/3" />
-                                            <Skeleton className="h-5 w-20 rounded-full" />
+                                    <div className="space-y-3 flex-1">
+                                        <div className="flex items-center gap-4">
+                                            <Skeleton className="h-8 w-1/3 rounded-lg" />
+                                            <Skeleton className="h-6 w-24 rounded-full" />
                                         </div>
-                                        <Skeleton className="h-4 w-1/2" />
+                                        <Skeleton className="h-4 w-1/2 rounded-lg" />
                                     </div>
-                                    <Skeleton className="h-5 w-5 rounded-md" />
+                                    <Skeleton className="h-6 w-6 rounded-md" />
                                 </div>
-                                <div className="flex gap-4">
-                                    <Skeleton className="h-4 w-24" />
-                                    <Skeleton className="h-4 w-24" />
-                                    <Skeleton className="h-4 w-32" />
+                                <div className="flex gap-6">
+                                    <Skeleton className="h-4 w-32 rounded-lg" />
+                                    <Skeleton className="h-4 w-32 rounded-lg" />
+                                    <Skeleton className="h-4 w-32 rounded-lg" />
                                 </div>
                             </div>
                         ))}
                     </div>
                 ) : filteredEvents.length === 0 ? (
-                    <div className="premium-card p-12 text-center">
-                        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-400 mx-auto">
+                    <div className="bg-stone-50/50 rounded-[3rem] p-24 text-center border-2 border-dashed border-stone-100 flex flex-col items-center">
+                        <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-[2rem] bg-stone-900 text-white shadow-2xl shadow-stone-900/10">
                             {searchQuery || filterStatus !== 'all' || filterType !== 'all' ? (
-                                <Filter className="h-6 w-6" strokeWidth={2} />
+                                <Filter className="h-8 w-8" strokeWidth={2.5} />
                             ) : (
-                                <Calendar className="h-6 w-6" strokeWidth={2} />
+                                <Calendar className="h-8 w-8" strokeWidth={2.5} />
                             )}
                         </div>
-                        <h3 className="text-card-title mb-2">
+                        <h3 className="text-2xl font-black text-stone-900 mb-3 tracking-tight">
                             {searchQuery || filterStatus !== 'all' || filterType !== 'all'
-                                ? "No events match your filters"
-                                : "No events yet"}
+                                ? "Intelligence Recon Failed"
+                                : "Theater of Operations Empty"}
                         </h3>
-                        <p className="text-body mb-6">
+                        <p className="text-stone-500 font-medium italic mb-10 max-w-[380px]">
                             {searchQuery || filterStatus !== 'all' || filterType !== 'all'
-                                ? "Try adjusting your search query or filters to find what you're looking for."
-                                : "Create your first exhibition or conference to start capturing leads"}
+                                ? "No operations matched your strategic parameters. Reconfigure intel filters."
+                                : "Initialize your first exhibition or conference theater to begin lead acquisition."}
                         </p>
                         {searchQuery || filterStatus !== 'all' || filterType !== 'all' ? (
-                            <Button onClick={resetFilters} variant="secondary">
-                                Reset Filters
+                            <Button onClick={resetFilters} className="h-14 px-10 rounded-2xl bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-stone-900/20 active:scale-95 transition-all">
+                                Reset Intelligence
                             </Button>
                         ) : (
-                            <Button onClick={() => setShowModal(true)}>
-                                + Create First Event
+                            <Button onClick={() => setShowModal(true)} size="lg" className="h-14 px-10 rounded-2xl bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-stone-900/20 active:scale-95 transition-all">
+                                <Plus className="mr-3 h-5 w-5" strokeWidth={3} />
+                                Deploy First Theater
                             </Button>
                         )}
                     </div>
                 ) : (
-                    <div className="grid gap-4">
+                    <div className="grid grid-cols-1 gap-6">
                         {filteredEvents.map((event) => (
                             <Link
                                 key={event.id}
                                 href={`/events/${event.id}`}
-                                className="premium-card p-6 hover:shadow-lg transition-smooth cursor-pointer group"
+                                className="group bg-white rounded-[2.5rem] border border-stone-100 p-8 shadow-sm hover:shadow-2xl hover:shadow-stone-900/5 hover:border-stone-200 transition-all duration-500 cursor-pointer"
                             >
                                 <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <h3 className="text-card-title group-hover:text-indigo-600 transition-colors">
+                                    <div className="flex-1 min-w-0" >
+                                        <div className="flex items-center gap-4 mb-4">
+                                            <h3 className="text-2xl font-black text-stone-900 tracking-tight group-hover:text-stone-600 transition-colors">
                                                 {event.name}
                                             </h3>
-                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(event.status)}`}>
-                                                {event.status}
+                                            <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-[0.15em] rounded-full border shadow-sm ${event.status === 'ongoing'
+                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                : event.status === 'upcoming'
+                                                    ? 'bg-stone-900 text-white border-stone-800'
+                                                    : 'bg-stone-50 text-stone-500 border-stone-100'
+                                                }`}>
+                                                {event.status === 'ongoing' ? 'Active now' : event.status}
                                             </span>
                                         </div>
                                         {event.description && (
-                                            <p className="text-body mb-3">{event.description}</p>
+                                            <p className="text-sm font-medium text-stone-400 italic mb-6 max-w-3xl line-clamp-1">
+                                                "{event.description}"
+                                            </p>
                                         )}
-                                        <div className="flex items-center gap-4 text-caption">
-                                            <span className="flex items-center gap-1.5 capitalize">
-                                                <Calendar className="w-4 h-4" strokeWidth={2} />
-                                                {event.event_type}
-                                            </span>
-                                            {event.location && (
-                                                <span className="flex items-center gap-1.5">
-                                                    <MapPin className="w-4 h-4" strokeWidth={2} />
-                                                    {event.location}
+                                        <div className="flex flex-wrap items-center gap-x-10 gap-y-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-stone-900 rounded-xl text-white shadow-lg">
+                                                    <Calendar className="w-4 h-4" strokeWidth={2.5} />
+                                                </div>
+                                                <span className="text-sm font-bold text-stone-600">
+                                                    {new Date(event.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                    {event.end_date && ` — ${new Date(event.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`}
                                                 </span>
+                                            </div>
+                                            {event.location && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-stone-900 rounded-xl text-white shadow-lg">
+                                                        <MapPin className="w-4 h-4" strokeWidth={2.5} />
+                                                    </div>
+                                                    <span className="text-sm font-bold text-stone-600">{event.location}</span>
+                                                </div>
                                             )}
-                                            <span className="flex items-center gap-1.5">
-                                                <Clock className="w-4 h-4" strokeWidth={2} />
-                                                {new Date(event.start_date).toLocaleDateString()}
-                                                {event.end_date && ` - ${new Date(event.end_date).toLocaleDateString()}`}
-                                            </span>
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-stone-900 rounded-xl text-white shadow-lg">
+                                                    <Briefcase className="w-4 h-4" strokeWidth={2.5} />
+                                                </div>
+                                                <span className="text-sm font-bold text-stone-400 uppercase tracking-widest">{event.event_type}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-indigo-600 transition-colors" strokeWidth={2} />
+                                    <div className="ml-8 p-6 bg-stone-50 rounded-[1.5rem] group-hover:bg-stone-900 transition-all duration-500 border border-stone-100 group-hover:border-stone-800 shrink-0">
+                                        <ChevronRight className="w-6 h-6 text-stone-300 group-hover:text-white transition-colors" strokeWidth={3} />
+                                    </div>
                                 </div>
                             </Link>
                         ))}

@@ -1,20 +1,16 @@
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { Capture } from '@/types';
-import { CaptureMode } from '@/components/events/CaptureFlow';
-import { Camera, Trash2, MoreVertical, IdCard, QrCode, Keyboard, Mic, Download, Mail, Phone, Briefcase, Calendar, ExternalLink, User } from 'lucide-react';
+import { Camera, Trash2, MoreVertical, IdCard, Briefcase, Calendar, ExternalLink, User, Mail, Phone } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
+import { CaptureDropdown } from '@/components/capture/CaptureDropdown';
 
 interface CapturesSectionProps {
     eventId: string;
     captures: Capture[];
     onDeleteCapture: (e: React.MouseEvent, captureId: string) => void;
 }
-
-import { toast } from 'sonner';
-import { CaptureDropdown } from '@/components/capture/CaptureDropdown';
 
 export function CapturesSection({ eventId, captures, onDeleteCapture }: CapturesSectionProps) {
     const router = useRouter();
@@ -30,17 +26,20 @@ export function CapturesSection({ eventId, captures, onDeleteCapture }: Captures
     };
 
     return (
-        <div>
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Business Card Captures</h3>
+        <div className="max-w-5xl mx-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                <div>
+                    <h3 className="text-xl font-black text-stone-900 tracking-tight">Business Cards</h3>
+                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mt-0.5">Scanned contact cards from this event.</p>
+                </div>
                 {filteredCaptures.length > 0 && (
                     <CaptureDropdown
                         eventId={eventId}
                         trigger={
-                            <Button size="sm">
-                                <Camera className="mr-2 h-4 w-4" />
-                                New Capture
-                                <MoreVertical className="ml-2 h-4 w-4" />
+                            <Button className="h-10 px-5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl shadow-lg shadow-stone-900/10 font-black uppercase tracking-widest text-[10px] transition-all">
+                                <Camera className="mr-2.5 h-4 w-4" strokeWidth={3} />
+                                New Scan
+                                <MoreVertical className="ml-2.5 h-4 w-4 opacity-30" />
                             </Button>
                         }
                     />
@@ -48,49 +47,64 @@ export function CapturesSection({ eventId, captures, onDeleteCapture }: Captures
             </div>
 
             {filteredCaptures.length === 0 ? (
-                <div className="text-center py-12">
-                    <Camera className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600 mb-4">No captures yet</p>
+                <div className="bg-stone-50 rounded-[2.5rem] border border-stone-100 border-dashed p-12 text-center">
+                    <div className="p-5 bg-stone-900 rounded-2xl w-fit mx-auto mb-6 text-white shadow-xl shadow-stone-900/10">
+                        <Camera className="h-8 w-8" strokeWidth={2.5} />
+                    </div>
+                    <h4 className="text-lg font-black text-stone-900 tracking-tight mb-2">No Contact Cards Yet</h4>
+                    <p className="text-stone-500 text-xs font-medium mb-8 max-w-[240px] mx-auto leading-relaxed">Scan a business card to automatically save lead details and company info.</p>
                     <CaptureDropdown
                         eventId={eventId}
                         trigger={
-                            <Button size="sm">
-                                <Camera className="mr-2 h-4 w-4" />
-                                Start Capturing
-                                <MoreVertical className="ml-2 h-4 w-4" />
+                            <Button
+                                className="h-11 px-6 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-stone-900/10 transition-all"
+                            >
+                                <Camera className="mr-2.5 h-4 w-4" strokeWidth={3} />
+                                Start Scanning
                             </Button>
                         }
                     />
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div className="grid gap-3">
                     {filteredCaptures.map((capture) => (
                         <div
                             key={capture.id}
                             onClick={() => handleCaptureClick(capture)}
-                            className="w-full text-left border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all group cursor-pointer"
+                            className="group bg-white rounded-2xl border border-stone-100 p-4 shadow-sm hover:shadow-md hover:border-stone-200 transition-all duration-300 cursor-pointer flex items-center justify-between"
                         >
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="font-medium group-hover:text-blue-600 transition-colors">
+                            <div className="flex items-center gap-4 min-w-0">
+                                <div className="h-11 w-11 bg-stone-900 rounded-xl flex items-center justify-center text-white shadow-md">
+                                    <IdCard className="h-5 w-5" strokeWidth={2.5} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="font-black text-stone-900 truncate tracking-tight">
                                         {capture.contact?.first_name} {capture.contact?.last_name || 'Unknown'}
                                     </p>
-                                    <p className="text-sm text-gray-600">
-                                        {new Date(capture.created_at).toLocaleDateString()}
-                                    </p>
+                                    <div className="flex items-center gap-3 mt-1 text-[9px] font-black text-stone-400 uppercase tracking-widest">
+                                        <span className="flex items-center gap-1.5">
+                                            <Calendar className="h-3 w-3 text-stone-900" strokeWidth={3} />
+                                            {new Date(capture.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        </span>
+                                        {capture.contact?.company?.name && (
+                                            <span className="flex items-center gap-1.5 max-w-[150px] truncate">
+                                                <Briefcase className="h-3 w-3 text-stone-900" strokeWidth={3} />
+                                                {capture.contact.company.name}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDeleteCapture(e, capture.id);
-                                    }}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
                             </div>
+                            <Button
+                                variant="ghost"
+                                className="h-10 w-10 p-0 text-stone-200 hover:text-red-600 hover:bg-red-50 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all rounded-xl ml-2"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteCapture(e, capture.id);
+                                }}
+                            >
+                                <Trash2 className="h-4 w-4" strokeWidth={2.5} />
+                            </Button>
                         </div>
                     ))}
                 </div>
@@ -100,27 +114,26 @@ export function CapturesSection({ eventId, captures, onDeleteCapture }: Captures
             <Modal
                 isOpen={showPreview}
                 onClose={() => setShowPreview(false)}
-                title="Lead Preview"
+                title="Card Detail"
                 size="md"
             >
                 {selectedCapturePreview && (
-                    <div className="space-y-8">
+                    <div className="space-y-6">
                         {/* Header Profile Section */}
-                        <div className="flex flex-col items-center text-center space-y-4">
-                            <div className="h-24 w-24 rounded-3xl bg-blue-50 flex items-center justify-center border-2 border-blue-100/50 shadow-inner relative group transition-all duration-500 hover:scale-105">
-                                <div className="absolute inset-0 bg-blue-400/5 rounded-3xl animate-pulse group-hover:animate-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                <User className="h-10 w-10 text-blue-500" />
+                        <div className="flex flex-col items-center text-center space-y-3">
+                            <div className="h-20 w-20 rounded-2xl bg-stone-900 flex items-center justify-center border-2 border-white shadow-lg">
+                                <User className="h-9 w-9 text-white" />
                             </div>
-                            <div className="space-y-1.5">
-                                <h3 className="text-2xl font-black text-stone-900 tracking-tight">
+                            <div className="space-y-1">
+                                <h3 className="text-xl font-black text-stone-900 tracking-tight">
                                     {selectedCapturePreview.contact
                                         ? [selectedCapturePreview.contact.first_name, selectedCapturePreview.contact.last_name].filter(Boolean).join(' ')
-                                        : 'Lead Found'}
+                                        : 'Contact Found'}
                                 </h3>
                                 {(selectedCapturePreview.contact?.job_title || selectedCapturePreview.contact?.company?.name) && (
                                     <div className="flex items-center justify-center gap-2 text-stone-500 font-medium">
-                                        <Briefcase className="h-4 w-4 shrink-0 text-blue-400" />
-                                        <p className="text-sm">
+                                        <Briefcase className="h-3.5 w-3.5 shrink-0 text-stone-400" />
+                                        <p className="text-xs">
                                             {[
                                                 selectedCapturePreview.contact.job_title,
                                                 selectedCapturePreview.contact.company?.name
@@ -128,10 +141,10 @@ export function CapturesSection({ eventId, captures, onDeleteCapture }: Captures
                                         </p>
                                     </div>
                                 )}
-                                <div className="flex items-center justify-center gap-3 mt-2">
-                                    <p className="text-xs text-stone-400 font-medium flex items-center gap-1.5">
-                                        <Calendar className="h-3.5 w-3.5 text-stone-300" />
-                                        Captured {new Date(selectedCapturePreview.created_at).toLocaleDateString(undefined, {
+                                <div className="flex items-center justify-center gap-3 mt-1.5">
+                                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                                        <Calendar className="h-3 w-3 text-stone-300" strokeWidth={3} />
+                                        Scanned {new Date(selectedCapturePreview.created_at).toLocaleDateString(undefined, {
                                             month: 'short',
                                             day: 'numeric',
                                             year: 'numeric'
@@ -144,56 +157,54 @@ export function CapturesSection({ eventId, captures, onDeleteCapture }: Captures
                         {/* Contact Information List */}
                         {selectedCapturePreview.contact ? (
                             <div className="space-y-3">
-                                <h4 className="text-[10px] uppercase tracking-[0.2em] font-black text-stone-400 ml-1">Contact Information</h4>
-                                <div className="space-y-2">
+                                <h4 className="text-[10px] uppercase tracking-widest font-black text-stone-400 ml-1">Information</h4>
+                                <div className="grid gap-2">
                                     {selectedCapturePreview.contact.email && (
-                                        <div className="flex items-center justify-between p-4 bg-white border border-stone-200 rounded-2xl shadow-sm hover:border-blue-300 hover:shadow-md transition-all group">
-                                            <div className="flex items-center gap-4 min-w-0">
-                                                <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-all">
-                                                    <Mail className="h-5 w-5" />
+                                        <div className="flex items-center justify-between p-3 bg-white border border-stone-100 rounded-xl shadow-sm">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="h-9 w-9 rounded-lg bg-stone-900 flex items-center justify-center text-white shadow-sm">
+                                                    <Mail className="h-4 w-4" />
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider leading-none mb-1">Email</p>
-                                                    <p className="text-sm font-semibold text-stone-900 truncate">{selectedCapturePreview.contact.email}</p>
+                                                    <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest leading-none mb-1">Email</p>
+                                                    <p className="text-xs font-bold text-stone-900 truncate">{selectedCapturePreview.contact.email}</p>
                                                 </div>
                                             </div>
-                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-stone-400 hover:text-blue-600 transition-colors shrink-0" onClick={() => window.open(`mailto:${selectedCapturePreview.contact?.email}`)}>
-                                                <ExternalLink className="h-4 w-4" />
+                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-stone-400 hover:text-stone-900 transition-colors" onClick={() => window.open(`mailto:${selectedCapturePreview.contact?.email}`)}>
+                                                <ExternalLink className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
                                     )}
 
                                     {selectedCapturePreview.contact.phone && (
-                                        <div className="flex items-center justify-between p-4 bg-white border border-stone-200 rounded-2xl shadow-sm hover:border-emerald-300 hover:shadow-md transition-all group">
-                                            <div className="flex items-center gap-4 min-w-0">
-                                                <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                                                    <Phone className="h-5 w-5" />
+                                        <div className="flex items-center justify-between p-3 bg-white border border-stone-100 rounded-xl shadow-sm">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="h-9 w-9 rounded-lg bg-stone-900 flex items-center justify-center text-white shadow-sm">
+                                                    <Phone className="h-4 w-4" />
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider leading-none mb-1">Phone</p>
-                                                    <p className="text-sm font-semibold text-stone-900 truncate">{selectedCapturePreview.contact.phone}</p>
+                                                    <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest leading-none mb-1">Phone</p>
+                                                    <p className="text-xs font-bold text-stone-900 truncate">{selectedCapturePreview.contact.phone}</p>
                                                 </div>
                                             </div>
-                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-stone-400 hover:text-emerald-600 transition-colors shrink-0" onClick={() => window.open(`tel:${selectedCapturePreview.contact?.phone}`)}>
-                                                <Phone className="h-4 w-4" />
+                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-stone-400 hover:text-stone-900 transition-colors" onClick={() => window.open(`tel:${selectedCapturePreview.contact?.phone}`)}>
+                                                <Phone className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         ) : (
-                            <div className="p-8 bg-stone-50 rounded-2xl border border-dashed border-stone-200 text-center">
-                                <p className="text-sm text-stone-400 font-medium">Data extraction in progress. Please check back in a few seconds.</p>
+                            <div className="p-6 bg-stone-50 rounded-2xl border border-dashed border-stone-200 text-center">
+                                <p className="text-xs text-stone-400 font-medium italic">Scanning details... please wait.</p>
                             </div>
                         )}
 
                         {/* Business Card Reference Image */}
                         {selectedCapturePreview.image_url && (
-                            <div className="space-y-3 pt-2">
-                                <div className="ml-1">
-                                    <h4 className="text-[10px] uppercase tracking-[0.2em] font-black text-stone-400">Captured Reference</h4>
-                                </div>
-                                <div className="aspect-[1.6/1] w-full rounded-2xl overflow-hidden border border-stone-200 bg-stone-100 relative shadow-sm">
+                            <div className="space-y-2 pt-1">
+                                <h4 className="text-[10px] uppercase tracking-widest font-black text-stone-400 ml-1">Photo Reference</h4>
+                                <div className="aspect-[1.6/1] w-full rounded-2xl overflow-hidden border border-stone-100 bg-stone-50 relative">
                                     <img
                                         src={selectedCapturePreview.image_url}
                                         alt="Business Card"
@@ -204,19 +215,19 @@ export function CapturesSection({ eventId, captures, onDeleteCapture }: Captures
                         )}
 
                         {/* Footer Actions */}
-                        <div className="flex flex-col gap-3 pt-4 pb-2">
+                        <div className="flex flex-col gap-2 pt-2">
                             {selectedCapturePreview.contact_id && (
                                 <Button
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 rounded-2xl shadow-lg shadow-blue-500/20 font-bold transition-all hover:translate-y-[-2px] hover:shadow-blue-500/40"
+                                    className="w-full bg-stone-900 hover:bg-stone-800 text-white h-11 rounded-xl shadow-lg shadow-stone-900/10 font-black uppercase tracking-widest text-[10px] transition-all"
                                     onClick={() => router.push(`/contacts/${selectedCapturePreview.contact_id}`)}
                                 >
                                     <User className="mr-2 h-4 w-4" />
-                                    View Full Profile
+                                    Open Contact
                                 </Button>
                             )}
                             <Button
                                 variant="outline"
-                                className="w-full border-stone-200 text-stone-500 hover:bg-stone-50 h-12 rounded-2xl font-semibold transition-all"
+                                className="w-full border-stone-200 text-stone-500 hover:bg-stone-50 h-11 rounded-xl font-bold transition-all text-[10px] uppercase tracking-widest"
                                 onClick={() => setShowPreview(false)}
                             >
                                 Close

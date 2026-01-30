@@ -21,42 +21,36 @@ export default function IntegrationsPage() {
             name: 'Salesforce CRM',
             description: 'Direct bi-directional sync for leads, opportunities, and contact history.',
             icon: Database,
-            color: 'bg-blue-50 text-blue-600',
             status: 'Q3 2026'
         },
         {
             name: 'HubSpot Marketing',
             description: 'Automatic campaign tagging and workflow triggers for captured leads.',
             icon: Zap,
-            color: 'bg-orange-50 text-orange-600',
             status: 'Q3 2026'
         },
         {
             name: 'Zapier Automation',
             description: 'Connect exhibition data to 5,000+ custom business workflows.',
             icon: Share2,
-            color: 'bg-stone-50 text-stone-900',
             status: 'In Development'
         },
         {
             name: 'Microsoft Outlook',
             description: 'Sync drafts and contacts directly to your enterprise mailbox.',
             icon: Mail,
-            color: 'bg-indigo-50 text-indigo-600',
             status: 'Q2 2026'
         },
         {
             name: 'Slack Teams',
             description: 'Real-time alerts for high-value captures and team follow-up coordination.',
             icon: MessageSquare,
-            color: 'bg-purple-50 text-purple-600',
             status: 'Coming Soon'
         },
         {
             name: 'LinkedIn Sales',
             description: 'Identify and connect with exhibition leads via LinkedIn Sales Navigator.',
             icon: Globe,
-            color: 'bg-sky-50 text-sky-600',
             status: 'Planned'
         }
     ];
@@ -85,23 +79,23 @@ export default function IntegrationsPage() {
                     {plannedIntegrations.map((item, index) => (
                         <div
                             key={item.name}
-                            className="premium-card p-8 group hover:border-stone-900 transition-all duration-500 relative flex flex-col items-start translate-gpu"
+                            className="bg-white rounded-[2rem] border border-stone-100 p-8 group hover:shadow-2xl hover:border-stone-200 transition-all duration-500 relative flex flex-col items-start overflow-hidden"
                         >
-                            <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-500">
-                                <item.icon size={100} strokeWidth={1} />
+                            <div className="absolute -top-12 -right-12 p-6 opacity-[0.02] group-hover:opacity-[0.05] transition-all duration-700 group-hover:scale-125 group-hover:-rotate-12">
+                                <item.icon size={160} strokeWidth={1} />
                             </div>
 
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-8 shadow-sm ${item.color} group-hover:scale-110 transition-transform`}>
-                                <item.icon className="w-6 h-6" />
+                            <div className="w-14 h-14 bg-stone-900 text-white rounded-2xl flex items-center justify-center mb-8 shadow-xl shadow-stone-900/10 group-hover:scale-110 group-hover:shadow-stone-900/20 transition-all duration-500 ring-4 ring-stone-50">
+                                <item.icon className="w-6 h-6" strokeWidth={2.5} />
                             </div>
 
-                            <div className="mt-auto">
-                                <span className="inline-block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-2 group-hover:text-stone-900 transition-colors">
+                            <div className="mt-auto relative z-10">
+                                <span className="inline-block text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-3 group-hover:text-stone-900 transition-colors">
                                     Release: {item.status}
                                 </span>
-                                <h3 className="text-lg font-black text-stone-900 mb-2">{item.name}</h3>
-                                <p className="text-sm text-stone-500 font-medium leading-relaxed">
-                                    {item.description}
+                                <h3 className="text-xl font-black text-stone-900 mb-3 tracking-tight">{item.name}</h3>
+                                <p className="text-sm text-stone-500 font-medium leading-relaxed italic">
+                                    "{item.description}"
                                 </p>
                             </div>
                         </div>

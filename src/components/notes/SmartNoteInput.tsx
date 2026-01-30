@@ -70,26 +70,26 @@ export function SmartNoteInput({ onProcess, isProcessing }: SmartNoteInputProps)
                 <Textarea
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    placeholder="Type a quick note... (e.g., 'Lunch with John from Acme was great')"
-                    className="min-h-[100px] p-4 pr-12 text-base resize-none"
+                    placeholder="Type a note... (e.g., 'Lunch with John from Acme was great')"
+                    className="min-h-[140px] p-5 pr-12 text-sm font-medium resize-none rounded-2xl border-stone-100 bg-stone-50/50 focus:bg-white focus:ring-stone-200 transition-all placeholder:text-stone-300"
                     disabled={isProcessing}
                 />
                 <Button
                     variant="ghost"
                     size="sm"
-                    className={`absolute bottom-3 right-3 rounded-full h-8 w-8 p-0 ${isListening ? 'text-red-500 bg-red-50' : 'text-gray-400 hover:text-indigo-600'}`}
+                    className={`absolute bottom-4 right-4 rounded-full h-10 w-10 p-0 shadow-sm transition-all ${isListening ? 'text-red-500 bg-red-50' : 'text-stone-400 hover:text-stone-900 hover:bg-stone-100'}`}
                     onClick={toggleListening}
                     disabled={isProcessing}
                 >
-                    <Mic className={`h-4 w-4 ${isListening ? 'animate-pulse' : ''}`} />
+                    <Mic className={`h-5 w-5 ${isListening ? 'animate-pulse' : ''}`} />
                 </Button>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-2">
                 <Button
                     onClick={handleSend}
                     disabled={!content.trim() || isProcessing}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all flex items-center gap-2"
+                    className="bg-stone-900 hover:bg-stone-800 text-white shadow-xl shadow-stone-900/10 h-12 px-8 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-3 transition-all active:scale-95"
                 >
                     {isProcessing ? (
                         <>
@@ -98,8 +98,8 @@ export function SmartNoteInput({ onProcess, isProcessing }: SmartNoteInputProps)
                         </>
                     ) : (
                         <>
-                            <Sparkles className="h-4 w-4 text-indigo-200" />
-                            Analyze & Link
+                            <Sparkles className="h-4 w-4 text-white" strokeWidth={2.5} />
+                            Save Note
                         </>
                     )}
                 </Button>

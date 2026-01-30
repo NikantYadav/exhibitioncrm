@@ -84,10 +84,10 @@ export default function HomePage() {
     const summary = dashboardData?.summary || { targets: 0, captured: 0, enriched: 0, drafts: 0, sent: 0 };
 
     const stats = [
-        { label: 'Target Companies', value: summary.targets, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Total Scans', value: summary.captured, icon: Camera, color: 'text-amber-600', bg: 'bg-amber-50' },
-        { label: 'Enriched Profiles', value: summary.enriched, icon: CheckCircle2, color: 'text-purple-600', bg: 'bg-purple-50' },
-        { label: 'Follow-ups Due', value: summary.drafts, icon: Clock, color: 'text-stone-600', bg: 'bg-stone-100' },
+        { label: 'Target Companies', value: summary.targets, icon: Target },
+        { label: 'Total Scans', value: summary.captured, icon: Camera },
+        { label: 'Enriched Profiles', value: summary.enriched, icon: CheckCircle2 },
+        { label: 'Follow-ups Due', value: summary.drafts, icon: Clock },
     ];
 
     const upcomingMeetings = dashboardData?.upcomingMeetings || [];
@@ -96,115 +96,118 @@ export default function HomePage() {
 
     return (
         <AppShell>
-            <div className="max-w-7xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
-                {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 shrink-0">
+            <div className="max-w-7xl mx-auto px-4 py-6 h-[calc(100vh-6rem)] flex flex-col">
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 shrink-0">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-stone-900 mb-1">Overview</h1>
-                        <p className="text-sm text-stone-500">You have {upcomingMeetings.length} meetings scheduled for today.</p>
+                        <h1 className="text-3xl font-black text-stone-900 tracking-tight leading-tight">Dashboard</h1>
+                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Your network summary</p>
                     </div>
 
                     <div className="flex items-center gap-3">
                         <CaptureDropdown />
                         <Link href="/meetings/new">
-                            <Button variant="outline" className="h-10 px-5 rounded-xl border-stone-200 hover:bg-stone-50 transition-all text-sm">
-                                <Plus className="mr-2 h-4 w-4" />
-                                Schedule Meeting
+                            <Button className="h-10 px-6 bg-stone-900 hover:bg-stone-800 text-white rounded-xl shadow-lg shadow-stone-900/10 font-black uppercase tracking-widest text-[9px] transition-all active:scale-95">
+                                <Plus className="mr-2 h-3.5 w-3.5" strokeWidth={3} />
+                                New Meeting
                             </Button>
                         </Link>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 shrink-0">
+                {/* Performance Metrics */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 shrink-0">
                     {stats.map((stat, i) => (
-                        <div key={i} className="bg-white border border-stone-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow group cursor-default">
-                            <div className="flex items-start justify-between">
-                                <div className={`p-2 rounded-xl ${stat.bg} ${stat.color} border border-current border-opacity-10`}>
-                                    <stat.icon className="h-4 w-4" />
-                                </div>
-                                <span className="text-2xl font-bold text-stone-900 leading-none">{stat.value}</span>
+                        <div key={i} className="group relative bg-white border border-stone-100 rounded-2xl p-3 shadow-sm transition-all duration-300 hover:border-stone-200 cursor-default flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-stone-900 text-white shadow-md shadow-stone-900/10 shrink-0">
+                                <stat.icon className="h-3.5 w-3.5" strokeWidth={3} />
                             </div>
-                            <p className="mt-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest">{stat.label}</p>
+                            <div className="min-w-0">
+                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest leading-none mb-1">{stat.label}</p>
+                                <span className="text-lg font-black text-stone-900 tracking-tighter leading-none">{stat.value}</span>
+                            </div>
                         </div>
                     ))}
                 </div>
 
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-10 min-h-0">
 
-                    {/* Left Column: Schedule */}
+                    {/* Left Panel: Schedule */}
                     <div className="lg:col-span-2 flex flex-col min-h-0">
-                        <section className="bg-white border border-stone-100 rounded-3xl overflow-hidden flex flex-col h-full shadow-sm">
-                            <div className="px-6 py-4 border-b border-stone-50 flex items-center justify-between shrink-0 bg-stone-50/30">
-                                <h2 className="text-[10px] font-bold text-stone-900 uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <Calendar className="h-3.5 w-3.5 text-stone-400" />
-                                    Today&apos;s Schedule
+                        <section className="bg-white border border-stone-100 rounded-[2.5rem] overflow-hidden flex flex-col h-full shadow-sm hover:border-stone-200 transition-all">
+                            <div className="px-8 py-6 border-b border-stone-100 flex items-center justify-between shrink-0 bg-stone-50/50">
+                                <h2 className="text-[10px] font-black text-stone-900 uppercase tracking-[0.2em] flex items-center gap-3">
+                                    <Calendar className="h-4 w-4 text-stone-900" strokeWidth={3} />
+                                    Timeline
                                 </h2>
-                                <Link href="/meetings" className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider flex items-center gap-1 group">
-                                    Full Calendar
-                                    <ChevronRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                                <Link href="/meetings" className="text-[10px] font-black text-stone-900 hover:text-stone-600 uppercase tracking-widest flex items-center gap-2 transition-colors">
+                                    View All
+                                    <ChevronRight className="h-3.5 w-3.5" strokeWidth={3} />
                                 </Link>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                 {upcomingMeetings.length === 0 ? (
-                                    <div className="h-full flex flex-col items-center justify-center opacity-40">
-                                        <div className="w-12 h-12 bg-stone-50 rounded-2xl flex items-center justify-center mb-4 border border-stone-100">
-                                            <Calendar className="h-6 w-6 text-stone-200" />
+                                    <div className="h-full flex flex-col items-center justify-center">
+                                        <div className="w-16 h-16 bg-stone-50 rounded-[1.2rem] flex items-center justify-center mb-6 border border-stone-100 shadow-inner">
+                                            <Calendar className="h-7 w-7 text-stone-200" strokeWidth={1.5} />
                                         </div>
-                                        <p className="text-xs font-bold uppercase tracking-widest">No meetings today</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-stone-300">No upcoming meetings</p>
                                     </div>
                                 ) : (
-                                    <MeetingsCalendar
-                                        meetings={upcomingMeetings}
-                                        initialView="day"
-                                        showToolbar={true}
-                                        availableViews={['day', 'week']}
-                                    />
+                                    <div className="h-full">
+                                        <MeetingsCalendar
+                                            meetings={upcomingMeetings}
+                                            initialView="day"
+                                            showToolbar={true}
+                                            availableViews={['day', 'week']}
+                                        />
+                                    </div>
                                 )}
                             </div>
                         </section>
                     </div>
 
-                    {/* Right Column: Activity Feed */}
+                    {/* Right Panel: Activity Feed */}
                     <div className="lg:col-span-1 flex flex-col min-h-0">
-                        <section className="bg-white border border-stone-100 rounded-3xl overflow-hidden flex flex-col h-full shadow-sm">
-                            <div className="px-6 py-4 border-b border-stone-50 shrink-0 bg-stone-50/30">
-                                <h2 className="text-[10px] font-bold text-stone-900 uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <MessageSquare className="h-3.5 w-3.5 text-stone-400" />
-                                    Activity Feed
+                        <section className="bg-white border border-stone-100 rounded-[2.5rem] overflow-hidden flex flex-col h-full shadow-sm hover:border-stone-200 transition-all">
+                            <div className="px-8 py-6 border-b border-stone-100 shrink-0 bg-stone-50/50">
+                                <h2 className="text-[10px] font-black text-stone-900 uppercase tracking-[0.2em] flex items-center gap-3">
+                                    <Zap className="h-4 w-4 text-stone-900" strokeWidth={3} />
+                                    Daily Feed
                                 </h2>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
                                 {recentActivity.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center opacity-40">
-                                        <Search className="h-8 w-8 mb-3 text-stone-200" />
-                                        <p className="text-[10px] font-bold uppercase tracking-widest">No recent activity</p>
+                                        <Search className="h-8 w-8 mb-6 text-stone-200" strokeWidth={1.5} />
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-stone-300">No recent activity</p>
                                     </div>
                                 ) : (
-                                    <div className="space-y-1">
+                                    <div className="space-y-3">
                                         {recentActivity.map((activity: any) => (
-                                            <div key={activity.id} className="p-4 rounded-xl hover:bg-stone-50 transition-colors flex gap-4 group cursor-default">
+                                            <div key={activity.id} className="p-5 rounded-[1.8rem] bg-stone-50/50 hover:bg-white transition-all duration-300 flex gap-4 group cursor-default border border-transparent hover:border-stone-100">
                                                 <div className="relative shrink-0">
-                                                    <div className="h-10 w-10 rounded-full bg-white border border-stone-100 flex items-center justify-center text-[10px] font-bold text-stone-400 uppercase">
+                                                    <div className="h-10 w-10 rounded-xl bg-stone-900 flex items-center justify-center text-[10px] font-black text-white uppercase tracking-tighter shadow-sm transition-transform">
                                                         {activity.contact?.first_name?.[0] || '?'}{activity.contact?.last_name?.[0] || ''}
                                                     </div>
-                                                    <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-white border border-stone-100 flex items-center justify-center shadow-sm">
-                                                        {activity.interaction_type === 'capture' && <Camera className="h-2.5 w-2.5 text-blue-600" />}
-                                                        {activity.interaction_type === 'note' && <MessageSquare className="h-2.5 w-2.5 text-emerald-600" />}
-                                                        {activity.interaction_type === 'meeting' && <Calendar className="h-2.5 w-2.5 text-amber-600" />}
+                                                    <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-lg bg-white border border-stone-100 text-stone-900 flex items-center justify-center shadow-md">
+                                                        {activity.interaction_type === 'capture' && <Camera className="h-2.5 w-2.5" strokeWidth={3} />}
+                                                        {activity.interaction_type === 'note' && <MessageSquare className="h-2.5 w-2.5" strokeWidth={3} />}
+                                                        {activity.interaction_type === 'meeting' && <Calendar className="h-2.5 w-2.5" strokeWidth={3} />}
                                                     </div>
                                                 </div>
-                                                <div className="flex-1 min-w-0 pt-0.5">
-                                                    <p className="text-xs font-bold text-stone-800 leading-snug">
-                                                        {activity.summary ? formatLabel(activity.summary) : `${formatLabel(activity.interaction_type)} logged`}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[11px] font-black text-stone-900 leading-snug tracking-tight mb-1.5">
+                                                        {activity.summary ? activity.summary : `${activity.interaction_type} recorded`}
                                                     </p>
-                                                    <div className="flex items-center gap-2 mt-2">
-                                                        <Link href={`/contacts/${activity.contact?.id}`} className="text-[10px] font-bold text-stone-400 hover:text-indigo-600 transition-colors uppercase tracking-widest">
+                                                    <div className="flex items-center gap-2">
+                                                        <Link href={`/contacts/${activity.contact?.id}`} className="text-[9px] font-black text-stone-400 hover:text-stone-900 transition-colors uppercase tracking-widest">
                                                             {activity.contact?.first_name} {activity.contact?.last_name}
                                                         </Link>
                                                         <span className="text-stone-200 text-xs">•</span>
-                                                        <span className="text-[10px] font-bold text-stone-300 uppercase tracking-widest font-mono">
+                                                        <span className="text-[9px] font-black text-stone-300 uppercase tracking-widest font-mono">
                                                             {new Date(activity.interaction_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                                                         </span>
                                                     </div>

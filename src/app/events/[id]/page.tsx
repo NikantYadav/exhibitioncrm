@@ -113,21 +113,23 @@ export default function EventDetailPage() {
 
     return (
         <AppShell>
-            <div className="space-y-6">
-                {/* Back Button */}
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => router.push('/events')}
-                    className="text-stone-500 hover:text-stone-900"
-                >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Events
-                </Button>
+            <div className="max-w-7xl mx-auto px-4 py-8 space-y-10">
+                {/* Back Link */}
+                <div className="flex items-center justify-between">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => router.push('/events')}
+                        className="text-stone-900 font-black uppercase tracking-widest text-[10px] px-0 h-10 w-fit group"
+                    >
+                        <ArrowLeft className="mr-3 h-4 w-4" strokeWidth={3} />
+                        Events
+                    </Button>
+                </div>
 
-                {/* Split Panel Layout */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Left Panel - Event Info */}
+                {/* Primary Layout Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                    {/* Left Panel: Event Info */}
                     <div className="lg:col-span-1">
                         <EventSidebar
                             event={event}
@@ -138,112 +140,109 @@ export default function EventDetailPage() {
                         />
                     </div>
 
-                    {/* Right Panel - Tabs */}
+                    {/* Event Dashboard */}
                     <div className="lg:col-span-2">
-                        {/* Stats */}
-                        <div className="mb-6">
+                        {/* Event Stats */}
+                        <div className="mb-8">
                             <EventStats stats={stats} />
                         </div>
 
-                        {/* Tabs */}
-                        <div className="premium-card overflow-hidden">
-                            {/* Tab Headers */}
-                            <div className="flex border-b border-stone-100 bg-stone-50/50">
-                                <button
-                                    onClick={() => setActiveTab('research')}
-                                    className={`px-6 py-4 text-sm font-bold border-b-2 transition-all ${activeTab === 'research'
-                                        ? 'border-stone-900 text-stone-900 bg-white'
-                                        : 'border-transparent text-stone-400 hover:text-stone-600'
-                                        }`}
-                                >
-                                    Research & Prep
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('captures')}
-                                    className={`px-6 py-4 text-sm font-bold border-b-2 transition-all ${activeTab === 'captures'
-                                        ? 'border-stone-900 text-stone-900 bg-white'
-                                        : 'border-transparent text-stone-400 hover:text-stone-600'
-                                        }`}
-                                >
-                                    Captures
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('followups')}
-                                    className={`px-6 py-4 text-sm font-bold border-b-2 transition-all ${activeTab === 'followups'
-                                        ? 'border-stone-900 text-stone-900 bg-white'
-                                        : 'border-transparent text-stone-400 hover:text-stone-600'
-                                        }`}
-                                >
-                                    Follow-ups
-                                </button>
-                            </div>
+                        {/* Navigation Interface */}
+                        <div className="bg-white rounded-[3rem] border border-stone-100 shadow-sm overflow-hidden mb-8 p-1.5 flex gap-1.5 shadow-stone-900/5">
+                            <button
+                                onClick={() => setActiveTab('research')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest rounded-[2rem] transition-all duration-300 ${activeTab === 'research'
+                                    ? 'bg-stone-900 text-white shadow-xl shadow-stone-900/20'
+                                    : 'text-stone-400 hover:text-stone-900 hover:bg-stone-50'
+                                    }`}
+                            >
+                                Strategy
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('captures')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest rounded-[2rem] transition-all duration-300 ${activeTab === 'captures'
+                                    ? 'bg-stone-900 text-white shadow-xl shadow-stone-900/20'
+                                    : 'text-stone-400 hover:text-stone-900 hover:bg-stone-50'
+                                    }`}
+                            >
+                                Captures
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('followups')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest rounded-[2rem] transition-all duration-300 ${activeTab === 'followups'
+                                    ? 'bg-stone-900 text-white shadow-xl shadow-stone-900/20'
+                                    : 'text-stone-400 hover:text-stone-900 hover:bg-stone-50'
+                                    }`}
+                            >
+                                Follow-ups
+                            </button>
+                        </div>
 
-                            {/* Tab Content */}
-                            <div className="p-6">
-                                {/* Research & Prep Tab */}
-                                {activeTab === 'research' && (
-                                    <div className="space-y-6">
-                                        {/* Sub-Tabs */}
-                                        <div className="flex gap-1 bg-stone-100/50 p-1 rounded-xl w-fit mb-6">
-                                            <button
-                                                onClick={() => setActivePrepTab('targets')}
-                                                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activePrepTab === 'targets'
-                                                    ? 'bg-white text-stone-900 shadow-sm'
-                                                    : 'text-stone-400 hover:text-stone-600'
-                                                    }`}
-                                            >
-                                                Target List
-                                            </button>
+                        {/* Content Panel */}
+                        <div className="bg-white rounded-[3.5rem] border border-stone-100 shadow-sm p-10 min-h-[600px] animate-in fade-in duration-500 hover:border-stone-200 transition-all">
+                            {/* Research & Prep Tab */}
+                            {activeTab === 'research' && (
+                                <div className="space-y-6">
+                                    {/* Intelligence Sub-Tabs */}
+                                    <div className="flex gap-1 bg-stone-50 p-1.5 rounded-2xl w-fit mb-10 border border-stone-100">
+                                        <button
+                                            onClick={() => setActivePrepTab('targets')}
+                                            className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all duration-300 ${activePrepTab === 'targets'
+                                                ? 'bg-white text-stone-900 shadow-sm border border-stone-100'
+                                                : 'text-stone-400 hover:text-stone-600'
+                                                }`}
+                                        >
+                                            Targets
+                                        </button>
 
-                                            <button
-                                                onClick={() => setActivePrepTab('emails')}
-                                                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activePrepTab === 'emails'
-                                                    ? 'bg-white text-stone-900 shadow-sm'
-                                                    : 'text-stone-400 hover:text-stone-600'
-                                                    }`}
-                                            >
-                                                Email Drafts
-                                            </button>
-                                        </div>
-
-                                        {/* Target List Section */}
-                                        {activePrepTab === 'targets' && (
-                                            <TargetListSection
-                                                targets={targets}
-                                                onAddTarget={() => setShowCompanySearch(true)}
-                                                onViewTarget={handleViewTarget}
-                                                onDeleteTarget={handleDeleteTarget}
-                                            />
-                                        )}
-
-                                        {/* Email Drafts Section */}
-                                        {activePrepTab === 'emails' && (
-                                            <EmailDraftsSection
-                                                eventId={eventId}
-                                                targets={targets}
-                                            />
-                                        )}
+                                        <button
+                                            onClick={() => setActivePrepTab('emails')}
+                                            className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-[2rem] transition-all duration-300 ${activePrepTab === 'emails'
+                                                ? 'bg-white text-stone-900 shadow-sm border border-stone-100'
+                                                : 'text-stone-400 hover:text-stone-600'
+                                                }`}
+                                        >
+                                            Drafts
+                                        </button>
                                     </div>
-                                )}
 
-                                {/* Captures Tab */}
-                                {activeTab === 'captures' && (
-                                    <CapturesSection
-                                        eventId={eventId}
-                                        captures={captures}
-                                        onDeleteCapture={handleDeleteCapture}
-                                    />
-                                )}
+                                    {/* Target List Section */}
+                                    {activePrepTab === 'targets' && (
+                                        <TargetListSection
+                                            targets={targets}
+                                            onAddTarget={() => setShowCompanySearch(true)}
+                                            onViewTarget={handleViewTarget}
+                                            onDeleteTarget={handleDeleteTarget}
+                                        />
+                                    )}
 
-                                {/* Follow-ups Tab */}
-                                {activeTab === 'followups' && (
-                                    <FollowUpsSection
-                                        eventId={eventId}
-                                        event={event}
-                                        onRefresh={fetchEventData}
-                                    />
-                                )}
-                            </div>
+                                    {/* Email Drafts Section */}
+                                    {activePrepTab === 'emails' && (
+                                        <EmailDraftsSection
+                                            eventId={eventId}
+                                            targets={targets}
+                                        />
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Captures Tab */}
+                            {activeTab === 'captures' && (
+                                <CapturesSection
+                                    eventId={eventId}
+                                    captures={captures}
+                                    onDeleteCapture={handleDeleteCapture}
+                                />
+                            )}
+
+                            {/* Follow-ups Tab */}
+                            {activeTab === 'followups' && (
+                                <FollowUpsSection
+                                    eventId={eventId}
+                                    event={event}
+                                    onRefresh={fetchEventData}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>
@@ -304,7 +303,6 @@ export default function EventDetailPage() {
                 isLoading={isDeleting}
             />
 
-            {/* Edit Event Modal */}
             <Modal
                 isOpen={showEditEventModal}
                 onClose={() => setShowEditEventModal(false)}
@@ -328,20 +326,20 @@ export default function EventDetailPage() {
                             label="Event Name"
                             name="name"
                             required
-                            defaultValue={event.name}
+                            defaultValue={event?.name || ''}
                         />
 
                         <Textarea
                             label="Description"
                             name="description"
                             rows={3}
-                            defaultValue={event.description || ''}
+                            defaultValue={event?.description || ''}
                         />
 
                         <Input
                             label="Location"
                             name="location"
-                            defaultValue={event.location || ''}
+                            defaultValue={event?.location || ''}
                         />
 
                         <div className="grid grid-cols-2 gap-4">
@@ -350,20 +348,20 @@ export default function EventDetailPage() {
                                 name="start_date"
                                 type="date"
                                 required
-                                defaultValue={event.start_date.split('T')[0]}
+                                defaultValue={event?.start_date?.split('T')[0] || ''}
                             />
                             <Input
                                 label="End Date"
                                 name="end_date"
                                 type="date"
-                                defaultValue={event.end_date?.split('T')[0]}
+                                defaultValue={event?.end_date?.split('T')[0] || ''}
                             />
                         </div>
 
                         <Select
                             label="Event Type"
                             name="event_type"
-                            defaultValue={event.event_type}
+                            defaultValue={event?.event_type || 'exhibition'}
                         >
                             <option value="exhibition">Exhibition</option>
                             <option value="conference">Conference</option>
@@ -371,8 +369,8 @@ export default function EventDetailPage() {
                         </Select>
                     </div>
 
-                    <div className="modal-footer mt-6 pt-6">
-                        <Button type="button" variant="secondary" onClick={() => setShowEditEventModal(false)}>
+                    <div className="flex justify-end gap-3 mt-8">
+                        <Button type="button" variant="outline" onClick={() => setShowEditEventModal(false)}>
                             Cancel
                         </Button>
                         <Button type="submit" variant="primary">

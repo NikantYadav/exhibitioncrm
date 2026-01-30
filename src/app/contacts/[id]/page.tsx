@@ -10,6 +10,7 @@ import { ContactQuickActions } from '@/components/contacts/ContactQuickActions';
 import { InlineNoteEditor } from '@/components/contacts/InlineNoteEditor';
 import { VoiceNoteRecorder } from '@/components/capture/VoiceNoteRecorder';
 import { Contact } from '@/types';
+import { cn } from '@/lib/utils';
 import { RelationshipMemory, MemoryContext } from '@/components/contacts/RelationshipMemory';
 import { DocumentUpload } from '@/components/contacts/DocumentUpload';
 import { getRelationshipMemoryAction } from '@/app/actions/memory';
@@ -24,7 +25,9 @@ import {
     Sparkles,
     Mic,
     FileText,
-    Trash2
+    Trash2,
+    Loader2,
+    Command
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
@@ -438,235 +441,210 @@ export default function ContactDetailPage() {
 
     return (
         <AppShell>
-            <div className="max-w-7xl mx-auto">
-                {/* Header Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div className="max-w-7xl mx-auto px-4 py-8">
+                {/* Strategic Context Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
                     <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => router.push('/contacts')}
-                        className="hover:bg-transparent px-0 w-fit"
+                        className="hover:bg-stone-50 text-stone-900 font-black uppercase tracking-widest text-[10px] px-0 h-10 w-fit group"
                     >
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to Contacts
+                        <ArrowLeft className="mr-3 h-4 w-4 transition-transform group-hover:-translate-x-1" strokeWidth={3} />
+                        Intelligence Registry
                     </Button>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                         <Button
                             variant="outline"
-                            size="sm"
-                            className="flex-1 sm:flex-none h-9 border-stone-200 text-stone-600 hover:bg-stone-50"
+                            className="h-11 px-8 border-stone-200 text-stone-900 hover:bg-stone-50 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
                         >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit Contact
+                            <Edit className="mr-2 h-4 w-4" strokeWidth={2.5} />
+                            Modify Identity
                         </Button>
                         <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 sm:flex-none h-9 text-red-600 border-red-100 hover:bg-red-50 hover:text-red-700 hover:border-red-200"
                             onClick={handleDeleteContact}
                             disabled={deleting}
+                            className="h-11 px-8 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border-none"
                         >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            {deleting ? 'Deleting...' : 'Delete Contact'}
+                            <Trash2 className="mr-2 h-4 w-4" strokeWidth={2.5} />
+                            {deleting ? 'Purging...' : 'Extract Identify'}
                         </Button>
                     </div>
                 </div>
 
-                {/* Two-Column Layout */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Left Column - Profile */}
+                {/* Primary Data Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                    {/* Intelligence Profile */}
                     <div className="lg:col-span-1">
-                        <div className="sticky top-20 space-y-6">
-                            <div className="premium-card p-6">
-                                {/* Avatar */}
-                                <div className="flex flex-col items-center mb-6">
-                                    <div
-                                        className="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold mb-4 shadow-lg"
-                                    >
+                        <div className="sticky top-24 space-y-8">
+                            <div className="bg-white rounded-[3rem] border border-stone-100 shadow-sm p-10 flex flex-col items-center hover:shadow-md transition-shadow">
+                                {/* Strategic Avatar */}
+                                <div className="relative mb-8">
+                                    <div className="w-32 h-32 rounded-[2.5rem] bg-stone-900 flex items-center justify-center text-white text-4xl font-black shadow-2xl shadow-stone-900/20 ring-8 ring-stone-50 group-hover:scale-105 transition-transform">
                                         {getInitials(contact.first_name, contact.last_name)}
                                     </div>
+                                    {/* Connectivity Status */}
+                                    <div className="absolute -bottom-1 -right-1 h-8 w-8 rounded-xl bg-white p-1.5 shadow-xl border border-stone-100">
+                                        <div className={cn(
+                                            "h-full w-full rounded-lg",
+                                            contact.follow_up_status === 'contacted' ? "bg-stone-900 shadow-[0_0_10px_rgba(0,0,0,0.1)]" :
+                                                contact.follow_up_status === 'needs_followup' ? "bg-stone-400" :
+                                                    "bg-stone-200"
+                                        )} />
+                                    </div>
+                                </div>
 
-                                    <h1 className="text-xl font-bold text-gray-900 text-center">
+                                <div className="text-center">
+                                    <h1 className="text-3xl font-black text-stone-900 tracking-tighter mb-2">
                                         {contact.first_name} {contact.last_name || ''}
                                     </h1>
+                                    <div className="flex flex-col items-center gap-3">
+                                        {contact.job_title && (
+                                            <p className="text-xs font-black text-stone-400 uppercase tracking-[0.2em]">
+                                                {contact.job_title}
+                                            </p>
+                                        )}
+                                        {contact.company && (
+                                            <div className="px-4 py-1.5 bg-stone-50 rounded-full border border-stone-100 flex items-center gap-2">
+                                                <div className="h-1.5 w-1.5 rounded-full bg-stone-900" />
+                                                <p className="text-[10px] font-black text-stone-900 uppercase tracking-widest">
+                                                    {contact.company.name}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
 
-                                    {/* Follow-up Status Badge */}
-                                    {contact.follow_up_status && (
-                                        <div className="mt-2">
-                                            <Badge
-                                                variant={
-                                                    contact.follow_up_status === 'contacted' ? 'success' :
-                                                        contact.follow_up_status === 'needs_followup' ? 'warning' :
-                                                            contact.follow_up_status === 'followed_up' ? 'info' :
-                                                                contact.follow_up_status === 'ignore' ? 'secondary' :
-                                                                    'outline'
-                                                }
-                                                className="text-xs"
-                                            >
-                                                {contact.follow_up_status === 'not_contacted' && 'Not Contacted'}
-                                                {contact.follow_up_status === 'contacted' && 'Contacted'}
-                                                {contact.follow_up_status === 'needs_followup' && 'Needs Follow-up'}
-                                                {contact.follow_up_status === 'followed_up' && 'Followed Up'}
-                                                {contact.follow_up_status === 'ignore' && 'No Follow-up'}
-                                            </Badge>
+                            {/* Communication Registry */}
+                            <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-8 space-y-6">
+                                <h3 className="text-[10px] font-black text-stone-300 uppercase tracking-[0.3em] px-2">Access Protocols</h3>
+                                <div className="space-y-4">
+                                    {contact.email && (
+                                        <div className="flex items-center gap-5 p-3 rounded-2xl hover:bg-stone-50 transition-colors group cursor-pointer border border-transparent hover:border-stone-100">
+                                            <div className="h-11 w-11 rounded-xl bg-stone-900 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                                <Mail className="h-5 w-5" strokeWidth={2.5} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Primary Uplink</p>
+                                                <a href={`mailto:${contact.email}`} className="text-sm font-black text-stone-900 truncate block hover:text-stone-600 transition-colors">
+                                                    {contact.email}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {contact.phone && (
+                                        <div className="flex items-center gap-5 p-3 rounded-2xl hover:bg-stone-50 transition-colors group cursor-pointer border border-transparent hover:border-stone-100">
+                                            <div className="h-11 w-11 rounded-xl bg-stone-900 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                                <Phone className="h-5 w-5" strokeWidth={2.5} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Voice Proxy</p>
+                                                <a href={`tel:${contact.phone}`} className="text-sm font-black text-stone-900 truncate block hover:text-stone-600 transition-colors">
+                                                    {contact.phone}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {contact.linkedin_url && (
+                                        <div className="flex items-center gap-5 p-3 rounded-2xl hover:bg-stone-50 transition-colors group cursor-pointer border border-transparent hover:border-stone-100">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Network Identity</p>
+                                                <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-sm font-black text-stone-900 truncate block hover:text-stone-600 transition-colors">
+                                                    Secure Link
+                                                </a>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
-
-                                {contact.job_title && (
-                                    <p className="text-body text-center mt-1">
-                                        {contact.job_title}
-                                    </p>
-                                )}
-
-                                {contact.company && (
-                                    <p className="text-indigo-600 font-medium text-center mt-1">
-                                        {contact.company.name}
-                                    </p>
-                                )}
                             </div>
 
-                            {/* Contact Info */}
-                            <div className="premium-card p-6 space-y-4">
-                                {contact.email && (
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <Mail className="h-4 w-4 text-gray-400" />
-                                        <a
-                                            href={`mailto:${contact.email}`}
-                                            className="text-body hover:text-indigo-600 transition-colors"
-                                        >
-                                            {contact.email}
-                                        </a>
-                                    </div>
-                                )}
-
-                                {contact.phone && (
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <Phone className="h-4 w-4 text-gray-400" />
-                                        <a
-                                            href={`tel:${contact.phone}`}
-                                            className="text-body hover:text-indigo-600 transition-colors"
-                                        >
-                                            {contact.phone}
-                                        </a>
-                                    </div>
-                                )}
-
-                                {contact.company && (
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <Building2 className="h-4 w-4 text-gray-400" />
-                                        <span className="text-body">
-                                            {contact.company.name}
-                                        </span>
-                                    </div>
-                                )}
-
-                                {contact.job_title && (
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <Briefcase className="h-4 w-4 text-gray-400" />
-                                        <span className="text-body">
-                                            {contact.job_title}
-                                        </span>
-                                    </div>
-                                )}
-
-                                {contact.linkedin_url && (
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <Linkedin className="h-4 w-4 text-gray-400" />
-                                        <a
-                                            href={contact.linkedin_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 hover:underline"
-                                        >
-                                            LinkedIn Profile
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Quick Actions */}
-                            <div className="premium-card p-6">
-                                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                                    Quick Actions
-                                </h3>
+                            {/* Quick Action Hub */}
+                            <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-8 hover:shadow-md transition-shadow">
+                                <h3 className="text-[10px] font-black text-stone-300 uppercase tracking-[0.3em] px-2 mb-6">Strategic Actions</h3>
                                 <ContactQuickActions
                                     email={contact.email}
                                     phone={contact.phone}
-                                    onEmail={() => toast.info('Email composer coming soon')}
+                                    onEmail={() => toast.info('Protocol deployment coming soon')}
                                     onAddNote={() => setShowNoteEditor(true)}
                                     onScheduleMeeting={() => router.push(`/meetings/new?contactId=${contactId}`)}
                                 />
                             </div>
 
-                            {/* AI Enrichment */}
-                            <div className="premium-card p-6">
-                                <div className="flex items-center justify-between mb-3">
-                                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                        AI Enrichment
-                                    </h3>
-                                    <Sparkles className="h-4 w-4 text-purple-600" />
+                            {/* AI Neural Enrichment */}
+                            <div className="relative group overflow-hidden bg-stone-900 rounded-[2.5rem] p-10 shadow-2xl shadow-stone-900/20">
+                                <div className="absolute top-0 right-0 p-8 opacity-[0.05] group-hover:scale-125 transition-transform duration-1000">
+                                    <Sparkles size={160} strokeWidth={1} />
                                 </div>
-
-                                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 border border-indigo-100">
-                                    <p className="text-caption mb-3">
-                                        Enhance this contact with AI-powered data enrichment
+                                <div className="relative z-10">
+                                    <h3 className="text-white font-black text-xl tracking-tight mb-3 flex items-center gap-3">
+                                        <Sparkles className="h-5 w-5" strokeWidth={2.5} />
+                                        Advanced Enrichment
+                                    </h3>
+                                    <p className="text-stone-400 text-xs font-medium leading-relaxed mb-8 italic">
+                                        "Synthesize mutual strategic interests and company telemetry automatically."
                                     </p>
                                     <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="w-full bg-white border-indigo-200 hover:bg-indigo-50"
+                                        size="lg"
+                                        className="w-full bg-white text-stone-900 hover:bg-stone-100 font-black text-[10px] uppercase tracking-widest h-14 rounded-xl shadow-xl border-none active:scale-95 transition-all"
                                         onClick={handleEnrichContact}
                                         disabled={enriching}
                                     >
-                                        <Sparkles className="mr-2 h-4 w-4 text-indigo-600" />
-                                        {enriching ? 'Enriching...' : 'Enrich Contact'}
+                                        {enriching ? (
+                                            <Loader2 className="h-4 w-4 animate-spin mr-3" strokeWidth={3} />
+                                        ) : (
+                                            <Command className="mr-3 h-4 w-4 text-stone-900" strokeWidth={3} />
+                                        )}
+                                        {enriching ? 'Enriching Registry...' : 'Initialize Enrichment'}
                                     </Button>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
-                    {/* Right Column - Timeline */}
+                    {/* Operational Timeline */}
                     <div className="lg:col-span-2">
-                        <div className="premium-card p-6">
-                            <div className="mb-6">
-                                <h2 className="text-section-header mb-4">
-                                    Interaction Timeline
+                        <div className="bg-white rounded-[3rem] border border-stone-100 shadow-sm p-10 min-h-[800px] hover:shadow-md transition-shadow">
+                            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-12">
+                                <h2 className="text-2xl font-black text-stone-900 tracking-tighter">
+                                    Operational Timeline
                                 </h2>
 
-                                {/* Filter Buttons */}
-                                <div className="flex gap-2 flex-wrap">
+                                {/* Filter Management */}
+                                <div className="flex gap-1 bg-stone-50 p-1.5 rounded-2xl w-fit border border-stone-100">
                                     {['all', 'meeting', 'email', 'note', 'capture'].map((filter) => (
                                         <button
                                             key={filter}
                                             onClick={() => setTimelineFilter(filter)}
-                                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${timelineFilter === filter
-                                                ? 'bg-indigo-100 text-indigo-700'
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                }`}
+                                            className={cn(
+                                                "px-5 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all duration-300",
+                                                timelineFilter === filter
+                                                    ? "bg-stone-900 text-white shadow-xl shadow-stone-900/10"
+                                                    : "text-stone-400 hover:text-stone-600 hover:bg-white"
+                                            )}
                                         >
-                                            {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                                            {filter}
                                         </button>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* Timeline */}
+                            {/* Briefing Input Interface */}
                             {showNoteEditor && (
-                                <div className="mb-6 border-b border-gray-100 pb-6">
+                                <div className="mb-10 border-b border-stone-50 pb-10">
                                     <InlineNoteEditor
                                         onSave={handleSaveNote}
                                         onCancel={() => setShowNoteEditor(false)}
-                                        placeholder="Add a note about this contact..."
+                                        placeholder="Capture intelligence about this profile..."
                                     />
                                 </div>
                             )}
 
                             {showVoiceRecorder && (
-                                <div className="mb-6 border-b border-gray-100 pb-6">
+                                <div className="mb-10 border-b border-stone-50 pb-10">
                                     <VoiceNoteRecorder
                                         onSave={handleSaveVoiceNote}
                                         onCancel={() => setShowVoiceRecorder(false)}
@@ -674,27 +652,25 @@ export default function ContactDetailPage() {
                                 </div>
                             )}
 
-                            {/* Note Type Selector */}
+                            {/* Tactical Note Dispatch */}
                             {!showNoteEditor && !showVoiceRecorder && (
-                                <div className="flex gap-3 mb-8 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                                <div className="flex gap-4 mb-12 p-2 bg-stone-50 rounded-[2rem] border border-stone-100 shadow-inner">
                                     <Button
                                         variant="ghost"
-                                        size="sm"
                                         onClick={() => setShowNoteEditor(true)}
-                                        className="flex-1 hover:bg-white hover:shadow-sm"
+                                        className="flex-1 h-14 hover:bg-white hover:shadow-xl hover:shadow-stone-900/5 rounded-[1.5rem] transition-all font-black uppercase tracking-widest text-[10px] text-stone-600 hover:text-stone-900"
                                     >
-                                        <FileText className="mr-2 h-4 w-4 text-gray-500" />
-                                        Text Note
+                                        <FileText className="mr-3 h-4 w-4 text-stone-900" strokeWidth={2.5} />
+                                        Deploy Text Note
                                     </Button>
-                                    <div className="w-px bg-gray-300"></div>
+                                    <div className="w-px h-8 bg-stone-200 self-center opacity-50"></div>
                                     <Button
                                         variant="ghost"
-                                        size="sm"
                                         onClick={() => setShowVoiceRecorder(true)}
-                                        className="flex-1 hover:bg-white hover:shadow-sm"
+                                        className="flex-1 h-14 hover:bg-white hover:shadow-xl hover:shadow-stone-900/5 rounded-[1.5rem] transition-all font-black uppercase tracking-widest text-[10px] text-stone-600 hover:text-stone-900"
                                     >
-                                        <Mic className="mr-2 h-4 w-4 text-gray-500" />
-                                        Voice Note
+                                        <Mic className="mr-3 h-4 w-4 text-stone-900" strokeWidth={2.5} />
+                                        Initialize Voice Capture
                                     </Button>
                                 </div>
                             )}
@@ -708,6 +684,6 @@ export default function ContactDetailPage() {
                     </div>
                 </div>
             </div>
-        </AppShell >
+        </AppShell>
     );
 }

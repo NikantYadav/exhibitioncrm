@@ -136,7 +136,7 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
                 raw_text: JSON.stringify(aiResult, null, 2)
             });
 
-            toast.success('Information extracted!', { id: processingToast });
+            toast.success('Details saved!', { id: processingToast });
             setStep('assign');
         } catch (error: any) {
             console.error('Processing error:', error);
@@ -149,7 +149,7 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
     const finalizeCapture = async (selectedEventId: string) => {
         if (!pendingData) return;
 
-        const finalizeToast = toast.loading('Saving lead to event...');
+        const finalizeToast = toast.loading('Saving contact to event...');
         try {
             let endpoint = '/api/captures';
             let body = { ...pendingData, event_id: selectedEventId };
@@ -169,10 +169,10 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
             const result = await response.json();
 
             if (response.ok) {
-                toast.success('Lead successfully saved!', { id: finalizeToast });
+                toast.success('Contact successfully saved!', { id: finalizeToast });
                 onComplete(result);
             } else {
-                toast.error(result.error || 'Failed to save lead', { id: finalizeToast });
+                toast.error(result.error || 'Failed to save contact', { id: finalizeToast });
             }
         } catch (error) {
             console.error('Finalize error:', error);
@@ -187,30 +187,28 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
             {/* Step 1: Capture */}
             {step === 'capture' && (
                 <>
-                    {/* Redundant title removed as it's in the modal header */}
-
                     {captureMode === 'camera' && !capturedImage && (
-                        <div className="bg-black rounded-2xl overflow-hidden relative min-h-[450px] flex flex-col shadow-2xl">
+                        <div className="bg-stone-900 rounded-[2.5rem] overflow-hidden relative min-h-[400px] flex flex-col shadow-2xl shadow-stone-900/10">
                             {/* Permission/Start View */}
-                            <div className={cn("flex-1 flex flex-col items-center justify-center p-12 text-white text-center transition-opacity duration-300", camera.isActive ? "hidden" : "opacity-100")}>
-                                <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-6">
-                                    <Camera className="h-10 w-10 opacity-50" />
+                            <div className={cn("flex-1 flex flex-col items-center justify-center p-10 text-white text-center transition-opacity duration-300", camera.isActive ? "hidden" : "opacity-100")}>
+                                <div className="w-16 h-16 bg-white/5 rounded-[1.5rem] flex items-center justify-center mb-6">
+                                    <Camera className="h-8 w-8 text-white/40" />
                                 </div>
-                                <h3 className="text-xl font-bold mb-3">Ready to Scan</h3>
-                                <p className="text-stone-400 text-sm mb-8 max-w-xs">We need your permission to scan documents using the camera.</p>
+                                <h3 className="text-xl font-black mb-2 tracking-tight uppercase">Ready to Scan</h3>
+                                <p className="text-stone-500 text-xs mb-8 max-w-[200px]">Use your camera to scan contact cards automatically.</p>
                                 <Button
                                     onClick={camera.startCamera}
                                     disabled={camera.isLoading}
-                                    className="bg-white text-black hover:bg-stone-200 px-8 h-12 rounded-xl font-bold transition-all"
+                                    className="bg-white text-stone-900 hover:bg-stone-100 px-8 h-12 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all"
                                 >
-                                    {camera.isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Start Scanning'}
+                                    {camera.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Turn On Camera'}
                                 </Button>
                                 {camera.error && (
-                                    <p className="mt-4 text-red-400 text-xs font-medium">{camera.error}</p>
+                                    <p className="mt-4 text-red-400 text-[10px] font-black uppercase tracking-widest">{camera.error}</p>
                                 )}
                             </div>
 
-                            {/* Active Camera View - Always mounted but hidden if not active to keep Ref alive if possible, though strict logic toggles hidden */}
+                            {/* Active Camera View */}
                             <div className={cn("relative flex-1 flex flex-col items-center justify-center bg-black", !camera.isActive && "hidden")}>
                                 <video
                                     ref={camera.videoRef}
@@ -223,33 +221,33 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
                                     )}
                                 />
                                 {!camera.isReady && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="h-10 w-10 text-white animate-spin" />
-                                            <span className="text-white text-xs font-bold uppercase tracking-widest">Warming up sensor...</span>
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-md">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <Loader2 className="h-8 w-8 text-white animate-spin" />
+                                            <span className="text-white text-[10px] font-black uppercase tracking-widest">Loading camera...</span>
                                         </div>
                                     </div>
                                 )}
 
-                                <div className="absolute inset-x-0 bottom-8 flex justify-center items-center gap-8 z-10">
+                                <div className="absolute inset-x-0 bottom-8 flex justify-center items-center gap-6 z-10">
                                     <button
                                         onClick={camera.stopCamera}
-                                        className="h-12 w-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-all"
+                                        className="h-11 w-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all active:scale-95"
                                     >
-                                        <X className="h-6 w-6" />
+                                        <X className="h-5 w-5" />
                                     </button>
                                     <button
                                         onClick={handleCameraCapture}
                                         disabled={!camera.isReady}
-                                        className="h-20 w-20 rounded-full border-4 border-white flex items-center justify-center bg-white/20 hover:bg-white/40 active:scale-95 transition-all disabled:opacity-50"
+                                        className="h-20 w-20 rounded-full border-4 border-white/20 flex items-center justify-center transition-all disabled:opacity-50"
                                     >
-                                        <div className="h-14 w-14 bg-white rounded-full shadow-lg" />
+                                        <div className="h-14 w-14 bg-white rounded-full shadow-2xl active:bg-stone-200 transition-colors" />
                                     </button>
                                     <button
                                         onClick={camera.switchCamera}
-                                        className="h-12 w-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-all"
+                                        className="h-11 w-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all active:scale-95"
                                     >
-                                        <RefreshCw className="h-6 w-6" />
+                                        <RefreshCw className="h-5 w-5" />
                                     </button>
                                 </div>
                             </div>
@@ -257,87 +255,92 @@ export function CaptureFlow({ eventId, mode, onClose, onComplete }: CaptureFlowP
                     )}
 
                     {captureMode === 'upload' && !capturedImage && (
-                        <div className="border-2 border-dashed border-stone-200 rounded-3xl p-16 text-center hover:border-indigo-300 transition-colors group cursor-pointer bg-stone-50/50 relative">
+                        <div className="border border-stone-100 rounded-[2.5rem] p-12 text-center hover:bg-stone-50/50 transition-colors group cursor-pointer bg-stone-50/30 relative">
                             <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                            <div className="h-20 w-20 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                                <Upload className="h-10 w-10 text-indigo-600" />
+                            <div className="h-16 w-16 bg-stone-900 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 text-white shadow-xl shadow-stone-900/10">
+                                <Upload className="h-8 w-8" />
                             </div>
-                            <h3 className="text-lg font-bold text-stone-900 mb-2">Upload Photo</h3>
-                            <p className="text-stone-500 text-sm max-w-xs mx-auto">Select a business card photo from your gallery or files.</p>
+                            <h3 className="text-xl font-black text-stone-900 mb-2 tracking-tight uppercase">Upload Card</h3>
+                            <p className="text-stone-400 text-xs font-medium max-w-[200px] mx-auto">Select a business card photo from your library.</p>
                         </div>
                     )}
+
                     {captureMode === 'qr' && (
-                        <QrScanner onScan={handleQrScan} />
+                        <div className="rounded-[2.5rem] overflow-hidden shadow-2xl">
+                            <QrScanner onScan={handleQrScan} />
+                        </div>
                     )}
 
                     {captureMode === 'voice' && (
-                        <VoiceRecorder
-                            onComplete={(data) => {
-                                setPendingData({ ...data, type: 'voice' });
-                                setStep('assign');
-                            }}
-                            onCancel={onClose}
-                        />
+                        <div className="bg-white rounded-[2.5rem] border border-stone-100 p-8">
+                            <VoiceRecorder
+                                onComplete={(data) => {
+                                    setPendingData({ ...data, type: 'voice' });
+                                    setStep('assign');
+                                }}
+                                onCancel={onClose}
+                            />
+                        </div>
                     )}
 
                     {captureMode === 'manual' && (
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">First Name</label>
-                                    <Input placeholder="John" value={manualData.first_name} onChange={(e) => setManualData({ ...manualData, first_name: e.target.value })} className="rounded-xl" />
+                                    <label className="text-[10px] font-black text-stone-300 uppercase tracking-widest ml-1">First Name</label>
+                                    <Input placeholder="John" value={manualData.first_name} onChange={(e) => setManualData({ ...manualData, first_name: e.target.value })} className="h-11 rounded-xl bg-stone-50 border-stone-100 focus:bg-white focus:ring-stone-200 transition-all font-bold" />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Last Name</label>
-                                    <Input placeholder="Doe" value={manualData.last_name} onChange={(e) => setManualData({ ...manualData, last_name: e.target.value })} className="rounded-xl" />
+                                    <label className="text-[10px] font-black text-stone-300 uppercase tracking-widest ml-1">Last Name</label>
+                                    <Input placeholder="Doe" value={manualData.last_name} onChange={(e) => setManualData({ ...manualData, last_name: e.target.value })} className="h-11 rounded-xl bg-stone-50 border-stone-100 focus:bg-white focus:ring-stone-200 transition-all font-bold" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Email</label>
-                                    <Input type="email" placeholder="john@example.com" value={manualData.email} onChange={(e) => setManualData({ ...manualData, email: e.target.value })} className="rounded-xl" />
+                                    <label className="text-[10px] font-black text-stone-300 uppercase tracking-widest ml-1">Email</label>
+                                    <Input type="email" placeholder="john@example.com" value={manualData.email} onChange={(e) => setManualData({ ...manualData, email: e.target.value })} className="h-11 rounded-xl bg-stone-50 border-stone-100 focus:bg-white focus:ring-stone-200 transition-all font-bold" />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Phone</label>
-                                    <Input placeholder="+1 (555) 000-0000" value={manualData.phone} onChange={(e) => setManualData({ ...manualData, phone: e.target.value })} className="rounded-xl" />
+                                    <label className="text-[10px] font-black text-stone-300 uppercase tracking-widest ml-1">Phone</label>
+                                    <Input placeholder="+1 555 0000" value={manualData.phone} onChange={(e) => setManualData({ ...manualData, phone: e.target.value })} className="h-11 rounded-xl bg-stone-50 border-stone-100 focus:bg-white focus:ring-stone-200 transition-all font-bold" />
                                 </div>
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Company</label>
-                                <Input placeholder="Acme Corp" value={manualData.company_name} onChange={(e) => setManualData({ ...manualData, company_name: e.target.value })} className="rounded-xl" />
+                                <label className="text-[10px] font-black text-stone-300 uppercase tracking-widest ml-1">Company</label>
+                                <Input placeholder="Acme Inc" value={manualData.company_name} onChange={(e) => setManualData({ ...manualData, company_name: e.target.value })} className="h-11 rounded-xl bg-stone-50 border-stone-100 focus:bg-white focus:ring-stone-200 transition-all font-bold" />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Notes</label>
-                                <Textarea placeholder="Add details..." value={manualData.notes} onChange={(e) => setManualData({ ...manualData, notes: e.target.value })} className="rounded-xl min-h-[100px]" />
+                                <label className="text-[10px] font-black text-stone-300 uppercase tracking-widest ml-1">Quick Note</label>
+                                <Textarea placeholder="Context about this person..." value={manualData.notes} onChange={(e) => setManualData({ ...manualData, notes: e.target.value })} className="h-24 rounded-2xl bg-stone-50 border-stone-100 focus:bg-white focus:ring-stone-200 transition-all font-bold resize-none" />
                             </div>
                             <div className="flex justify-end pt-4">
                                 <Button
                                     onClick={() => setStep('assign')}
                                     disabled={!manualData.first_name.trim()}
-                                    className="bg-stone-900 text-white hover:bg-stone-800 h-12 px-8 rounded-xl font-bold disabled:opacity-50"
+                                    className="bg-stone-900 text-white hover:bg-stone-800 h-12 px-8 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-stone-900/10 transition-all active:scale-95"
                                 >
-                                    Next: Select Event <ChevronRight className="ml-2 h-4 w-4" />
+                                    Select Event <ChevronRight className="ml-3 h-4 w-4" />
                                 </Button>
                             </div>
                         </div>
                     )}
 
                     {capturedImage && (
-                        <div className="mt-8 space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                            <div className="bg-stone-100 rounded-2xl p-4 flex justify-center overflow-hidden border border-stone-200">
-                                <img src={capturedImage} alt="Captured" className="max-h-[350px] rounded-lg shadow-xl" />
+                        <div className="space-y-6 animate-in fade-in duration-500">
+                            <div className="bg-stone-50 rounded-[2rem] p-4 flex justify-center border border-stone-100">
+                                <img src={capturedImage} alt="Captured" className="max-h-[300px] rounded-xl shadow-2xl" />
                             </div>
                             <div className="flex gap-4">
-                                <Button variant="outline" className="flex-1 h-12 rounded-xl border-stone-200" onClick={() => setCapturedImage(null)}>
-                                    <RefreshCw className="mr-2 h-4 w-4" /> Retake
+                                <Button variant="outline" className="flex-1 h-12 rounded-xl border-stone-200 text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900 hover:bg-stone-50 transition-all active:scale-95" onClick={() => setCapturedImage(null)}>
+                                    Retake
                                 </Button>
                                 <Button
                                     onClick={processImage}
                                     disabled={isProcessing}
-                                    className="flex-[2] h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                                    className="flex-[2.5] h-12 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-widest text-[10px] shadow-xl shadow-stone-900/10 transition-all active:scale-95"
                                 >
-                                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                                    Auto-extract Details
+                                    {isProcessing ? <Loader2 className="mr-3 h-4 w-4 animate-spin text-white" /> : <Check className="mr-3 h-4 w-4 text-white" strokeWidth={3} />}
+                                    Save Details
                                 </Button>
                             </div>
                         </div>
@@ -434,8 +437,8 @@ function EventAssignment({ initialEventId, onBack, onAssign, leadName }: {
                     <ChevronLeft className="h-5 w-5" />
                 </Button>
                 <div>
-                    <h3 className="font-bold text-xl text-stone-900">Assign to Event</h3>
-                    <p className="text-sm text-stone-500 font-medium italic">Lead: {leadName}</p>
+                    <h3 className="font-bold text-xl text-stone-900">Link to Event</h3>
+                    <p className="text-sm text-stone-500 font-medium italic">Contact: {leadName}</p>
                 </div>
             </div>
 
@@ -496,7 +499,7 @@ function EventAssignment({ initialEventId, onBack, onAssign, leadName }: {
                                 className="w-full h-14 bg-stone-900 text-white hover:bg-stone-800 rounded-2xl font-bold flex items-center justify-center gap-2"
                             >
                                 <CheckCircle2 className="h-5 w-5" />
-                                Finish & Save Lead
+                                Save Contact
                             </Button>
                             <Button
                                 variant="outline"

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { Avatar, AvatarFallback } from '@/components/ui/Avatar';
-import { ArrowLeft, Search, Calendar, MapPin, Info } from 'lucide-react';
+import { ArrowLeft, Search, Calendar, MapPin, Info, Zap } from 'lucide-react';
 import { Contact } from '@/types';
 
 import { toast } from 'sonner';
@@ -108,41 +108,47 @@ export default function NewMeetingPage() {
 
     return (
         <AppShell>
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-3xl mx-auto py-8">
                 <button
                     onClick={() => router.back()}
-                    className="text-caption hover:text-stone-900 transition-colors mb-4 flex items-center gap-1"
+                    className="text-stone-400 hover:text-stone-900 transition-all mb-6 flex items-center gap-2 group font-bold text-xs uppercase tracking-widest"
                 >
-                    <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-                    Back
+                    <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" strokeWidth={2.5} />
+                    Back to Schedule
                 </button>
 
-                <h1 className="text-display mb-8">Schedule New Meeting</h1>
+                <h1 className="text-4xl font-black text-stone-900 tracking-tight leading-tight mb-8">Schedule New Briefing</h1>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
                     {/* Contact Selection */}
-                    <section className="premium-card p-6">
-                        <h2 className="text-section-header mb-4">1. Select Contact</h2>
+                    <section className="premium-card p-8">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 bg-stone-900 text-white rounded-lg shadow-md">
+                                <Search className="w-4 h-4" strokeWidth={2.5} />
+                            </div>
+                            <h2 className="text-xs font-black text-stone-900 uppercase tracking-[0.2em]">1. Select Contact</h2>
+                        </div>
 
                         {selectedContact ? (
-                            <div className="flex items-center justify-between p-4 bg-stone-50 rounded-xl border border-stone-200">
-                                <div className="flex items-center gap-3">
-                                    <Avatar className="h-10 w-10">
-                                        <AvatarFallback className="bg-indigo-600 text-white">
+                            <div className="flex items-center justify-between p-5 bg-stone-50 rounded-2xl border border-stone-100 shadow-inner">
+                                <div className="flex items-center gap-4">
+                                    <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                                        <AvatarFallback className="bg-stone-900 text-white font-black text-xs">
                                             {selectedContact.first_name[0]}{selectedContact.last_name?.[0] || ''}
                                         </AvatarFallback>
                                     </Avatar>
                                     <div>
-                                        <p className="font-medium text-stone-900">
+                                        <p className="font-bold text-stone-900 text-lg">
                                             {selectedContact.first_name} {selectedContact.last_name || ''}
                                         </p>
-                                        <p className="text-caption">{selectedContact.company?.name || 'No Company'}</p>
+                                        <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider">{selectedContact.company?.name || 'No Company'}</p>
                                     </div>
                                 </div>
                                 <Button
                                     type="button"
-                                    variant="secondary"
+                                    variant="ghost"
                                     size="sm"
+                                    className="text-stone-400 hover:text-stone-900 font-bold"
                                     onClick={() => setSelectedContact(null)}
                                 >
                                     Change
@@ -151,116 +157,135 @@ export default function NewMeetingPage() {
                         ) : (
                             <div className="space-y-4">
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" />
+                                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" />
                                     <Input
-                                        placeholder="Search contacts..."
+                                        placeholder="Search for a contact to brief..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-9"
+                                        className="pl-12 h-12 rounded-xl bg-stone-50/50 border-stone-100 focus:bg-white transition-all shadow-inner"
                                     />
                                 </div>
 
                                 {loading ? (
-                                    <div className="p-4 text-center text-caption italic text-stone-400">Loading contacts...</div>
+                                    <div className="p-8 text-center text-xs font-bold text-stone-400 uppercase tracking-widest animate-pulse">Scanning contact database...</div>
                                 ) : filteredContacts.length > 0 ? (
-                                    <div className="max-h-60 overflow-y-auto border border-stone-200 rounded-xl divide-y divide-stone-100">
+                                    <div className="max-h-60 overflow-y-auto border border-stone-100 rounded-2xl divide-y divide-stone-50 shadow-sm bg-white">
                                         {filteredContacts.map(contact => (
                                             <button
                                                 key={contact.id}
                                                 type="button"
                                                 onClick={() => setSelectedContact(contact)}
-                                                className="w-full flex items-center gap-3 p-3 hover:bg-stone-50 transition-colors text-left"
+                                                className="w-full flex items-center gap-4 p-4 hover:bg-stone-50 transition-all text-left group"
                                             >
-                                                <Avatar className="h-8 w-8">
-                                                    <AvatarFallback className="text-xs bg-stone-200 text-stone-600">
+                                                <Avatar className="h-10 w-10 border border-stone-100 group-hover:border-stone-200 transition-all">
+                                                    <AvatarFallback className="text-xs bg-stone-100 text-stone-600 font-bold">
                                                         {contact.first_name[0]}{contact.last_name?.[0] || ''}
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div>
-                                                    <p className="text-sm font-medium text-stone-900">
+                                                    <p className="text-sm font-bold text-stone-900 group-hover:text-stone-600 transition-colors">
                                                         {contact.first_name} {contact.last_name || ''}
                                                     </p>
-                                                    <p className="text-xs text-stone-500">{contact.company?.name}</p>
+                                                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest leading-none mt-1">{contact.company?.name}</p>
                                                 </div>
                                             </button>
                                         ))}
                                     </div>
                                 ) : searchQuery.trim() ? (
-                                    <div className="p-4 text-center text-caption italic text-stone-400">No contacts found for "{searchQuery}"</div>
+                                    <div className="p-8 text-center text-xs font-bold text-stone-400 italic">No exact matches for "{searchQuery}"</div>
                                 ) : null}
                             </div>
                         )}
                     </section>
 
                     {/* Meeting Details */}
-                    <section className="premium-card p-6 space-y-6">
-                        <h2 className="text-section-header mb-4">2. Meeting Details</h2>
+                    <section className="premium-card p-8 space-y-8">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-stone-900 text-white rounded-lg shadow-md">
+                                <Calendar className="w-4 h-4" strokeWidth={2.5} />
+                            </div>
+                            <h2 className="text-xs font-black text-stone-900 uppercase tracking-[0.2em]">2. Briefing Parameters</h2>
+                        </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-6">
                             <Input
-                                label="Date"
+                                label="Execution Date"
                                 type="date"
                                 required
                                 value={formData.meeting_date}
                                 onChange={(e) => setFormData({ ...formData, meeting_date: e.target.value })}
+                                className="h-11 rounded-xl"
                             />
                             <Input
-                                label="Time"
+                                label="Scheduled Time"
                                 type="time"
                                 required
                                 value={formData.meeting_time}
                                 onChange={(e) => setFormData({ ...formData, meeting_time: e.target.value })}
+                                className="h-11 rounded-xl"
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-6">
                             <Select
-                                label="Type"
+                                label="Engagement Channel"
                                 value={formData.meeting_type}
                                 onChange={(e) => setFormData({ ...formData, meeting_type: e.target.value })}
+                                className="h-11 rounded-xl"
                             >
-                                <option value="in_person">In Person</option>
-                                <option value="virtual">Virtual (Zoom/Teams)</option>
-                                <option value="phone">Phone Call</option>
+                                <option value="in_person">In Person / Onsite</option>
+                                <option value="virtual">Virtual / Video Conferencing</option>
+                                <option value="phone">Direct Voice Call</option>
                             </Select>
                             <Input
-                                label="Location / Link"
-                                placeholder="Booth 402, Zoom link, etc."
+                                label="Strategic Location / Asset"
+                                placeholder="e.g. Hall 4 Booth 202, Zoom URL"
                                 value={formData.meeting_location}
                                 onChange={(e) => setFormData({ ...formData, meeting_location: e.target.value })}
+                                className="h-11 rounded-xl"
                             />
                         </div>
 
                         <Textarea
-                            label="Pre-Meeting Notes"
-                            placeholder="What do you want to discuss? Any specific goals?"
-                            rows={4}
+                            label="Briefing Objectives & Context"
+                            placeholder="Specify core discussion points or strategic outcomes for this engagement..."
+                            rows={6}
                             value={formData.pre_meeting_notes}
                             onChange={(e) => setFormData({ ...formData, pre_meeting_notes: e.target.value })}
+                            className="rounded-[1.5rem] bg-stone-50/30 p-4 border-stone-100"
                         />
 
-                        <div className="bg-indigo-50 p-4 rounded-xl flex gap-3 text-indigo-700">
-                            <Info className="h-5 w-5 shrink-0" />
-                            <p className="text-sm">
-                                After scheduling, our AI will generate professional talking points based on your relationship history and company research.
-                            </p>
+                        <div className="bg-stone-900 p-6 rounded-[2rem] flex gap-4 text-white shadow-2xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-8 opacity-5 -rotate-12 translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-700">
+                                <Zap size={80} strokeWidth={2.5} />
+                            </div>
+                            <div className="h-10 w-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0 border border-white/20">
+                                <Info className="h-5 w-5 text-white" strokeWidth={2.5} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-widest mb-1 opacity-60">Intelligence Note</p>
+                                <p className="text-sm font-medium leading-relaxed">
+                                    Our AI will synthesize talking points from interaction history and real-time market research upon briefing creation.
+                                </p>
+                            </div>
                         </div>
                     </section>
 
-                    <div className="flex justify-end gap-3">
-                        <Button
+                    <div className="flex justify-end items-center gap-6 pt-4 pb-12">
+                        <button
                             type="button"
-                            variant="secondary"
+                            className="text-xs font-black uppercase tracking-[0.2em] text-stone-400 hover:text-stone-900 transition-colors"
                             onClick={() => router.back()}
                             disabled={submitting}
                         >
-                            Cancel
-                        </Button>
+                            Abort
+                        </button>
                         <Button
                             type="submit"
+                            className="h-14 px-10 bg-stone-900 hover:bg-stone-800 text-white rounded-[1.25rem] shadow-xl shadow-stone-900/20 font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.02] active:scale-[0.98]"
                             disabled={submitting || !selectedContact}
                         >
-                            {submitting ? 'Scheduling...' : 'Schedule Meeting'}
+                            {submitting ? 'Initializing Brief...' : 'Schedule Engagement'}
                         </Button>
                     </div>
                 </form>

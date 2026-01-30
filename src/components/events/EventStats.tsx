@@ -17,47 +17,41 @@ export function EventStats({ stats }: EventStatsProps) {
 
     const statItems = [
         {
-            label: 'Target Companies',
+            label: 'Strategic Targets',
             value: stats.targets,
             icon: Target,
-            color: 'text-blue-600',
-            bgColor: 'bg-blue-50'
         },
         {
-            label: 'Captures',
+            label: 'Intelligence Captures',
             value: stats.captures,
             icon: Camera,
-            color: 'text-purple-600',
-            bgColor: 'bg-purple-50'
         },
         {
-            label: 'Contacts Made',
+            label: 'Net Contacts',
             value: stats.contacts,
             icon: Users,
-            color: 'text-green-600',
-            bgColor: 'bg-green-50'
         }
     ];
 
     return (
-        <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {statItems.map((item) => {
                     const Icon = item.icon;
                     return (
                         <div
                             key={item.label}
-                            className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+                            className="bg-white rounded-[2rem] border border-stone-100 p-6 shadow-sm hover:border-stone-200 transition-all duration-300 group"
                         >
-                            <div className="flex items-center gap-3">
-                                <div className={`${item.bgColor} ${item.color} p-2 rounded-lg`}>
-                                    <Icon className="h-5 w-5" />
+                            <div className="flex items-center gap-5">
+                                <div className="bg-stone-900 text-white p-3.5 rounded-2xl shadow-xl shadow-stone-900/10">
+                                    <Icon className="h-5 w-5" strokeWidth={3} />
                                 </div>
-                                <div>
-                                    <p className="text-2xl font-bold text-gray-900">
+                                <div className="space-y-0.5">
+                                    <p className="text-3xl font-black text-stone-900 tracking-tighter leading-none">
                                         {item.value}
                                     </p>
-                                    <p className="text-xs text-gray-600 mt-0.5">
+                                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">
                                         {item.label}
                                     </p>
                                 </div>
@@ -68,36 +62,29 @@ export function EventStats({ stats }: EventStatsProps) {
             </div>
 
             {total > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700 font-outfit">Follow-up Progress</span>
+                <div className="bg-white rounded-[2.5rem] border border-stone-100 p-8 shadow-sm hover:border-stone-200 transition-all duration-300">
+                    <div className="flex items-center justify-between mb-5">
+                        <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Reach Velocity</span>
+                        <span className="text-xl font-black text-stone-900 tracking-tighter">{Math.round((stats.followUps / total) * 100)}%</span>
                     </div>
-                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden flex">
+                    <div className="w-full h-3 bg-stone-50 rounded-full overflow-hidden flex border border-stone-100/50 shadow-inner">
                         <div
                             style={{ width: `${(stats.followUps / total) * 100}%` }}
-                            className="bg-emerald-500 h-full transition-all duration-500"
+                            className="bg-stone-900 h-full transition-all duration-1000 origin-left"
                         />
                         <div
                             style={{ width: `${((stats.needsFollowup || 0) / total) * 100}%` }}
-                            className="bg-amber-400 h-full transition-all duration-500"
-                        />
-                        <div
-                            style={{ width: `${((stats.notContacted || 0) / total) * 100}%` }}
-                            className="bg-stone-200 h-full transition-all duration-500"
+                            className="bg-stone-400 h-full transition-all duration-1000 origin-left"
                         />
                     </div>
-                    <div className="flex justify-between mt-2">
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                            <span className="text-[10px] text-gray-500">Followed Up ({stats.followUps})</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-stone-50/50 border border-stone-100">
+                            <div className="w-2 h-2 rounded-full bg-stone-900" />
+                            <span className="text-[9px] font-black text-stone-900 uppercase tracking-widest">Completed ({stats.followUps})</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full bg-amber-400" />
-                            <span className="text-[10px] text-gray-500">Needs Follow-up ({stats.needsFollowup || 0})</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full bg-stone-200" />
-                            <span className="text-[10px] text-gray-500">Not Contacted ({stats.notContacted || 0})</span>
+                        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-stone-50/50 border border-stone-100">
+                            <div className="w-2 h-2 rounded-full bg-stone-400" />
+                            <span className="text-[9px] font-black text-stone-900 uppercase tracking-widest">Pending ({stats.needsFollowup || 0})</span>
                         </div>
                     </div>
                 </div>

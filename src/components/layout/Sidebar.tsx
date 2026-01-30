@@ -21,10 +21,10 @@ import { CaptureDropdown } from '@/components/capture/CaptureDropdown';
 import { useSidebar } from './LayoutContext';
 
 const navItems = [
-    { href: '/', icon: LayoutDashboard, label: 'Overview' },
-    { href: '/events', icon: CalendarDays, label: 'Major Events' },
-    { href: '/capture', icon: Camera, label: 'Lead Capture' },
-    { href: '/contacts', icon: Users2, label: 'All Contacts' },
+    { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { href: '/events', icon: CalendarDays, label: 'Events' },
+    { href: '/capture', icon: Camera, label: 'Capture' },
+    { href: '/contacts', icon: Users2, label: 'Contacts' },
     { href: '/follow-ups', icon: MailCheck, label: 'Follow-Ups' },
     { href: '/meetings', icon: MessageSquareQuote, label: 'Meetings' },
     { href: '/integrations', icon: Plug2, label: 'Integrations' },
@@ -38,30 +38,30 @@ export function Sidebar() {
         <Tooltip.Provider delayDuration={0}>
             <aside
                 className={cn(
-                    "fixed left-0 top-0 z-40 h-screen border-r border-stone-200/50 bg-white flex flex-col transition-all duration-300 ease-in-out shadow-[1px_0_0_rgba(0,0,0,0.02)]",
-                    isSidebarCollapsed ? "w-16 items-center" : "w-64"
+                    "fixed left-0 top-0 z-40 h-screen border-r border-stone-200/50 bg-white flex flex-col transition-all duration-300 ease-in-out shadow-[1px_0_0_rgba(0,0,0,0.01)]",
+                    isSidebarCollapsed ? "w-20 items-center" : "w-72"
                 )}
             >
                 {/* Brand Identity */}
-                <div className={cn("flex items-center w-full py-5", isSidebarCollapsed ? "justify-center" : "px-4")}>
+                <div className={cn("flex items-center w-full py-8", isSidebarCollapsed ? "justify-center" : "px-6")}>
                     <Link
                         href="/"
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-stone-900 text-white shadow-soft hover:shadow-glow transition-all active:scale-95 group"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-stone-900 text-white shadow-xl shadow-stone-900/10 transition-all font-black text-xl"
                     >
-                        <span className="font-black text-lg group-hover:scale-110 transition-transform">E</span>
+                        R
                     </Link>
                     {!isSidebarCollapsed && (
-                        <div className="ml-3 animate-in fade-in slide-in-from-left-2 duration-300">
-                            <span className="font-black text-stone-900 tracking-tighter text-lg">Exhibition</span>
-                            <span className="block text-[10px] font-black text-stone-400 uppercase tracking-widest leading-none">Intelligence</span>
+                        <div className="ml-4">
+                            <span className="font-black text-stone-900 tracking-tighter text-xl uppercase leading-none">Registry</span>
+                            <span className="block text-[8px] font-black text-stone-400 uppercase tracking-widest leading-none mt-1">Networking Hub</span>
                         </div>
                     )}
                 </div>
 
-                <div className={cn("bg-stone-100 mb-6 shrink-0", isSidebarCollapsed ? "w-8 h-px" : "w-[calc(100%-2rem)] h-px mx-4")} />
+                <div className={cn("bg-stone-100/50 mb-8 shrink-0", isSidebarCollapsed ? "w-10 h-px" : "w-[calc(100%-3rem)] h-px mx-6")} />
 
                 {/* Navigation Ecosystem */}
-                <nav className={cn("flex flex-1 flex-col gap-2 w-full", isSidebarCollapsed ? "px-2" : "px-3")}>
+                <nav className={cn("flex flex-1 flex-col gap-1.5 w-full", isSidebarCollapsed ? "px-3" : "px-4")}>
                     {navItems.map((item) => {
                         const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
                         const Icon = item.icon;
@@ -75,16 +75,16 @@ export function Sidebar() {
                                             <Tooltip.Trigger asChild>
                                                 <button
                                                     className={cn(
-                                                        "flex h-11 items-center rounded-xl transition-all duration-200 w-full group",
-                                                        isSidebarCollapsed ? "justify-center w-11" : "px-3",
+                                                        "flex h-12 items-center rounded-2xl transition-all duration-200 w-full group",
+                                                        isSidebarCollapsed ? "justify-center w-12" : "px-4",
                                                         isActive
-                                                            ? "bg-stone-900 text-white shadow-md text-glow shadow-stone-200"
+                                                            ? "bg-stone-900 text-white shadow-xl shadow-stone-900/10"
                                                             : "text-stone-400 hover:bg-stone-50 hover:text-stone-900"
                                                     )}
                                                 >
-                                                    <Icon className="h-5 w-5 shrink-0" />
+                                                    <Icon className={cn("h-5 w-5 shrink-0 transition-none", isActive ? "text-white" : "text-stone-400 group-hover:text-stone-900")} strokeWidth={isActive ? 3 : 2} />
                                                     {!isSidebarCollapsed && (
-                                                        <span className="ml-3 text-sm font-bold truncate animate-in fade-in slide-in-from-left-1 duration-300">
+                                                        <span className={cn("ml-4 text-[11px] font-black uppercase tracking-widest truncate", isActive ? "text-white" : "text-stone-400 group-hover:text-stone-900")}>
                                                             {item.label}
                                                         </span>
                                                     )}
@@ -93,7 +93,7 @@ export function Sidebar() {
                                         }
                                     />
                                     <Tooltip.Portal>
-                                        <Tooltip.Content side="right" className="rounded-lg bg-stone-900 px-3 py-1.5 text-xs text-white shadow-lg z-[100]" sideOffset={12}>
+                                        <Tooltip.Content side="right" className="rounded-lg bg-stone-900 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg z-[100]" sideOffset={12}>
                                             {item.label}
                                         </Tooltip.Content>
                                     </Tooltip.Portal>
@@ -107,23 +107,23 @@ export function Sidebar() {
                                     <Link
                                         href={item.href}
                                         className={cn(
-                                            "flex h-11 items-center rounded-xl transition-all duration-200 w-full group",
-                                            isSidebarCollapsed ? "justify-center w-11" : "px-3",
+                                            "flex h-12 items-center rounded-xl transition-all duration-200 w-full group",
+                                            isSidebarCollapsed ? "justify-center w-12" : "px-4",
                                             isActive
-                                                ? "bg-stone-900 text-white shadow-sm shadow-stone-200"
+                                                ? "bg-stone-900 text-white shadow-xl shadow-stone-900/10"
                                                 : "text-stone-400 hover:bg-stone-50 hover:text-stone-900"
                                         )}
                                     >
-                                        <Icon className="h-5 w-5 shrink-0" />
+                                        <Icon className={cn("h-5 w-5 shrink-0 transition-none", isActive ? "text-white" : "text-stone-400 group-hover:text-stone-900")} strokeWidth={isActive ? 3 : 2} />
                                         {!isSidebarCollapsed && (
-                                            <span className="ml-3 text-sm font-bold truncate animate-in fade-in slide-in-from-left-1 duration-300">
+                                            <span className={cn("ml-4 text-[11px] font-black uppercase tracking-widest truncate", isActive ? "text-white" : "text-stone-400 group-hover:text-stone-900")}>
                                                 {item.label}
                                             </span>
                                         )}
                                     </Link>
                                 </Tooltip.Trigger>
                                 <Tooltip.Portal>
-                                    <Tooltip.Content side="right" className="rounded-lg bg-stone-900 px-3 py-1.5 text-xs text-white shadow-lg z-[100]" sideOffset={12}>
+                                    <Tooltip.Content side="right" className="rounded-lg bg-stone-900 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg z-[100]" sideOffset={12}>
                                         {item.label}
                                     </Tooltip.Content>
                                 </Tooltip.Portal>
@@ -174,7 +174,7 @@ export function Sidebar() {
                             ) : (
                                 <>
                                     <PanelLeftClose className="h-5 w-5 shrink-0" />
-                                    <span className="ml-3 text-sm font-bold truncate">Collapse Rails</span>
+                                    <span className="ml-3 text-sm font-bold truncate">Collapse Sidebar</span>
                                 </>
                             )}
                         </button>

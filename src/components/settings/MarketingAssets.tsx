@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { FileText, Upload, Trash2, Link as LinkIcon, Download } from 'lucide-react';
+import { FileText, Upload, Trash2, Link as LinkIcon, Download, Database } from 'lucide-react';
 import { createAsset, deleteAsset, MarketingAsset } from '@/app/actions/assets';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
@@ -115,27 +115,28 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
         <div className="space-y-0">
             <div className="px-8 py-6 border-b border-stone-100 bg-stone-50/30 flex items-center justify-between">
                 <div>
-                    <h3 className="text-sm font-black text-stone-900 uppercase tracking-widest">Marketing Assets</h3>
-                    <p className="text-[9px] font-bold text-stone-400 uppercase tracking-[0.1em] mt-0.5">Resources & Collateral</p>
+                    <h3 className="text-xs font-black text-stone-900 uppercase tracking-[0.2em]">Marketing Assets</h3>
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.1em] mt-1 italic">Collateral Nexus</p>
                 </div>
                 <Button
                     onClick={() => setIsAdding(!isAdding)}
                     size="sm"
-                    className="h-8 rounded-lg bg-stone-900 hover:bg-black text-[10px] font-bold text-white px-4 transition-all shadow-sm"
+                    className="h-9 px-5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-black uppercase tracking-widest text-[10px] shadow-lg shadow-stone-900/10 transition-all active:scale-95"
                 >
-                    <Upload className="h-3 w-3 mr-2" />
-                    Add
+                    <Upload className="h-3.5 w-3.5 mr-2" strokeWidth={2.5} />
+                    Deploy Asset
                 </Button>
             </div>
 
-            <div className="p-8 space-y-6">
+            <div className="p-8 space-y-8">
 
                 {isAdding && (
-                    <div className="bg-stone-50/50 p-6 rounded-2xl border border-stone-200 space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                        <div className="grid grid-cols-1 gap-4">
+                    <div className="bg-stone-900 p-8 rounded-[2rem] border border-white/10 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 -rotate-12 translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-700">
+                            <Database size={100} strokeWidth={2} />
                         </div>
 
-                        <div className="relative">
+                        <div className="relative z-10">
                             <input
                                 type="file"
                                 id="asset-upload"
@@ -154,90 +155,96 @@ export function MarketingAssets({ initialAssets }: MarketingAssetsProps) {
                             />
                             <label
                                 htmlFor="asset-upload"
-                                className="flex items-center justify-center w-full h-32 border-2 border-dashed border-stone-200 rounded-xl cursor-pointer hover:border-stone-400 hover:bg-stone-50 transition-colors"
+                                className="flex items-center justify-center w-full h-40 border-2 border-dashed border-white/20 rounded-2xl cursor-pointer hover:border-white/40 hover:bg-white/5 transition-all group/upload"
                             >
-                                <div className="flex flex-col items-center gap-2">
+                                <div className="flex flex-col items-center gap-3">
                                     {selectedFile ? (
                                         <>
-                                            <FileText className="w-8 h-8 text-stone-900" />
-                                            <p className="text-sm font-bold text-stone-900">{selectedFile.name}</p>
-                                            <p className="text-xs text-stone-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                                            <p className="text-xs text-stone-400 mt-2">Click to replace</p>
+                                            <div className="p-3 bg-white rounded-xl shadow-lg">
+                                                <FileText className="w-6 h-6 text-stone-900" strokeWidth={2.5} />
+                                            </div>
+                                            <p className="text-sm font-black text-white">{selectedFile.name}</p>
+                                            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                                         </>
                                     ) : (
                                         <>
-                                            <Upload className="w-8 h-8 text-stone-300" />
-                                            <p className="text-sm font-bold text-stone-400">Click to upload document</p>
-                                            <p className="text-xs text-stone-300">PDF, Word, PPT, Markdown up to 10MB</p>
+                                            <div className="p-3 bg-white/10 rounded-xl group-hover/upload:bg-white/20 transition-colors">
+                                                <Upload className="w-6 h-6 text-white" strokeWidth={2.5} />
+                                            </div>
+                                            <p className="text-sm font-black text-white/80">Select strategic document</p>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">PDF, Word, PPT (Max 10MB)</p>
                                         </>
                                     )}
                                 </div>
                             </label>
                         </div>
 
-                        <div className="flex justify-end gap-3 pt-2">
-                            <Button
-                                variant="ghost"
-                                size="sm"
+                        <div className="flex justify-end items-center gap-6 relative z-10 pt-2">
+                            <button
                                 onClick={() => {
                                     setIsAdding(false);
                                     setSelectedFile(null);
                                     setNewItem({ file_url: '' });
                                 }}
-                                className="text-stone-500"
+                                className="text-xs font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors"
                             >
                                 Cancel
-                            </Button>
+                            </button>
                             <Button
-                                size="sm"
+                                size="lg"
                                 onClick={handleAdd}
                                 disabled={isUploading || !selectedFile}
-                                className="bg-stone-900 text-white rounded-lg px-6"
+                                className="bg-white hover:bg-stone-100 text-stone-900 rounded-xl px-8 font-black uppercase tracking-widest text-[10px] shadow-xl"
                             >
                                 {isUploading ? (
-                                    <>Uploading...</>
+                                    <>Processing...</>
                                 ) : (
-                                    <>Save Asset</>
+                                    <>Commit Asset</>
                                 )}
                             </Button>
                         </div>
                     </div>
                 )}
 
-                <div className="grid gap-3">
+                <div className="grid gap-4">
                     {items.map(asset => (
-                        <div key={asset.id} className="group flex items-center justify-between p-4 bg-white border border-stone-100 rounded-2xl hover:shadow-xl hover:shadow-stone-100 transition-all duration-300">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-stone-50 rounded-xl flex items-center justify-center text-stone-400 group-hover:bg-stone-900 group-hover:text-white transition-all duration-500">
-                                    <FileText className="h-5 w-5" />
+                        <div key={asset.id} className="group flex items-center justify-between p-5 bg-white border border-stone-100 rounded-2xl hover:shadow-2xl hover:shadow-stone-900/5 transition-all duration-500">
+                            <div className="flex items-center gap-5">
+                                <div className="w-12 h-12 bg-stone-900 text-white rounded-xl shadow-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                                    <FileText className="h-5 w-5" strokeWidth={2.5} />
                                 </div>
-                                <div>
-                                    <h4 className="font-bold text-stone-900 text-sm">{asset.name}</h4>
+                                <div className="min-w-0">
+                                    <h4 className="font-black text-stone-900 text-sm truncate max-w-[200px]">{asset.name}</h4>
+                                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mt-1">Available Asset</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-500">
                                 <a
                                     href={asset.file_url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-50 text-stone-400 hover:bg-stone-900 hover:text-white transition-all"
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-stone-50 text-stone-400 hover:bg-stone-900 hover:text-white transition-all shadow-sm"
                                     title="Download"
                                 >
-                                    <Download className="h-4 w-4" />
+                                    <Download className="h-4 w-4" strokeWidth={2.5} />
                                 </a>
                                 <button
                                     onClick={() => handleDelete(asset.id)}
-                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-50 text-stone-400 hover:bg-red-50 hover:text-red-600 transition-all"
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-stone-50 text-stone-400 hover:bg-stone-900 hover:text-white transition-all shadow-sm"
                                     title="Delete"
                                 >
-                                    <Trash2 className="h-4 w-4" />
+                                    <Trash2 className="h-4 w-4" strokeWidth={2.5} />
                                 </button>
                             </div>
                         </div>
                     ))}
                     {items.length === 0 && !isAdding && (
-                        <div className="text-center py-12 bg-stone-50/50 rounded-3xl border-2 border-dashed border-stone-100">
-                            <p className="text-stone-400 text-xs italic">No assets added yet.</p>
+                        <div className="text-center py-16 bg-stone-50/50 rounded-[2.5rem] border-2 border-dashed border-stone-100">
+                            <div className="h-16 w-16 bg-white border border-stone-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-stone-300 shadow-sm">
+                                <Database className="w-8 h-8" strokeWidth={1.5} />
+                            </div>
+                            <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em]">Depository Empty</p>
+                            <p className="text-sm font-medium text-stone-400 mt-2 italic">Upload collateral for relationship acceleration.</p>
                         </div>
                     )}
                 </div>

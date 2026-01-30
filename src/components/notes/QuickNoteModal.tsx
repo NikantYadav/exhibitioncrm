@@ -57,26 +57,26 @@ export function QuickNoteModal({ isOpen, onClose }: QuickNoteModalProps) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-stone-100">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 flex justify-between items-center text-white">
-                    <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-white/20 rounded-lg">
-                            <Sparkles className="h-4 w-4 text-white" />
+                <div className="bg-stone-900 p-6 flex justify-between items-center text-white">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-white/10 rounded-xl">
+                            <Sparkles className="h-5 w-5 text-white" />
                         </div>
-                        <h3 className="font-semibold">Quick Smart Note</h3>
+                        <h3 className="font-black text-lg tracking-tight uppercase">Fast Note</h3>
                     </div>
                     <button
                         onClick={handleClose}
-                        className="p-1 hover:bg-white/20 rounded-full transition-colors"
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors active:scale-95"
                     >
                         <X className="h-5 w-5" />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-6">
+                <div className="p-8">
                     {step === 'input' ? (
                         <SmartNoteInput
                             onProcess={handleProcess}
