@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useVoiceRecorder } from '@/lib/hooks/useVoiceRecorder';
 import { Button } from '@/components/ui/Button';
 import { Mic, Square, Pause, Play, Trash2, Check, Loader2 } from 'lucide-react';
-import { AudioVisualizer } from '@/components/ui/AudioVisualizer';
 import { VoiceNotePlayer } from '@/components/ui/VoiceNotePlayer';
 
 interface VoiceNoteRecorderProps {
@@ -24,8 +23,7 @@ export function VoiceNoteRecorder({ onSave, onCancel }: VoiceNoteRecorderProps) 
         stopRecording,
         pauseRecording,
         resumeRecording,
-        clearRecording,
-        analyserRef
+        clearRecording
     } = useVoiceRecorder();
 
     const formatDuration = (seconds: number) => {
@@ -65,14 +63,6 @@ export function VoiceNoteRecorder({ onSave, onCancel }: VoiceNoteRecorderProps) 
                 <div className="text-4xl font-mono font-bold text-gray-900">
                     {formatDuration(duration)}
                 </div>
-                {isRecording && (
-                    <div className="mt-4 px-10">
-                        <AudioVisualizer
-                            analyser={analyserRef.current}
-                            isPaused={isPaused}
-                        />
-                    </div>
-                )}
             </div>
 
             {/* Playback Review */}
