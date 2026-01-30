@@ -55,14 +55,16 @@ export default function NewMeetingPage() {
         }
     };
 
-    const filteredContacts = contacts.filter(contact => {
-        const query = searchQuery.toLowerCase();
-        return (
-            contact.first_name.toLowerCase().includes(query) ||
-            contact.last_name?.toLowerCase().includes(query) ||
-            contact.company?.name.toLowerCase().includes(query)
-        );
-    });
+    const filteredContacts = searchQuery.trim()
+        ? contacts.filter(contact => {
+            const query = searchQuery.toLowerCase();
+            return (
+                contact.first_name.toLowerCase().includes(query) ||
+                contact.last_name?.toLowerCase().includes(query) ||
+                contact.company?.name.toLowerCase().includes(query)
+            );
+        })
+        : [];
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -158,13 +160,11 @@ export default function NewMeetingPage() {
                                     />
                                 </div>
 
-                                <div className="max-h-60 overflow-y-auto border border-stone-200 rounded-xl divide-y divide-stone-100">
-                                    {loading ? (
-                                        <div className="p-4 text-center text-caption italic">Loading contacts...</div>
-                                    ) : filteredContacts.length === 0 ? (
-                                        <div className="p-4 text-center text-caption italic">No contacts found</div>
-                                    ) : (
-                                        filteredContacts.map(contact => (
+                                {loading ? (
+                                    <div className="p-4 text-center text-caption italic text-stone-400">Loading contacts...</div>
+                                ) : filteredContacts.length > 0 ? (
+                                    <div className="max-h-60 overflow-y-auto border border-stone-200 rounded-xl divide-y divide-stone-100">
+                                        {filteredContacts.map(contact => (
                                             <button
                                                 key={contact.id}
                                                 type="button"
@@ -183,9 +183,11 @@ export default function NewMeetingPage() {
                                                     <p className="text-xs text-stone-500">{contact.company?.name}</p>
                                                 </div>
                                             </button>
-                                        ))
-                                    )}
-                                </div>
+                                        ))}
+                                    </div>
+                                ) : searchQuery.trim() ? (
+                                    <div className="p-4 text-center text-caption italic text-stone-400">No contacts found for "{searchQuery}"</div>
+                                ) : null}
                             </div>
                         )}
                     </section>
@@ -220,7 +222,6 @@ export default function NewMeetingPage() {
                                 <option value="in_person">In Person</option>
                                 <option value="virtual">Virtual (Zoom/Teams)</option>
                                 <option value="phone">Phone Call</option>
-                                <option value="coffee">Coffee/Meal</option>
                             </Select>
                             <Input
                                 label="Location / Link"

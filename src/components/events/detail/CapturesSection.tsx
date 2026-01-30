@@ -20,6 +20,9 @@ export function CapturesSection({ captures, onOpenCapture, onDeleteCapture }: Ca
     const [selectedCapturePreview, setSelectedCapturePreview] = useState<Capture | null>(null);
     const [showPreview, setShowPreview] = useState(false);
 
+    // Filter out captures without associated contacts when they are in completed status (orphaned captures)
+    const filteredCaptures = captures.filter(c => c.status !== 'completed' || c.contact);
+
     const handleCaptureClick = (capture: Capture) => {
         setSelectedCapturePreview(capture);
         setShowPreview(true);
@@ -29,7 +32,7 @@ export function CapturesSection({ captures, onOpenCapture, onDeleteCapture }: Ca
         <div>
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Business Card Captures</h3>
-                {captures.length > 0 && (
+                {filteredCaptures.length > 0 && (
                     <div className="relative group">
                         <Button size="sm">
                             <Camera className="mr-2 h-4 w-4" />
@@ -92,7 +95,7 @@ export function CapturesSection({ captures, onOpenCapture, onDeleteCapture }: Ca
                 )}
             </div>
 
-            {captures.length === 0 ? (
+            {filteredCaptures.length === 0 ? (
                 <div className="text-center py-12">
                     <Camera className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                     <p className="text-gray-600 mb-4">No captures yet</p>
@@ -158,7 +161,7 @@ export function CapturesSection({ captures, onOpenCapture, onDeleteCapture }: Ca
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {captures.map((capture) => (
+                    {filteredCaptures.map((capture) => (
                         <div
                             key={capture.id}
                             onClick={() => handleCaptureClick(capture)}

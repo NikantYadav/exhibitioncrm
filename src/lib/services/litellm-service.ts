@@ -24,16 +24,57 @@ export interface CompletionOptions {
 
 export class LiteLLMService {
     private config: LiteLLMConfig;
+    private static geminiKeys: string[] = [];
+    private static currentGeminiIndex: number = 0;
 
     constructor(config?: Partial<LiteLLMConfig>) {
+        if (LiteLLMService.geminiKeys.length === 0) {
+            this.initGeminiKeys();
+        }
+
         // Default to Gemini as per user preference
+        const provider = config?.provider || 'gemini';
         this.config = {
-            provider: config?.provider || 'gemini',
-            model: config?.model || this.getDefaultModel(config?.provider || 'gemini'),
-            apiKey: config?.apiKey || this.getApiKey(config?.provider || 'gemini'),
+            provider,
+            model: config?.model || this.getDefaultModel(provider),
+            apiKey: config?.apiKey || this.getApiKey(provider),
             temperature: config?.temperature || 0.7,
             maxTokens: config?.maxTokens || 2000,
         };
+    }
+
+    private initGeminiKeys() {
+        const keys = new Set<string>();
+
+        // Primary keys
+        if (process.env.GEMINI_API_KEY) {
+            process.env.GEMINI_API_KEY.split(',').forEach(k => keys.add(k.trim()));
+        }
+        if (process.env.GOOGLE_API_KEY) {
+            process.env.GOOGLE_API_KEY.split(',').forEach(k => keys.add(k.trim()));
+        }
+
+        // Supporting multiple keys via GEMINI_API_KEY_1, GEMINI_API_KEY_2, etc.
+        for (let i = 1; i <= 20; i++) {
+            const key = process.env[`GEMINI_API_KEY_${i}`] || process.env[`GOOGLE_API_KEY_${i}`];
+            if (key) keys.add(key.trim());
+        }
+
+        LiteLLMService.geminiKeys = Array.from(keys).filter(Boolean);
+
+        // Shuffle keys to distribute load evenly across instances/starts
+        LiteLLMService.geminiKeys.sort(() => Math.random() - 0.5);
+
+        if (LiteLLMService.geminiKeys.length > 0) {
+            console.log(`LiteLLMService initialized with ${LiteLLMService.geminiKeys.length} Gemini API keys`);
+        }
+    }
+
+    private getNextGeminiKey(): string {
+        if (LiteLLMService.geminiKeys.length === 0) return this.config.apiKey;
+        const key = LiteLLMService.geminiKeys[LiteLLMService.currentGeminiIndex];
+        LiteLLMService.currentGeminiIndex = (LiteLLMService.currentGeminiIndex + 1) % LiteLLMService.geminiKeys.length;
+        return key;
     }
 
     private getDefaultModel(provider: string): string {
@@ -46,9 +87,12 @@ export class LiteLLMService {
     }
 
     private getApiKey(provider: string): string {
+        if (provider === 'gemini') {
+            return this.getNextGeminiKey();
+        }
+
         const keys: Record<string, string | undefined> = {
             openai: process.env.OPENAI_API_KEY,
-            gemini: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
             azure: process.env.AZURE_OPENAI_API_KEY,
         };
         return keys[provider] || '';
@@ -105,6 +149,32 @@ export class LiteLLMService {
         }
     }
 
+    private async withGemini<T>(operation: (apiKey: string) => Promise<T>): Promise<T> {
+        let lastError: any;
+        const attempts = Math.max(1, LiteLLMService.geminiKeys.length);
+
+        for (let i = 0; i < attempts; i++) {
+            const apiKey = this.getNextGeminiKey();
+            try {
+                return await operation(apiKey);
+            } catch (error: any) {
+                lastError = error;
+                // Check for 429 Too Many Requests
+                const isRateLimit = error.status === 429 ||
+                    error.message?.includes('429') ||
+                    error.message?.includes('quota') ||
+                    error.message?.includes('Rate limit');
+
+                if (isRateLimit && i < attempts - 1) {
+                    console.warn(`Gemini rate limit hit. Retrying with next available key... (Attempt ${i + 1}/${attempts})`);
+                    continue;
+                }
+                throw error;
+            }
+        }
+        throw lastError;
+    }
+
     /**
      * Gemini implementation
      */
@@ -113,29 +183,31 @@ export class LiteLLMService {
         temperature: number,
         maxTokens: number
     ): Promise<string> {
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(this.config.apiKey);
-        const model = genAI.getGenerativeModel({ model: this.config.model });
+        return this.withGemini(async (apiKey) => {
+            const { GoogleGenerativeAI } = await import('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: this.config.model });
 
-        // Convert messages to Gemini format
-        const systemMessage = messages.find(m => m.role === 'system');
-        const userMessages = messages.filter(m => m.role !== 'system');
+            // Convert messages to Gemini format
+            const systemMessage = messages.find(m => m.role === 'system');
+            const userMessages = messages.filter(m => m.role !== 'system');
 
-        const prompt = userMessages.map(m => m.content).join('\n\n');
-        const fullPrompt = systemMessage
-            ? `${systemMessage.content}\n\n${prompt}`
-            : prompt;
+            const prompt = userMessages.map(m => m.content).join('\n\n');
+            const fullPrompt = systemMessage
+                ? `${systemMessage.content}\n\n${prompt}`
+                : prompt;
 
-        const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-            generationConfig: {
-                temperature,
-                maxOutputTokens: maxTokens,
-            },
+            const result = await model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+                generationConfig: {
+                    temperature,
+                    maxOutputTokens: maxTokens,
+                },
+            });
+
+            const response = await result.response;
+            return response.text();
         });
-
-        const response = await result.response;
-        return response.text();
     }
 
     private async *streamGeminiCompletion(
@@ -143,8 +215,9 @@ export class LiteLLMService {
         temperature: number
     ): AsyncGenerator<string> {
         const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(this.config.apiKey);
+        const genAI = new GoogleGenerativeAI(this.getNextGeminiKey());
         const model = genAI.getGenerativeModel({ model: this.config.model });
+
 
         const systemMessage = messages.find(m => m.role === 'system');
         const userMessages = messages.filter(m => m.role !== 'system');
@@ -224,26 +297,29 @@ export class LiteLLMService {
             throw new Error('Image analysis is currently only implemented for Gemini in this service');
         }
 
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(this.config.apiKey);
-        const model = genAI.getGenerativeModel({ model: this.config.model });
+        const text = await this.withGemini(async (apiKey) => {
+            const { GoogleGenerativeAI } = await import('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: this.config.model });
 
-        // Clean base64 string
-        const base64Data = base64Image.split(',')[1] || base64Image;
-        const mimeType = base64Image.split(';')[0].split(':')[1] || 'image/jpeg';
+            // Clean base64 string
+            const base64Data = base64Image.split(',')[1] || base64Image;
+            const mimeType = base64Image.split(';')[0].split(':')[1] || 'image/jpeg';
 
-        const result = await model.generateContent([
-            prompt + (schema ? `\n\nReturn EXACTLY a JSON object matching this schema: ${schema}` : ''),
-            {
-                inlineData: {
-                    data: base64Data,
-                    mimeType
+            const result = await model.generateContent([
+                prompt + (schema ? `\n\nReturn EXACTLY a JSON object matching this schema: ${schema}` : ''),
+                {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType
+                    }
                 }
-            }
-        ]);
+            ]);
 
-        const response = await result.response;
-        const text = response.text();
+            const response = await result.response;
+            return response.text();
+        });
+
 
         try {
             return this.cleanAndParseJSON<T>(text);
@@ -264,28 +340,30 @@ export class LiteLLMService {
             throw new Error('Audio transcription is currently only implemented for Gemini in this service');
         }
 
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(this.config.apiKey);
-        // Use gemini-2.5-flash for audio as it's very efficient
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        return this.withGemini(async (apiKey) => {
+            const { GoogleGenerativeAI } = await import('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-        // Clean base64 string
-        const base64Data = base64Audio.split(',')[1] || base64Audio;
-        const mimeType = base64Audio.match(/^data:([^;]+);base64,/)?.[1] || 'audio/webm';
+            // Clean base64 string
+            const base64Data = base64Audio.split(',')[1] || base64Audio;
+            const mimeType = base64Audio.match(/^data:([^;]+);base64,/)?.[1] || 'audio/webm';
 
-        const result = await model.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    data: base64Data,
-                    mimeType
+            const result = await model.generateContent([
+                prompt,
+                {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType
+                    }
                 }
-            }
-        ]);
+            ]);
 
-        const response = await result.response;
-        return response.text();
+            const response = await result.response;
+            return response.text();
+        });
     }
+
 
 
     /**

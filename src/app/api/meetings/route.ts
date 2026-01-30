@@ -21,6 +21,10 @@ export async function GET(request: NextRequest) {
             .order('meeting_date', { ascending: true });
 
         if (error) {
+            // Handle table not found (missing migration) gracefully
+            if (error.code === 'PGRST205') {
+                return NextResponse.json({ meetings: [] });
+            }
             throw error;
         }
 

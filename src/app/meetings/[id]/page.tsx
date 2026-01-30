@@ -2,23 +2,25 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { ArrowLeft, Calendar, MapPin, Lightbulb, History, FileText } from 'lucide-react';
 import { MeetingPrep } from '@/components/meetings/MeetingPrep';
-import { DocumentSummarizer } from '@/components/meetings/DocumentSummarizer';
-import { MeetingBrief, Interaction } from '@/types';
+import { ContactTimeline } from '@/components/contacts/ContactTimeline';
+import { MeetingBrief } from '@/types';
 import { toast } from 'sonner';
 
 export default function MeetingBriefPage() {
     const params = useParams();
     const router = useRouter();
     const [meeting, setMeeting] = useState<MeetingBrief | null>(null);
-    const [interactions, setInteractions] = useState<Interaction[]>([]);
+    const [timeline, setTimeline] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'notes' | 'prep'>('overview');
+    const [activeTab, setActiveTab] = useState<'briefing' | 'history' | 'notes'>('briefing');
     const [postNotes, setPostNotes] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
 
     useEffect(() => {
         fetchMeetingData();
@@ -31,8 +33,16 @@ export default function MeetingBriefPage() {
 
             const data = await response.json();
             setMeeting(data.meeting);
-            setInteractions(data.interactions || []);
             setPostNotes(data.meeting.post_meeting_notes || '');
+
+            // Fetch interaction timeline for the contact
+            if (data.meeting.contact.id) {
+                const timelineRes = await fetch(`/api/contacts/${data.meeting.contact.id}/timeline?type=all`);
+                if (timelineRes.ok) {
+                    const timelineData = await timelineRes.json();
+                    setTimeline(timelineData.data || []);
+                }
+            }
         } catch (error) {
             console.error('Error fetching meeting:', error);
             toast.error('Failed to load meeting details');
@@ -90,6 +100,38 @@ export default function MeetingBriefPage() {
         }
     };
 
+    const handleGeneratePrep = async () => {
+        setIsGenerating(true);
+        try {
+            const response = await fetch(`/api/meetings/${params.id}/prep`, {
+                method: 'POST',
+            });
+
+            if (!response.ok) throw new Error('Failed to generate prep');
+
+            const data = await response.json();
+            if (meeting) {
+                setMeeting({
+                    ...meeting,
+                    prep_data: data.prep_data,
+                    ai_talking_points: data.prep_data.key_talking_points.join('\n'),
+                    interaction_summary: data.prep_data.relationship_summary
+                });
+            }
+            toast.success('Meeting intelligence generated!');
+        } catch (error) {
+            console.error('Error generating prep:', error);
+            toast.error('Failed to generate meeting intelligence');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleAnalyzeDocument = async (url: string) => {
+        // Implementation for document analysis
+        toast.info('Document analysis coming soon!');
+    };
+
     if (loading) {
         return (
             <AppShell>
@@ -134,7 +176,11 @@ export default function MeetingBriefPage() {
                         <div>
                             <h1 className="text-display mb-1">Meeting Brief</h1>
                             <p className="text-section-header mb-2">
-                                {contactName} at {companyName}
+                                <Link href={`/contacts/${meeting.contact.id}`} className="hover:text-indigo-600 transition-colors">
+                                    {contactName}
+                                </Link>
+                                <span className="text-stone-400 mx-2">at</span>
+                                <span className="text-stone-600">{companyName}</span>
                             </p>
                             <div className="flex items-center gap-4 text-caption">
                                 <span className="flex items-center gap-1.5">
@@ -161,16 +207,10 @@ export default function MeetingBriefPage() {
                 {/* Tabs */}
                 <div className="flex items-center gap-2 mb-8">
                     <button
-                        onClick={() => setActiveTab('overview')}
-                        className={activeTab === 'overview' ? 'nav-pill nav-pill-active' : 'nav-pill nav-pill-inactive'}
+                        onClick={() => setActiveTab('briefing')}
+                        className={activeTab === 'briefing' ? 'nav-pill nav-pill-active' : 'nav-pill nav-pill-inactive'}
                     >
-                        Overview
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('prep')}
-                        className={activeTab === 'prep' ? 'nav-pill nav-pill-active' : 'nav-pill nav-pill-inactive'}
-                    >
-                        Preparation
+                        Briefing
                     </button>
                     <button
                         onClick={() => setActiveTab('history')}
@@ -187,128 +227,87 @@ export default function MeetingBriefPage() {
                 </div>
 
                 {/* Content */}
-                {activeTab === 'overview' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Contact Info */}
-                        <div className="premium-card p-6">
-                            <h2 className="text-section-header mb-4">Contact Information</h2>
-                            <div className="space-y-3">
-                                <div>
-                                    <p className="text-caption">Name</p>
-                                    <p className="text-card-title">{contactName}</p>
+                {activeTab === 'briefing' && (
+                    <div className="space-y-8">
+                        {/* Top Section: Contact Info & Pre-meeting notes */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Contact Info */}
+                            <div className="premium-card p-6">
+                                <h2 className="text-section-header mb-4">Contact Information</h2>
+                                <div className="space-y-3">
+                                    <div>
+                                        <p className="text-caption">Name</p>
+                                        <Link
+                                            href={`/contacts/${meeting.contact.id}`}
+                                            className="text-card-title text-indigo-600 hover:text-indigo-800 transition-colors inline-block"
+                                        >
+                                            {contactName}
+                                        </Link>
+                                    </div>
+                                    {meeting.contact.job_title && (
+                                        <div>
+                                            <p className="text-caption">Title</p>
+                                            <p className="text-body">{meeting.contact.job_title}</p>
+                                        </div>
+                                    )}
+                                    {meeting.contact.email && (
+                                        <div>
+                                            <p className="text-caption">Email</p>
+                                            <a href={`mailto:${meeting.contact.email}`} className="text-body text-indigo-600 hover:text-indigo-800">
+                                                {meeting.contact.email}
+                                            </a>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <p className="text-caption">Company</p>
+                                        <p className="text-body">{companyName}</p>
+                                    </div>
+                                    {meeting.event && (
+                                        <div>
+                                            <p className="text-caption">Captured At</p>
+                                            <Link
+                                                href={`/events/${meeting.event.id}`}
+                                                className="text-body text-indigo-600 hover:text-indigo-800 transition-colors font-medium flex items-center gap-1"
+                                            >
+                                                {meeting.event.name}
+                                            </Link>
+                                        </div>
+                                    )}
                                 </div>
-                                {meeting.contact.job_title && (
-                                    <div>
-                                        <p className="text-caption">Title</p>
-                                        <p className="text-body">{meeting.contact.job_title}</p>
-                                    </div>
-                                )}
-                                {meeting.contact.email && (
-                                    <div>
-                                        <p className="text-caption">Email</p>
-                                        <a href={`mailto:${meeting.contact.email}`} className="text-body text-indigo-600 hover:text-indigo-800">
-                                            {meeting.contact.email}
-                                        </a>
-                                    </div>
-                                )}
-                                <div>
-                                    <p className="text-caption">Company</p>
-                                    <p className="text-body">{companyName}</p>
-                                </div>
-                                {meeting.contact.company?.industry && (
-                                    <div>
-                                        <p className="text-caption">Industry</p>
-                                        <p className="text-body">{meeting.contact.company.industry}</p>
-                                    </div>
-                                )}
                             </div>
-                        </div>
 
-                        {/* AI Talking Points */}
-                        <div className="premium-card p-6">
-                            <h2 className="text-section-header mb-4 flex items-center gap-2">
-                                <Lightbulb className="w-5 h-5 text-amber-500" strokeWidth={2} />
-                                AI-Generated Talking Points
-                            </h2>
-                            {meeting.ai_talking_points ? (
-                                <ul className="space-y-2">
-                                    {meeting.ai_talking_points.split('\n').filter(p => p.trim()).map((point, idx) => (
-                                        <li key={idx} className="text-body flex items-start gap-2">
-                                            <span className="text-indigo-600 mt-1">•</span>
-                                            <span>{point.replace(/^[•-]\s*/, '')}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <div className="text-center py-6">
-                                    <p className="text-caption italic mb-4">No talking points generated</p>
-                                    <Button size="sm" onClick={() => setActiveTab('prep')}>
-                                        Go to Preparation
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Pre-Meeting Notes */}
-                        {meeting.pre_meeting_notes && (
+                            {/* Pre-Meeting Notes */}
                             <div className="premium-card p-6 lg:col-span-2">
                                 <h2 className="text-section-header mb-4">Pre-Meeting Notes</h2>
-                                <p className="text-body whitespace-pre-wrap">{meeting.pre_meeting_notes}</p>
+                                {meeting.pre_meeting_notes ? (
+                                    <p className="text-body whitespace-pre-wrap">{meeting.pre_meeting_notes}</p>
+                                ) : (
+                                    <p className="text-caption italic opacity-50">No pre-meeting notes provided.</p>
+                                )}
                             </div>
-                        )}
-
-                        {/* Interaction Summary */}
-                        {meeting.interaction_summary && (
-                            <div className="premium-card p-6 lg:col-span-2">
-                                <h2 className="text-section-header mb-4 flex items-center gap-2">
-                                    <History className="w-5 h-5" strokeWidth={2} />
-                                    Previous Interactions
-                                </h2>
-                                <p className="text-body whitespace-pre-wrap">{meeting.interaction_summary}</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'prep' && (
-                    <div className="space-y-6">
-                        {/* Prep Component Placeholder - Will be properly imported and used below */}
-                        <div className="premium-card p-6">
-                            <h2 className="text-section-header mb-4">Meeting Intelligence</h2>
-                            <p className="text-body text-gray-500">
-                                Generate a comprehensive briefing including contact bio, relationship history, and suggested talking points.
-                            </p>
-                            {/* Client-side logic for the MeetingPrep component integration will be added in next step */}
                         </div>
+
+                        {/* Middle Section: AI Preparation */}
+                        <section className="pt-4">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Lightbulb className="w-5 h-5 text-amber-500" strokeWidth={2} />
+                                <h2 className="text-section-header">Meeting Intelligence</h2>
+                            </div>
+                            <MeetingPrep
+                                contactId={meeting.contact.id}
+                                prepData={meeting.prep_data}
+                                isGenerating={isGenerating}
+                                onGenerate={handleGeneratePrep}
+                            />
+                        </section>
+
                     </div>
                 )}
 
                 {activeTab === 'history' && (
                     <div className="premium-card p-6">
-                        <h2 className="text-section-header mb-6">Interaction History</h2>
-                        {interactions.length > 0 ? (
-                            <div className="space-y-4">
-                                {interactions.map((interaction) => (
-                                    <div key={interaction.id} className="border-l-4 border-indigo-500 pl-4 py-2">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="text-card-title capitalize">
-                                                    {interaction.interaction_type.replace('_', ' ')}
-                                                </p>
-                                                {interaction.summary && (
-                                                    <p className="text-body mt-1">{interaction.summary}</p>
-                                                )}
-                                            </div>
-                                            <p className="text-caption">
-                                                {new Date(interaction.interaction_date).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-caption italic text-center py-8">No previous interactions</p>
-                        )}
+                        <h2 className="text-section-header mb-6">Interaction Timeline</h2>
+                        <ContactTimeline timeline={timeline} />
                     </div>
                 )}
 

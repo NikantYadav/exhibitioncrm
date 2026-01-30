@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { User, History as HistoryIcon, FileText, MessageSquare, Sparkles, Loader2 } from 'lucide-react';
+import { User, History as HistoryIcon, FileText, MessageSquare, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 
 interface PrepData {
     who_is_this?: string;
@@ -47,62 +47,79 @@ export function MeetingPrep({ contactId, prepData, onGenerate, isGenerating }: M
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Who is this */}
-            <Card className="md:col-span-2 bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
-                <CardContent className="p-6">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-white rounded-lg shadow-sm">
-                            <User className="h-5 w-5 text-indigo-600" />
-                        </div>
-                        <h3 className="font-semibold text-indigo-900">Who is this?</h3>
-                    </div>
-                    <p className="text-indigo-800 leading-relaxed">
-                        {prepData?.who_is_this}
-                    </p>
-                </CardContent>
-            </Card>
+        <div className="relative">
+            {prepData && (
+                <div className="absolute -top-12 right-0">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onGenerate}
+                        className="text-stone-400 hover:text-indigo-600 transition-colors"
+                        disabled={isGenerating}
+                    >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
+                        Refresh Intelligence
+                    </Button>
+                </div>
+            )}
 
-            {/* Relationship */}
-            <Card>
-                <CardContent className="p-6">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-gray-100 rounded-lg">
-                            <HistoryIcon className="h-5 w-5 text-gray-600" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Who is this */}
+                <Card className="md:col-span-2 bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
+                    <CardContent className="p-6">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                                <User className="h-5 w-5 text-indigo-600" />
+                            </div>
+                            <h3 className="font-semibold text-indigo-900">Who is this?</h3>
                         </div>
-                        <h3 className="font-semibold text-gray-900">How you know them</h3>
-                    </div>
-                    <p className="text-gray-600 text-sm">
-                        {prepData?.relationship_summary}
-                    </p>
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Highlights</h4>
-                        <div className="text-sm text-gray-600">
-                            {prepData?.interaction_highlights}
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+                        <p className="text-indigo-800 leading-relaxed">
+                            {prepData?.who_is_this}
+                        </p>
+                    </CardContent>
+                </Card>
 
-            {/* Talking Points */}
-            <Card>
-                <CardContent className="p-6">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-green-50 rounded-lg">
-                            <MessageSquare className="h-5 w-5 text-green-600" />
+                {/* Relationship */}
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-gray-100 rounded-lg">
+                                <HistoryIcon className="h-5 w-5 text-gray-600" />
+                            </div>
+                            <h3 className="font-semibold text-gray-900">How you know them</h3>
                         </div>
-                        <h3 className="font-semibold text-gray-900">Suggested Topics</h3>
-                    </div>
-                    <ul className="space-y-3">
-                        {prepData?.key_talking_points?.map((point, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-green-500 flex-shrink-0" />
-                                {point}
-                            </li>
-                        ))}
-                    </ul>
-                </CardContent>
-            </Card>
+                        <p className="text-gray-600 text-sm">
+                            {prepData?.relationship_summary}
+                        </p>
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Highlights</h4>
+                            <div className="text-sm text-gray-600">
+                                {prepData?.interaction_highlights}
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Talking Points */}
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-green-50 rounded-lg">
+                                <MessageSquare className="h-5 w-5 text-green-600" />
+                            </div>
+                            <h3 className="font-semibold text-gray-900">Suggested Topics</h3>
+                        </div>
+                        <ul className="space-y-3">
+                            {prepData?.key_talking_points?.map((point, i) => (
+                                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                                    <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                                    {point}
+                                </li>
+                            ))}
+                        </ul>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }

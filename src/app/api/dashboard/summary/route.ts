@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
             .limit(3);
 
         // 3. Get Upcoming Meetings
-        const { data: upcomingMeetings } = await supabase
+        const { data: upcomingMeetings, error: meetingError } = await supabase
             .from('meeting_briefs')
             .select(`
                 id,
@@ -73,6 +73,10 @@ export async function GET(request: NextRequest) {
             .gte('meeting_date', new Date().toISOString())
             .order('meeting_date', { ascending: true })
             .limit(5);
+
+        if (meetingError && meetingError.code !== 'PGRST205') {
+            throw meetingError;
+        }
 
         // 4. Get Recent Activity
         const { data: recentActivity } = await supabase

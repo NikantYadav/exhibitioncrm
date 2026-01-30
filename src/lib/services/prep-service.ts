@@ -1,5 +1,5 @@
 import { AIService } from './ai';
-import { Contact, Interaction, MeetingBrief } from '@/types';
+import { Contact, Interaction, Note } from '@/types';
 import { getUserProfile, buildProfileContext } from './profile-service';
 
 export interface MeetingContext {
@@ -16,15 +16,31 @@ export class PrepService {
     static async generateMeetingContext(
         contact: Contact,
         interactions: Interaction[],
+        notes: Note[] = [],
+        preMeetingNotes?: string,
         documents: string[] = []
     ): Promise<MeetingContext> {
         const profile = await getUserProfile();
         const profileContext = buildProfileContext(profile);
 
-        // Summarize interaction history
-        const historyText = interactions
-            .slice(0, 10) // Analysis last 10 interactions
-            .map(i => `${i.interaction_date}: ${i.interaction_type} - ${i.summary}`)
+        // Merge and summarize interaction history
+        const mergedHistory = [
+            ...(interactions || []).map(i => ({
+                date: i.interaction_date,
+                type: i.interaction_type,
+                content: i.summary
+            })),
+            ...(notes || []).map(n => ({
+                date: n.created_at,
+                type: `note (${n.note_type})`,
+                content: n.content
+            }))
+        ]
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 15); // Analysis last 15 items for better context
+
+        const historyText = mergedHistory
+            .map(h => `${new Date(h.date).toLocaleDateString()}: ${h.type} - ${h.content}`)
             .join('\n');
 
         const prompt = `Prepare a briefing for an upcoming meeting.
@@ -38,17 +54,20 @@ Title: ${contact.job_title || 'Unknown'}
 Company: ${contact.company?.name || 'Unknown'}
 Industry: ${contact.company?.industry || 'Unknown'}
 
-Interaction History:
+Interaction History (Chronological):
 ${historyText || 'No previous interactions.'}
+
+${preMeetingNotes ? `Specific Pre-Meeting Notes for THIS Meeting:
+${preMeetingNotes}` : ''}
 
 Shared Documents:
 ${documents.length > 0 ? `The following documents have been shared: ${documents.join(', ')}` : 'No documents shared.'}
 
 Task:
 1. "Who is this": A 2-sentence professional bio of the participant.
-2. "Relationship Summary": A brief summary of how we know them and our history.
-3. "Key Talking Points": 3-5 suggested topics for the meeting based on history and their profile.
-4. "Interaction Highlights": Key bullet points from past history (if any).
+2. "Relationship Summary": A brief summary focusing ONLY on the INITIAL encounter (how and where we first met).
+3. "Key Talking Points": 3-5 suggested topics for the meeting based on the FULL history and their profile.
+4. "Interaction Highlights": A summary of the ENTIRE relationship timeline, including recent calls, notes, and milestones.
 
 Return as structured JSON.`;
 

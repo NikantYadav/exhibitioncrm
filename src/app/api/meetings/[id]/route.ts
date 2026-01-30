@@ -31,9 +31,15 @@ export async function GET(
         // Fetch interaction history
         const { data: interactions } = await supabase
             .from('interactions')
-            .select('*')
+            .select('*, event:events(*)')
             .eq('contact_id', meeting.contact_id)
             .order('interaction_date', { ascending: false });
+
+        // Find the original capture event for this contact
+        const captureInteraction = interactions?.find(i => i.interaction_type === 'capture' && i.event);
+        if (captureInteraction && !meeting.event) {
+            meeting.event = captureInteraction.event;
+        }
 
         // Fetch reminders for this meeting
         const { data: reminders } = await supabase

@@ -213,7 +213,7 @@ export function ContactTimeline({ timeline, onAddNote }: ContactTimelineProps) {
                                                                 <ExternalLink className="h-2.5 w-2.5" />
                                                             </a>
                                                         </div>
-                                                        <div className="relative aspect-[4/3] w-full rounded-lg overflow-hidden border border-stone-200 bg-white shadow-md">
+                                                        <div className="relative aspect-[4/3] w-full max-w-sm rounded-lg overflow-hidden border border-stone-200 bg-white shadow-md">
                                                             <img
                                                                 src={item.details.image_url}
                                                                 alt="Capture Reference"

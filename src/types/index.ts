@@ -230,9 +230,17 @@ export interface MeetingBrief {
             industry?: string;
             website?: string;
         };
+        event?: Event;
     };
     company?: {
         name: string;
         industry?: string;
+    };
+    event?: Event;
+    prep_data?: {
+        who_is_this?: string;
+        relationship_summary?: string;
+        key_talking_points?: string[];
+        interaction_highlights?: string;
     };
 }
