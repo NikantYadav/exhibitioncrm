@@ -5,6 +5,7 @@ import { FollowUpKanban } from '@/components/follow-ups/FollowUpKanban';
 import { EmailComposer } from '@/components/follow-ups/EmailComposer';
 import { Loader2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
+import { syncChannel, emitSyncEvent, SyncEventType } from '@/lib/events';
 
 interface FollowUpsSectionProps {
     eventId: string;
@@ -20,6 +21,21 @@ export function FollowUpsSection({ eventId, event, onRefresh }: FollowUpsSection
 
     useEffect(() => {
         fetchFollowUps();
+
+        // Listen for sync events from other tabs/pages
+        if (syncChannel) {
+            const handleMessage = (event: MessageEvent) => {
+                if (event.data.type === SyncEventType.CONTACT_UPDATED) {
+                    // Only refresh if we're not the source of the update
+                    // or if it's a cross-tab update
+                    fetchFollowUps();
+                }
+            };
+            syncChannel.addEventListener('message', handleMessage);
+            return () => {
+                syncChannel?.removeEventListener('message', handleMessage);
+            };
+        }
     }, [eventId]);
 
     const fetchFollowUps = async () => {
@@ -66,6 +82,10 @@ export function FollowUpsSection({ eventId, event, onRefresh }: FollowUpsSection
 
                 if (!response.ok) throw new Error('Failed to update status');
                 toast.success('Status updated');
+
+                // Notify other components/tabs
+                emitSyncEvent(SyncEventType.CONTACT_UPDATED, { contactId, newStatus, eventId });
+
                 if (onRefresh) onRefresh();
             }
         } catch (error) {

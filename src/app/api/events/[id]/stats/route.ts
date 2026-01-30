@@ -28,21 +28,18 @@ export async function GET(
         const capturesCount = capturesData?.length || 0;
         // const uniqueContactIds = new Set(capturesData?.map(c => c.contact_id).filter(Boolean) || []); // This is no longer needed
 
-        // Get ALL unique contacts for this event (not just card scans)
-        const { data: eventContacts } = await supabase
+        // Get ALL unique contacts for this event and their follow-up status
+        const { data: eventContacts, error: contactsError } = await supabase
             .from('contacts')
-            .select('id, interactions!inner(event_id)')
+            .select('id, follow_up_status, interactions!inner(event_id)')
             .eq('interactions.event_id', id);
 
         const contactsCount = eventContacts?.length || 0;
 
-        // Get count of contacts who have been followed up for this event
-        // Either via a sent email draft OR manually marked as followed_up
-        const { data: followedContacts, error: followUpsError } = await supabase
-            .from('contacts')
-            .select('id, interactions!inner(event_id)')
-            .eq('interactions.event_id', id)
-            .eq('follow_up_status', 'followed_up');
+        // Calculate breakdown
+        const followUpsCount = eventContacts?.filter(c => c.follow_up_status === 'followed_up').length || 0;
+        const needsFollowupCount = eventContacts?.filter(c => c.follow_up_status === 'needs_followup').length || 0;
+        const notContactedCount = eventContacts?.filter(c => !c.follow_up_status || c.follow_up_status === 'not_contacted').length || 0;
 
         // We also need to check for sent emails in case follow_up_status isn't updated
         const { data: sentEmails } = await supabase
@@ -51,22 +48,24 @@ export async function GET(
             .eq('event_id', id)
             .eq('status', 'sent');
 
-        const followedContactIds = new Set([
-            ...(followedContacts?.map(c => c.id) || []),
-            ...(sentEmails?.map(e => (e as any).contact_id) || [])
-        ]);
+        // Adjust followed count if there are sent emails not yet marked in contact status
+        const sentEmailContactIds = new Set(sentEmails?.map(e => e.contact_id) || []);
+        const actualFollowedCount = new Set([
+            ...(eventContacts?.filter(c => c.follow_up_status === 'followed_up').map(c => c.id) || []),
+            ...Array.from(sentEmailContactIds)
+        ]).size;
 
-        const followUpsCount = followedContactIds.size;
-
-        if (targetsError || capturesError || followUpsError) {
-            console.error('Stats fetch errors:', { targetsError, capturesError, followUpsError });
+        if (targetsError || capturesError || contactsError) {
+            console.error('Stats fetch errors:', { targetsError, capturesError, contactsError });
         }
 
         const stats = {
             targets: targetsCount,
             captures: capturesCount,
             contacts: contactsCount,
-            followUps: followUpsCount
+            followUps: actualFollowedCount,
+            needsFollowup: needsFollowupCount,
+            notContacted: notContactedCount
         };
 
         console.log('Stats calculation finished:', stats);

@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
                 .select(`
                     *,
                     company:companies(*),
-                    interactions(id, interaction_type),
+                    interactions(id, interaction_type, event_id),
                     email_drafts(*)
                 `);
         }

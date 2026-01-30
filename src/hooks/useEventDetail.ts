@@ -11,6 +11,7 @@ import {
     saveEmailDraftAction
 } from '@/app/actions/preparation';
 import { getAssets } from '@/app/actions/assets';
+import { syncChannel, SyncEventType } from '@/lib/events';
 
 export function useEventDetail(eventId: string) {
     const [event, setEvent] = useState<Event | null>(null);
@@ -56,6 +57,19 @@ export function useEventDetail(eventId: string) {
         if (eventId) {
             fetchEventData();
             getAssets().then(setAvailableAssets);
+
+            // Listen for sync events from other components/tabs
+            if (syncChannel) {
+                const handleMessage = (event: MessageEvent) => {
+                    if (event.data.type === SyncEventType.CONTACT_UPDATED && event.data.eventId === eventId) {
+                        fetchEventData();
+                    }
+                };
+                syncChannel.addEventListener('message', handleMessage);
+                return () => {
+                    syncChannel?.removeEventListener('message', handleMessage);
+                };
+            }
         }
     }, [eventId]);
 
