@@ -1,0 +1,150 @@
+/**
+ * Slayer semantic-layer client.
+ *
+ * Slayer runs as a separate Python process (./slayer/start.sh) and exposes a
+ * REST API on SLAYER_URL (default http://127.0.0.1:5143).
+ *
+ * Security responsibilities of this module:
+ *   1. Validate the query shape (Zod) — blocks unknown tables, oversized payloads.
+ *   2. Strip any owner_user_id / user_id the LLM hallucinated in filters.
+ *   3. Inject the authenticated user's ownership filter for user-scoped tables.
+ *
+ * Slayer connects as slayer_readonly (SELECT-only, RLS enforced) so even if
+ * this module has a bug, Slayer cannot write data and RLS provides a second
+ * ownership check.
+ */
+
+import { z } from 'zod';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const SLAYER_URL = (process.env.SLAYER_URL || 'http://127.0.0.1:5143').replace(/\/$/, '');
+
+// ─── Allowlisted models ───────────────────────────────────────────────────────
+// The LLM can only query these tables. Anything else (pg_catalog, auth.users,
+// etc.) is blocked at validation time before the request reaches Slayer.
+const ALLOWED_MODELS = [
+  'contacts', 'events', 'notes', 'reminders', 'email_drafts',
+  'captures', 'companies', 'meeting_briefs', 'interactions',
+  'messages', 'conversations', 'documents', 'attachments',
+  'contact_documents', 'enrichment_queue', 'user_profiles',
+  'target_companies', 'company_research', 'marketing_assets',
+  'message_links', 'message_attachments', 'conversation_members',
+] as const;
+
+type AllowedModel = typeof ALLOWED_MODELS[number];
+
+// Tables that carry owner_user_id and need the per-user ownership filter.
+const OWNER_SCOPED_TABLES = new Set<string>([
+  'contacts', 'notes', 'captures', 'reminders', 'email_drafts',
+  'meeting_briefs', 'conversations', 'messages', 'assistant_runs',
+  'tool_calls', 'documents', 'attachments', 'contact_documents',
+  'enrichment_queue',
+]);
+
+// ─── Zod schema for SlayerQuery ───────────────────────────────────────────────
+const timeDimensionSchema = z.object({
+  dimension: z.string().max(100),
+  granularity: z.enum(['second', 'minute', 'hour', 'day', 'week', 'month', 'quarter', 'year']).optional(),
+  date_range: z.tuple([z.string().max(30), z.string().max(30)]).optional(),
+});
+
+const orderItemSchema = z.object({
+  column: z.string().max(200),
+  direction: z.enum(['asc', 'desc']).optional(),
+});
+
+export const slayerQuerySchema = z.object({
+  source_model: z.enum(ALLOWED_MODELS as unknown as [string, ...string[]]),
+  measures: z.array(z.string().max(300)).max(20).optional(),
+  dimensions: z.array(z.string().max(300)).max(30).optional(),
+  filters: z.array(z.string().max(500)).max(20).optional(),
+  time_dimensions: z.array(timeDimensionSchema).max(5).optional(),
+  order: z.array(orderItemSchema).max(10).optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+  offset: z.number().int().min(0).optional(),
+  variables: z.record(z.unknown()).optional(),
+});
+
+export type SlayerQuery = z.infer<typeof slayerQuerySchema>;
+
+export interface SlayerResponse {
+  data: Record<string, unknown>[];
+  columns: string[];
+  row_count: number;
+  sql?: string;
+}
+
+// ─── Ownership injection ──────────────────────────────────────────────────────
+
+/**
+ * Strip any owner/user_id filters the LLM may have hallucinated,
+ * then inject the real authenticated user's ownership filter.
+ */
+function applyOwnership(query: SlayerQuery, userId: string): SlayerQuery {
+  // Strip LLM-hallucinated ownership filters
+  const cleanFilters = (query.filters ?? []).filter(
+    (f) => !/owner_user_id/i.test(f) && !/\buser_id\s*=/i.test(f)
+  );
+
+  if (OWNER_SCOPED_TABLES.has(query.source_model as AllowedModel)) {
+    return {
+      ...query,
+      filters: [`owner_user_id = '${userId}'`, ...cleanFilters],
+    };
+  }
+
+  return { ...query, filters: cleanFilters };
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Validate, secure, and execute a SlayerQuery.
+ * Throws if the query shape is invalid or the model is not allowlisted.
+ */
+export async function slayerQuery(
+  rawQuery: unknown,
+  userId: string
+): Promise<SlayerResponse> {
+  // 1. Validate shape — throws ZodError with a clear message on failure
+  const query = slayerQuerySchema.parse(rawQuery);
+
+  // 2. Inject ownership
+  const safeQuery = applyOwnership(query, userId);
+
+  // 3. Forward to Slayer
+  const res = await fetch(`${SLAYER_URL}/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(safeQuery),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Slayer query failed (${res.status}): ${body}`);
+  }
+
+  return res.json() as Promise<SlayerResponse>;
+}
+
+export async function slayerHealthy(): Promise<boolean> {
+  try {
+    const res = await fetch(`${SLAYER_URL}/health`, { signal: AbortSignal.timeout(3_000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function slayerListModels(): Promise<string[]> {
+  try {
+    const res = await fetch(`${SLAYER_URL}/models`, { signal: AbortSignal.timeout(5_000) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as Array<{ name: string }>;
+    return data.map((m) => m.name);
+  } catch {
+    return [];
+  }
+}

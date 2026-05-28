@@ -27,6 +27,17 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+backend/.env
+exono/.env
+
+# Slayer runtime data (datasource configs contain credentials)
+slayer/slayer_data/
+
+# Slayer build artifacts
+slayer/.venv/
+slayer/__pycache__/
+slayer/**/__pycache__/
+slayer/**/*.pyc
 
 # vercel
 .vercel

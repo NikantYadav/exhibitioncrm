@@ -13,10 +13,9 @@ npm install
 ### 2. Set Up Supabase
 
 1. Create a Supabase project at [supabase.com](https://supabase.com)
-2. Run the migration file to create tables:
+2. Run the migration files to create/update tables:
    - Go to SQL Editor in Supabase Dashboard
-   - Copy and paste the contents of `supabase/migrations/20260122_initial_schema.sql`
-   - Run the query
+   - Apply the SQL files in `supabase/migrations/` in chronological order
 
 ### 3. Configure Environment Variables
 
@@ -31,6 +30,7 @@ Edit `.env.local` and add your credentials:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 OPENAI_API_KEY=your_openai_api_key
 ```
 

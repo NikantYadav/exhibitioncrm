@@ -38,7 +38,7 @@ export function Sidebar() {
         <Tooltip.Provider delayDuration={0}>
             <aside
                 className={cn(
-                    "fixed left-0 top-0 z-40 h-screen border-r border-stone-200/50 bg-white flex flex-col transition-all duration-300 ease-in-out shadow-[1px_0_0_rgba(0,0,0,0.01)]",
+                    "fixed left-0 top-0 z-40 h-screen border-r border-stone-200/50 bg-white flex flex-col transition-all duration-500 ease-in-out shadow-[1px_0_0_rgba(0,0,0,0.01)]",
                     isSidebarCollapsed ? "w-20 items-center" : "w-72"
                 )}
             >
@@ -64,6 +64,35 @@ export function Sidebar() {
                 </div>
 
                 <div className={cn("bg-stone-100/50 mb-8 shrink-0", isSidebarCollapsed ? "w-10 h-px" : "w-[calc(100%-3rem)] h-px mx-6")} />
+
+                {/* Collapse Toggle Button */}
+                <div className={cn("mb-6 shrink-0", isSidebarCollapsed ? "px-3" : "px-4")}>
+                    <Tooltip.Root delayDuration={isSidebarCollapsed ? 0 : 700}>
+                        <Tooltip.Trigger asChild>
+                            <button
+                                onClick={toggleSidebar}
+                                className={cn(
+                                    "flex h-11 items-center rounded-xl transition-all duration-200 w-full group text-stone-400 hover:bg-stone-50 hover:text-stone-900",
+                                    isSidebarCollapsed ? "justify-center w-11" : "px-3"
+                                )}
+                            >
+                                {isSidebarCollapsed ? (
+                                    <PanelLeftOpen className="h-5 w-5 shrink-0" />
+                                ) : (
+                                    <>
+                                        <PanelLeftClose className="h-5 w-5 shrink-0" />
+                                        <span className="ml-3 text-sm font-bold truncate">Collapse Sidebar</span>
+                                    </>
+                                )}
+                            </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                            <Tooltip.Content side="right" className="rounded-lg bg-stone-900 px-3 py-1.5 text-xs text-white shadow-lg" sideOffset={12}>
+                                Expand Sidebar
+                            </Tooltip.Content>
+                        </Tooltip.Portal>
+                    </Tooltip.Root>
+                </div>
 
                 {/* Navigation Ecosystem */}
                 <nav className={cn("flex flex-1 flex-col gap-1.5 w-full", isSidebarCollapsed ? "px-3" : "px-4")}>
@@ -165,24 +194,6 @@ export function Sidebar() {
                                 </Tooltip.Content>
                             </Tooltip.Portal>
                         </Tooltip.Root>
-
-                        {/* Collapse Toggle Button */}
-                        <button
-                            onClick={toggleSidebar}
-                            className={cn(
-                                "flex h-11 items-center rounded-xl transition-all duration-200 w-full mt-1 group text-stone-400 hover:bg-stone-50 hover:text-stone-900",
-                                isSidebarCollapsed ? "justify-center w-11" : "px-3"
-                            )}
-                        >
-                            {isSidebarCollapsed ? (
-                                <PanelLeftOpen className="h-5 w-5 shrink-0" />
-                            ) : (
-                                <>
-                                    <PanelLeftClose className="h-5 w-5 shrink-0" />
-                                    <span className="ml-3 text-sm font-bold truncate">Collapse Sidebar</span>
-                                </>
-                            )}
-                        </button>
                     </div>
                 </div>
             </aside>

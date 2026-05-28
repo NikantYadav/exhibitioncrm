@@ -21,7 +21,7 @@ export function AppShell({ children }: AppShellProps) {
             <Sidebar />
 
             <div className={cn(
-                "flex flex-col min-h-screen transition-all duration-300 ease-in-out",
+                "flex flex-col min-h-screen transition-all duration-500 ease-in-out",
                 isSidebarCollapsed ? "pl-20" : "pl-72"
             )}>
                 <TopBar />
