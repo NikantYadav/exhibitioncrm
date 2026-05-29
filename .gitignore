@@ -32,7 +32,6 @@ exono/.env
 
 # Slayer runtime data (datasource configs contain credentials)
 slayer/slayer_data/
-
 # Slayer build artifacts
 slayer/.venv/
 slayer/__pycache__/

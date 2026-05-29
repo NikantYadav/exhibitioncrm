@@ -1,0 +1,162 @@
+# CLI
+
+SLayer provides a command-line interface for server management, querying, and model operations.
+
+## Storage
+
+All commands accept a `--storage` flag to specify where models and datasources are stored. When omitted, SLayer uses a platform-appropriate default (`~/.local/share/slayer` on Linux, `~/Library/Application Support/slayer` on macOS, `%LOCALAPPDATA%\slayer` on Windows). See [Storage](../configuration/storage.md) for full details on backends, resolution, and overrides.
+
+## Commands
+
+### `slayer serve`
+
+Start the HTTP server (REST API + MCP SSE endpoint at `/mcp/sse`).
+
+```bash
+slayer serve
+slayer serve --host 0.0.0.0 --port 8080
+slayer serve --storage slayer.db
+slayer serve --demo                  # auto-ingest the bundled Jaffle Shop demo first
+slayer serve --ingest-on-startup     # run idempotent ingest over every configured datasource first
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--host` | `0.0.0.0` | Bind address |
+| `--port` | `5143` | Port number |
+| `--storage` | [platform default](../configuration/storage.md) | Storage path (directory for YAML, `.db` file for SQLite) |
+| `--demo` | off | Generate and ingest the bundled Jaffle Shop demo before starting (idempotent). |
+| `--ingest-on-startup` | off | Walk every configured datasource and run idempotent auto-ingestion before the port opens. Per-datasource errors are logged to stderr and never abort startup. Also enabled by `SLAYER_INGEST_ON_STARTUP=1`. |
+
+### `slayer mcp`
+
+Run SLayer as an MCP server using stdio transport. This command is **not meant to be run manually** — it is spawned by an AI agent (Claude Code, Cursor, etc.) as a subprocess. To set it up, register the command with your agent:
+
+```bash
+# Register with Claude Code (the agent will spawn the process)
+claude mcp add slayer -- slayer mcp --ingest-on-startup --storage ./slayer_data
+
+# If slayer is in a virtualenv, use the full executable path:
+#   claude mcp add slayer -- $(poetry env info -p)/bin/slayer mcp --ingest-on-startup --storage /abs/path/to/slayer_data
+```
+
+For MCP over HTTP (SSE), use `slayer serve` instead — it exposes MCP at `/mcp/sse` alongside the REST API.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--storage` | [platform default](../configuration/storage.md) | Storage path (directory for YAML, `.db` file for SQLite) |
+| `--demo` | off | Generate and ingest the bundled Jaffle Shop demo before starting (idempotent). |
+| `--ingest-on-startup` | off | Walk every configured datasource and run idempotent auto-ingestion before stdio JSON-RPC starts. Per-datasource errors are logged to stderr and never abort startup. Also enabled by `SLAYER_INGEST_ON_STARTUP=1`. |
+
+### `slayer query`
+
+Execute a query from the terminal.
+
+```bash
+# Inline JSON
+slayer query '{"source_model": "orders", "measures": ["*:count"], "dimensions": ["status"]}'
+
+# From a file
+slayer query @query.json
+
+# JSON output
+slayer query '{"source_model": "orders", "measures": ["*:count"]}' --format json
+
+# Preview SQL without executing
+slayer query '{"source_model": "orders", "measures": ["*:count"]}' --dry-run
+
+# Show execution plan
+slayer query @query.json --explain
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--storage` | [platform default](../configuration/storage.md) | Storage path (directory for YAML, `.db` file for SQLite) |
+| `--format` | `table` | Output format: `table` or `json` |
+| `--dry-run` | | Generate SQL without executing |
+| `--explain` | | Run EXPLAIN ANALYZE on the query |
+
+### `slayer ingest`
+
+Auto-generate models from a datasource.
+
+```bash
+slayer ingest --datasource my_postgres
+slayer ingest --datasource my_postgres --schema public
+slayer ingest --datasource my_postgres --include orders,customers
+slayer ingest --datasource my_postgres --exclude migrations,django_session
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--datasource` | Yes | Datasource name |
+| `--schema` | No | Database schema to inspect |
+| `--include` | No | Comma-separated tables to include |
+| `--exclude` | No | Comma-separated tables to exclude |
+| `--storage` | No | Storage path |
+
+### `slayer import-dbt`
+
+Import dbt Semantic Layer definitions into SLayer.
+
+```bash
+slayer import-dbt ./my_dbt_project --datasource my_postgres
+slayer import-dbt ./my_dbt_project --datasource my_postgres --include-hidden-models
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `dbt_project_path` | Yes | Path to the dbt project root (or a models directory) |
+| `--datasource` | Yes | SLayer datasource name for the imported models |
+| `--include-hidden-models` | No | Also import regular dbt models (those not wrapped by a `semantic_model`) as hidden SLayer models via SQL introspection. Requires the `dbt` extra (`pip install 'motley-slayer[dbt]'`). See [dbt Import](../dbt/dbt_import.md#regular-dbt-models-hidden-import). |
+| `--storage` | No | Storage path |
+
+### `slayer models`
+
+Manage models.
+
+```bash
+slayer models list
+slayer models show orders
+slayer models create model.yaml
+slayer models delete orders
+```
+
+### `slayer datasources`
+
+Manage datasources.
+
+```bash
+slayer datasources list
+slayer datasources show my_postgres   # credentials masked
+slayer datasources test my_postgres
+slayer datasources delete my_postgres
+```
+
+#### `slayer datasources create`
+
+Create a datasource from a connection URL. The name is derived from the database portion of the URL (or the filename stem for SQLite/DuckDB) unless `--name` is passed. Pass `--ingest` to create and ingest in a single step.
+
+```bash
+slayer datasources create postgresql://user:${DB_PW}@localhost/analytics
+slayer datasources create postgresql://localhost/analytics --ingest
+slayer datasources create sqlite:///path/to/app.db --name analytics --ingest
+slayer datasources create demo --ingest        # bundled Jaffle Shop demo
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `connection_string` | Yes | Database URL (e.g. `postgresql://…`, `mysql+pymysql://…`, `sqlite:///path/to/file.db`, `duckdb:///…`, `clickhouse+http://…`). `${ENV_VAR}` references are resolved at use time. Pass the literal `demo` to spin up the bundled Jaffle Shop demo DuckDB. |
+| `--name` | No | Override the auto-derived name (default for the demo: `jaffle_shop`) |
+| `--description` | No | Human-readable description |
+| `--ingest` | No | Run auto-ingestion immediately after creating the datasource |
+| `--schema` | No | (with `--ingest`) Schema to ingest from |
+| `--include` | No | (with `--ingest`) Comma-separated tables to include |
+| `--exclude` | No | (with `--ingest`) Comma-separated tables to exclude |
+| `--years` | No | (demo only) Years of synthetic data to generate (default: 2) |
+| `-y`, `--yes` | No | Overwrite existing datasource / colliding models without prompting |
+| `--storage` | No | Storage path |
+
+The demo path generates a DuckDB at `<storage>/demo/jaffle_shop.duckdb` and is idempotent — re-running reuses the existing file. `duckdb` and `jafgen` are core dependencies of `motley-slayer`, so the demo works after a single `pip install motley-slayer` with no extras needed.
+
+If a datasource with the same name already exists, or (with `--ingest`) any generated model name collides with a stored model, SLayer prompts for confirmation. Use `--yes` for non-interactive use.

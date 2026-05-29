@@ -1,0 +1,150 @@
+# REST API
+
+SLayer provides a FastAPI-based REST API on port **5143** by default.
+
+## Start the Server
+
+```bash
+slayer serve
+slayer serve --host 0.0.0.0 --port 8080
+
+# Run idempotent auto-ingestion across every configured datasource before
+# the port opens. Same as setting SLAYER_INGEST_ON_STARTUP=1.
+slayer serve --ingest-on-startup
+```
+
+Storage defaults to the [platform-appropriate path](../configuration/storage.md). Override with `--storage ./slayer_data` or `$SLAYER_STORAGE`.
+
+## Endpoints
+
+### Health Check
+
+```
+GET /health
+```
+
+```bash
+curl http://localhost:5143/health
+# {"status": "ok"}
+```
+
+### Query
+
+```
+POST /query
+```
+
+The body accepts two shapes:
+
+**Normal query** — provide `source_model` and the usual query fields. Optional `variables` are runtime overrides (always win over query / model defaults).
+
+```bash
+curl -X POST http://localhost:5143/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_model": "orders",
+    "measures": ["*:count"],
+    "dimensions": ["status"],
+    "filters": ["region = '\''{r}'\''"],
+    "variables": {"r": "US"},
+    "limit": 10
+  }'
+```
+
+**Run-by-name** — for query-backed models, provide `name` and (optionally) `variables`, `dry_run`, and `explain`. Query-defining fields (`source_model`, `measures`, `dimensions`, `filters`, `time_dimensions`, `order`, `limit`, `offset`) are not allowed in this body shape.
+
+```bash
+curl -X POST http://localhost:5143/query \
+  -H "Content-Type: application/json" \
+  -d '{"name": "monthly_revenue", "variables": {"region": "US"}}'
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {"orders.status": "completed", "orders._count": 42},
+    {"orders.status": "pending", "orders._count": 15}
+  ],
+  "row_count": 2,
+  "columns": ["orders.status", "orders._count"]
+}
+```
+
+### Models
+
+```
+GET    /models              # List all models
+GET    /models/{name}       # Get model definition
+POST   /models              # Create a model
+PUT    /models/{name}       # Update a model
+DELETE /models/{name}       # Delete a model
+```
+
+```bash
+# List models
+curl http://localhost:5143/models
+
+# Get model definition (hidden dimensions/measures excluded)
+curl http://localhost:5143/models/orders
+
+# Create a model
+curl -X POST http://localhost:5143/models \
+  -H "Content-Type: application/json" \
+  -d '{"name": "orders", "sql_table": "public.orders", "data_source": "mydb", ...}'
+
+# Create a query-backed model
+curl -X POST http://localhost:5143/models \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "monthly_revenue",
+    "data_source": "mydb",
+    "source_queries": [{
+      "source_model": "orders",
+      "measures": [{"formula": "amount:sum"}],
+      "time_dimensions": [{"dimension": "ordered_at", "granularity": "month"}]
+    }],
+    "query_variables": {"region": "US"}
+  }'
+```
+
+For query-backed models, do **not** supply `columns` or `backing_query_sql` — they're auto-generated and rejected at save with a 400 error. `GET /models/{name}` returns the saved `source_queries`, `query_variables`, and the cached `columns` / `backing_query_sql`.
+
+### Datasources
+
+```
+GET    /datasources              # List all datasources
+GET    /datasources/{name}       # Get datasource (credentials masked)
+POST   /datasources              # Create a datasource
+DELETE /datasources/{name}       # Delete a datasource
+```
+
+```bash
+# List datasources
+curl http://localhost:5143/datasources
+
+# Get datasource (password/connection_string shown as ***)
+curl http://localhost:5143/datasources/my_postgres
+```
+
+### Ingestion
+
+```
+POST /ingest
+```
+
+```bash
+curl -X POST http://localhost:5143/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"datasource": "my_postgres", "schema_name": "public"}'
+```
+
+Response:
+
+```json
+{
+  "status": "ingested",
+  "models": ["orders", "customers", "products"]
+}
+```
