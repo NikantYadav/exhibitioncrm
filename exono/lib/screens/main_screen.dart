@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -6,12 +8,19 @@ import 'events_screen.dart';
 import 'contacts_screen.dart';
 import 'capture_screen.dart';
 import 'dashboard_screen.dart';
+import 'follow_ups_screen.dart';
+import 'profile_screen.dart';
+import 'meetings_screen.dart';
+import 'integrations_screen.dart';
+import 'account_settings_screen.dart';
+import 'log_interaction_screen.dart';
 
 /// Main screen with sidebar navigation matching CRM's information architecture
 class MainScreen extends StatefulWidget {
   final Widget? topBarAction;
-  
-  const MainScreen({super.key, this.topBarAction});
+  final int initialIndex;
+
+  const MainScreen({super.key, this.topBarAction, this.initialIndex = 0});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -21,12 +30,14 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   bool _isSidebarCollapsed = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex.clamp(0, 7);
+  }
+
   final List<_NavItem> _navItems = [
-    _NavItem(
-      icon: Icons.dashboard_rounded,
-      label: 'Dashboard',
-      route: '/',
-    ),
+    _NavItem(icon: Icons.dashboard_rounded, label: 'Dashboard', route: '/'),
     _NavItem(
       icon: Icons.calendar_today_rounded,
       label: 'Events',
@@ -37,15 +48,16 @@ class _MainScreenState extends State<MainScreen> {
       label: 'Capture',
       route: '/capture',
     ),
-    _NavItem(
-      icon: Icons.people_rounded,
-      label: 'Contacts',
-      route: '/contacts',
-    ),
+    _NavItem(icon: Icons.people_rounded, label: 'Contacts', route: '/contacts'),
     _NavItem(
       icon: Icons.mail_rounded,
       label: 'Follow-Ups',
       route: '/follow-ups',
+    ),
+    _NavItem(
+      icon: Icons.person_outline_rounded,
+      label: 'Profile',
+      route: '/profile',
     ),
     _NavItem(
       icon: Icons.event_note_rounded,
@@ -62,33 +74,135 @@ class _MainScreenState extends State<MainScreen> {
   Widget _getScreen(int index) {
     switch (index) {
       case 0:
-        return const DashboardScreen();
+        return DashboardScreen(
+          onNavigateTab: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        );
       case 1:
-        return const EventsScreen();
+        return EventsScreen(
+          onNavigateTab: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        );
       case 2:
-        return const CaptureScreen();
+        return CaptureScreen(
+          onNavigateTab: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        );
       case 3:
-        return const ContactsScreen();
+        return ContactsScreen(
+          onNavigateTab: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        );
       case 4:
-        return const PlaceholderScreen(title: 'Follow-Ups');
+        return FollowUpsScreen(
+          onNavigateTab: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        );
       case 5:
-        return const PlaceholderScreen(title: 'Meetings');
+        return ProfileScreen(
+          onNavigateTab: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        );
       case 6:
-        return const PlaceholderScreen(title: 'Integrations');
+        return MeetingsScreen(
+          onNavigateTab: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        );
+      case 7:
+        return IntegrationsScreen(
+          onNavigateTab: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        );
       default:
-        return const DashboardScreen();
+        return DashboardScreen(
+          onNavigateTab: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: isMobile ? _buildMobileLayout() : _buildDesktopLayout(),
-      bottomNavigationBar: isMobile ? _buildBottomBar() : null,
-      floatingActionButton: _selectedIndex != 0 ? _buildFAB() : null, // Hide FAB on chat page
+    final useStitchMobileChrome =
+        isMobile &&
+        (_selectedIndex == 0 ||
+            _selectedIndex == 1 ||
+            _selectedIndex == 2 ||
+            _selectedIndex == 3 ||
+            _selectedIndex == 4 ||
+            _selectedIndex == 5);
+    final usesInternalMobileChrome =
+        isMobile &&
+        (_selectedIndex == 0 ||
+            _selectedIndex == 2 ||
+            _selectedIndex == 3 ||
+            _selectedIndex == 4);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: useStitchMobileChrome
+          ? const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.light,
+              systemNavigationBarColor: Color(0xFF141313),
+              systemNavigationBarIconBrightness: Brightness.light,
+            )
+          : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: useStitchMobileChrome
+            ? (_selectedIndex == 0
+                  ? const Color(0xFF000000)
+                  : _selectedIndex == 2
+                  ? const Color(0xFF0E0E0E)
+                  : _selectedIndex == 4
+                  ? const Color(0xFF080808)
+                  : const Color(0xFF141313))
+            : AppTheme.background,
+        body: isMobile ? _buildMobileLayout() : _buildDesktopLayout(),
+        bottomNavigationBar: usesInternalMobileChrome
+            ? null
+            : isMobile
+            ? (useStitchMobileChrome
+                  ? _buildStitchBottomBar()
+                  : _buildBottomBar())
+            : null,
+        floatingActionButton:
+            (_selectedIndex == 0 ||
+                _selectedIndex == 1 ||
+                _selectedIndex == 2 ||
+                _selectedIndex == 3 ||
+                _selectedIndex == 4 ||
+                _selectedIndex == 5)
+            ? null
+            : _buildFAB(),
+      ),
     );
   }
 
@@ -125,7 +239,7 @@ class _MainScreenState extends State<MainScreen> {
                     ? _buildCollapsedBrand()
                     : _buildExpandedBrand(),
               ),
-              
+
               // Divider
               Container(
                 width: _isSidebarCollapsed ? 40 : double.infinity,
@@ -135,9 +249,9 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 color: AppTheme.stone100.withValues(alpha: 0.5),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Collapse Toggle
               Padding(
                 padding: EdgeInsets.symmetric(
@@ -185,9 +299,9 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Navigation Items
               Expanded(
                 child: ListView.builder(
@@ -200,7 +314,7 @@ class _MainScreenState extends State<MainScreen> {
                   },
                 ),
               ),
-              
+
               // Settings at bottom
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -219,18 +333,16 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
-        
+
         // Main Content Area
         Expanded(
           child: Column(
             children: [
               // Top Bar
               _buildTopBar(),
-              
+
               // Page Content
-              Expanded(
-                child: _getScreen(_selectedIndex),
-              ),
+              Expanded(child: _getScreen(_selectedIndex)),
             ],
           ),
         ),
@@ -239,15 +351,25 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildMobileLayout() {
+    if (_selectedIndex == 0 ||
+        _selectedIndex == 2 ||
+        _selectedIndex == 3 ||
+        _selectedIndex == 4) {
+      return _getScreen(_selectedIndex);
+    }
+
+    final useStitchMobileChrome =
+        _selectedIndex == 0 ||
+        _selectedIndex == 1 ||
+        _selectedIndex == 3 ||
+        _selectedIndex == 4;
+
     return Column(
       children: [
-        // Mobile Top Bar
-        _buildMobileTopBar(),
-        
-        // Page Content
-        Expanded(
-          child: _getScreen(_selectedIndex),
-        ),
+        useStitchMobileChrome
+            ? _buildStitchMobileTopBar()
+            : _buildMobileTopBar(),
+        Expanded(child: _getScreen(_selectedIndex)),
       ],
     );
   }
@@ -255,7 +377,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildBottomBar() {
     // Show only first 5 items in bottom bar
     final bottomNavItems = _navItems.take(5).toList();
-    
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -281,7 +403,7 @@ class _MainScreenState extends State<MainScreen> {
             children: List.generate(bottomNavItems.length, (index) {
               final item = bottomNavItems[index];
               final isActive = _selectedIndex == index;
-              
+
               return InkWell(
                 onTap: () {
                   setState(() {
@@ -566,25 +688,23 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildSettingsItem() {
     return InkWell(
       onTap: () {
-        // TODO: Navigate to settings
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const AccountSettingsScreen(),
+          ),
+        );
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
         child: Row(
           mainAxisAlignment: _isSidebarCollapsed
               ? MainAxisAlignment.center
               : MainAxisAlignment.start,
           children: [
-            Icon(
-              Icons.settings_rounded,
-              size: 20,
-              color: AppTheme.stone400,
-            ),
+            Icon(Icons.settings_rounded, size: 20, color: AppTheme.stone400),
             if (!_isSidebarCollapsed) ...[
               const SizedBox(width: 12),
               Text(
@@ -605,14 +725,14 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildTopBar() {
     final currentPage = _navItems[_selectedIndex].label;
     final isMobile = MediaQuery.of(context).size.width < 768;
-    
+
     // Debug: Check if topBarAction is provided
     if (widget.topBarAction != null) {
       debugPrint('TopBarAction is provided');
     } else {
       debugPrint('TopBarAction is NULL');
     }
-    
+
     return Container(
       height: 64,
       decoration: BoxDecoration(
@@ -658,9 +778,9 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             ),
-            
+
             const Spacer(),
-            
+
             // Actions
             Row(
               children: [
@@ -743,9 +863,292 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _buildStitchMobileTopBar() {
+    if (_selectedIndex == 2) {
+      return Container(
+        height: 56,
+        decoration: const BoxDecoration(color: Color(0xFF0E0E0E)),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                const Expanded(child: SizedBox()),
+                Text(
+                  'EXONO',
+                  style: GoogleFonts.inter(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1.2,
+                    color: Colors.white,
+                    height: 1,
+                  ),
+                ),
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Flash toggle is UI-only for now.'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.flashlight_on,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        splashRadius: 20,
+                      ),
+                      IconButton(
+                        onPressed: () => setState(() => _selectedIndex = 0),
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        splashRadius: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: 64,
+      decoration: const BoxDecoration(
+        color: Color(0xFF141313),
+        border: Border(bottom: BorderSide(color: Color(0xFF444748), width: 1)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              const Icon(Icons.menu, color: Colors.white, size: 22),
+              const SizedBox(width: 14),
+              Text(
+                'EXONO',
+                style: GoogleFonts.inter(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.2,
+                  color: Colors.white,
+                  height: 1,
+                ),
+              ),
+              const Spacer(),
+              const Icon(
+                Icons.notifications_none_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStitchBottomBar() {
+    if (_selectedIndex == 2) {
+      return Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF141313),
+          border: Border(top: BorderSide(color: Color(0xFF444748), width: 1)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 80,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildStitchNavItem(
+                    icon: Icons.track_changes_outlined,
+                    label: 'Targets',
+                    isActive: false,
+                    showLabel: true,
+                    onTap: () => setState(() => _selectedIndex = 0),
+                  ),
+                ),
+                Expanded(
+                  child: _buildStitchNavItem(
+                    icon: Icons.group_outlined,
+                    label: 'Contacts',
+                    isActive: false,
+                    showLabel: true,
+                    onTap: () => setState(() => _selectedIndex = 3),
+                  ),
+                ),
+                Expanded(
+                  child: _buildStitchNavItem(
+                    icon: Icons.event_outlined,
+                    label: 'Events',
+                    isActive: false,
+                    showLabel: true,
+                    onTap: () => setState(() => _selectedIndex = 1),
+                  ),
+                ),
+                Expanded(
+                  child: _buildStitchNavItem(
+                    icon: Icons.person_outline_rounded,
+                    label: 'Profile',
+                    isActive: _selectedIndex == 5,
+                    showLabel: true,
+                    onTap: () => setState(() => _selectedIndex = 5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final showLabels = _selectedIndex == 0 || _selectedIndex == 1;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF141313),
+        border: Border(top: BorderSide(color: Color(0xFF444748), width: 1)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: showLabels ? 66 : 84,
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStitchNavItem(
+                  icon: Icons.track_changes_outlined,
+                  label: 'Targets',
+                  isActive: _selectedIndex == 0,
+                  showLabel: showLabels,
+                  onTap: () => setState(() => _selectedIndex = 0),
+                ),
+              ),
+              Expanded(
+                child: _buildStitchNavItem(
+                  icon: _selectedIndex == 3
+                      ? Icons.contact_page_outlined
+                      : Icons.group_outlined,
+                  label: 'Contacts',
+                  isActive: _selectedIndex == 3,
+                  showLabel: showLabels,
+                  onTap: () => setState(() => _selectedIndex = 3),
+                ),
+              ),
+              SizedBox(
+                width: 78,
+                child: Center(
+                  child: Transform.translate(
+                    offset: Offset(0, showLabels ? -14 : -18),
+                    child: InkWell(
+                      onTap: () => setState(() => _selectedIndex = 2),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: showLabels
+                              ? Colors.white
+                              : const Color(0xFF080808),
+                          borderRadius: BorderRadius.circular(12),
+                          border: showLabels
+                              ? null
+                              : Border.all(color: const Color(0xFF262626)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x80000000),
+                              blurRadius: 20,
+                              offset: Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: showLabels
+                              ? const Color(0xFF141313)
+                              : Colors.white,
+                          size: 26,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _buildStitchNavItem(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Events',
+                  isActive: _selectedIndex == 1,
+                  showLabel: showLabels,
+                  onTap: () => setState(() => _selectedIndex = 1),
+                ),
+              ),
+              Expanded(
+                child: _buildStitchNavItem(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Profile',
+                  isActive: _selectedIndex == 5,
+                  showLabel: showLabels,
+                  onTap: () => setState(() => _selectedIndex = 5),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStitchNavItem({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required bool showLabel,
+    required VoidCallback onTap,
+  }) {
+    const activeColor = Colors.white;
+    const inactiveColor = Color(0xFFC4C7C8);
+
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 20, color: isActive ? activeColor : inactiveColor),
+          if (showLabel) ...[
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                color: isActive ? activeColor : inactiveColor,
+                height: 1,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildMobileTopBar() {
     final currentPage = _navItems[_selectedIndex].label;
-    
+
     return Container(
       height: 64,
       decoration: BoxDecoration(
@@ -871,10 +1274,7 @@ class _MainScreenState extends State<MainScreen> {
                 decoration: BoxDecoration(
                   color: AppTheme.stone900,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: AppTheme.stone100,
-                    width: 1,
-                  ),
+                  border: Border.all(color: AppTheme.stone100, width: 1),
                 ),
                 child: const Center(
                   child: Text(
@@ -896,19 +1296,9 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildFAB() {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    
+
     return FloatingActionButton.extended(
-      onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Quick note coming soon!'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-      },
+      onPressed: () => showLogInteractionSheet(context),
       backgroundColor: AppTheme.stone900,
       icon: const Icon(Icons.add_rounded, size: 24),
       label: Text(
@@ -929,17 +1319,13 @@ class _NavItem {
   final String label;
   final String route;
 
-  _NavItem({
-    required this.icon,
-    required this.label,
-    required this.route,
-  });
+  _NavItem({required this.icon, required this.label, required this.route});
 }
 
 // Placeholder for Dashboard
 class PlaceholderScreen extends StatelessWidget {
   final String title;
-  
+
   const PlaceholderScreen({super.key, required this.title});
 
   @override
@@ -948,11 +1334,7 @@ class PlaceholderScreen extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.construction_rounded,
-            size: 64,
-            color: AppTheme.stone300,
-          ),
+          Icon(Icons.construction_rounded, size: 64, color: AppTheme.stone300),
           const SizedBox(height: 24),
           Text(
             '$title Coming Soon',

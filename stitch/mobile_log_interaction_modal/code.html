@@ -1,0 +1,204 @@
+<!DOCTYPE html><html class="dark" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-fixed": "#e4e2e1",
+                    "on-error-container": "#ffdad6",
+                    "inverse-on-surface": "#313030",
+                    "tertiary-container": "#e4e2e1",
+                    "primary-fixed-dim": "#c6c6c7",
+                    "outline-variant": "#444748",
+                    "on-surface-variant": "#c4c7c8",
+                    "primary": "#ffffff",
+                    "on-primary": "#2f3131",
+                    "on-tertiary-fixed": "#1b1c1c",
+                    "on-tertiary-container": "#656464",
+                    "primary-fixed": "#e2e2e2",
+                    "surface-container-high": "#2a2a2a",
+                    "surface-container-low": "#1c1b1b",
+                    "surface-container": "#201f1f",
+                    "surface-container-lowest": "#0e0e0e",
+                    "on-secondary-fixed": "#1a1b22",
+                    "tertiary": "#ffffff",
+                    "surface-tint": "#c6c6c7",
+                    "error-container": "#93000a",
+                    "tertiary-fixed-dim": "#c8c6c5",
+                    "surface": "#141313",
+                    "secondary": "#c6c6cf",
+                    "on-primary-fixed-variant": "#454747",
+                    "surface-container-highest": "#353434",
+                    "on-primary-fixed": "#1a1c1c",
+                    "surface-dim": "#141313",
+                    "secondary-fixed": "#e2e1eb",
+                    "on-secondary-container": "#b4b4bd",
+                    "inverse-surface": "#e5e2e1",
+                    "on-secondary": "#2f3037",
+                    "primary-container": "#e2e2e2",
+                    "on-tertiary": "#303030",
+                    "error": "#ffb4ab",
+                    "on-secondary-fixed-variant": "#45464e",
+                    "on-primary-container": "#636565",
+                    "background": "#141313",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "outline": "#8e9192",
+                    "inverse-primary": "#5d5f5f",
+                    "on-error": "#690005",
+                    "secondary-fixed-dim": "#c6c6cf",
+                    "on-surface": "#e5e2e1",
+                    "on-background": "#e5e2e1",
+                    "surface-bright": "#3a3939",
+                    "surface-variant": "#353434",
+                    "secondary-container": "#45464e"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-desktop": "32px",
+                    "container-max-width": "1280px",
+                    "unit": "4px",
+                    "margin-mobile": "16px",
+                    "gutter": "16px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "display-wordmark": ["Inter"],
+                    "label-xs": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0", "fontWeight": "400"}],
+                    "display-wordmark": ["24px", {"lineHeight": "24px", "letterSpacing": "-0.05em", "fontWeight": "800"}],
+                    "label-xs": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #080808;
+            color: #e5e2e1;
+            font-family: 'Inter', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex items-center justify-center p-0 md:p-8">
+<!-- Backdrop Simulation for context -->
+<div class="fixed inset-0 bg-black/60 z-0"></div>
+<!-- Main Container (Mimicking a Mobile Device Frame for the Modal) -->
+<div class="relative w-full max-w-md h-[795px] overflow-hidden rounded-t-xl bg-[#080808] flex flex-col z-10 shadow-2xl border border-outline-variant/30">
+<!-- Handle Bar Area -->
+<div class="w-full flex justify-center py-4">
+<div class="w-8 h-1 bg-outline-variant rounded-full opacity-50"></div>
+</div>
+<!-- Header -->
+<header class="px-margin-mobile pb-6 pt-4">
+<h1 class="font-headline-md text-headline-md text-primary">Log Interaction</h1>
+</header>
+<!-- Form Content -->
+<div class="flex-1 overflow-y-auto px-margin-mobile hide-scrollbar">
+<!-- Horizontal Pill Row (Scrollable) -->
+<div class="mb-8">
+<div class="flex gap-2 overflow-x-auto hide-scrollbar pb-2"><button class="flex-shrink-0 px-4 h-10 flex items-center justify-center bg-primary text-on-primary rounded-full font-label-sm text-label-sm transition-transform active:scale-95">Meeting</button><button class="flex-shrink-0 px-4 h-10 flex items-center justify-center border border-outline-variant text-on-surface-variant rounded-full font-label-sm text-label-sm hover:border-primary hover:text-primary transition-all active:scale-95">Call</button><button class="flex-shrink-0 px-4 h-10 flex items-center justify-center border border-outline-variant text-on-surface-variant rounded-full font-label-sm text-label-sm hover:border-primary hover:text-primary transition-all active:scale-95">WhatsApp</button><button class="flex-shrink-0 px-4 h-10 flex items-center justify-center border border-outline-variant text-on-surface-variant rounded-full font-label-sm text-label-sm hover:border-primary hover:text-primary transition-all active:scale-95">Lunch</button><button class="flex-shrink-0 px-4 h-10 flex items-center justify-center border border-outline-variant text-on-surface-variant rounded-full font-label-sm text-label-sm hover:border-primary hover:text-primary transition-all active:scale-95">Video Call</button><button class="flex-shrink-0 px-4 h-10 flex items-center justify-center border border-outline-variant text-on-surface-variant rounded-full font-label-sm text-label-sm hover:border-primary hover:text-primary transition-all active:scale-95">Site Visit</button><button class="flex-shrink-0 px-4 h-10 flex items-center justify-center border border-outline-variant text-on-surface-variant rounded-full font-label-sm text-label-sm hover:border-primary hover:text-primary transition-all active:scale-95">Other</button></div>
+</div>
+<!-- Date Field -->
+<div class="mb-6">
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-2 uppercase">Date</label>
+<div class="relative group">
+<input class="w-full bg-surface-container-low border border-outline-variant text-on-surface p-3.5 rounded-xl focus:border-primary focus:ring-0 transition-colors font-body-md text-body-md appearance-none" type="date" value="2023-10-27">
+<div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+</div>
+</div>
+</div>
+<!-- Textarea -->
+<div class="mb-4">
+<div class="flex items-center justify-between mb-2"><label class="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">What happened?</label><div class="flex gap-1"><button type="button" class="flex items-center justify-center w-8 h-8 rounded-full text-on-surface-variant hover:text-primary hover:bg-surface-bright transition-colors"><span class="material-symbols-outlined text-[20px]">mic</span></button><button type="button" class="flex items-center justify-center w-8 h-8 rounded-full text-on-surface-variant hover:text-primary hover:bg-surface-bright transition-colors"><span class="material-symbols-outlined text-[20px]">attach_file</span></button></div></div>
+<textarea class="w-full bg-surface-container-low border border-outline-variant text-on-surface p-4 rounded-xl focus:border-primary focus:ring-0 transition-colors font-body-md text-body-md resize-none" placeholder="Type summary or key discussion points..." rows="6"></textarea>
+</div>
+<!-- AI Label -->
+<div class="flex items-center gap-2 px-1">
+<span class="material-symbols-outlined text-primary text-[18px]" data-icon="auto_awesome">auto_awesome</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">AI will summarize these notes for the executive dashboard.</span>
+</div>
+</div>
+<!-- Footer / Action Area -->
+<div class="p-margin-mobile pb-10">
+<!-- Full-width Black Button (Defined as Primary in Brand System) -->
+<button class="w-full h-14 bg-primary text-on-primary font-body-lg text-body-lg font-bold rounded-xl flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-white/5">
+<span class="">Save to Timeline</span>
+<span class="material-symbols-outlined text-[20px]" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Background Decoration (Visual Context for B2B) -->
+<div class="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none opacity-20">
+<div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 blur-[120px] rounded-full"></div>
+<div class="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-primary/5 blur-[150px] rounded-full"></div>
+</div>
+<script>
+        // Micro-interaction for pill selection
+        const pills = document.querySelectorAll('button.border-outline-variant, button.bg-primary');
+        pills.forEach(pill => {
+            pill.addEventListener('click', () => {
+                pills.forEach(p => {
+                    p.classList.remove('bg-primary', 'text-on-primary');
+                    p.classList.add('border', 'border-outline-variant', 'text-on-surface-variant');
+                });
+                pill.classList.remove('border', 'border-outline-variant', 'text-on-surface-variant');
+                pill.classList.add('bg-primary', 'text-on-primary');
+            });
+        });
+
+        // Simple haptic-like animation for the save button
+        const saveBtn = document.querySelector('button.bg-primary.text-on-primary.h-14');
+        saveBtn.addEventListener('click', () => {
+            saveBtn.innerHTML = '<span class="material-symbols-outlined animate-spin" data-icon="progress_activity">progress_activity</span>';
+            setTimeout(() => {
+                saveBtn.innerHTML = '<span class="material-symbols-outlined" data-icon="check_circle">check_circle</span> <span>Saved</span>';
+                saveBtn.classList.replace('bg-primary', 'bg-green-500');
+            }, 800);
+        });
+    </script>
+
+
+
+
+</body></html>

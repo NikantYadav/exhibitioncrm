@@ -1,0 +1,235 @@
+<!DOCTYPE html><html class="dark" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(14, 14, 14, 0.8);
+            backdrop-filter: blur(12px);
+        }
+        body {
+            background-color: #080808;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-surface-variant": "#c4c7c8",
+                      "outline-variant": "#444748",
+                      "secondary": "#c6c6cf",
+                      "on-primary-fixed-variant": "#454747",
+                      "on-error": "#690005",
+                      "surface-bright": "#3a3939",
+                      "secondary-container": "#45464e",
+                      "on-primary-container": "#636565",
+                      "tertiary-fixed": "#e4e2e1",
+                      "on-primary": "#2f3131",
+                      "secondary-fixed": "#e2e1eb",
+                      "surface-container-highest": "#353434",
+                      "surface": "#141313",
+                      "on-secondary-fixed-variant": "#45464e",
+                      "on-primary-fixed": "#1a1c1c",
+                      "error-container": "#93000a",
+                      "secondary-fixed-dim": "#c6c6cf",
+                      "inverse-primary": "#5d5f5f",
+                      "error": "#ffb4ab",
+                      "primary-container": "#e2e2e2",
+                      "surface-tint": "#c6c6c7",
+                      "on-secondary-fixed": "#1a1b22",
+                      "inverse-on-surface": "#313030",
+                      "surface-container-low": "#1c1b1b",
+                      "on-tertiary-container": "#656464",
+                      "on-surface": "#e5e2e1",
+                      "surface-dim": "#141313",
+                      "surface-container-lowest": "#0e0e0e",
+                      "on-tertiary-fixed-variant": "#474746",
+                      "tertiary": "#ffffff",
+                      "surface-container-high": "#2a2a2a",
+                      "on-tertiary": "#303030",
+                      "on-error-container": "#ffdad6",
+                      "primary-fixed-dim": "#c6c6c7",
+                      "primary": "#ffffff",
+                      "inverse-surface": "#e5e2e1",
+                      "outline": "#8e9192",
+                      "on-background": "#e5e2e1",
+                      "surface-variant": "#353434",
+                      "on-secondary-container": "#b4b4bd",
+                      "primary-fixed": "#e2e2e2",
+                      "surface-container": "#201f1f",
+                      "on-secondary": "#2f3037",
+                      "tertiary-fixed-dim": "#c8c6c5",
+                      "background": "#141313",
+                      "on-tertiary-fixed": "#1b1c1c",
+                      "tertiary-container": "#e4e2e1"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "margin-desktop": "32px",
+                      "margin-mobile": "16px",
+                      "unit": "4px",
+                      "gutter": "16px",
+                      "container-max-width": "1280px"
+              },
+              "fontFamily": {
+                      "label-xs": ["Inter"],
+                      "display-wordmark": ["Inter"],
+                      "body-md": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "label-sm": ["Inter"],
+                      "headline-lg-mobile": ["Inter"]
+              },
+              "fontSize": {
+                      "label-xs": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                      "display-wordmark": ["24px", {"lineHeight": "24px", "letterSpacing": "-0.05em", "fontWeight": "800"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0", "fontWeight": "400"}],
+                      "headline-md": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}],
+                      "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                      "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen overflow-hidden">
+<!-- Background Content (Dimmed) -->
+<main class="fixed inset-0 p-margin-desktop opacity-20 pointer-events-none">
+<header class="flex justify-between items-center mb-12">
+<h1 class="font-display-wordmark text-display-wordmark uppercase tracking-tighter">EXONO</h1>
+<span class="material-symbols-outlined">notifications</span>
+</header>
+<div class="grid grid-cols-12 gap-gutter">
+<div class="col-span-8 space-y-8">
+<div class="h-64 bg-surface-container border border-outline-variant rounded"></div>
+<div class="h-96 bg-surface-container border border-outline-variant rounded"></div>
+</div>
+<div class="col-span-4 space-y-8">
+<div class="h-48 bg-surface-container border border-outline-variant rounded"></div>
+<div class="h-48 bg-surface-container border border-outline-variant rounded"></div>
+</div>
+</div>
+</main>
+<!-- Overlay Dimmer -->
+<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"></div>
+<!-- Bottom Sheet Container -->
+<div class="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 md:px-0">
+<section class="w-full max-w-4xl bg-surface-container-lowest border-t border-x border-outline-variant rounded-t-xl overflow-hidden animate-in slide-in-from-bottom duration-500">
+<!-- Handle -->
+<div class="w-full flex justify-center py-3">
+<div class="w-12 h-1 bg-outline-variant rounded-full"></div>
+</div>
+<!-- Header -->
+<div class="px-margin-desktop pb-6 border-b border-outline-variant">
+<div class="flex items-center gap-3 mb-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">warning</span>
+<h2 class="font-headline-md text-headline-md text-primary">Deduplication Alert — Potential Conflict Detected</h2>
+</div>
+<div class="flex items-baseline gap-4">
+<div class="flex items-center gap-2 px-3 py-1 bg-white/5 border border-outline-variant rounded">
+<span class="font-label-xs text-label-xs uppercase text-on-surface-variant">AI Confidence Score</span>
+<span class="font-headline-md text-headline-md text-primary">98% Match</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant italic">
+                        "High probability match based on matching email domain and phonetic name similarity across multiple datasets."
+                    </p>
+</div>
+</div>
+<!-- Comparison Grid -->
+<div class="p-margin-desktop grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<!-- Record A: Existing -->
+<div class="border border-outline-variant p-6 rounded relative overflow-hidden bg-surface-container-low">
+<div class="absolute top-0 right-0 px-3 py-1 bg-outline-variant/30 font-label-xs text-label-xs uppercase">Existing Record</div>
+<div class="space-y-6 mt-4">
+<div>
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-1 block">Name</label>
+<p class="font-headline-md text-headline-md text-primary">Alexander Thorne</p>
+</div>
+<div>
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-1 block">Email</label>
+<p class="font-body-lg text-body-lg text-primary">a.thorne@vanguard-ops.io</p>
+</div>
+<div>
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-1 block">Company</label>
+<p class="font-body-lg text-body-lg text-primary">Vanguard Operations Ltd.</p>
+</div>
+<div>
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-1 block">Last Active</label>
+<p class="font-body-md text-body-md text-on-surface-variant">14 Oct 2023</p>
+</div>
+</div>
+</div>
+<!-- Record B: New Submission -->
+<div class="border p-6 rounded relative overflow-hidden border-outline-variant bg-surface-container-low">
+<div class="absolute top-0 right-0 px-3 py-1 bg-primary text-background font-label-xs text-label-xs uppercase">New Submission</div>
+<div class="space-y-6 mt-4">
+<div>
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-1 block">Name</label>
+<div class="flex items-center gap-2">
+<p class="font-headline-md text-headline-md text-primary">Alex Thorne</p>
+<span class="material-symbols-outlined text-outline text-base" title="Partial Match">info</span>
+</div>
+</div>
+<div>
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-1 block">Email</label>
+<p class="font-body-lg text-body-lg text-primary">alex.thorne@vanguard-ops.io</p>
+</div>
+<div>
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-1 block">Company</label>
+<p class="font-body-lg text-body-lg text-primary">Vanguard Ops</p>
+</div>
+<div>
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-1 block">Last Active</label>
+<p class="font-body-md text-body-md text-primary">Current Submission</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Area -->
+<div class="p-margin-desktop bg-surface-container-low border-t border-outline-variant">
+<div class="flex flex-col md:flex-row gap-gutter">
+<button class="flex-1 h-14 bg-primary text-background font-label-sm text-label-sm uppercase tracking-widest hover:opacity-90 transition-opacity active:scale-[0.98] rounded-lg font-medium">
+                        Merge and Update
+                    </button>
+<button class="flex-1 h-14 border border-outline-variant text-on-surface-variant font-label-sm text-label-sm uppercase tracking-widest hover:border-primary hover:text-primary transition-all active:scale-[0.98] rounded-lg font-medium">
+                        Link as Same Person
+                    </button>
+<button class="flex-1 h-14 border border-outline-variant text-on-surface-variant font-label-sm text-label-sm uppercase tracking-widest hover:border-primary hover:text-primary transition-all active:scale-[0.98] rounded-lg font-medium">
+                        Create as New
+                    </button>
+</div>
+<div class="mt-6 flex justify-center">
+<button class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2 rounded-lg font-medium"><span class="material-symbols-outlined text-base">close</span><span class="uppercase tracking-widest font-label-xs">Dismiss without action</span></button>
+</div>
+</div>
+</section>
+</div>
+<!-- Background Grid Effect (Subtle) -->
+<div class="fixed inset-0 pointer-events-none opacity-5 z-0" style="background-image: radial-gradient(#ffffff 1px, transparent 1px); background-size: 32px 32px;"></div>
+
+
+</body></html>

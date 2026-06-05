@@ -13,6 +13,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/mode_selection_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/main_screen.dart';
+import 'screens/home_default_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,6 +60,7 @@ class ExonoApp extends StatelessWidget {
           '/mode-selection': (context) => const ModeSelectionScreen(),
           '/chat': (context) => const ChatScreen(),
           '/main': (context) => const MainScreen(),
+          '/home-default': (context) => const HomeDefaultScreen(),
         },
       ),
     );

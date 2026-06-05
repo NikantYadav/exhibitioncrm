@@ -1,12 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../config/app_theme.dart';
-import '../providers/auth_provider.dart';
-import 'home_screen.dart';
-import 'main_screen.dart';
+import 'dart:ui';
 
-/// Standalone chat screen (not part of main navigation)
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -15,355 +11,585 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  bool _isDashboardView = false;
-  bool _isLoading = true;
+  static const Color _background = Color(0xFF080808);
+  static const Color _bubbleBackground = Color(0xFF0C0C0C);
+  static const Color _surface = Color(0xFF141313);
+  static const Color _surfaceContainerHigh = Color(0xFF2A2A2A);
+  static const Color _outline = Color(0xFF8E9192);
+  static const Color _outlineVariant = Color(0xFF444748);
+  static const Color _primary = Colors.white;
+  static const Color _onBackground = Color(0xFFE5E2E1);
+  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
+
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
+  final List<String> _quickPrompts = const [
+    'Pending follow-ups',
+    'Search contacts',
+    'Prep next event',
+  ];
+
+  late final List<_ChatEntry> _messages = [
+    const _ChatEntry(
+      sender: _ChatSender.ai,
+      text:
+          'Good morning. I\'ve analyzed your upcoming schedule. You have a meeting with the Operations team in 2 hours. Would you like me to prepare the latest performance metrics or search your recent contacts for follow-ups?',
+      time: '09:12 AM',
+    ),
+    const _ChatEntry(
+      sender: _ChatSender.user,
+      text:
+          'Show me the contact details for Marcus Thorne. We met last week at the summit.',
+      time: '09:14 AM',
+    ),
+    const _ChatEntry(
+      sender: _ChatSender.ai,
+      text:
+          'I found Marcus Thorne in your recent interactions. You met him 6 days ago during the Neo-Tech Summit.',
+      time: '09:14 AM',
+      contactCard: _InlineContactCard(
+        initials: 'MT',
+        name: 'Marcus Thorne',
+        title: 'VP of Strategic Operations',
+        metLabel: 'Met 6 days ago',
+      ),
+    ),
+    const _ChatEntry(
+      sender: _ChatSender.user,
+      text:
+          'Great. Set a follow-up task to send him the EXONO system deck by EOD.',
+      time: '09:15 AM',
+    ),
+    const _ChatEntry(
+      sender: _ChatSender.ai,
+      text:
+          'Task created. "Send EXONO Deck to Marcus Thorne" scheduled for today at 5:00 PM. I will notify you 30 minutes prior.',
+      time: '09:15 AM',
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _loadViewPreference();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToBottom());
   }
 
-  Future<void> _loadViewPreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isDashboard = prefs.getBool('chat_dashboard_view') ?? false;
-    setState(() {
-      _isDashboardView = isDashboard;
-      _isLoading = false;
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _jumpToBottom() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+      );
     });
   }
 
-  Future<void> _saveViewPreference(bool isDashboard) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('chat_dashboard_view', isDashboard);
+  void _showUiOnlyMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
-  void _toggleView(bool isDashboard) {
-    setState(() => _isDashboardView = isDashboard);
-    _saveViewPreference(isDashboard);
+  void _handlePromptTap(String prompt) {
+    setState(() {
+      _messageController.text = prompt;
+      _messageController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _messageController.text.length),
+      );
+    });
+  }
+
+  void _sendMessage([String? preset]) {
+    final text = (preset ?? _messageController.text).trim();
+    if (text.isEmpty) return;
+
+    final timestamp = _formatTime(TimeOfDay.now());
+
+    setState(() {
+      _messages.add(
+        _ChatEntry(sender: _ChatSender.user, text: text, time: timestamp),
+      );
+      _messageController.clear();
+      _messages.add(
+        _ChatEntry(
+          sender: _ChatSender.ai,
+          text: _buildAiReply(text),
+          time: timestamp,
+        ),
+      );
+    });
+
+    _scrollToBottom();
+  }
+
+  String _buildAiReply(String userText) {
+    final normalized = userText.toLowerCase();
+
+    if (normalized.contains('follow')) {
+      return 'I surfaced your pending follow-ups and prioritized the ones most likely to convert based on recent interaction signals.';
+    }
+    if (normalized.contains('contact')) {
+      return 'I can search your recent contacts, filter by event context, and pull the highest-signal relationship details into the thread.';
+    }
+    if (normalized.contains('event') || normalized.contains('prep')) {
+      return 'I prepared a concise event brief with likely attendees, open follow-ups, and the strongest talking points for the next meeting block.';
+    }
+
+    return 'Understood. I\'ve captured that request and prepared the next best action path based on your current network context.';
+  }
+
+  String _formatTime(TimeOfDay time) {
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
   }
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 768;
-    
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppTheme.background,
-        body: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.stone900),
-          ),
-        ),
-      );
-    }
-
-    // If dashboard view, show the full CRM interface with toggle in top bar
-    if (_isDashboardView) {
-      return MainScreen(
-        topBarAction: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: AppTheme.stone100,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: AppTheme.stone200,
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+    return Scaffold(
+      backgroundColor: _background,
+      body: ColoredBox(
+        color: _background,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
             children: [
-              _buildToggleButton(
-                icon: Icons.chat_bubble_rounded,
-                label: isMobile ? null : 'Chat',
-                isActive: false,
-                onTap: () => _toggleView(false),
-              ),
-              _buildToggleButton(
-                icon: Icons.dashboard_rounded,
-                label: isMobile ? null : 'CRM',
-                isActive: true,
-                onTap: () => _toggleView(true),
-              ),
+              _buildTopBar(),
+              Expanded(child: _buildChatCanvas()),
+              _buildInputSection(),
             ],
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    // Chat view - use same structure as dashboard but with HomeScreen content
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: Column(
+  Widget _buildTopBar() {
+    return Container(
+      height: 64,
+      decoration: const BoxDecoration(
+        color: _background,
+        border: Border(bottom: BorderSide(color: Color(0xFF262626))),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
         children: [
-          // Top Bar (matching dashboard structure)
-          Container(
-            height: 64,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.8),
-              border: Border(
-                bottom: BorderSide(
-                  color: AppTheme.stone200.withValues(alpha: 0.6),
-                  width: 1,
+          const Expanded(child: SizedBox()),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'EXONO AI',
+                style: GoogleFonts.inter(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.2,
+                  color: _primary,
+                  height: 1,
                 ),
               ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Row(
-                children: [
-                  // Brand Identity
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AppTheme.stone900,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.stone900.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Transform.rotate(
-                            angle: 0.785398,
-                            child: Container(
-                              width: 16,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          Transform.rotate(
-                            angle: -0.785398,
-                            child: Container(
-                              width: 16,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.4),
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            width: 5,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(2.5),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.20),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: _primary,
+                        shape: BoxShape.circle,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'exhibit.ai',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: AppTheme.stone900,
-                          letterSpacing: -0.5,
-                          height: 1,
-                        ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'ONLINE',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _primary,
+                        height: 1.27,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'CHAT MODE',
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          color: AppTheme.stone400,
-                          letterSpacing: 1.2,
-                          height: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const Spacer(),
-                  
-                  // Actions (matching dashboard structure)
-                  Row(
-                    children: [
-                      // Toggle Button
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.stone100,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: AppTheme.stone200,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildToggleButton(
-                              icon: Icons.chat_bubble_rounded,
-                              label: isMobile ? null : 'Chat',
-                              isActive: true,
-                              onTap: () => _toggleView(false),
-                            ),
-                            _buildToggleButton(
-                              icon: Icons.dashboard_rounded,
-                              label: isMobile ? null : 'CRM',
-                              isActive: false,
-                              onTap: () => _toggleView(true),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      // User Profile
-                      Row(
-                        children: [
-                          if (!isMobile) ...[
-                            Consumer<AuthProvider>(
-                              builder: (context, auth, _) => Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    auth.displayName,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppTheme.stone900,
-                                      height: 1,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    auth.designation,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w500,
-                                      color: AppTheme.stone400,
-                                      letterSpacing: 1.5,
-                                      height: 1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                          ],
-                          Consumer<AuthProvider>(
-                            builder: (context, auth, _) => Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: AppTheme.stone900,
-                                borderRadius: BorderRadius.circular(9),
-                                border: Border.all(
-                                  color: AppTheme.stone100,
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 4,
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Text(
-                                  auth.initials,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                onPressed: () => Navigator.of(
+                  context,
+                ).pushReplacementNamed('/mode-selection'),
+                icon: const Icon(Icons.close, color: _primary, size: 22),
+                splashRadius: 20,
               ),
             ),
-          ),
-          
-          // Chat Content
-          const Expanded(
-            child: HomeScreen(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildToggleButton({
-    required IconData icon,
-    String? label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildChatCanvas() {
+    return ListView.separated(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 124),
+      itemCount: _messages.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 20),
+      itemBuilder: (context, index) {
+        final message = _messages[index];
+        final isUser = message.sender == _ChatSender.user;
+
+        return Align(
+          alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.85,
+            ),
+            child: Column(
+              crossAxisAlignment: isUser
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: message.contactCard != null && !isUser
+                      ? double.infinity
+                      : null,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isUser ? Colors.transparent : _bubbleBackground,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isUser ? _primary : const Color(0xFF262626),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        message.text,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: isUser ? _primary : _onBackground,
+                          height: 1.43,
+                        ),
+                      ),
+                      if (message.contactCard != null) ...[
+                        const SizedBox(height: 16),
+                        _buildInlineContactCard(message.contactCard!),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    message.time,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _outline,
+                      height: 1.27,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInlineContactCard(_InlineContactCard card) {
     return InkWell(
-      onTap: onTap,
+      onTap: () => _showUiOnlyMessage('Open contact details for ${card.name}.'),
       borderRadius: BorderRadius.circular(8),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: label != null ? 12 : 8,
-          vertical: 8,
-        ),
+      child: Container(
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isActive ? AppTheme.stone900 : Colors.transparent,
+          color: _surface,
           borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF262626)),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isActive ? Colors.white : AppTheme.stone500,
-            ),
-            if (label != null) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: isActive ? Colors.white : AppTheme.stone500,
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                card.initials,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _primary,
+                  height: 1,
                 ),
               ),
-            ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    card.name,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _primary,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    card.title,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: _onSurfaceVariant,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.history, size: 14, color: _outline),
+                      const SizedBox(width: 4),
+                      Text(
+                        card.metLabel.toUpperCase(),
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.8,
+                          color: _outline,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, size: 20, color: _outline),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildInputSection() {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          decoration: BoxDecoration(
+            color: _background.withValues(alpha: 0.95),
+            border: const Border(top: BorderSide(color: Color(0xFF262626))),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _quickPrompts.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final prompt = _quickPrompts[index];
+                    return OutlinedButton(
+                      onPressed: () => _handlePromptTap(prompt),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _onSurfaceVariant,
+                        side: const BorderSide(color: Color(0xFF262626)),
+                        backgroundColor: _bubbleBackground,
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        textStyle: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      child: Text(prompt),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 14),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    top: -54,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: InkWell(
+                        onTap: () =>
+                            _showUiOnlyMessage('Scanner is UI-only for now.'),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: _bubbleBackground,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.20),
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x66000000),
+                                blurRadius: 24,
+                                offset: Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.qr_code_scanner_rounded,
+                            color: _primary,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _bubbleBackground,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.20),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => _showUiOnlyMessage(
+                            'Voice input is UI-only for now.',
+                          ),
+                          icon: const Icon(
+                            Icons.mic_none_rounded,
+                            color: _outline,
+                          ),
+                          splashRadius: 20,
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            onSubmitted: (_) => _sendMessage(),
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: _primary,
+                            ),
+                            cursorColor: _primary,
+                            decoration: InputDecoration(
+                              border: InputBorder.none,
+                              hintText: 'Ask anything...',
+                              hintStyle: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: _outlineVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: FilledButton(
+                            onPressed: _sendMessage,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _primary,
+                              foregroundColor: _background,
+                              minimumSize: const Size(40, 40),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: EdgeInsets.zero,
+                            ),
+                            child: const Icon(Icons.arrow_upward, size: 20),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _ChatSender { ai, user }
+
+class _ChatEntry {
+  final _ChatSender sender;
+  final String text;
+  final String time;
+  final _InlineContactCard? contactCard;
+
+  const _ChatEntry({
+    required this.sender,
+    required this.text,
+    required this.time,
+    this.contactCard,
+  });
+}
+
+class _InlineContactCard {
+  final String initials;
+  final String name;
+  final String title;
+  final String metLabel;
+
+  const _InlineContactCard({
+    required this.initials,
+    required this.name,
+    required this.title,
+    required this.metLabel,
+  });
 }

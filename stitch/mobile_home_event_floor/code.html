@@ -1,0 +1,299 @@
+<!DOCTYPE html><html class="dark" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>EXONO — Event Floor Home</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<style>
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        .animate-pulse-dot {
+            animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            background-color: #080808;
+            color: #e5e2e1;
+            -webkit-font-smoothing: antialiased;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary-fixed": "#e4e2e1",
+                      "on-error-container": "#ffdad6",
+                      "inverse-on-surface": "#313030",
+                      "tertiary-container": "#e4e2e1",
+                      "primary-fixed-dim": "#c6c6c7",
+                      "outline-variant": "#444748",
+                      "on-surface-variant": "#c4c7c8",
+                      "primary": "#ffffff",
+                      "on-primary": "#2f3131",
+                      "on-tertiary-fixed": "#1b1c1c",
+                      "on-tertiary-container": "#656464",
+                      "primary-fixed": "#e2e2e2",
+                      "surface-container-high": "#2a2a2a",
+                      "surface-container-low": "#1c1b1b",
+                      "surface-container": "#201f1f",
+                      "surface-container-lowest": "#0e0e0e",
+                      "on-secondary-fixed": "#1a1b22",
+                      "tertiary": "#ffffff",
+                      "surface-tint": "#c6c6c7",
+                      "error-container": "#93000a",
+                      "tertiary-fixed-dim": "#c8c6c5",
+                      "surface": "#141313",
+                      "secondary": "#c6c6cf",
+                      "on-primary-fixed-variant": "#454747",
+                      "surface-container-highest": "#353434",
+                      "on-primary-fixed": "#1a1c1c",
+                      "surface-dim": "#141313",
+                      "secondary-fixed": "#e2e1eb",
+                      "on-secondary-container": "#b4b4bd",
+                      "inverse-surface": "#e5e2e1",
+                      "on-secondary": "#2f3037",
+                      "primary-container": "#e2e2e2",
+                      "on-tertiary": "#303030",
+                      "error": "#ffb4ab",
+                      "on-secondary-fixed-variant": "#45464e",
+                      "on-primary-container": "#636565",
+                      "background": "#141313",
+                      "on-tertiary-fixed-variant": "#474746",
+                      "outline": "#8e9192",
+                      "inverse-primary": "#5d5f5f",
+                      "on-error": "#690005",
+                      "secondary-fixed-dim": "#c6c6cf",
+                      "on-surface": "#e5e2e1",
+                      "on-background": "#e5e2e1",
+                      "surface-bright": "#3a3939",
+                      "surface-variant": "#353434",
+                      "secondary-container": "#45464e"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "margin-desktop": "32px",
+                      "container-max-width": "1280px",
+                      "unit": "4px",
+                      "margin-mobile": "16px",
+                      "gutter": "16px"
+              },
+              "fontFamily": {
+                      "body-md": ["Inter"],
+                      "display-wordmark": ["Inter"],
+                      "label-xs": ["Inter"],
+                      "label-sm": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "headline-lg-mobile": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "body-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0", "fontWeight": "400"}],
+                      "display-wordmark": ["24px", {"lineHeight": "24px", "letterSpacing": "-0.05em", "fontWeight": "800"}],
+                      "label-xs": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                      "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                      "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                      "headline-md": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="flex flex-col min-h-screen">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex items-center px-margin-mobile h-14 bg-surface/80 backdrop-blur-md border-b border-outline-variant/30">
+    <div class="flex-1 flex justify-start">
+        <button class="active:scale-95 transition-transform duration-100 text-primary">
+            <span class="material-symbols-outlined" data-icon="menu">menu</span>
+        </button>
+    </div>
+    <div class="flex-1 flex justify-center">
+        <h1 class="font-display-wordmark text-display-wordmark text-primary tracking-tighter">EXONO</h1>
+    </div>
+    <div class="flex-1 flex justify-end">
+        <button class="active:scale-95 transition-transform duration-100 text-primary">
+            <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+        </button>
+    </div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 mt-14 mb-32 px-margin-mobile max-w-container-max-width mx-auto w-full pt-4">
+<!-- Large Event Banner Card -->
+<section class="relative rounded-xl overflow-hidden border border-outline-variant/20 bg-surface-container-lowest mb-6">
+<div class="absolute inset-0 z-0 opacity-40">
+<img alt="Event atmosphere" class="w-full h-full object-cover grayscale" data-alt="A wide-angle shot of a high-tech corporate technology summit hall, featuring vast architectural spaces with geometric structural elements. The atmosphere is professional and sophisticated, with cool white and deep black tones dominating the scene. Sharp industrial lighting highlights the clean lines of the venue, creating a prestigious and authoritative mood suitable for a premium B2B environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVGWGSiwPuW5mJVuLfEvkOnu4wKx-GFKBYlHXiWxweSrCSjcJEkcN8QJPQ8S45ovHgzmzouJ5oE_6aESWxBIVDokqeiDZ5cvgOi6-CrKTkOBAb9XWfXTC3faJk9YvtjJElIgI-G_9n5Atm5ZVXrAc2IjIenSNvEGmL5jkkIJSLeT1KC2ZCL9iG-oKpK45JzNRM0Xm8zUf6SQUGPRCvUxnrtIAQJV9kpGF0a05BTOoSJTCFZjCZXTXQ5UL1qWRi6Co4UWUcNCyughA">
+</div>
+<div class="relative z-10 p-6 flex flex-col justify-end min-h-[320px] bg-gradient-to-t from-black via-black/60 to-transparent">
+<div class="flex items-center gap-2 mb-2">
+<span class="w-2 h-2 rounded-full bg-error animate-pulse-dot"></span>
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider">Live Now</span>
+</div>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-primary mb-1">TECH SUMMIT 2024</h2>
+<div class="flex items-center gap-2 mb-6 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span>
+<p class="font-body-md text-body-md">Convention Center • Hall 4</p>
+</div>
+<!-- Stats Inside Banner -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-4 pt-6 border-t border-outline-variant/20">
+<div>
+<p class="font-label-xs text-label-xs text-on-surface-variant uppercase mb-1">Target Reach</p>
+<p class="font-headline-md text-headline-md text-primary">84%</p>
+</div>
+<div>
+<p class="font-label-xs text-label-xs text-on-surface-variant uppercase mb-1">Scanned</p>
+<p class="font-headline-md text-headline-md text-primary">142</p>
+</div>
+<div>
+<p class="font-label-xs text-label-xs text-on-surface-variant uppercase mb-1">Targets Left</p>
+<p class="font-headline-md text-headline-md text-primary">12</p>
+</div>
+<div>
+<p class="font-label-xs text-label-xs text-on-surface-variant uppercase mb-1">PENDING FOLLOW-UPS</p>
+<p class="font-headline-md text-headline-md text-primary">08</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Priority Targets Section -->
+<section>
+<div class="flex justify-between items-end mb-4">
+<h3 class="font-headline-md text-headline-md text-primary">Priority Targets</h3>
+<button class="font-label-sm text-label-sm text-outline hover:text-primary transition-colors no-underline tracking-widest">VIEW LIST</button>
+</div>
+<div class="flex flex-col gap-3">
+<!-- Target Row 1 -->
+<div class="bg-surface-container-low/50 border border-outline-variant/20 rounded-xl p-4 flex items-center justify-between hover:bg-surface-container transition-all duration-300 cursor-pointer group" style="transform: scale(1);">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 flex items-center justify-center border border-outline-variant rounded bg-surface-container-highest">
+<span class="font-headline-md text-headline-md text-primary">1</span>
+</div>
+<div>
+<p class="font-body-lg text-body-lg text-primary font-semibold">Sarah Jenkins</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">VP Growth, NeoStream</p>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<div class="px-2 py-0.5 border border-outline-variant rounded text-on-surface-variant">
+<span class="font-label-xs text-label-xs">BOOTH 402</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+<!-- Target Row 2 -->
+<div class="bg-surface-container-low/50 border border-outline-variant/20 rounded-xl p-4 flex items-center justify-between hover:bg-surface-container transition-all duration-300 cursor-pointer group" style="transform: scale(1);">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 flex items-center justify-center border border-outline-variant rounded bg-surface-container-highest">
+<span class="font-headline-md text-headline-md text-primary">2</span>
+</div>
+<div>
+<p class="font-body-lg text-body-lg text-primary font-semibold">Marcus Thorne</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">CTO, CloudScale Systems</p>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<div class="px-2 py-0.5 border border-outline-variant rounded text-on-surface-variant">
+<span class="font-label-xs text-label-xs">BOOTH 12B</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+<!-- Target Row 3 -->
+<div class="bg-surface-container-low/50 border border-outline-variant/20 rounded-xl p-4 flex items-center justify-between hover:bg-surface-container transition-all duration-300 cursor-pointer group" style="transform: scale(1);">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 flex items-center justify-center border border-outline-variant rounded bg-surface-container-highest">
+<span class="font-headline-md text-headline-md text-primary">3</span>
+</div>
+<div>
+<p class="font-body-lg text-body-lg text-primary font-semibold">Elena Rodriguez</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Managing Director, Futura</p>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<div class="px-2 py-0.5 border border-outline-variant rounded text-on-surface-variant">
+<span class="font-label-xs text-label-xs">BOOTH 219</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Floating Action Button -->
+<div class="fixed bottom-24 left-0 w-full px-margin-mobile z-50">
+<button class="w-full bg-primary text-on-primary font-label-sm text-label-sm uppercase h-14 rounded flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-2xl"><span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+            LOG INTERACTION
+        </button>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center pb-safe px-4 bg-surface/90 backdrop-blur-md border-t border-outline-variant/20 h-16">
+<!-- Targets -->
+<a class="text-on-surface-variant flex flex-col items-center justify-center gap-1 hover:text-primary transition-colors active:scale-90 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="target">target</span>
+<span class="font-label-xs text-label-xs uppercase">Targets</span>
+</a>
+<!-- Contacts -->
+<a class="text-on-surface-variant flex flex-col items-center justify-center gap-1 hover:text-primary transition-colors active:scale-90 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-xs text-label-xs uppercase">Contacts</span>
+</a>
+<!-- Scan (Elevated) -->
+<div class="relative -top-2"><button class="w-14 h-14 bg-primary border-4 border-surface rounded-2xl flex items-center justify-center text-on-primary shadow-[0_8px_30px_rgb(0,0,0,0.12)] active:scale-90 transition-transform duration-200">
+    <span class="material-symbols-outlined text-2xl" data-icon="qr_code_scanner" style="font-variation-settings: 'FILL' 1;">qr_code_scanner</span>
+</button></div>
+<!-- Events -->
+<a class="text-primary flex flex-col items-center justify-center gap-1 active:scale-90 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="event" style="font-variation-settings: 'FILL' 1;">event</span>
+<span class="font-label-xs text-label-xs uppercase">Events</span>
+</a>
+<!-- Profile -->
+<a class="text-on-surface-variant flex flex-col items-center justify-center gap-1 hover:text-primary transition-colors active:scale-90 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-xs text-label-xs uppercase">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for list item active state
+        document.querySelectorAll('.cursor-pointer').forEach(item => {
+            item.addEventListener('mousedown', () => {
+                item.style.transform = 'scale(0.99)';
+            });
+            item.addEventListener('mouseup', () => {
+                item.style.transform = 'scale(1)';
+            });
+            item.addEventListener('mouseleave', () => {
+                item.style.transform = 'scale(1)';
+            });
+        });
+    </script>
+
+
+
+
+
+
+</body></html>

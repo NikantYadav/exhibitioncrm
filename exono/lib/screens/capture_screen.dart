@@ -1,634 +1,1689 @@
-import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:convert';
-import 'dart:io';
-import '../services/api_service.dart';
-import '../config/app_theme.dart';
-import '../widgets/premium_card.dart';
+import 'dart:ui';
 
-enum CaptureMode { camera, qr, voice, manual, upload }
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import 'voice_memory_capture_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
-  const CaptureScreen({super.key});
+  final ValueChanged<int>? onNavigateTab;
+
+  const CaptureScreen({super.key, this.onNavigateTab});
 
   @override
   State<CaptureScreen> createState() => _CaptureScreenState();
 }
 
-class _CaptureScreenState extends State<CaptureScreen> {
-  final ImagePicker _picker = ImagePicker();
-  bool _isProcessing = false;
+enum _CaptureStage { scanner, notes }
 
-  void _showCaptureOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: AppTheme.cardBackground,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppTheme.stone200,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'CAPTURE LEAD',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.stone400,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildCaptureOption(
-                      icon: Icons.camera_alt_rounded,
-                      label: 'Scan Card',
-                      description: 'AI card extraction',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _startCapture(CaptureMode.camera);
-                      },
-                    ),
-                    _buildCaptureOption(
-                      icon: Icons.qr_code_scanner_rounded,
-                      label: 'Scan QR',
-                      description: 'Digital profile sync',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _startCapture(CaptureMode.qr);
-                      },
-                    ),
-                    _buildCaptureOption(
-                      icon: Icons.mic_rounded,
-                      label: 'Voice',
-                      description: 'Quick voice capture',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _startCapture(CaptureMode.voice);
-                      },
-                    ),
-                    _buildCaptureOption(
-                      icon: Icons.keyboard_rounded,
-                      label: 'Manual',
-                      description: 'Direct input',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _startCapture(CaptureMode.manual);
-                      },
-                    ),
-                    const Divider(height: 24),
-                    _buildCaptureOption(
-                      icon: Icons.upload_rounded,
-                      label: 'Upload',
-                      description: 'Upload photo',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _startCapture(CaptureMode.upload);
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+enum _CaptureNotesTab { manual, voice, upload }
+
+class _CaptureScreenState extends State<CaptureScreen>
+    with SingleTickerProviderStateMixin {
+  static const Color _surface = Color(0xFF141313);
+  static const Color _surfaceContainer = Color(0xFF201F1F);
+  static const Color _surfaceContainerLow = Color(0xFF1C1B1B);
+  static const Color _surfaceContainerHigh = Color(0xFF2A2A2A);
+  static const Color _surfaceContainerLowest = Color(0xFF0E0E0E);
+  static const Color _outline = Color(0xFF8E9192);
+  static const Color _outlineVariant = Color(0xFF444748);
+  static const Color _primary = Color(0xFFFFFFFF);
+  static const Color _onPrimary = Color(0xFF2F3131);
+  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
+  static const Color _onSurface = Color(0xFFE5E2E1);
+
+  late final AnimationController _scanController;
+  final TextEditingController _manualNotesController = TextEditingController();
+
+  _CaptureStage _stage = _CaptureStage.scanner;
+  _CaptureNotesTab _notesTab = _CaptureNotesTab.manual;
+  bool _isCapturing = false;
+  bool _isSavingLead = false;
+  bool _leadSaved = false;
+  bool _showDedupAlert = false;
+  String _selectedProduct = 'Core Platform v2';
+  final _CapturedLead _capturedLead = const _CapturedLead(
+    initials: 'MT',
+    name: 'Marcus Thorne',
+    company: 'Quantum Dynamics Inc.',
+  );
+
+  final List<String> _productOptions = const [
+    'Core Platform v2',
+    'Enterprise API Suite',
+    'Edge Intelligence Module',
+    'Add new product',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _scanController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
   }
 
-  Widget _buildCaptureOption({
-    required IconData icon,
-    required String label,
-    required String description,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppTheme.stone900,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.stone900.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(icon, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: AppTheme.stone900,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.stone500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 16,
-              color: AppTheme.stone300,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _startCapture(CaptureMode mode) {
-    switch (mode) {
-      case CaptureMode.camera:
-        _captureCard();
-        break;
-      case CaptureMode.upload:
-        _uploadCard();
-        break;
-      case CaptureMode.qr:
-      case CaptureMode.voice:
-      case CaptureMode.manual:
-        _showComingSoon(mode);
-        break;
-    }
-  }
-
-  void _showComingSoon(CaptureMode mode) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${_getModeName(mode)} coming soon!'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        backgroundColor: AppTheme.stone900,
-      ),
-    );
-  }
-
-  String _getModeName(CaptureMode mode) {
-    switch (mode) {
-      case CaptureMode.camera:
-        return 'Camera';
-      case CaptureMode.qr:
-        return 'QR Scanner';
-      case CaptureMode.voice:
-        return 'Voice Notes';
-      case CaptureMode.manual:
-        return 'Manual Entry';
-      case CaptureMode.upload:
-        return 'Upload';
-    }
-  }
-
-  Future<void> _captureCard() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 85,
-      );
-
-      if (image == null) return;
-
-      await _processImage(image);
-    } catch (e) {
-      _showError('Error capturing image: $e');
-    }
-  }
-
-  Future<void> _uploadCard() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
-
-      if (image == null) return;
-
-      await _processImage(image);
-    } catch (e) {
-      _showError('Error selecting image: $e');
-    }
-  }
-
-  Future<void> _processImage(XFile image) async {
-    setState(() => _isProcessing = true);
-
-    try {
-      // Convert to base64
-      final bytes = await File(image.path).readAsBytes();
-      final base64Image = base64Encode(bytes);
-
-      // Analyze card
-      await ApiService.analyzeCard('data:image/jpeg;base64,$base64Image');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: Colors.white),
-                const SizedBox(width: 12),
-                const Text('Card analyzed successfully!'),
-              ],
-            ),
-            backgroundColor: AppTheme.primary,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      _showError('Error: $e');
-    } finally {
-      setState(() => _isProcessing = false);
-    }
-  }
-
-  void _showError(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error_outline_rounded, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(child: Text(message)),
-            ],
-          ),
-          backgroundColor: AppTheme.destructive,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    }
+  @override
+  void dispose() {
+    _scanController.dispose();
+    _manualNotesController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final baseScreen = ColoredBox(
+      color: _stage == _CaptureStage.scanner
+          ? _surfaceContainerLowest
+          : _surface,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
           children: [
-            const Text('Capture'),
-            Text(
-              'QUICK CAPTURE',
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                color: AppTheme.stone400,
-                letterSpacing: 1.5,
-              ),
+            _buildTopBar(),
+            Expanded(
+              child: _stage == _CaptureStage.scanner
+                  ? _buildScannerStage()
+                  : _buildNotesStage(),
             ),
+            _buildBottomNavigation(),
           ],
         ),
-        backgroundColor: Colors.transparent,
       ),
-      body: SafeArea(
-        child: _isProcessing
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: AppTheme.stone900,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.stone900.withValues(alpha: 0.2),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 3,
-                        ),
-                      ),
+    );
+
+    return Stack(
+      children: [baseScreen, if (_showDedupAlert) _buildDedupAlertOverlay()],
+    );
+  }
+
+  Widget _buildTopBar() {
+    if (_stage == _CaptureStage.scanner) {
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: _surfaceContainerLowest.withValues(alpha: 0.78),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Expanded(child: SizedBox()),
+                  Text(
+                    'EXONO',
+                    style: GoogleFonts.inter(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1.2,
+                      color: _primary,
+                      height: 1,
                     ),
-                    const SizedBox(height: 32),
-                    Text(
-                      'PROCESSING CARD...',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.stone400,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Extracting contact information',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Hero CTA
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.stone900,
-                            AppTheme.stone800,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(32),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.stone900.withValues(alpha: 0.3),
-                            blurRadius: 30,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Icon(
-                              Icons.bolt_rounded,
-                              size: 40,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Text(
-                            'CAPTURE LEAD',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white.withValues(alpha: 0.6),
-                              letterSpacing: 3,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Quick Capture',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: -1,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Scan cards, QR codes, or record voice notes',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: _showCaptureOptions,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: AppTheme.stone900,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.bolt_rounded, size: 20),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'START CAPTURE',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 32),
-                    
-                    // Quick Actions
-                    Text(
-                      'QUICK ACTIONS',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.stone400,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    Row(
+                  ),
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Expanded(
-                          child: _buildQuickAction(
-                            icon: Icons.camera_alt_rounded,
-                            label: 'Camera',
-                            onTap: () => _startCapture(CaptureMode.camera),
+                        IconButton(
+                          onPressed: () => _showUiOnlyMessage('Flash toggle'),
+                          splashRadius: 20,
+                          icon: const Icon(
+                            Icons.flashlight_on,
+                            color: _primary,
+                            size: 22,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildQuickAction(
-                            icon: Icons.upload_rounded,
-                            label: 'Upload',
-                            onTap: () => _startCapture(CaptureMode.upload),
+                        IconButton(
+                          onPressed: () => widget.onNavigateTab?.call(0),
+                          splashRadius: 20,
+                          icon: const Icon(
+                            Icons.close,
+                            color: _primary,
+                            size: 22,
                           ),
                         ),
                       ],
                     ),
-                    
-                    const SizedBox(height: 32),
-                    
-                    // Recent Captures Section
-                    Text(
-                      'RECENT CAPTURES',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.stone400,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    PremiumCard(
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(48),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.stone50,
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                child: Icon(
-                                  Icons.inbox_rounded,
-                                  size: 40,
-                                  color: AppTheme.stone300,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                'NO CAPTURES YET',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppTheme.stone400,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Start capturing to see your history',
-                                style: Theme.of(context).textTheme.bodySmall,
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: 56,
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _outlineVariant, width: 1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: () => setState(() => _stage = _CaptureStage.scanner),
+              splashRadius: 20,
+              icon: const Icon(Icons.arrow_back, color: _primary, size: 24),
+            ),
+            const Spacer(),
+            Text(
+              'EXONO',
+              style: GoogleFonts.inter(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.2,
+                color: _primary,
+                height: 1,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              onPressed: () => _showUiOnlyMessage('Settings'),
+              splashRadius: 20,
+              icon: const Icon(
+                Icons.settings,
+                color: _onSurfaceVariant,
+                size: 24,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildQuickAction({
+  Widget _buildScannerStage() {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ColorFiltered(
+            colorFilter: const ColorFilter.matrix(<double>[
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+            ]),
+            child: Opacity(
+              opacity: 0.32,
+              child: Image.network(
+                'https://lh3.googleusercontent.com/aida-public/AB6AXuATbiHBNTF_S2iKxWObfhWd05n1WWdiC9-7UVATTVuNYH1mduB5y8A2g2Khr-EQ3mjFfdQ1Cb4gWobFTKkhJ7d_EM09-dprcw0rDxbFfFD6Havh--_7q8g5yaj7-OtYdd3kqNK91U7_3hoMSPfDwM6GZzZNLmDPX3CYEZ-kEhURMHm94ecDDgOU1xuPefAhONjj9ByUqUvahXy6pveYtqWJpjMXeXqzm0dv9SmmqKkullWosZ-ZaxTSFFuZAid5EhC_pS8efX7BACo',
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.40),
+                  Colors.black.withValues(alpha: 0.20),
+                  Colors.black.withValues(alpha: 0.46),
+                ],
+                stops: const [0.0, 0.46, 1.0],
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 12, 0, 24),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildFinder(),
+                        const SizedBox(height: 44),
+                        Text(
+                          'ALIGN CARD OR QR CODE',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 4,
+                            color: _primary.withValues(alpha: 0.80),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'PRECISE AUTO-CAPTURE ACTIVE',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 1.5,
+                            color: _onSurfaceVariant.withValues(alpha: 0.60),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        _buildCaptureButton(),
+                        const SizedBox(height: 40),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildScannerActionButton(
+                              icon: Icons.mic_none_rounded,
+                              label: 'VOICE',
+                              onTap: _openVoiceMemoryCapture,
+                            ),
+                            const SizedBox(width: 48),
+                            _buildScannerActionButton(
+                              icon: Icons.folder_open_outlined,
+                              label: 'FILES',
+                              onTap: () => _showUiOnlyMessage('File picker'),
+                            ),
+                            const SizedBox(width: 48),
+                            _buildScannerActionButton(
+                              icon: Icons.edit_note_outlined,
+                              label: 'MANUAL',
+                              onTap: () {
+                                setState(() {
+                                  _stage = _CaptureStage.notes;
+                                  _notesTab = _CaptureNotesTab.manual;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNotesStage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCapturedIdentityBar(),
+          const SizedBox(height: 24),
+          _buildFieldLabel('EVENT CONTEXT'),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: _surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _outlineVariant),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Global Tech Summit 2024',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: _onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.lock,
+                  size: 18,
+                  color: _onSurfaceVariant.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 26),
+          _buildFieldLabel('PRODUCT INTEREST'),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _outlineVariant),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedProduct,
+                dropdownColor: _surfaceContainerLow,
+                isExpanded: true,
+                icon: const Icon(Icons.expand_more, color: _onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: _primary,
+                ),
+                items: _productOptions
+                    .map(
+                      (option) => DropdownMenuItem<String>(
+                        value: option,
+                        child: Text(option),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedProduct = value);
+                  }
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 30),
+          Row(
+            children: [
+              Container(width: 2, height: 24, color: _primary),
+              const SizedBox(width: 10),
+              Text(
+                'CAPTURE NOTES',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1.8,
+                  color: _primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildNotesTabs(),
+          const SizedBox(height: 16),
+          _buildNotesTabContent(),
+          const SizedBox(height: 26),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: FilledButton(
+              onPressed: _isSavingLead ? null : _finalizeLead,
+              style: FilledButton.styleFrom(
+                backgroundColor: _leadSaved
+                    ? const Color(0xFF16A34A)
+                    : _primary,
+                foregroundColor: _onPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: _isSavingLead
+                    ? SizedBox(
+                        key: const ValueKey('processing'),
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _onPrimary,
+                        ),
+                      )
+                    : Row(
+                        key: ValueKey(_leadSaved ? 'saved' : 'idle'),
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _leadSaved
+                                ? 'LEAD SAVED'
+                                : 'FINALIZE AND SAVE LEAD',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 2.0,
+                              color: _onPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            _leadSaved
+                                ? Icons.check_circle
+                                : Icons.save_outlined,
+                            size: 18,
+                            color: _onPrimary,
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCapturedIdentityBar() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: _surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: _outline),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              _capturedLead.initials,
+              style: GoogleFonts.inter(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+                color: _primary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _capturedLead.name,
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                    color: _primary,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _capturedLead.company.toUpperCase(),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.0,
+                    color: _onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: const [
+                    _CaptureStatusPill(label: 'MET', isPrimary: true),
+                    _CaptureStatusPill(label: 'FOLLOW-UP'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFieldLabel(String label) {
+    return Text(
+      label,
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 1.7,
+        color: _onSurfaceVariant,
+      ),
+    );
+  }
+
+  Widget _buildNotesTabs() {
+    Widget tab(String label, _CaptureNotesTab tab) {
+      final isActive = _notesTab == tab;
+      return Expanded(
+        child: InkWell(
+          onTap: () => setState(() => _notesTab = tab),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: isActive ? _primary : _outlineVariant,
+                  width: isActive ? 2 : 1,
+                ),
+              ),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 2.1,
+                color: isActive ? _primary : _onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        tab('MANUAL', _CaptureNotesTab.manual),
+        tab('VOICE', _CaptureNotesTab.voice),
+        tab('UPLOAD', _CaptureNotesTab.upload),
+      ],
+    );
+  }
+
+  Widget _buildNotesTabContent() {
+    switch (_notesTab) {
+      case _CaptureNotesTab.manual:
+        return Container(
+          height: 160,
+          decoration: BoxDecoration(
+            color: _surfaceContainerLow,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _outlineVariant),
+          ),
+          child: TextField(
+            controller: _manualNotesController,
+            maxLines: null,
+            expands: true,
+            cursorColor: _primary,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: _onSurface,
+              height: 1.4,
+            ),
+            decoration: InputDecoration(
+              hintText:
+                  'Key topics discussed, what they need, agreed next steps...',
+              hintStyle: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: _onSurfaceVariant.withValues(alpha: 0.4),
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+        );
+      case _CaptureNotesTab.voice:
+        return Container(
+          height: 224,
+          decoration: BoxDecoration(
+            color: _surfaceContainerLow,
+            border: Border.all(color: _outlineVariant),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _primary),
+                ),
+                child: const Icon(Icons.mic, color: _primary, size: 32),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(6, (index) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: AnimatedBuilder(
+                      animation: _scanController,
+                      builder: (context, child) {
+                        final base =
+                            ((_scanController.value + (index * 0.12)) % 1.0);
+                        final height =
+                            4 + (20 * (0.5 - (base - 0.5).abs()) * 2);
+                        return Container(
+                          width: 4,
+                          height: height.clamp(4, 24),
+                          color: _primary,
+                        );
+                      },
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '00:12',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: _primary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'TAP TO STOP',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.0,
+                  color: _onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        );
+      case _CaptureNotesTab.upload:
+        return InkWell(
+          onTap: () => _showUiOnlyMessage('Upload notes file'),
+          child: Container(
+            height: 160,
+            decoration: BoxDecoration(
+              color: _surfaceContainerLow,
+              border: Border.all(
+                color: _outlineVariant,
+                style: BorderStyle.solid,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.upload_file, color: _onSurfaceVariant),
+                const SizedBox(height: 10),
+                Text(
+                  'DROP FILE HERE OR TAP TO BROWSE',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.1,
+                    color: _onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'PDF, JPG, PNG UP TO 10MB',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.8,
+                    color: _onSurfaceVariant.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+    }
+  }
+
+  Widget _buildBottomNavigation() {
+    if (_stage == _CaptureStage.scanner) {
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            height: 80,
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+            decoration: BoxDecoration(
+              color: _surface.withValues(alpha: 0.95),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x80000000),
+                  blurRadius: 24,
+                  offset: Offset(0, -4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.track_changes_outlined,
+                    label: 'TARGETS',
+                    onTap: () => widget.onNavigateTab?.call(0),
+                  ),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.group_outlined,
+                    label: 'CONTACTS',
+                    onTap: () => widget.onNavigateTab?.call(3),
+                  ),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.event_outlined,
+                    label: 'EVENTS',
+                    onTap: () => widget.onNavigateTab?.call(1),
+                  ),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.person_outline_rounded,
+                    label: 'PROFILE',
+                    onTap: () => widget.onNavigateTab?.call(5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: 80,
+      decoration: const BoxDecoration(
+        color: _surface,
+        border: Border(top: BorderSide(color: _outlineVariant, width: 1)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.track_changes_outlined,
+              label: 'TARGETS',
+              onTap: () => widget.onNavigateTab?.call(0),
+            ),
+          ),
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.group_outlined,
+              label: 'CONTACTS',
+              onTap: () => widget.onNavigateTab?.call(3),
+            ),
+          ),
+          SizedBox(
+            width: 74,
+            child: Center(
+              child: Transform.translate(
+                offset: const Offset(0, -8),
+                child: InkWell(
+                  onTap: () => setState(() => _stage = _CaptureStage.scanner),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: _primary,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x80000000),
+                          blurRadius: 20,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.qr_code_scanner_rounded,
+                      color: _onPrimary,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.event_outlined,
+              label: 'EVENTS',
+              onTap: () => widget.onNavigateTab?.call(1),
+            ),
+          ),
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.person_outline_rounded,
+              label: 'PROFILE',
+              onTap: () => widget.onNavigateTab?.call(5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppTheme.cardBackground,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppTheme.stone200.withValues(alpha: 0.4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: _onSurfaceVariant, size: 24),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.6,
+              color: _onSurfaceVariant,
+            ),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinder() {
+    return SizedBox(
+      width: 280,
+      height: 280,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _primary.withValues(alpha: 0.18)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  spreadRadius: 180,
+                  blurRadius: 0,
+                ),
+              ],
             ),
-          ],
+          ),
+          Positioned(
+            top: -44,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _surfaceContainer.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: _outlineVariant.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.history,
+                      size: 14,
+                      color: _onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Last: Sarah Jenkins (Aero)',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                        color: _onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          ..._buildCornerGuides(),
+          AnimatedBuilder(
+            animation: _scanController,
+            builder: (context, child) {
+              return Positioned(
+                top: 8 + (_scanController.value * 264),
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 1,
+                  color: _primary.withValues(alpha: 0.45),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildCornerGuides() {
+    const guideSize = 32.0;
+    const guideColor = _primary;
+    const guideWidth = 1.3;
+
+    Widget corner({
+      required Alignment alignment,
+      required bool top,
+      required bool left,
+    }) {
+      return Align(
+        alignment: alignment,
+        child: SizedBox(
+          width: guideSize,
+          height: guideSize,
+          child: CustomPaint(
+            painter: _CornerPainter(
+              color: guideColor,
+              strokeWidth: guideWidth,
+              top: top,
+              left: left,
+            ),
+          ),
         ),
-        child: Column(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppTheme.stone900,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon, color: Colors.white, size: 28),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-                color: AppTheme.stone900,
-                letterSpacing: 1.5,
-              ),
-            ),
-          ],
+      );
+    }
+
+    return [
+      corner(alignment: Alignment.topLeft, top: true, left: true),
+      corner(alignment: Alignment.topRight, top: true, left: false),
+      corner(alignment: Alignment.bottomLeft, top: false, left: true),
+      corner(alignment: Alignment.bottomRight, top: false, left: false),
+    ];
+  }
+
+  Widget _buildCaptureButton() {
+    return GestureDetector(
+      onTap: _isCapturing ? null : _simulateCapture,
+      child: AnimatedScale(
+        scale: _isCapturing ? 0.90 : 1,
+        duration: const Duration(milliseconds: 180),
+        child: Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: _primary.withValues(alpha: 0.30)),
+          ),
+          padding: const EdgeInsets.all(6),
+          child: Container(
+            decoration: BoxDecoration(color: _primary, shape: BoxShape.circle),
+            child: _isCapturing
+                ? const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: _surface,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
         ),
       ),
     );
+  }
+
+  Widget _buildScannerActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 24,
+            color: _onSurfaceVariant.withValues(alpha: 0.72),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.8,
+              color: _onSurfaceVariant.withValues(alpha: 0.72),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openVoiceMemoryCapture() async {
+    final result = await Navigator.of(context).push<Object?>(
+      MaterialPageRoute(builder: (_) => const VoiceMemoryCaptureScreen()),
+    );
+
+    if (!mounted) return;
+    if (result == null) return;
+
+    final resultLabel = result.toString();
+    if (resultLabel.contains('manual')) {
+      setState(() {
+        _stage = _CaptureStage.notes;
+        _notesTab = _CaptureNotesTab.manual;
+        _leadSaved = false;
+      });
+      return;
+    }
+
+    if (resultLabel.contains('saved')) {
+      _showUiOnlyMessage('Voice memory saved to timeline');
+    }
+  }
+
+  Future<void> _simulateCapture() async {
+    setState(() => _isCapturing = true);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+    setState(() {
+      _isCapturing = false;
+      _stage = _CaptureStage.notes;
+      _notesTab = _CaptureNotesTab.manual;
+      _leadSaved = false;
+    });
+  }
+
+  Future<void> _finalizeLead() async {
+    setState(() {
+      _isSavingLead = true;
+      _leadSaved = false;
+      _showDedupAlert = false;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+    setState(() {
+      _isSavingLead = false;
+      _showDedupAlert = true;
+    });
+  }
+
+  Widget _buildDedupAlertOverlay() {
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () {},
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: Container(color: Colors.black.withValues(alpha: 0.60)),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: Container(
+                constraints: const BoxConstraints(
+                  maxHeight: 740,
+                  maxWidth: 760,
+                ),
+                decoration: BoxDecoration(
+                  color: _surfaceContainerLowest,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  border: const Border(
+                    top: BorderSide(color: _outlineVariant),
+                    left: BorderSide(color: _outlineVariant),
+                    right: BorderSide(color: _outlineVariant),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x66000000),
+                      blurRadius: 28,
+                      offset: Offset(0, -10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 48,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: _outlineVariant,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.only(bottom: 22),
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(color: _outlineVariant),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(
+                                        Icons.warning,
+                                        color: _primary,
+                                        size: 22,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          'Deduplication Alert — Potential Conflict Detected',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: -0.2,
+                                            color: _primary,
+                                            height: 1.3,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Wrap(
+                                    spacing: 14,
+                                    runSpacing: 10,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.05,
+                                          ),
+                                          border: Border.all(
+                                            color: _outlineVariant,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'AI CONFIDENCE SCORE',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                letterSpacing: 1.1,
+                                                color: _onSurfaceVariant,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              '98% Match',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.w600,
+                                                color: _primary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 420,
+                                        ),
+                                        child: Text(
+                                          '"High probability match based on matching email domain and phonetic name similarity across multiple datasets."',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w400,
+                                            fontStyle: FontStyle.italic,
+                                            color: _onSurfaceVariant,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _buildDedupComparisonGrid(),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                      decoration: const BoxDecoration(
+                        color: _surfaceContainerLow,
+                        border: Border(top: BorderSide(color: _outlineVariant)),
+                      ),
+                      child: Column(
+                        children: [
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final isWide = constraints.maxWidth >= 680;
+                              final actions = [
+                                _buildDedupActionButton(
+                                  label: 'MERGE AND UPDATE',
+                                  isPrimary: true,
+                                  onTap: () =>
+                                      _resolveDedupAction('Merge and update'),
+                                ),
+                                _buildDedupActionButton(
+                                  label: 'LINK AS SAME PERSON',
+                                  onTap: () => _resolveDedupAction(
+                                    'Link as same person',
+                                  ),
+                                ),
+                                _buildDedupActionButton(
+                                  label: 'CREATE AS NEW',
+                                  onTap: () =>
+                                      _resolveDedupAction('Create as new'),
+                                ),
+                              ];
+
+                              if (isWide) {
+                                return Row(
+                                  children: [
+                                    for (
+                                      var i = 0;
+                                      i < actions.length;
+                                      i++
+                                    ) ...[
+                                      Expanded(child: actions[i]),
+                                      if (i != actions.length - 1)
+                                        const SizedBox(width: 16),
+                                    ],
+                                  ],
+                                );
+                              }
+
+                              return Column(
+                                children: [
+                                  actions[0],
+                                  const SizedBox(height: 12),
+                                  actions[1],
+                                  const SizedBox(height: 12),
+                                  actions[2],
+                                ],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 18),
+                          TextButton.icon(
+                            onPressed: () =>
+                                setState(() => _showDedupAlert = false),
+                            icon: const Icon(Icons.close, size: 18),
+                            label: Text(
+                              'DISMISS WITHOUT ACTION',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 2.0,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              foregroundColor: _onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDedupComparisonGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 680;
+        final existing = _buildDedupRecordCard(
+          badge: 'Existing Record',
+          badgeBackground: Colors.white.withValues(alpha: 0.10),
+          badgeColor: _onSurfaceVariant,
+          name: 'Alexander Thorne',
+          email: 'a.thorne@vanguard-ops.io',
+          company: 'Vanguard Operations Ltd.',
+          lastActive: '14 Oct 2023',
+          isNewSubmission: false,
+        );
+        final incoming = _buildDedupRecordCard(
+          badge: 'New Submission',
+          badgeBackground: _primary,
+          badgeColor: _onPrimary,
+          name: 'Alex Thorne',
+          email: 'alex.thorne@vanguard-ops.io',
+          company: 'Vanguard Ops',
+          lastActive: 'Current Submission',
+          isNewSubmission: true,
+        );
+
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: existing),
+              const SizedBox(width: 16),
+              Expanded(child: incoming),
+            ],
+          );
+        }
+
+        return Column(
+          children: [existing, const SizedBox(height: 16), incoming],
+        );
+      },
+    );
+  }
+
+  Widget _buildDedupRecordCard({
+    required String badge,
+    required Color badgeBackground,
+    required Color badgeColor,
+    required String name,
+    required String email,
+    required String company,
+    required String lastActive,
+    required bool isNewSubmission,
+  }) {
+    Widget field(String label, Widget value) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 1.4,
+              color: _onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          value,
+        ],
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      decoration: BoxDecoration(
+        color: _surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _outlineVariant),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: badgeBackground,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                badge.toUpperCase(),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.0,
+                  color: badgeColor,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                field(
+                  'NAME',
+                  Row(
+                    children: [
+                      Text(
+                        name,
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: _primary,
+                        ),
+                      ),
+                      if (isNewSubmission) ...[
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.info_outline,
+                          color: Color(0xFF8E9192),
+                          size: 16,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                field(
+                  'EMAIL',
+                  Text(
+                    email,
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: _primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                field(
+                  'COMPANY',
+                  Text(
+                    company,
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: _primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                field(
+                  'LAST ACTIVE',
+                  Text(
+                    lastActive,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: isNewSubmission ? _primary : _onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDedupActionButton({
+    required String label,
+    required VoidCallback onTap,
+    bool isPrimary = false,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: isPrimary ? _primary : Colors.transparent,
+          foregroundColor: isPrimary ? _onPrimary : _onSurfaceVariant,
+          side: BorderSide(color: isPrimary ? _primary : _outlineVariant),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 2.0,
+            color: isPrimary ? _onPrimary : _onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _resolveDedupAction(String label) {
+    setState(() {
+      _showDedupAlert = false;
+      _leadSaved = true;
+    });
+    _showUiOnlyMessage(label);
+  }
+
+  void _showUiOnlyMessage(String label) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label is UI-only for now.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+}
+
+class _CaptureStatusPill extends StatelessWidget {
+  final String label;
+  final bool isPrimary;
+
+  const _CaptureStatusPill({required this.label, this.isPrimary = false});
+
+  static const Color _primary = Color(0xFFFFFFFF);
+  static const Color _outlineVariant = Color(0xFF444748);
+  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        border: Border.all(color: isPrimary ? _primary : _outlineVariant),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1.0,
+          color: isPrimary ? _primary : _onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+class _CapturedLead {
+  final String initials;
+  final String name;
+  final String company;
+
+  const _CapturedLead({
+    required this.initials,
+    required this.name,
+    required this.company,
+  });
+}
+
+class _CornerPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final bool top;
+  final bool left;
+
+  const _CornerPainter({
+    required this.color,
+    required this.strokeWidth,
+    required this.top,
+    required this.left,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final horizontalStart = Offset(
+      left ? 0 : size.width,
+      top ? 0 : size.height,
+    );
+    final horizontalEnd = Offset(left ? size.width : 0, top ? 0 : size.height);
+    final verticalEnd = Offset(left ? 0 : size.width, top ? size.height : 0);
+
+    canvas.drawLine(horizontalStart, horizontalEnd, paint);
+    canvas.drawLine(horizontalStart, verticalEnd, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CornerPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.top != top ||
+        oldDelegate.left != left;
   }
 }

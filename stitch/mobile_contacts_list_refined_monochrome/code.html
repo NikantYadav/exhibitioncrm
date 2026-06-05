@@ -1,0 +1,318 @@
+<!DOCTYPE html><html class="dark" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet">
+<title>EXONO — Contacts</title>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #080808;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 2px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #080808;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #262626;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#c4c7c8",
+                        "outline-variant": "#444748",
+                        "secondary": "#c6c6cf",
+                        "on-primary-fixed-variant": "#454747",
+                        "on-error": "#690005",
+                        "surface-bright": "#3a3939",
+                        "secondary-container": "#45464e",
+                        "on-primary-container": "#636565",
+                        "tertiary-fixed": "#e4e2e1",
+                        "on-primary": "#2f3131",
+                        "secondary-fixed": "#e2e1eb",
+                        "surface-container-highest": "#353434",
+                        "surface": "#141313",
+                        "on-secondary-fixed-variant": "#45464e",
+                        "on-primary-fixed": "#1a1c1c",
+                        "error-container": "#93000a",
+                        "secondary-fixed-dim": "#c6c6cf",
+                        "inverse-primary": "#5d5f5f",
+                        "error": "#ffb4ab",
+                        "primary-container": "#e2e2e2",
+                        "surface-tint": "#c6c6c7",
+                        "on-secondary-fixed": "#1a1b22",
+                        "inverse-on-surface": "#313030",
+                        "surface-container-low": "#1c1b1b",
+                        "on-tertiary-container": "#656464",
+                        "on-surface": "#e5e2e1",
+                        "surface-dim": "#141313",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "tertiary": "#ffffff",
+                        "surface-container-high": "#2a2a2a",
+                        "on-tertiary": "#303030",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed-dim": "#c6c6c7",
+                        "primary": "#ffffff",
+                        "inverse-surface": "#e5e2e1",
+                        "outline": "#8e9192",
+                        "on-background": "#e5e2e1",
+                        "surface-variant": "#353434",
+                        "on-secondary-container": "#b4b4bd",
+                        "primary-fixed": "#e2e2e2",
+                        "surface-container": "#201f1f",
+                        "on-secondary": "#2f3037",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "background": "#141313",
+                        "on-tertiary-fixed": "#1b1c1c",
+                        "tertiary-container": "#e4e2e1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-desktop": "32px",
+                        "margin-mobile": "16px",
+                        "unit": "4px",
+                        "gutter": "16px",
+                        "container-max-width": "1280px"
+                    },
+                    "fontFamily": {
+                        "label-xs": ["Inter"],
+                        "display-wordmark": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-lg-mobile": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-xs": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                        "display-wordmark": ["24px", {"lineHeight": "24px", "letterSpacing": "-0.05em", "fontWeight": "800"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-[#080808] text-primary selection:bg-primary selection:text-background">
+<!-- Top Navigation Anchor -->
+<header class="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-lg border-b border-[#262626] flex justify-between items-center px-margin-mobile md:px-margin-desktop h-16 w-full">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer active:scale-95 transition-transform" data-icon="menu">menu</span>
+<span class="font-display-wordmark text-display-wordmark uppercase tracking-tighter text-primary">EXONO</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex gap-8">
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-primary cursor-pointer hover:opacity-80 transition-opacity">Network</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-secondary cursor-pointer hover:opacity-80 transition-opacity">Deals</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-secondary cursor-pointer hover:opacity-80 transition-opacity">Events</span>
+</div>
+<span class="material-symbols-outlined text-primary cursor-pointer active:scale-95 transition-transform" data-icon="notifications">notifications</span>
+</div>
+</header>
+<main class="pt-24 pb-32 px-margin-mobile md:px-margin-desktop max-w-[1280px] mx-auto min-h-screen">
+<!-- Header Section -->
+<div class="flex justify-between items-baseline mb-8"><h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg tracking-tighter">Contacts</h1><span class="font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest opacity-60">Total 1,482</span></div>
+<!-- Search and Global Actions -->
+<div class="flex flex-col gap-6 mb-10">
+<div class="relative w-full group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" data-icon="search">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant py-4 pl-12 pr-4 text-primary font-body-md focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none rounded-lg" placeholder="Search across network..." type="text">
+</div>
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+<!-- Filter Pills -->
+<div class="flex overflow-x-auto pb-2 md:pb-0 no-scrollbar custom-scrollbar gap-3"><button class="h-10 px-5 bg-primary text-background text-label-sm uppercase tracking-widest font-semibold whitespace-nowrap active:scale-95 transition-all">All</button><button class="h-10 px-5 border border-outline-variant text-on-surface-variant text-label-sm uppercase tracking-widest font-medium whitespace-nowrap hover:border-primary hover:text-primary active:scale-95 transition-all">This Event</button><button class="h-10 px-5 border border-outline-variant text-on-surface-variant text-label-sm uppercase tracking-widest font-medium whitespace-nowrap hover:border-primary hover:text-primary active:scale-95 transition-all">By Product</button><button class="h-10 px-5 border border-outline-variant text-on-surface-variant text-label-sm uppercase tracking-widest font-medium whitespace-nowrap hover:border-primary hover:text-primary active:scale-95 transition-all">By Country</button><button class="h-10 px-5 border border-outline-variant text-on-surface-variant text-label-sm uppercase tracking-widest font-medium whitespace-nowrap hover:border-primary hover:text-primary active:scale-95 transition-all">By Company</button></div>
+<!-- View Toggle -->
+<div class="flex border border-[#262626] p-1 self-start md:self-auto">
+<button class="p-2 bg-[#262626] text-primary flex items-center justify-center transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="list">list</span>
+</button>
+</div>
+</div><div class="flex items-center gap-2 mt-2 px-1"><div class="w-1.5 h-1.5 rounded-full bg-primary"></div><span class="text-[10px] font-label-sm uppercase tracking-widest text-on-surface-variant">Follow-up due</span></div>
+</div>
+<!-- Contacts List -->
+<div class="flex flex-col border-t border-[#262626]">
+<!-- Contact Row 1 -->
+<div class="flex items-center justify-between py-5 border-b border-[#262626] hover:bg-[#0C0C0C] transition-colors cursor-pointer group px-2 min-h-\[88px\]">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-[#1A1A1A] flex items-center justify-center border border-[#262626] group-hover:border-primary transition-colors rounded-full">
+<span class="text-label-sm font-bold tracking-tighter">JD</span>
+</div>
+<div>
+<p class="font-headline-md text-headline-md leading-none mb-1">Julianne De Marco</p>
+<p class="font-body-md text-on-surface-variant text-label-sm">VP Supply Chain • Global Logistics Corp</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex px-3 py-1 bg-[#1A1A1A] border border-[#262626] rounded-full">
+<span class="text-[10px] font-label-sm uppercase tracking-widest text-on-surface-variant">Summit 2024</span>
+</div>
+<div class="w-2.5 h-2.5 rounded-full bg-primary" title="Follow-up Required"></div>
+</div>
+</div>
+<!-- Contact Row 2 -->
+<div class="flex items-center justify-between py-5 border-b border-[#262626] hover:bg-[#0C0C0C] transition-colors cursor-pointer group px-2 min-h-\[88px\]">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-[#1A1A1A] flex items-center justify-center border border-[#262626] group-hover:border-primary transition-colors rounded-full">
+<span class="text-label-sm font-bold tracking-tighter">AH</span>
+</div>
+<div>
+<p class="font-headline-md text-headline-md leading-none mb-1">Arthur Hennessey</p>
+<p class="font-body-md text-on-surface-variant text-label-sm">Managing Director • Silver Oak Capital</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex px-3 py-1 bg-[#1A1A1A] border border-[#262626] rounded-full">
+<span class="text-[10px] font-label-sm uppercase tracking-widest text-on-surface-variant">FinTech Expo</span>
+</div>
+<div class="w-2.5 h-2.5 rounded-full bg-[#262626]" title="Idle"></div>
+</div>
+</div>
+<!-- Contact Row 3 -->
+<div class="flex items-center justify-between py-5 border-b border-[#262626] hover:bg-[#0C0C0C] transition-colors cursor-pointer group px-2 min-h-\[88px\]">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-[#1A1A1A] flex items-center justify-center border border-[#262626] group-hover:border-primary transition-colors rounded-full">
+<span class="text-label-sm font-bold tracking-tighter">SK</span>
+</div>
+<div>
+<p class="font-headline-md text-headline-md leading-none mb-1">Satoshi Kobayashi</p>
+<p class="font-body-md text-on-surface-variant text-label-sm">Chief Architect • NeoTokyo Systems</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex px-3 py-1 bg-[#1A1A1A] border border-[#262626] rounded-full">
+<span class="text-[10px] font-label-sm uppercase tracking-widest text-on-surface-variant">Cloud Conf</span>
+</div>
+<div class="w-2.5 h-2.5 rounded-full bg-primary" title="Follow-up Required"></div>
+</div>
+</div>
+<!-- Contact Row 4 -->
+<div class="flex items-center justify-between py-5 border-b border-[#262626] hover:bg-[#0C0C0C] transition-colors cursor-pointer group px-2 min-h-\[88px\]">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-[#1A1A1A] flex items-center justify-center border border-[#262626] group-hover:border-primary transition-colors rounded-full">
+<span class="text-label-sm font-bold tracking-tighter">LW</span>
+</div>
+<div>
+<p class="font-headline-md text-headline-md leading-none mb-1">Lena Weiss</p>
+<p class="font-body-md text-on-surface-variant text-label-sm">Head of Growth • Munich Agri-Tech</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex px-3 py-1 bg-[#1A1A1A] border border-[#262626] rounded-full">
+<span class="text-[10px] font-label-sm uppercase tracking-widest text-on-surface-variant">AgriWorld 24</span>
+</div>
+<div class="w-2.5 h-2.5 rounded-full bg-[#262626]" title="Idle"></div>
+</div>
+</div>
+<!-- Contact Row 5 -->
+<div class="flex items-center justify-between py-5 border-b border-[#262626] hover:bg-[#0C0C0C] transition-colors cursor-pointer group px-2 min-h-\[88px\]">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-[#1A1A1A] flex items-center justify-center border border-[#262626] group-hover:border-primary transition-colors rounded-full">
+<span class="text-label-sm font-bold tracking-tighter">MT</span>
+</div>
+<div>
+<p class="font-headline-md text-headline-md leading-none mb-1">Marcus Thorne</p>
+<p class="font-body-md text-on-surface-variant text-label-sm">Principal Partner • Blackwood Strategy</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex px-3 py-1 bg-[#1A1A1A] border border-[#262626] rounded-full">
+<span class="text-[10px] font-label-sm uppercase tracking-widest text-on-surface-variant">Executive Retreat</span>
+</div>
+<div class="w-2.5 h-2.5 rounded-full bg-primary" title="Follow-up Required"></div>
+</div>
+</div>
+<!-- Contact Row 6 -->
+<div class="flex items-center justify-between py-5 border-b border-[#262626] hover:bg-[#0C0C0C] transition-colors cursor-pointer group px-2 min-h-\[88px\]">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-[#1A1A1A] flex items-center justify-center border border-[#262626] group-hover:border-primary transition-colors rounded-full">
+<span class="text-label-sm font-bold tracking-tighter">EF</span>
+</div>
+<div>
+<p class="font-headline-md text-headline-md leading-none mb-1">Elena Flores</p>
+<p class="font-body-md text-on-surface-variant text-label-sm">Operations Lead • Aero Dynamics</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex px-3 py-1 bg-[#1A1A1A] border border-[#262626] rounded-full">
+<span class="text-[10px] font-label-sm uppercase tracking-widest text-on-surface-variant">Paris Air Show</span>
+</div>
+<div class="w-2.5 h-2.5 rounded-full bg-[#262626]" title="Idle"></div>
+</div>
+</div>
+</div>
+<!-- Pagination / Load More -->
+<div class="mt-12 flex justify-center">
+<button class="px-8 py-3 border border-[#262626] text-label-sm uppercase tracking-[0.2em] font-medium hover:bg-primary hover:text-background active:scale-95 transition-all">Load More Records</button>
+</div>
+</main>
+<!-- Bottom Navigation Shell -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-margin-mobile pb-6 bg-background/95 backdrop-blur-xl border-t border-outline-variant h-24">
+<div class="flex flex-col items-center justify-center text-on-surface-variant pt-2 hover:text-primary transition-colors cursor-pointer active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="target">target</span>
+</div>
+<div class="flex flex-col items-center justify-center text-primary relative h-full group">
+<span class="material-symbols-outlined" data-icon="person_book">person_book</span>
+</div>
+<!-- Center Action Button (Bento/Special) -->
+<div class="relative -top-6"><div class="w-14 h-14 bg-[#080808] border border-[#262626] rounded-xl flex items-center justify-center shadow-[0_8px_30px_rgb(0,0,0,0.5)] active:scale-90 transition-transform cursor-pointer"><span class="material-symbols-outlined text-primary text-2xl font-bold" data-icon="qr_code_scanner">qr_code_scanner</span></div></div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant pt-2 hover:text-primary transition-colors cursor-pointer active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant pt-2 hover:text-primary transition-colors cursor-pointer active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</div>
+</nav>
+<script>
+        // Simple Interaction logic
+        document.querySelectorAll('.filter-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                document.querySelectorAll('.filter-pill').forEach(p => {
+                    p.classList.remove('bg-primary', 'text-background');
+                    p.classList.add('border-[#262626]', 'text-on-surface-variant');
+                });
+                pill.classList.remove('border-[#262626]', 'text-on-surface-variant');
+                pill.classList.add('bg-primary', 'text-background');
+            });
+        });
+
+        // Search highlight effect
+        const searchBar = document.querySelector('input[type="text"]');
+        searchBar.addEventListener('focus', () => {
+            searchBar.parentElement.style.borderColor = '#ffffff';
+        });
+        searchBar.addEventListener('blur', () => {
+            searchBar.parentElement.style.borderColor = '#262626';
+        });
+    </script>
+
+
+</body></html>

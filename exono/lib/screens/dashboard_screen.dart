@@ -1,212 +1,1025 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../config/app_theme.dart';
-import '../services/api_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-/// Dashboard screen replicating CRM frontend with backend integration
+import 'offline_mode_screen.dart';
+import 'target_list_full_view_screen.dart';
+import 'log_interaction_screen.dart';
+
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final ValueChanged<int>? onNavigateTab;
+
+  const DashboardScreen({super.key, this.onNavigateTab});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  bool _isLoading = true;
-  Map<String, dynamic>? _dashboardData;
-  String? _error;
+  static const Color _background = Color(0xFF000000);
+  static const Color _surface = Color(0xFF121315);
+  static const Color _surfaceContainerLow = Color(0xFF1B1C1D);
+  static const Color _surfaceContainerHigh = Color(0xFF292A2B);
+  static const Color _surfaceContainerHighest = Color(0xFF343536);
+  static const Color _outline = Color(0xFF8B90A0);
+  static const Color _primary = Color(0xFFADC6FF);
+  static const Color _onPrimary = Color(0xFF002E69);
+  static const Color _onSurface = Color(0xFFE3E2E3);
+  static const Color _onSurfaceVariant = Color(0xFFC1C6D7);
+  static const Color _muted = Color(0xFF8E8E93);
+  static const Color _aiPurple = Color(0xFFDFD1FF);
+  static const Color _cardBackground = Color(0xFF08090A);
 
-  @override
-  void initState() {
-    super.initState();
-    _fetchDashboardData();
+  final TextEditingController _searchController = TextEditingController();
+
+  late final List<_TargetItem> _targets = [
+    _TargetItem(
+      company: 'Quantum Financial',
+      booth: 'A-12',
+      sector: 'FinTech',
+      contact: 'David Kim',
+      title: 'VP Strategy',
+      score: 88,
+      relationshipStrength: 0.68,
+      objective: 'Open a cross-border compliance data discussion.',
+      overview:
+          'Cross-border financial infrastructure provider focused on compliance automation and settlement visibility for institutional operators.',
+      productsServices:
+          'Regulatory reporting platform, treasury workflow tooling, cross-border compliance APIs',
+      prepNotes: const [
+        'Recently shifted budget into applied infrastructure tooling.',
+        'Interested in tighter regulatory reporting flows for EU expansion.',
+        'Lead with operational reliability rather than broad AI messaging.',
+      ],
+    ),
+    _TargetItem(
+      company: 'Nexus Group',
+      booth: 'B-04',
+      sector: 'SaaS',
+      contact: 'Sarah Chen',
+      title: 'Head of Partnerships',
+      score: 92,
+      relationshipStrength: 0.75,
+      objective: 'Explore integration partnership opportunities.',
+      overview:
+          'Leading provider of cloud-based enterprise resource planning solutions focusing on AI-driven supply chain optimization.',
+      productsServices:
+          'Nexus Cloud ERP, Nexus AI Analytics, Supply Chain Predictor',
+      prepNotes: const [
+        'Recently raised Series C funding.',
+        'Looking to expand into EU markets.',
+        'Exploring Blockchain integration.',
+      ],
+      isVip: true,
+      isExpanded: true,
+    ),
+    _TargetItem(
+      company: 'Apex Ventures',
+      booth: 'C-21',
+      sector: 'VC',
+      contact: 'Marcus Thorne',
+      title: 'Partner',
+      score: 64,
+      relationshipStrength: 0.49,
+      objective: 'Reconnect around enterprise infrastructure allocation.',
+      overview:
+          'Early-growth investment firm backing enterprise software, data infrastructure, and operational AI companies.',
+      productsServices:
+          'Growth capital, strategic partner network, enterprise GTM advisory',
+      prepNotes: const [
+        'Prefers concise commercial framing.',
+        'Strong signal around strategic partner intros this quarter.',
+      ],
+    ),
+    _TargetItem(
+      company: 'Ironclad Security',
+      booth: 'D-01',
+      sector: 'CyberSec',
+      contact: 'Elena Rostova',
+      title: 'CTO',
+      score: 45,
+      relationshipStrength: 0.31,
+      objective: 'Secondary booth stop if traffic opens later in the day.',
+      overview:
+          'Security infrastructure company focused on zero-trust controls for distributed enterprise environments.',
+      productsServices:
+          'Identity enforcement, policy orchestration, device trust monitoring',
+      prepNotes: const [
+        'Low urgency target.',
+        'Angle toward zero-trust deployment controls.',
+      ],
+      isMet: true,
+    ),
+    _TargetItem(
+      company: 'Lumina X',
+      booth: 'E-55',
+      sector: 'AI Hardware',
+      contact: 'Dr. Alan Turing',
+      title: 'CEO',
+      score: 95,
+      relationshipStrength: 0.84,
+      objective:
+          'Position EXONO as the orchestration layer for field deployments.',
+      overview:
+          'Edge AI hardware company building deployment-ready acceleration systems for industrial and field robotics.',
+      productsServices:
+          'Inference accelerators, ruggedized compute modules, orchestration-ready edge kits',
+      prepNotes: const [
+        'Expect executive-level conversation, fast and strategic.',
+        'High-value opportunity if demo conversation lands well.',
+      ],
+      isVip: true,
+    ),
+  ];
+
+  final List<String> _filters = const ['All', 'Not Met', 'Met'];
+
+  String _selectedFilter = 'All';
+  String _searchQuery = '';
+
+  List<_TargetItem> get _visibleTargets {
+    final query = _searchQuery.trim().toLowerCase();
+
+    return _targets.where((target) {
+      final matchesQuery =
+          query.isEmpty ||
+          target.company.toLowerCase().contains(query) ||
+          target.contact.toLowerCase().contains(query) ||
+          target.booth.toLowerCase().contains(query) ||
+          target.sector.toLowerCase().contains(query);
+
+      final matchesFilter = switch (_selectedFilter) {
+        'All' => true,
+        'Not Met' => !target.isMet,
+        'Met' => target.isMet,
+        _ => true,
+      };
+
+      return matchesQuery && matchesFilter;
+    }).toList();
   }
 
-  Future<void> _fetchDashboardData() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
-    try {
-      final data = await ApiService.getDashboardSummary();
-      setState(() {
-        _dashboardData = data;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
+  void _showUiOnlyMessage(String label) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label is UI-only for now.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _navigateTo(int index) {
+    widget.onNavigateTab?.call(index);
+  }
+
+  void _toggleExpanded(_TargetItem target) {
+    setState(() {
+      target.isExpanded = !target.isExpanded;
+    });
+  }
+
+  void _toggleMet(_TargetItem target, bool value) {
+    setState(() {
+      target.isMet = value;
+      if (value) {
+        target.isExpanded = false;
+      }
+    });
+  }
+
+  void _openOfflineMode() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) =>
+            OfflineModeScreen(onNavigateTab: widget.onNavigateTab),
+      ),
+    );
+  }
+
+  void _openTargetListFullView() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TargetListFullViewScreen(
+          onNavigateTab: widget.onNavigateTab,
+          eventTitle: 'Global Fintech Expo 2024',
+          countLabel: '${_targets.length} / 120',
+          items: _targets
+              .map(
+                (target) => TargetListItemData(
+                  company: target.company,
+                  booth: target.booth,
+                  sector: target.sector,
+                  contact: target.contact,
+                  title: target.title,
+                  score: target.score,
+                  prepNotes: target.prepNotes,
+                  relationshipStrength: target.relationshipStrength,
+                  isMet: target.isMet,
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
 
-    if (_isLoading) {
-      return Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.stone900),
-        ),
+    if (!isMobile) {
+      return Stack(
+        children: [
+          const Positioned.fill(child: ColoredBox(color: _background)),
+          const Positioned.fill(child: IgnorePointer(child: _BlueprintGrid())),
+          CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                sliver: SliverList.list(
+                  children: [
+                    _buildDesktopHeader(),
+                    const SizedBox(height: 24),
+                    _buildFilterShell(),
+                    const SizedBox(height: 20),
+                    ..._buildTargetCards(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       );
     }
 
-    if (_error != null) {
-      return Center(
+    return ColoredBox(
+      color: _background,
+      child: SafeArea(
+        bottom: false,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 48, color: AppTheme.stone400),
-            const SizedBox(height: 16),
-            Text(
-              'Failed to load dashboard',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.stone900,
+            _buildMobileTopBar(),
+            Expanded(
+              child: Stack(
+                children: [
+                  const Positioned.fill(child: _BlueprintGrid()),
+                  CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                          child: _buildFilterShell(),
+                        ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 140),
+                        sliver: SliverList.list(children: _buildTargetCards()),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: TextStyle(fontSize: 12, color: AppTheme.stone500),
-              textAlign: TextAlign.center,
+            _buildBottomNav(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopHeader() {
+    return Row(
+      children: [
+        _buildBrandMark(size: 36),
+        const SizedBox(width: 12),
+        Text(
+          'Targets',
+          style: GoogleFonts.inter(
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: _primary,
+            letterSpacing: -0.4,
+          ),
+        ),
+        const Spacer(),
+        IconButton(
+          onPressed: () => _showUiOnlyMessage('Search'),
+          icon: const Icon(Icons.search, color: _onSurfaceVariant),
+        ),
+        IconButton(
+          onPressed: _openTargetListFullView,
+          icon: const Icon(
+            Icons.view_agenda_outlined,
+            color: _onSurfaceVariant,
+          ),
+        ),
+        IconButton(
+          onPressed: _openOfflineMode,
+          icon: const Icon(Icons.hub_outlined, color: _onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileTopBar() {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: _surface,
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Row(
+            children: [
+              _buildBrandMark(size: 32),
+              const SizedBox(width: 10),
+              Text(
+                'Targets',
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _primary,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          IconButton(
+            onPressed: () => _showUiOnlyMessage('Search'),
+            icon: const Icon(Icons.search, color: _onSurfaceVariant, size: 22),
+            splashRadius: 20,
+          ),
+          IconButton(
+            onPressed: _openTargetListFullView,
+            icon: const Icon(
+              Icons.view_agenda_outlined,
+              color: _onSurfaceVariant,
+              size: 22,
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _fetchDashboardData,
-              child: const Text('Retry'),
+            splashRadius: 20,
+          ),
+          IconButton(
+            onPressed: _openOfflineMode,
+            icon: const Icon(
+              Icons.hub_outlined,
+              color: _onSurfaceVariant,
+              size: 22,
+            ),
+            splashRadius: 20,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBrandMark({required double size}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(size * 0.28),
+        color: const Color(0xFF0F1012),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Center(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Transform.rotate(
+              angle: 0.785398,
+              child: Container(
+                width: size * 0.34,
+                height: size * 0.34,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    width: 1.6,
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Transform.rotate(
+              angle: -0.785398,
+              child: Container(
+                width: size * 0.34,
+                height: size * 0.34,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: _primary.withValues(alpha: 0.60),
+                    width: 1.6,
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Container(
+              width: size * 0.12,
+              height: size * 0.12,
+              decoration: const BoxDecoration(
+                color: _primary,
+                shape: BoxShape.circle,
+              ),
             ),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    final summary = _dashboardData?['summary'] ?? {};
-    final upcomingMeetings = _dashboardData?['upcomingMeetings'] ?? [];
-    final recentActivity = _dashboardData?['recentActivity'] ?? [];
-
-    return RefreshIndicator(
-      onRefresh: _fetchDashboardData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.all(isMobile ? 16 : 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Dashboard',
-                      style: TextStyle(
-                        fontSize: isMobile ? 24 : 32,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.stone900,
-                        letterSpacing: -0.5,
+  Widget _buildFilterShell() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+      decoration: BoxDecoration(
+        color: _background.withValues(alpha: 0.90),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSearchField(),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _filters.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final filter = _filters[index];
+                final isActive = filter == _selectedFilter;
+                return InkWell(
+                  onTap: () => setState(() => _selectedFilter = filter),
+                  borderRadius: BorderRadius.circular(999),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: isActive ? _primary : _surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: isActive
+                            ? _primary.withValues(alpha: 0.30)
+                            : Colors.white.withValues(alpha: 0.10),
+                      ),
+                      boxShadow: isActive
+                          ? const [
+                              BoxShadow(
+                                color: Color(0x33ADC6FF),
+                                blurRadius: 16,
+                                offset: Offset(0, 6),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      filter.toUpperCase(),
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.9,
+                        color: isActive ? _onPrimary : _onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'YOUR NETWORK SUMMARY',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.stone400,
-                        letterSpacing: 2,
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return Container(
+      height: 46,
+      decoration: BoxDecoration(
+        color: _surfaceContainerLow,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(4),
+          topRight: Radius.circular(4),
+        ),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) => setState(() => _searchQuery = value),
+        cursorColor: _primary,
+        style: GoogleFonts.inter(
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
+          color: _onSurface,
+        ),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+          prefixIcon: const Icon(Icons.search, size: 18, color: _muted),
+          hintText: 'Search companies, people, booths...',
+          hintStyle: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            color: _muted,
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildTargetCards() {
+    if (_visibleTargets.isEmpty) {
+      return [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: _cardBackground,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          ),
+          child: Text(
+            'No targets match the current filters.',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: _onSurfaceVariant,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return [
+      for (int index = 0; index < _visibleTargets.length; index++) ...[
+        _buildTargetCard(_visibleTargets[index]),
+        if (index < _visibleTargets.length - 1) const SizedBox(height: 8),
+      ],
+    ];
+  }
+
+  Widget _buildTargetCard(_TargetItem target) {
+    final isCompleted = target.isMet;
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      opacity: isCompleted ? 0.70 : 1,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _cardBackground,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: target.isVip
+                ? _primary.withValues(alpha: 0.40)
+                : Colors.white.withValues(alpha: 0.10),
+          ),
+          boxShadow: [
+            const BoxShadow(
+              color: Color(0x66000000),
+              blurRadius: 24,
+              offset: Offset(0, 10),
+            ),
+            if (target.isVip)
+              const BoxShadow(
+                color: Color(0x33007AFF),
+                blurRadius: 16,
+                offset: Offset(0, 0),
+              ),
+          ],
+        ),
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () => _toggleExpanded(target),
+              borderRadius: BorderRadius.vertical(
+                top: const Radius.circular(8),
+                bottom: Radius.circular(target.isExpanded ? 0 : 8),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            target.company,
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: isCompleted ? _muted : _onSurface,
+                              decoration: isCompleted
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              height: 1.15,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Text(
+                                'Booth ${target.booth}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  color: _muted,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '•',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  color: _muted,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  target.sector,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w400,
+                                    color: _muted,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildCheckBox(target),
+                        const SizedBox(width: 10),
+                        Icon(
+                          target.isExpanded
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          color: _muted,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (target.isExpanded) _buildExpandedSection(target),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedSection(_TargetItem target) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _surfaceContainerLow,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInfoBlock('Company Overview', target.overview),
+          const SizedBox(height: 14),
+          _buildInfoBlock('Products & Services', target.productsServices),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _surfaceContainerLow,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  top: -20,
+                  left: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _background,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: _aiPurple.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: _aiPurple,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'AI PREP NOTES',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.7,
+                            color: _aiPurple,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Column(
+                    children: target.prepNotes
+                        .map(
+                          (note) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 6),
+                                  child: Icon(
+                                    Icons.circle,
+                                    size: 5,
+                                    color: _onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    note,
+                                    style: GoogleFonts.jetBrainsMono(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w400,
+                                      color: _onSurfaceVariant,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          _buildInfoBlock(
+            'Meeting Objective',
+            target.objective,
+            emphasize: true,
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.only(top: 14),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Key Contact (Optional)',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.8,
+                    color: _muted,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: _surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(Icons.person, size: 16, color: _muted),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            target.contact,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                              color: _onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${target.title} • Strategy Dept',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w400,
+                              color: _muted,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                if (!isMobile)
-                  Row(
-                    children: [
-                      _buildActionButton(
-                        icon: Icons.camera_alt_rounded,
-                        label: 'CAPTURE',
-                        onTap: () {},
-                      ),
-                      const SizedBox(width: 12),
-                      _buildActionButton(
-                        icon: Icons.add_rounded,
-                        label: 'NEW MEETING',
-                        onTap: () {},
-                        isPrimary: true,
-                      ),
-                    ],
-                  ),
               ],
             ),
-            
-            const SizedBox(height: 24),
-            
-            // Performance Metrics
-            GridView.count(
-              crossAxisCount: isMobile ? 2 : 4,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: isMobile ? 1.5 : 2.5,
-              children: [
-                _buildStatCard(
-                  icon: Icons.flag_rounded,
-                  label: 'Target Companies',
-                  value: summary['targets']?.toString() ?? '0',
-                ),
-                _buildStatCard(
-                  icon: Icons.camera_alt_rounded,
-                  label: 'Total Scans',
-                  value: summary['captured']?.toString() ?? '0',
-                ),
-                _buildStatCard(
-                  icon: Icons.check_circle_rounded,
-                  label: 'Enriched Profiles',
-                  value: summary['enriched']?.toString() ?? '0',
-                ),
-                _buildStatCard(
-                  icon: Icons.schedule_rounded,
-                  label: 'Follow-ups Due',
-                  value: summary['drafts']?.toString() ?? '0',
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Timeline and Activity Feed
-            if (isMobile)
-              Column(
-                children: [
-                  _buildTimelineSection(upcomingMeetings),
-                  const SizedBox(height: 24),
-                  _buildActivityFeedSection(recentActivity),
-                ],
-              )
-            else
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: _buildTimelineSection(upcomingMeetings),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    flex: 1,
-                    child: _buildActivityFeedSection(recentActivity),
-                  ),
-                ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.only(top: 14),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
               ),
-          ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'My Notes',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.8,
+                          color: _muted,
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => showLogInteractionSheet(context),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.add, size: 12, color: _primary),
+                            const SizedBox(width: 4),
+                            Text(
+                              'ADD',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: _primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'No notes yet.',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    fontStyle: FontStyle.italic,
+                    color: _onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.only(top: 14),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildActionButton(
+                    icon: Icons.navigation,
+                    label: 'Navigate',
+                    onTap: () => _showUiOnlyMessage('Navigate'),
+                    isPrimary: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildActionButton(
+                    icon: Icons.business,
+                    label: 'Profile',
+                    onTap: () => _navigateTo(5),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildActionButton(
+                    icon: Icons.check_circle,
+                    label: 'Mark Met',
+                    onTap: () => _toggleMet(target, !target.isMet),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoBlock(String label, String body, {bool emphasize = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.8,
+            color: _muted,
+          ),
         ),
+        const SizedBox(height: 6),
+        Text(
+          body,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: emphasize ? FontWeight.w500 : FontWeight.w400,
+            color: emphasize ? _onSurface : _onSurfaceVariant,
+            height: 1.45,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCheckBox(_TargetItem target) {
+    return InkWell(
+      onTap: () => _toggleMet(target, !target.isMet),
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: target.isMet ? _primary : _outline),
+          color: target.isMet
+              ? _primary.withValues(alpha: 0.20)
+              : Colors.transparent,
+        ),
+        child: target.isMet
+            ? const Icon(Icons.check, size: 16, color: _primary)
+            : null,
       ),
     );
   }
@@ -219,41 +1032,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        height: 38,
         decoration: BoxDecoration(
-          color: isPrimary ? AppTheme.stone900 : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          color: isPrimary
+              ? _primary.withValues(alpha: 0.10)
+              : _surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isPrimary ? AppTheme.stone900 : AppTheme.stone200,
-            width: 1,
+            color: isPrimary
+                ? _primary.withValues(alpha: 0.30)
+                : Colors.white.withValues(alpha: 0.10),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: (isPrimary ? AppTheme.stone900 : Colors.black)
-                  .withValues(alpha: 0.1),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: isPrimary
+              ? const [BoxShadow(color: Color(0x19007AFF), blurRadius: 10)]
+              : null,
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isPrimary ? Colors.white : AppTheme.stone900,
-            ),
-            const SizedBox(width: 8),
+            Icon(icon, size: 16, color: isPrimary ? _primary : _onSurface),
+            const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                color: isPrimary ? Colors.white : AppTheme.stone900,
-                letterSpacing: 1.5,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isPrimary ? _primary : _onSurface,
               ),
             ),
           ],
@@ -262,491 +1068,197 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatCard({
+  Widget _buildBottomNav() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          height: 76,
+          decoration: BoxDecoration(
+            color: _surfaceContainerHighest.withValues(alpha: 0.80),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x66000000),
+                blurRadius: 24,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(
+                icon: Icons.gps_fixed,
+                label: 'Targets',
+                isActive: true,
+                onTap: () => _navigateTo(0),
+              ),
+              _buildNavItem(
+                icon: Icons.group_outlined,
+                label: 'Contacts',
+                isActive: false,
+                onTap: () => _navigateTo(3),
+              ),
+              Transform.translate(
+                offset: const Offset(0, -16),
+                child: InkWell(
+                  onTap: () => _navigateTo(2),
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: _primary,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x4DADC6FF),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.qr_code_scanner_rounded,
+                      color: _onPrimary,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              ),
+              _buildNavItem(
+                icon: Icons.event_outlined,
+                label: 'Events',
+                isActive: false,
+                onTap: () => _navigateTo(1),
+              ),
+              _buildNavItem(
+                icon: Icons.person_outline_rounded,
+                label: 'Profile',
+                isActive: false,
+                onTap: () => _navigateTo(5),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
     required IconData icon,
     required String label,
-    required String value,
+    required bool isActive,
+    required VoidCallback onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.stone100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppTheme.stone900,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.stone900.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+    final color = isActive ? _primary : _muted;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 64,
+        padding: EdgeInsets.symmetric(
+          horizontal: 4,
+          vertical: isActive ? 8 : 10,
+        ),
+        decoration: BoxDecoration(
+          color: isActive
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
-            child: Icon(icon, size: 18, color: Colors.white),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  label.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.stone400,
-                    letterSpacing: 1.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.stone900,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildTimelineSection(List<dynamic> meetings) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(40),
-        border: Border.all(color: AppTheme.stone100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.stone50.withValues(alpha: 0.5),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(40),
-                topRight: Radius.circular(40),
-              ),
-              border: Border(
-                bottom: BorderSide(color: AppTheme.stone100),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: 16,
-                  color: AppTheme.stone900,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'TIMELINE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.stone900,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  'VIEW ALL',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.stone900,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 16,
-                  color: AppTheme.stone900,
-                ),
-              ],
-            ),
-          ),
-          
-          // Content
-          Container(
-            height: 400,
-            padding: const EdgeInsets.all(24),
-            child: meetings.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            color: AppTheme.stone50,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppTheme.stone100),
-                          ),
-                          child: Icon(
-                            Icons.calendar_today_rounded,
-                            size: 28,
-                            color: AppTheme.stone200,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'NO UPCOMING MEETINGS',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: AppTheme.stone300,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: meetings.length,
-                    itemBuilder: (context, index) {
-                      final meeting = meetings[index];
-                      return _buildMeetingItem(meeting);
-                    },
-                  ),
-          ),
-        ],
-      ),
+class _TargetItem {
+  final String company;
+  final String booth;
+  final String sector;
+  final String contact;
+  final String title;
+  final int score;
+  final List<String> prepNotes;
+  final double relationshipStrength;
+  final String objective;
+  final String overview;
+  final String productsServices;
+  final bool isVip;
+  bool isMet;
+  bool isExpanded;
+
+  _TargetItem({
+    required this.company,
+    required this.booth,
+    required this.sector,
+    required this.contact,
+    required this.title,
+    required this.score,
+    required this.prepNotes,
+    required this.relationshipStrength,
+    required this.objective,
+    required this.overview,
+    required this.productsServices,
+    this.isVip = false,
+    this.isMet = false,
+    this.isExpanded = false,
+  });
+}
+
+class _BlueprintGrid extends StatelessWidget {
+  const _BlueprintGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _BlueprintGridPainter(),
+      child: const SizedBox.expand(),
     );
   }
+}
 
-  Widget _buildMeetingItem(Map<String, dynamic> meeting) {
-    final contact = meeting['contact'];
-    final company = contact?['company'];
-    final meetingDate = DateTime.parse(meeting['meeting_date']);
-    final timeFormat = DateFormat('h:mm a');
-    final dateFormat = DateFormat('MMM d');
+class _BlueprintGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final backgroundPaint = Paint()..color = const Color(0xFF000000);
+    canvas.drawRect(Offset.zero & size, backgroundPaint);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.stone50.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.stone100.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.stone900,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Text(
-                '${contact?['first_name']?[0] ?? ''}${contact?['last_name']?[0] ?? ''}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${contact?['first_name'] ?? ''} ${contact?['last_name'] ?? ''}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.stone900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  company?['name'] ?? 'No company',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.stone500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                timeFormat.format(meetingDate),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.stone900,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                dateFormat.format(meetingDate),
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.stone500,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+    final linePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.03)
+      ..strokeWidth = 1;
 
-  Widget _buildActivityFeedSection(List<dynamic> activities) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(40),
-        border: Border.all(color: AppTheme.stone100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.stone50.withValues(alpha: 0.5),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(40),
-                topRight: Radius.circular(40),
-              ),
-              border: Border(
-                bottom: BorderSide(color: AppTheme.stone100),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.bolt_rounded,
-                  size: 16,
-                  color: AppTheme.stone900,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'DAILY FEED',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.stone900,
-                    letterSpacing: 2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Content
-          Container(
-            height: 400,
-            padding: const EdgeInsets.all(20),
-            child: activities.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_rounded,
-                          size: 32,
-                          color: AppTheme.stone200,
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'NO RECENT ACTIVITY',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: AppTheme.stone300,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: activities.length,
-                    itemBuilder: (context, index) {
-                      final activity = activities[index];
-                      return _buildActivityItem(activity);
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
+    const spacing = 20.0;
 
-  Widget _buildActivityItem(Map<String, dynamic> activity) {
-    final contact = activity['contact'];
-    final interactionDate = DateTime.parse(activity['interaction_date']);
-    final dateFormat = DateFormat('MMM d');
-
-    IconData activityIcon;
-    switch (activity['interaction_type']) {
-      case 'capture':
-        activityIcon = Icons.camera_alt_rounded;
-        break;
-      case 'note':
-        activityIcon = Icons.message_rounded;
-        break;
-      case 'meeting':
-        activityIcon = Icons.calendar_today_rounded;
-        break;
-      default:
-        activityIcon = Icons.circle_rounded;
+    for (double x = 0; x <= size.width; x += spacing) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.stone50.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.transparent),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppTheme.stone900,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    '${contact?['first_name']?[0] ?? ''}${contact?['last_name']?[0] ?? ''}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: -2,
-                right: -2,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.stone100),
-                  ),
-                  child: Icon(
-                    activityIcon,
-                    size: 10,
-                    color: AppTheme.stone900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  activity['summary'] ?? '${activity['interaction_type']} recorded',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.stone900,
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Text(
-                      '${contact?['first_name'] ?? ''} ${contact?['last_name'] ?? ''}',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.stone400,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    Text(
-                      ' • ',
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: AppTheme.stone200,
-                      ),
-                    ),
-                    Text(
-                      dateFormat.format(interactionDate),
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.stone300,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    for (double y = 0; y <= size.height; y += spacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

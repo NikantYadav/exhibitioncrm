@@ -1,0 +1,383 @@
+<!DOCTYPE html><html class="dark" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Target List Full View - EXONO</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#c4c7c8",
+                        "outline-variant": "#444748",
+                        "secondary": "#c6c6cf",
+                        "on-primary-fixed-variant": "#454747",
+                        "on-error": "#690005",
+                        "surface-bright": "#3a3939",
+                        "secondary-container": "#45464e",
+                        "on-primary-container": "#636565",
+                        "tertiary-fixed": "#e4e2e1",
+                        "on-primary": "#2f3131",
+                        "secondary-fixed": "#e2e1eb",
+                        "surface-container-highest": "#353434",
+                        "surface": "#141313",
+                        "on-secondary-fixed-variant": "#45464e",
+                        "on-primary-fixed": "#1a1c1c",
+                        "error-container": "#93000a",
+                        "secondary-fixed-dim": "#c6c6cf",
+                        "inverse-primary": "#5d5f5f",
+                        "error": "#ffb4ab",
+                        "primary-container": "#e2e2e2",
+                        "surface-tint": "#c6c6c7",
+                        "on-secondary-fixed": "#1a1b22",
+                        "inverse-on-surface": "#313030",
+                        "surface-container-low": "#1c1b1b",
+                        "on-tertiary-container": "#656464",
+                        "on-surface": "#e5e2e1",
+                        "surface-dim": "#141313",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "tertiary": "#ffffff",
+                        "surface-container-high": "#2a2a2a",
+                        "on-tertiary": "#303030",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed-dim": "#c6c6c7",
+                        "primary": "#ffffff",
+                        "inverse-surface": "#e5e2e1",
+                        "outline": "#8e9192",
+                        "on-background": "#e5e2e1",
+                        "surface-variant": "#353434",
+                        "on-secondary-container": "#b4b4bd",
+                        "primary-fixed": "#e2e2e2",
+                        "surface-container": "#201f1f",
+                        "on-secondary": "#2f3037",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "background": "#141313",
+                        "on-tertiary-fixed": "#1b1c1c",
+                        "tertiary-container": "#e4e2e1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-desktop": "32px",
+                        "margin-mobile": "16px",
+                        "unit": "4px",
+                        "gutter": "16px",
+                        "container-max-width": "1280px"
+                    },
+                    "fontFamily": {
+                        "label-xs": ["Inter"],
+                        "display-wordmark": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-lg-mobile": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-xs": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                        "display-wordmark": ["24px", {"lineHeight": "24px", "letterSpacing": "-0.05em", "fontWeight": "800"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #080808;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #141313;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #262626;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-[#080808] text-primary antialiased min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-background border-b border-outline-variant flex justify-between items-center px-margin-mobile h-16 w-full">
+<div class="flex items-center gap-4">
+<button class="hover:opacity-80 transition-opacity active:scale-95 transition-transform text-primary">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-display-wordmark text-display-wordmark uppercase tracking-tighter text-primary">EXONO</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="hover:opacity-80 transition-opacity active:scale-95 transition-transform text-primary">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+</header>
+<main class="pt-20 px-margin-mobile max-w-container-max-width mx-auto">
+<!-- Page Header -->
+<div class="flex flex-col gap-2 mb-8">
+<div class="flex justify-between items-end">
+<div>
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant">Active Event</span>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg">Global Fintech Expo 2024</h2>
+</div>
+<div class="text-right">
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant">Targets</span>
+<p class="font-headline-md text-headline-md">42 / 120</p>
+</div>
+</div>
+</div>
+<!-- Filter & Sort Bar -->
+<div class="sticky top-16 z-40 bg-[#080808] py-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-b border-outline-variant mb-6">
+<div class="flex gap-2 overflow-x-auto hide-scrollbar w-full md:w-auto">
+<button class="px-4 py-2 bg-primary text-background font-label-sm text-label-sm rounded-lg whitespace-nowrap">All</button>
+<button class="px-4 py-2 border border-outline-variant text-on-surface-variant font-label-sm text-label-sm rounded-lg whitespace-nowrap hover:border-primary hover:text-primary transition-all">Must Meet</button>
+<button class="px-4 py-2 border border-outline-variant text-on-surface-variant font-label-sm text-label-sm rounded-lg whitespace-nowrap hover:border-primary hover:text-primary transition-all">Met</button>
+<button class="px-4 py-2 border border-outline-variant text-on-surface-variant font-label-sm text-label-sm rounded-lg whitespace-nowrap hover:border-primary hover:text-primary transition-all">Remaining</button>
+</div>
+<div class="relative w-full md:w-48">
+<select class="w-full bg-[#0c0c0c] border border-outline-variant rounded-lg px-4 py-2 font-label-sm text-label-sm text-primary appearance-none focus:border-primary outline-none" style="background-color: #080808; border-color: rgba(255,255,255,0.2);">
+<option>Priority: High to Low</option>
+<option>Company: A-Z</option>
+<option>Booth: Ascending</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant text-sm">expand_more</span>
+</div>
+</div>
+<!-- Target List -->
+<div class="space-y-4">
+<!-- Row 1: Active/Expanded -->
+<div class="bg-[#0c0c0c] border border-outline-variant overflow-hidden">
+<div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-[#141313] transition-colors" onclick="toggleDetails('target-1')">
+<div class="w-8 flex-shrink-0 font-headline-md text-headline-md text-on-surface-variant">01</div>
+<div class="flex-grow grid grid-cols-1 md:grid-cols-4 gap-4">
+<div class="col-span-1 md:col-span-1">
+<h3 class="font-headline-md text-headline-md leading-tight">Quantum Financial</h3>
+<div class="flex gap-2 mt-1">
+<span class="bg-surface-container-high px-2 py-0.5 rounded font-label-xs text-label-xs uppercase tracking-widest text-primary border border-outline-variant">A-12</span>
+<span class="font-label-xs text-label-xs uppercase tracking-widest">Fintech</span>
+</div>
+</div>
+<div class="hidden md:flex flex-col justify-center">
+<p class="font-body-md text-body-md text-primary">Elena Rodriguez</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Chief Investment Officer</p>
+</div>
+<div class="flex items-center justify-end md:justify-center">
+<div class="flex items-center gap-2">
+<input class="w-5 h-5 bg-transparent border-2 border-outline-variant rounded checked:bg-primary checked:border-primary transition-all cursor-pointer focus:ring-0 focus:ring-offset-0" type="checkbox">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase md:hidden">Met</span>
+</div>
+</div>
+<div class="flex items-center justify-end">
+<button class="p-2 hover:bg-surface-container-high rounded transition-colors">
+<span class="material-symbols-outlined text-primary" data-icon="qr_code_scanner">qr_code_scanner</span>
+</button>
+</div>
+</div>
+</div>
+<div class="border-t border-outline-variant p-4 bg-[#080808]" id="target-1">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div>
+<h4 class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant mb-3">Prep Notes</h4>
+<p class="font-body-md text-body-md leading-relaxed">Focus on the new Series C funding round. They are looking for strategic partners in the EU market. Elena is a proponent of decentralized ledgers; keep the conversation centered on our core blockchain integration capabilities.</p>
+</div>
+<div class="space-y-4">
+<div>
+<h4 class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant mb-3">Contact Intensity</h4>
+<div class="w-full h-1 bg-outline-variant">
+<div class="w-[85%] h-full bg-primary"></div>
+</div><p class="text-[10px] text-on-surface-variant mt-1.5 italic">Relationship depth based on interactions</p>
+</div>
+<button class="w-full bg-primary text-background font-label-sm text-label-sm py-3 rounded uppercase tracking-widest font-bold">ADD NOTE</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="bg-[#0c0c0c] border border-outline-variant overflow-hidden">
+<div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-[#141313] transition-colors" onclick="toggleDetails('target-2')">
+<div class="w-8 flex-shrink-0 font-headline-md text-headline-md text-on-surface-variant">02</div>
+<div class="flex-grow grid grid-cols-1 md:grid-cols-4 gap-4">
+<div class="col-span-1 md:col-span-1">
+<h3 class="font-headline-md text-headline-md leading-tight">Nexus Group</h3>
+<div class="flex gap-2 mt-1">
+<span class="bg-surface-container-high px-2 py-0.5 rounded font-label-xs text-label-xs uppercase tracking-widest text-primary border border-outline-variant">B-04</span>
+<span class="font-label-xs text-label-xs uppercase tracking-widest">SaaS</span>
+</div>
+</div>
+<div class="hidden md:flex flex-col justify-center">
+<p class="font-body-md text-body-md text-primary">Marcus Thorne</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">VP Engineering</p>
+</div>
+<div class="flex items-center justify-end md:justify-center">
+<div class="flex items-center gap-2">
+<input checked="" class="w-5 h-5 bg-transparent border-2 border-outline-variant rounded checked:bg-primary checked:border-primary transition-all cursor-pointer focus:ring-0 focus:ring-offset-0" type="checkbox">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase md:hidden">Met</span>
+</div>
+</div>
+<div class="flex items-center justify-end">
+<button class="p-2 hover:bg-surface-container-high rounded transition-colors">
+<span class="material-symbols-outlined text-primary" data-icon="qr_code_scanner">qr_code_scanner</span>
+</button>
+</div>
+</div>
+</div>
+<div class="hidden border-t border-outline-variant p-4 bg-[#080808]" id="target-2">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div>
+<h4 class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant mb-3">Prep Notes</h4>
+<p class="font-body-md text-body-md leading-relaxed">Transitioning from legacy infrastructure. High interest in cloud-native scaling solutions. Met briefly at the VIP lounge—needs a follow-up technical deep dive.</p>
+</div>
+<div class="space-y-4">
+<button class="w-full border border-primary text-primary font-label-sm text-label-sm py-3 rounded uppercase tracking-widest font-bold">View Meeting Summary</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Row 3 -->
+<div class="bg-[#0c0c0c] border border-outline-variant overflow-hidden">
+<div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-[#141313] transition-colors" onclick="toggleDetails('target-3')">
+<div class="w-8 flex-shrink-0 font-headline-md text-headline-md text-on-surface-variant">03</div>
+<div class="flex-grow grid grid-cols-1 md:grid-cols-4 gap-4">
+<div class="col-span-1 md:col-span-1">
+<h3 class="font-headline-md text-headline-md leading-tight">Apex Ventures</h3>
+<div class="flex gap-2 mt-1">
+<span class="bg-surface-container-high px-2 py-0.5 rounded font-label-xs text-label-xs uppercase tracking-widest text-primary border border-outline-variant">E-19</span>
+<span class="font-label-xs text-label-xs uppercase tracking-widest">Investment</span>
+</div>
+</div>
+<div class="hidden md:flex flex-col justify-center">
+<p class="font-body-md text-body-md text-primary">Sarah Chen</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Managing Director</p>
+</div>
+<div class="flex items-center justify-end md:justify-center">
+<div class="flex items-center gap-2">
+<input class="w-5 h-5 bg-transparent border-2 border-outline-variant rounded checked:bg-primary checked:border-primary transition-all cursor-pointer focus:ring-0 focus:ring-offset-0" type="checkbox">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase md:hidden">Met</span>
+</div>
+</div>
+<div class="flex items-center justify-end">
+<button class="p-2 hover:bg-surface-container-high rounded transition-colors">
+<span class="material-symbols-outlined text-primary" data-icon="qr_code_scanner">qr_code_scanner</span>
+</button>
+</div>
+</div>
+</div>
+<div class="hidden border-t border-outline-variant p-4 bg-[#080808]" id="target-3">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div>
+<h4 class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant mb-3">Prep Notes</h4>
+<p class="font-body-md text-body-md leading-relaxed">Prioritize connection through previous collaboration at '22 Summit. Looking for high-yield portfolio additions. Emphasize our growth metrics.</p>
+</div>
+<div class="space-y-4">
+<button class="w-full bg-primary text-background font-label-sm text-label-sm py-3 rounded uppercase tracking-widest font-bold">ADD NOTE</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Row 4 -->
+<div class="bg-[#0c0c0c] border border-outline-variant overflow-hidden opacity-60">
+<div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-[#141313] transition-colors" onclick="toggleDetails('target-4')">
+<div class="w-8 flex-shrink-0 font-headline-md text-headline-md text-on-surface-variant">04</div>
+<div class="flex-grow grid grid-cols-1 md:grid-cols-4 gap-4">
+<div class="col-span-1 md:col-span-1">
+<h3 class="font-headline-md text-headline-md leading-tight">Ironclad Security</h3>
+<div class="flex gap-2 mt-1">
+<span class="bg-surface-container-high px-2 py-0.5 rounded font-label-xs text-label-xs uppercase tracking-widest text-primary border border-outline-variant">C-22</span>
+<span class="font-label-xs text-label-xs uppercase tracking-widest">Cyber</span>
+</div>
+</div>
+<div class="hidden md:flex flex-col justify-center">
+<p class="font-body-md text-body-md text-primary">David Wu</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Security Architect</p>
+</div>
+<div class="flex items-center justify-end md:justify-center">
+<div class="flex items-center gap-2">
+<input class="w-5 h-5 bg-transparent border-2 border-outline-variant rounded checked:bg-primary checked:border-primary transition-all cursor-pointer focus:ring-0 focus:ring-offset-0" type="checkbox">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase md:hidden">Met</span>
+</div>
+</div>
+<div class="flex items-center justify-end">
+<button class="p-2 hover:bg-surface-container-high rounded transition-colors">
+<span class="material-symbols-outlined text-primary" data-icon="qr_code_scanner">qr_code_scanner</span>
+</button>
+</div>
+</div>
+</div>
+<div class="hidden border-t border-outline-variant p-4 bg-[#080808]" id="target-4">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div>
+<h4 class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant mb-3">Prep Notes</h4>
+<p class="font-body-md text-body-md leading-relaxed">Secondary target. Only engage if booth traffic allows. Interested in zero-trust architecture.</p>
+</div>
+<div class="space-y-4">
+<button class="w-full bg-primary text-background font-label-sm text-label-sm py-3 rounded uppercase tracking-widest font-bold">ADD NOTE</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-margin-mobile pb-safe bg-background/90 backdrop-blur-md border-t border-outline-variant h-20">
+<div class="flex flex-col items-center justify-center text-primary border-t-2 border-primary pt-2 hover:text-primary transition-colors active:scale-90 transition-all duration-200 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="target">target</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest mt-1">Targets</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant pt-2 hover:text-primary transition-colors active:scale-90 transition-all duration-200 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="person_book">person_book</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest mt-1">Contacts</span>
+</div>
+<div class="relative -top-6">
+<div class="w-14 h-14 rounded-xl flex items-center justify-center shadow-2xl active:scale-95 transition-transform cursor-pointer bg-[#080808] border border-white/20">
+<span class="material-symbols-outlined font-bold text-white" data-icon="qr_code_scanner" style="font-variation-settings: 'FILL' 1;">qr_code_scanner</span>
+</div>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant pt-2 hover:text-primary transition-colors active:scale-90 transition-all duration-200 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest mt-1">Events</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant pt-2 hover:text-primary transition-colors active:scale-90 transition-all duration-200 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest mt-1">Profile</span>
+</div>
+</nav>
+<script>
+        function toggleDetails(id) {
+            const el = document.getElementById(id);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                el.classList.add('animate-in', 'fade-in', 'slide-in-from-top-2');
+            } else {
+                el.classList.add('hidden');
+            }
+        }
+    </script>
+</body></html>
