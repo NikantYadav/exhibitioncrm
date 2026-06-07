@@ -8,6 +8,7 @@ class ConversationModel {
   final String? contactId;
   final String? eventId;
   final DateTime updatedAt;
+  final String? firstMessagePreview;
 
   ConversationModel({
     required this.id,
@@ -16,6 +17,7 @@ class ConversationModel {
     this.contactId,
     this.eventId,
     required this.updatedAt,
+    this.firstMessagePreview,
   });
 
   factory ConversationModel.fromJson(Map<String, dynamic> json) {
@@ -27,20 +29,26 @@ class ConversationModel {
       eventId: json['event_id'] as String?,
       updatedAt: DateTime.tryParse(json['updated_at'] as String? ?? '') ??
           DateTime.now(),
+      firstMessagePreview: json['first_message_preview'] as String?,
     );
   }
 
-  String get displayTitle {
+  /// Returns the best display title for this conversation.
+  /// [firstMessageSnippet] overrides the stored preview (e.g. live from ChatProvider).
+  String displayTitle({String? firstMessageSnippet}) {
     if (title != null && title!.isNotEmpty) return title!;
+    final snippet = firstMessageSnippet ?? firstMessagePreview;
+    if (snippet != null && snippet.isNotEmpty) {
+      final clean = snippet.replaceAll(RegExp(r'\s+'), ' ').trim();
+      return clean.length > 40 ? '${clean.substring(0, 40)}…' : clean;
+    }
     switch (kind) {
-      case 'global':
-        return 'Global Assistant';
       case 'contact':
         return 'Contact Chat';
       case 'event':
         return 'Event Chat';
       default:
-        return 'Chat';
+        return 'New Chat';
     }
   }
 }
@@ -73,8 +81,23 @@ class ConversationProvider extends ChangeNotifier {
     }
   }
 
+  Future<ConversationModel> createGlobal() async {
+    final json = await ApiService.createConversation(kind: 'global');
+    final convo = ConversationModel.fromJson(
+        json['data'] as Map<String, dynamic>);
+    upsertConversation(convo);
+    _activeConversation = convo;
+    notifyListeners();
+    return convo;
+  }
+
   Future<ConversationModel> getOrCreateGlobal() async {
-    // Check if we already have a global one loaded
+    // If we have an active one that is global, return it
+    if (_activeConversation != null && _activeConversation!.kind == 'global') {
+      return _activeConversation!;
+    }
+
+    // Otherwise look for the most recent global one
     final existing = _conversations.where((c) => c.kind == 'global').toList();
     if (existing.isNotEmpty) {
       _activeConversation = existing.first;
@@ -82,13 +105,7 @@ class ConversationProvider extends ChangeNotifier {
       return existing.first;
     }
 
-    final json = await ApiService.getOrCreateGlobalConversation();
-    final convo = ConversationModel.fromJson(
-        json['data'] as Map<String, dynamic>);
-    _upsertConversation(convo);
-    _activeConversation = convo;
-    notifyListeners();
-    return convo;
+    return createGlobal();
   }
 
   Future<ConversationModel> getOrCreateForContact(
@@ -108,7 +125,7 @@ class ConversationProvider extends ChangeNotifier {
     );
     final convo = ConversationModel.fromJson(
         json['data'] as Map<String, dynamic>);
-    _upsertConversation(convo);
+    upsertConversation(convo);
     _activeConversation = convo;
     notifyListeners();
     return convo;
@@ -131,23 +148,40 @@ class ConversationProvider extends ChangeNotifier {
     );
     final convo = ConversationModel.fromJson(
         json['data'] as Map<String, dynamic>);
-    _upsertConversation(convo);
+    upsertConversation(convo);
     _activeConversation = convo;
     notifyListeners();
     return convo;
   }
 
-  void setActive(ConversationModel convo) {
+  void setActive(ConversationModel? convo) {
     _activeConversation = convo;
     notifyListeners();
   }
 
-  void _upsertConversation(ConversationModel convo) {
+  void upsertConversation(ConversationModel convo) {
     final idx = _conversations.indexWhere((c) => c.id == convo.id);
     if (idx >= 0) {
       _conversations[idx] = convo;
     } else {
       _conversations.insert(0, convo);
+    }
+    notifyListeners();
+  }
+
+  Future<void> deleteConversation(String id) async {
+    try {
+      // We need to implement this in ApiService first if not there
+      // Assuming we added it to backend as requested
+      await ApiService.deleteConversation(id);
+      _conversations.removeWhere((c) => c.id == id);
+      if (_activeConversation?.id == id) {
+        _activeConversation = null;
+      }
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
     }
   }
 

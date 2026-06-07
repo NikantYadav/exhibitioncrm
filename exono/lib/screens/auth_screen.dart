@@ -49,7 +49,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
         setState(() => _isLoading = false);
         if (result['success'] == true) {
-          Navigator.of(context).pushReplacementNamed('/mode-selection');
+          Navigator.of(context).pushReplacementNamed('/home');
         } else {
           _showError(result['error'] as String? ?? 'Login failed');
         }
@@ -114,152 +114,19 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = AppTheme.colorsOf(context);
-    final isMobile = MediaQuery.of(context).size.width < 768;
 
     return EntryFlowScaffold(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, 8, isMobile ? 16 : 24, isMobile ? 24 : 32),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 980),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const EntryFlowTopBar(
-                  leadingIcon: Icons.lock_open_rounded,
-                  title: 'EXONO',
-                  badgeLabel: 'Secure Access',
-                ),
-                const SizedBox(height: 24),
-                if (isMobile)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeroCard(),
-                      const SizedBox(height: 16),
-                      _buildAuthCard(colors),
-                    ],
-                  )
-                else
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 11, child: _buildHeroCard()),
-                      const SizedBox(width: 16),
-                      Expanded(flex: 9, child: _buildAuthCard(colors)),
-                    ],
-                  ),
-              ],
+      showGrid: false,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: _buildAuthCard(colors),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeroCard() {
-    final isLogin = _isLogin;
-
-    return EntryPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          EntryEyebrow(label: isLogin ? 'WELCOME BACK' : 'CREATE ACCOUNT'),
-          const SizedBox(height: 18),
-          Text(
-            isLogin
-                ? 'Step back into your command center.'
-                : 'Create your mobile-first event operating hub.',
-            style: Theme.of(context).textTheme.displaySmall,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            isLogin
-                ? 'Sign in to continue into targets, events, capture, contacts, follow-ups, and AI assistance.'
-                : 'Create your account, finish profile setup, and choose between assistant chat or the full CRM shell.',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          const SizedBox(height: 18),
-          const Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              EntryChip(icon: Icons.track_changes_rounded, label: 'Targets'),
-              EntryChip(icon: Icons.calendar_today_rounded, label: 'Events'),
-              EntryChip(icon: Icons.qr_code_scanner_rounded, label: 'Capture'),
-              EntryChip(icon: Icons.forum_rounded, label: 'AI Assist'),
-            ],
-          ),
-          const SizedBox(height: 18),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 520;
-              if (compact) {
-                return const Column(
-                  children: [
-                    EntryMetricCard(
-                      icon: Icons.flash_on_rounded,
-                      title: 'Workflow',
-                      value: 'Fast',
-                      subtitle: 'Mobile-ready flows for event-day use',
-                    ),
-                    SizedBox(height: 12),
-                    EntryMetricCard(
-                      icon: Icons.auto_awesome_rounded,
-                      title: 'Assistant',
-                      value: 'Live',
-                      subtitle: 'Drafting, summaries, and guided follow-ups',
-                    ),
-                  ],
-                );
-              }
-
-              return const Row(
-                children: [
-                  Expanded(
-                    child: EntryMetricCard(
-                      icon: Icons.flash_on_rounded,
-                      title: 'Workflow',
-                      value: 'Fast',
-                      subtitle: 'Mobile-ready flows for event-day use',
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: EntryMetricCard(
-                      icon: Icons.auto_awesome_rounded,
-                      title: 'Assistant',
-                      value: 'Live',
-                      subtitle: 'Drafting, summaries, and guided follow-ups',
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 18),
-          const EntrySoftTile(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                EntryBullet(
-                  title: 'Soft-glass mobile UI',
-                  description: 'Built for compact screens with high-contrast cards, rounded actions, and low-friction flows.',
-                ),
-                SizedBox(height: 12),
-                EntryBullet(
-                  title: 'Frontend-first experience',
-                  description: 'Core interactions stay responsive even where backend work is still mocked or pending.',
-                ),
-                SizedBox(height: 12),
-                EntryBullet(
-                  title: 'Theme-ready foundation',
-                  description: 'Day and night mode are now driven from centralized design tokens.',
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -271,31 +138,17 @@ class _AuthScreenState extends State<AuthScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildModeSwitch(colors),
-            const SizedBox(height: 24),
-            Text(
-              _isLogin ? 'Welcome back' : 'Create account',
-              style: Theme.of(context).textTheme.displaySmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _isLogin
-                  ? 'Use your credentials to continue into Exono.'
-                  : 'Start with your account details. You’ll finish profile setup on the next step.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: 24),
             if (!_isLogin) ...[
               EntryTextField(
                 controller: _nameController,
-                label: 'Full name',
-                hint: 'Alex Morgan',
+                label: "Full name",
+                hint: "Alex Morgan",
                 textInputAction: TextInputAction.next,
                 textCapitalization: TextCapitalization.words,
                 prefixIcon: Icons.person_outline_rounded,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter your name';
+                    return "Please enter your name";
                   }
                   return null;
                 },
@@ -304,17 +157,17 @@ class _AuthScreenState extends State<AuthScreen> {
             ],
             EntryTextField(
               controller: _emailController,
-              label: 'Email',
-              hint: 'you@example.com',
+              label: "Email",
+              hint: "you@example.com",
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               prefixIcon: Icons.alternate_email_rounded,
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Please enter your email';
+                  return "Please enter your email";
                 }
-                if (!value.contains('@')) {
-                  return 'Please enter a valid email';
+                if (!value.contains("@")) {
+                  return "Please enter a valid email";
                 }
                 return null;
               },
@@ -322,8 +175,8 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 16),
             EntryTextField(
               controller: _passwordController,
-              label: 'Password',
-              hint: _isLogin ? 'Enter your password' : 'Create a password',
+              label: "Password",
+              hint: _isLogin ? "Enter your password" : "Create a password",
               obscureText: _obscurePassword,
               textInputAction: TextInputAction.done,
               prefixIcon: Icons.lock_outline_rounded,
@@ -339,26 +192,17 @@ class _AuthScreenState extends State<AuthScreen> {
               onSubmitted: (_) => _handleSubmit(),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter your password';
+                  return "Please enter your password";
                 }
                 if (value.length < 6) {
-                  return 'Password must be at least 6 characters';
+                  return "Password must be at least 6 characters";
                 }
                 return null;
               },
             ),
-            const SizedBox(height: 18),
-            EntrySoftTile(
-              child: Text(
-                _isLogin
-                    ? 'Mode selection comes next after sign-in.'
-                    : 'After signup, onboarding collects your company and AI profile details.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             EntryPrimaryButton(
-              label: _isLogin ? 'SIGN IN' : 'CREATE ACCOUNT',
+              label: _isLogin ? "SIGN IN" : "CREATE ACCOUNT",
               loading: _isLoading,
               icon: _isLogin ? Icons.login_rounded : Icons.person_add_alt_rounded,
               onPressed: _handleSubmit,
@@ -370,13 +214,13 @@ class _AuthScreenState extends State<AuthScreen> {
                 spacing: 6,
                 children: [
                   Text(
-                    _isLogin ? 'Need a new account?' : 'Already have an account?',
+                    _isLogin ? "Don't have an account?" : "Already have an account?",
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   GestureDetector(
                     onTap: () => _toggleMode(!_isLogin),
                     child: Text(
-                      'Switch mode',
+                      _isLogin ? "Create one" : "Sign in",
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -400,7 +244,7 @@ class _AuthScreenState extends State<AuthScreen> {
         children: [
           Expanded(
             child: _buildSwitchChip(
-              label: 'Sign In',
+              label: "Sign In",
               isSelected: _isLogin,
               colors: colors,
               onTap: () => _toggleMode(true),
@@ -409,7 +253,7 @@ class _AuthScreenState extends State<AuthScreen> {
           const SizedBox(width: 6),
           Expanded(
             child: _buildSwitchChip(
-              label: 'Sign Up',
+              label: "Sign Up",
               isSelected: !_isLogin,
               colors: colors,
               onTap: () => _toggleMode(false),

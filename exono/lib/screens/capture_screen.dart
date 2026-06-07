@@ -1429,6 +1429,11 @@ class _CaptureScreenState extends State<CaptureScreen>
       _leadSaved = true;
     });
     _showUiOnlyMessage(label);
+    
+    // Return true to signal that a contact was "added" (even if simulated)
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) Navigator.of(context).pop(true);
+    });
   }
 
   void _showUiOnlyMessage(String label) {

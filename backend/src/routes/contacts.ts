@@ -50,23 +50,29 @@ router.post('/', async (req, res, next) => {
     let company_id = body.company_id;
 
     // Find or create company
-    if (body.company_name && !company_id) {
+    const companyName = body.company_name || 'INDEPENDENT';
+
+    if (!company_id) {
       const { data: existingCompany } = await supabase
         .from('companies')
         .select('id')
-        .eq('name', body.company_name)
-        .single();
+        .eq('name', companyName)
+        .maybeSingle();
 
       if (existingCompany) {
         company_id = existingCompany.id;
       } else {
-        const { data: newCompany } = await supabase
+        const { data: newCompany, error: insertError } = await supabase
           .from('companies')
-          .insert({ name: body.company_name })
+          .insert({ name: companyName })
           .select('id')
           .single();
 
-        company_id = newCompany?.id;
+        if (insertError) {
+          console.error('Error creating company:', insertError);
+        } else {
+          company_id = newCompany?.id;
+        }
       }
     }
 
@@ -78,6 +84,7 @@ router.post('/', async (req, res, next) => {
         email: body.email,
         phone: body.phone,
         job_title: body.job_title,
+        linkedin_url: body.linkedin_url,
         company_id,
         notes: body.notes,
       })

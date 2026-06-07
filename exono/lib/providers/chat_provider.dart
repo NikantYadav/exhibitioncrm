@@ -137,17 +137,8 @@ class ChatProvider extends ChangeNotifier {
       }
 
       if (_nextBefore == null) {
-        // Initial load — prepend welcome if empty
+        // Initial load
         _messages.insertAll(0, newMessages);
-        if (_messages.isEmpty) {
-          _messages.add(ChatMessage(
-            id: 'welcome',
-            text:
-                "Hi! I'm your AI assistant. Ask me to create contacts, plan exhibitions, set follow-ups, or draft emails.",
-            isUser: false,
-            timestamp: DateTime.now(),
-          ));
-        }
       } else {
         // Load-more — prepend older messages
         _messages.insertAll(0, newMessages);
@@ -185,6 +176,20 @@ class ChatProvider extends ChangeNotifier {
             final id = record['id'] as String?;
             if (id == null || _messageIds.contains(id)) return;
             _messageIds.add(id);
+
+            if (record['sender_type'] == 'assistant') {
+              _isTyping = false;
+            } else if (record['sender_type'] == 'user') {
+              // Swap out any pending optimistic placeholder so the real
+              // server record takes its place without creating a duplicate.
+              final optimisticIds = _messages
+                  .where((m) => m.id.startsWith('optimistic_'))
+                  .map((m) => m.id)
+                  .toList();
+              _messages.removeWhere((m) => m.id.startsWith('optimistic_'));
+              _messageIds.removeAll(optimisticIds);
+            }
+
             _messages.add(ChatMessage(
               id: id,
               text: (record['content'] ?? '') as String,
@@ -199,9 +204,19 @@ class ChatProvider extends ChangeNotifier {
         .subscribe();
   }
 
-  Future<void> sendMessage(String text) async {
-    if (_conversationId == null || text.trim().isEmpty) return;
+  Future<Map<String, dynamic>?> sendMessage(String text) async {
+    if (_conversationId == null || text.trim().isEmpty) return null;
 
+    // --- Optimistic user message ---
+    final optimisticId = 'optimistic_${DateTime.now().millisecondsSinceEpoch}';
+    final optimisticMsg = ChatMessage(
+      id: optimisticId,
+      text: text.trim(),
+      isUser: true,
+      timestamp: DateTime.now(),
+    );
+    _messageIds.add(optimisticId);
+    _messages.add(optimisticMsg);
     _isTyping = true;
     _error = null;
     notifyListeners();
@@ -212,7 +227,11 @@ class ChatProvider extends ChangeNotifier {
         text: text.trim(),
       );
 
-      // Upsert user + assistant messages from response
+      // Remove the optimistic message and replace with the real one from server
+      _messages.removeWhere((m) => m.id == optimisticId);
+      _messageIds.remove(optimisticId);
+
+      // Upsert real user + assistant messages from response
       void upsert(Map<String, dynamic>? msg) {
         if (msg == null) return;
         final id = msg['id'] as String?;
@@ -223,8 +242,12 @@ class ChatProvider extends ChangeNotifier {
 
       upsert(resp['user_message'] as Map<String, dynamic>?);
       upsert(resp['assistant_message'] as Map<String, dynamic>?);
+
+      return resp['conversation'] as Map<String, dynamic>?;
     } catch (e) {
+      // Keep optimistic message visible but mark error
       _error = e.toString();
+      return null;
     } finally {
       _isTyping = false;
       notifyListeners();

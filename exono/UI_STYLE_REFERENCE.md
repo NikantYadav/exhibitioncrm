@@ -273,7 +273,7 @@ AppBottomNav(
 
 | Value | Tab |
 |---|---|
-| `0` | Targets |
+| `0` | Home |
 | `1` | Events |
 | `2` | QR / Capture (center elevated) |
 | `3` | Contacts |
@@ -294,6 +294,60 @@ Scaffold(
 ```
 
 Always pair with `SafeArea(bottom: false)` on the body.
+
+---
+
+### AppHeader (`lib/widgets/app_header.dart`)
+
+Consistent header bar for all main screens. Includes EXONO branding, notification button, and a screen-specific action button.
+
+**Basic usage:**
+
+```dart
+// With an icon button for screen-specific action
+AppHeader(
+  onNotificationPressed: () => _showNotifications(),
+  actionIcon: Icons.add_rounded,
+  actionTooltip: 'Add Contact',
+  onActionPressed: _showAddContactDialog,
+)
+
+// Custom widget instead of icon button (e.g., back arrow)
+AppHeader(
+  onNotificationPressed: () => _showNotifications(),
+  actionWidget: IconButton(
+    onPressed: () => Navigator.pop(context),
+    icon: const Icon(Icons.arrow_back_rounded),
+  ),
+)
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `onNotificationPressed` | `VoidCallback?` | `null` | Notification bell callback |
+| `actionIcon` | `IconData?` | `null` | Icon for screen-specific action |
+| `actionTooltip` | `String?` | `null` | Tooltip for action button |
+| `onActionPressed` | `VoidCallback?` | `null` | Action button callback |
+| `actionWidget` | `Widget?` | `null` | Custom widget (overrides `actionIcon`) |
+
+**Rules:**
+- Always include `onNotificationPressed` callback
+- Use `actionIcon` + `actionTooltip` + `onActionPressed` for standard icon button actions
+- Use `actionWidget` for custom layouts (back button, dropdown, etc.)
+- Default height is 56px with bottom border
+- Fixed at top of screen — never nest inside scrollable content
+
+**Common action patterns:**
+
+| Screen | Action | Example |
+|---|---|---|
+| Contacts | Add Contact | `actionIcon: Icons.add_rounded` |
+| Events | Add Event | `actionIcon: Icons.add_rounded` |
+| Home | Live Event Toggle | `actionIcon: Icons.bolt_rounded` |
+| Detail View | Back | `actionWidget: IconButton(icon: Icons.arrow_back_rounded)` |
+| Profile | Settings | `actionIcon: Icons.settings_rounded` |
 
 ---
 
@@ -365,17 +419,19 @@ For onboarding, auth, and splash screens only. `EntryPanel` and `EntrySoftTile` 
 
 ### Do
 - `AppCard` for every card surface
-- `AppChip` / `AppSectionLabel` / `AppFilterRow` / `AppBottomNav` for their patterns
+- `AppChip` / `AppSectionLabel` / `AppFilterRow` / `AppBottomNav` / `AppHeader` for their patterns
 - Semantic tokens for all colors
 - `SafeArea(bottom: false)` with `Scaffold.bottomNavigationBar`
+- `AppHeader` at the top of every main screen for consistent navigation and actions
 
 ### Don't
 - `Container(decoration: BoxDecoration(...))` for cards
-- Inline filter rows, chip containers, section labels, or nav bars
+- Inline filter rows, chip containers, section labels, nav bars, or header bars
 - `boxShadow` on cards
 - Hardcoded `Color(...)` in screens
 - `GoogleFonts` imports in screen files
-- Per-screen `_buildBottomNav()` methods
+- Per-screen `_buildTopBar()` or `_buildBottomNav()` methods
+- Custom header designs instead of `AppHeader`
 
 ---
 
@@ -386,6 +442,7 @@ For onboarding, auth, and splash screens only. `EntryPanel` and `EntrySoftTile` 
 - `AppSectionLabel` replaces all inline uppercase muted `Text` widgets
 - `AppFilterRow` replaces all inline filter pill `ListView` patterns
 - `AppBottomNav` replaces all per-screen `_buildBottomNav()` methods
+- `AppHeader` replaces all per-screen `_buildTopBar()` or custom header methods
 - No `static const Color` fields in any screen file
 - No `GoogleFonts` imports in any screen file
 

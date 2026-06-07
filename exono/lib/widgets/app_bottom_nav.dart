@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 
 /// Single shared bottom nav bar used across all mobile screens.
-/// Matches the 5-item layout: Targets | Contacts | [QR] | Events | Profile
+/// Matches the 5-item layout: Home | Contacts | [QR] | Events | Profile
 class AppBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onNavigate;
@@ -38,8 +38,8 @@ class AppBottomNav extends StatelessWidget {
             children: [
               Expanded(
                 child: _item(
-                  icon: Icons.track_changes_outlined,
-                  label: 'Targets',
+                  icon: Icons.home_outlined,
+                  label: 'Home',
                   isActive: selectedIndex == 0,
                   showLabel: showLabels,
                   onTap: () => onNavigate(0),
@@ -128,7 +128,7 @@ class AppBottomNav extends StatelessWidget {
           height: 66,
           child: Row(
             children: [
-              Expanded(child: _item(icon: Icons.track_changes_outlined, label: 'Targets', isActive: false, showLabel: true, onTap: () => onNavigate(0), colors: colors)),
+              Expanded(child: _item(icon: Icons.home_outlined, label: 'Home', isActive: false, showLabel: true, onTap: () => onNavigate(0), colors: colors)),
               Expanded(child: _item(icon: Icons.group_outlined, label: 'Contacts', isActive: false, showLabel: true, onTap: () => onNavigate(3), colors: colors)),
               Expanded(child: _item(icon: Icons.calendar_today_outlined, label: 'Events', isActive: false, showLabel: true, onTap: () => onNavigate(1), colors: colors)),
               Expanded(child: _item(icon: Icons.person_outline_rounded, label: 'Profile', isActive: false, showLabel: true, onTap: () => onNavigate(5), colors: colors)),

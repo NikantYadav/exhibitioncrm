@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_header.dart';
 import 'event_floor_home_screen.dart';
+import 'follow_ups_screen.dart';
 import 'pre_event_prep_screen.dart';
 
 class EventsScreen extends StatefulWidget {
@@ -19,6 +21,30 @@ class _EventsScreenState extends State<EventsScreen> {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   bool _showUpcoming = true;
+
+  late final TextEditingController _eventNameController;
+  late final TextEditingController _locationController;
+  late final TextEditingController _startDateController;
+  late final TextEditingController _endDateController;
+  String _selectedCategory = 'SaaS';
+
+  @override
+  void initState() {
+    super.initState();
+    _eventNameController = TextEditingController();
+    _locationController = TextEditingController();
+    _startDateController = TextEditingController();
+    _endDateController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _eventNameController.dispose();
+    _locationController.dispose();
+    _startDateController.dispose();
+    _endDateController.dispose();
+    super.dispose();
+  }
 
   static const List<_UpcomingEventData> _upcomingEvents = [
     _UpcomingEventData(
@@ -210,36 +236,54 @@ class _EventsScreenState extends State<EventsScreen> {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: _c.background,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 18),
-            _buildNewEventButton(),
-            const SizedBox(height: 26),
-            _buildTabs(),
-            const SizedBox(height: 18),
-            if (_showUpcoming) ...[
-              ..._upcomingEvents.map(
-                (event) => Padding(
-                  padding: const EdgeInsets.only(bottom: 28),
-                  child: _buildUpcomingEventCard(event),
-                ),
+      child: Column(
+        children: [
+          AppHeader(
+            onNotificationPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Notifications are UI-only for now.'), behavior: SnackBarBehavior.floating),
+            ),
+            actionIcon: Icons.add_rounded,
+            actionTooltip: 'Add Event',
+            onActionPressed: _showNewEventForm,
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 18),
+                  _buildNewEventButton(),
+                  const SizedBox(height: 26),
+                  _buildTabs(),
+                  const SizedBox(height: 18),
+                  if (_showUpcoming) ...[
+                    ..._upcomingEvents.map(
+                      (event) => Padding(
+                        padding: const EdgeInsets.only(bottom: 28),
+                        child: _buildUpcomingEventCard(event),
+                      ),
+                    ),
+                  ] else ...[
+                    ..._pastEvents.map(
+                      (event) => Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildPastEventCard(event),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ] else ...[
-              ..._pastEvents.map(
-                (event) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _buildPastEventCard(event),
-                ),
-              ),
-            ],
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  void _showNewEventForm() {
+    _showNewEventSheet();
   }
 
   Widget _buildHeader() {
@@ -274,7 +318,7 @@ class _EventsScreenState extends State<EventsScreen> {
       width: double.infinity,
       height: 58,
       child: FilledButton(
-        onPressed: () => _showUiOnlyMessage('New Event'),
+        onPressed: _showNewEventSheet,
         style: FilledButton.styleFrom(
           backgroundColor: _c.accent,
           foregroundColor: Colors.white,
@@ -379,8 +423,8 @@ class _EventsScreenState extends State<EventsScreen> {
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFFFB4AB),
+                            decoration: BoxDecoration(
+                              color: _c.destructive,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -401,7 +445,7 @@ class _EventsScreenState extends State<EventsScreen> {
                 ),
                 const Spacer(),
                 InkWell(
-                  onTap: () => _showUiOnlyMessage('Event actions'),
+                  onTap: () => _showEventActionsSheet(event),
                   child: Icon(
                     Icons.more_vert,
                     color: _c.textSecondary,
@@ -634,8 +678,7 @@ class _EventsScreenState extends State<EventsScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () =>
-                      _showUiOnlyMessage('Follow-up queue for ${event.title}'),
+                  onPressed: () => _openFollowUpQueue(),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: _c.accent),
                     backgroundColor: _c.surface,
@@ -681,6 +724,16 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
+  void _openFollowUpQueue() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => FollowUpsScreen(
+          onNavigateTab: widget.onNavigateTab,
+        ),
+      ),
+    );
+  }
+
   void _openPrepScreen(_UpcomingEventData event) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -700,6 +753,484 @@ class _EventsScreenState extends State<EventsScreen> {
         builder: (context) => EventFloorHomeScreen(
           data: event.floorData!,
           onNavigateTab: widget.onNavigateTab,
+        ),
+      ),
+    );
+  }
+
+  void _showNewEventSheet() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => _buildNewEventSheet(),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+    );
+  }
+
+  Widget _buildNewEventSheet() {
+    const List<String> categories = [
+      'SaaS',
+      'Fintech',
+      'AI',
+      'Healthcare',
+      'Energy',
+      'Manufacturing',
+      'Other',
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _c.background,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(top: BorderSide(color: _c.border)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _c.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'New Event',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.48,
+                      color: _c.textPrimary,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Fill in the details to schedule a new industry gathering.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: _c.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildFormField(
+                    label: 'Event Name',
+                    controller: _eventNameController,
+                    placeholder: 'e.g. AI Innovation Summit 2024',
+                  ),
+                  const SizedBox(height: 18),
+                  _buildFormField(
+                    label: 'Location',
+                    controller: _locationController,
+                    placeholder: 'Search for a venue or city',
+                    icon: Icons.location_on_outlined,
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDateField(
+                          label: 'Start Date',
+                          controller: _startDateController,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildDateField(
+                          label: 'End Date',
+                          controller: _endDateController,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  _buildCategoryDropdown(categories),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _showUiOnlyMessage('Event created');
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _c.textPrimary,
+                        foregroundColor: _c.background,
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        textStyle: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 2.0,
+                        ),
+                      ),
+                      child: const Text('SAVE EVENT'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _c.textSecondary,
+                        side: BorderSide(color: _c.border),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        textStyle: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 1.6,
+                        ),
+                      ),
+                      child: const Text('CANCEL'),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormField({
+    required String label,
+    required TextEditingController controller,
+    required String placeholder,
+    IconData? icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 2.4,
+            color: _c.textSecondary,
+            height: 1.33,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: _c.textPrimary,
+          ),
+          cursorColor: _c.accent,
+          decoration: InputDecoration(
+            hintText: placeholder,
+            hintStyle: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: _c.border,
+            ),
+            prefixIcon: icon != null
+                ? Padding(
+                    padding: const EdgeInsets.only(left: 12, right: 8),
+                    child: Icon(icon, size: 20, color: _c.textSecondary),
+                  )
+                : null,
+            prefixIconConstraints:
+                icon != null ? const BoxConstraints(minWidth: 0) : null,
+            isDense: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.accent),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            filled: true,
+            fillColor: _c.surface,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateField({
+    required String label,
+    required TextEditingController controller,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 2.4,
+            color: _c.textSecondary,
+            height: 1.33,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          readOnly: true,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: _c.textPrimary,
+          ),
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: DateTime.now(),
+              firstDate: DateTime(2024),
+              lastDate: DateTime(2026),
+              builder: (context, child) {
+                return Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: ColorScheme.dark(
+                      primary: _c.accent,
+                      surface: _c.surface,
+                      onSurface: _c.textPrimary,
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (date != null) {
+              controller.text = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+            }
+          },
+          decoration: InputDecoration(
+            hintText: 'YYYY-MM-DD',
+            hintStyle: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: _c.border,
+            ),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 8),
+              child: Icon(
+                Icons.calendar_today_outlined,
+                size: 18,
+                color: _c.textSecondary,
+              ),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 0),
+            isDense: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.accent),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            filled: true,
+            fillColor: _c.surface,
+          ),
+          cursorColor: _c.accent,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryDropdown(List<String> categories) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Category',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 2.4,
+            color: _c.textSecondary,
+            height: 1.33,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: _c.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _c.border),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: DropdownButton<String>(
+            value: _selectedCategory,
+            items: categories
+                .map(
+                  (cat) => DropdownMenuItem(
+                    value: cat,
+                    child: Text(
+                      cat,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: _c.textPrimary,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _selectedCategory = value);
+              }
+            },
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: _c.textPrimary,
+            ),
+            dropdownColor: _c.surface,
+            icon: Icon(Icons.expand_more, color: _c.textSecondary),
+            isExpanded: true,
+            underline: const SizedBox(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showEventActionsSheet(_UpcomingEventData event) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => _buildEventActionsSheet(),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+    );
+  }
+
+  Widget _buildEventActionsSheet() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _c.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(top: BorderSide(color: _c.border)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _c.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              children: [
+                _buildActionButton(
+                  icon: Icons.edit_outlined,
+                  label: 'Edit Event',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _showUiOnlyMessage('Edit event');
+                  },
+                ),
+                const SizedBox(height: 4),
+                _buildActionButton(
+                  icon: Icons.share_outlined,
+                  label: 'Share Event',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _showUiOnlyMessage('Share event');
+                  },
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(color: _c.border.withValues(alpha: 0.5), height: 1),
+                ),
+                _buildActionButton(
+                  icon: Icons.delete_outlined,
+                  label: 'Delete Event',
+                  isDestructive: true,
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _showUiOnlyMessage('Delete event');
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    final color = isDestructive ? _c.destructive : _c.textPrimary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: color,
+              ),
+            ),
+          ],
         ),
       ),
     );

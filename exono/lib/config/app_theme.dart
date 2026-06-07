@@ -167,8 +167,8 @@ class AppTheme {
 
   static const ExonoColors darkColors = ExonoColors(
     isDark: true,
-    background: Color(0xFF04060E),
-    backgroundAlt: Color(0xFF07091A),
+    background: Color(0xFF000000),
+    backgroundAlt: Color(0xFF000000),
     surface: Color(0xFF0B1422),
     surfaceAlt: Color(0xFF0F1B2E),
     surfaceElevated: Color(0xFF152538),

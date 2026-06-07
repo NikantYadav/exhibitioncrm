@@ -446,15 +446,19 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () =>
-                    _showUiOnlyMessage('Edit draft is UI-only for now.'),
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('EDIT'),
+                onPressed: () {
+                  setState(() {
+                    _showAiPreview = false;
+                    _isRecording = false;
+                    _elapsed = Duration.zero;
+                  });
+                },
+                icon: const Icon(Icons.refresh_outlined, size: 18),
+                label: const Text('RETAKE'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _c.textSecondary,
+                  foregroundColor: _c.textMuted,
                   side: BorderSide(color: _c.border),
-                  backgroundColor: _c.surface,
-                  minimumSize: const Size.fromHeight(52),
+                  minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -468,27 +472,50 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: FilledButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: () =>
-                    Navigator.of(context).pop(_VoiceMemoryResult.saved),
-                icon: const Icon(Icons.save_outlined, size: 18),
-                label: const Text('SAVE TO TIMELINE'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _c.textPrimary,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(52),
+                    _showUiOnlyMessage('Edit draft is UI-only for now.'),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('EDIT'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _c.textMuted,
+                  side: BorderSide(color: _c.border),
+                  minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   textStyle: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    letterSpacing: 1.3,
+                    letterSpacing: 1.8,
                   ),
                 ),
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () =>
+                Navigator.of(context).pop(_VoiceMemoryResult.saved),
+            icon: const Icon(Icons.save_outlined, size: 18),
+            label: const Text('PROCESS AND SAVE'),
+            style: FilledButton.styleFrom(
+              backgroundColor: _c.textPrimary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 2.0,
+              ),
+            ),
+          ),
         ),
       ],
     );

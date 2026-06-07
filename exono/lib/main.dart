@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -11,11 +12,53 @@ import 'providers/theme_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/onboarding_screen.dart';
-import 'screens/mode_selection_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/main_screen.dart';
 import 'screens/home_default_screen.dart';
 import 'screens/landing_screen.dart';
+
+class _AppRouter extends StatefulWidget {
+  const _AppRouter();
+
+  @override
+  State<_AppRouter> createState() => _AppRouterState();
+}
+
+class _AppRouterState extends State<_AppRouter> {
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthAndNavigate();
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    try {
+      final authProvider = context.read<AuthProvider>();
+      await authProvider.initialize();
+
+      if (!mounted) return;
+
+      if (authProvider.isAuthenticated) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      } else {
+        Navigator.of(context).pushReplacementNamed(kIsWeb ? '/landing' : '/auth');
+      }
+    } catch (_) {
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed(kIsWeb ? '/landing' : '/auth');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: SizedBox.expand(
+        child: ColoredBox(color: Color(0xFFF4F7FF)),
+      ),
+    );
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,13 +116,12 @@ class ExonoApp extends StatelessWidget {
             themeMode: theme.themeMode,
             initialRoute: '/',
             routes: {
-              '/': (context) => const SplashScreen(),
+              '/': (context) => const _AppRouter(),
               '/auth': (context) => const AuthScreen(),
               '/onboarding': (context) => const OnboardingScreen(),
-              '/mode-selection': (context) => const ModeSelectionScreen(),
+              '/home': (context) => const HomeDefaultScreen(),
               '/chat': (context) => const ChatScreen(),
               '/main': (context) => const MainScreen(),
-              '/home-default': (context) => const HomeDefaultScreen(),
               '/landing': (context) => const LandingScreen(),
             },
           );

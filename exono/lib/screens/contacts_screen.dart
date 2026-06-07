@@ -4,7 +4,13 @@ import '../config/app_theme.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_filter_row.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
+import '../models/contact.dart';
+import '../services/api_service.dart';
+import 'add_contact_dialog.dart';
+import 'capture_screen.dart';
+import 'voice_memory_capture_screen.dart';
 import 'contact_links_files_sheet.dart';
 import 'edit_sectors_sheet.dart';
 import 'log_interaction_screen.dart';
@@ -30,145 +36,171 @@ class _ContactsScreenState extends State<ContactsScreen> {
     'By Company',
   ];
 
-  late final List<_ContactProfileData> _allContacts = [
-    _buildGenericProfile(
-      initials: 'JD',
-      name: 'Julianne De Marco',
-      title: 'VP Supply Chain',
-      company: 'Global Logistics Corp',
-      eventTag: 'Summit 2024',
-      followUpDue: true,
-      location: 'Chicago, USA',
-      website: 'globallogistics.example',
-      email: 'j.demarco@globallogistics.example',
-      phone: '+1 (555) 210-4401',
-      linkedin: 'linkedin.com/in/juliannedemarco',
-      sector: 'Logistics',
-      productTag: 'PRODUCT: ROUTE AI',
-    ),
-    _buildGenericProfile(
-      initials: 'AH',
-      name: 'Arthur Hennessey',
-      title: 'Managing Director',
-      company: 'Silver Oak Capital',
-      eventTag: 'FinTech Expo',
-      followUpDue: false,
-      location: 'New York, USA',
-      website: 'silveroakcapital.example',
-      email: 'arthur.h@silveroakcapital.example',
-      phone: '+1 (555) 930-1124',
-      linkedin: 'linkedin.com/in/arthurhennessey',
-      sector: 'Finance',
-      productTag: 'PRODUCT: EDGE INTEL',
-    ),
-    _buildGenericProfile(
-      initials: 'SK',
-      name: 'Satoshi Kobayashi',
-      title: 'Chief Architect',
-      company: 'NeoTokyo Systems',
-      eventTag: 'Cloud Conf',
-      followUpDue: true,
-      location: 'Tokyo, Japan',
-      website: 'neotokyosystems.example',
-      email: 's.kobayashi@neotokyosystems.example',
-      phone: '+81 03-5555-9087',
-      linkedin: 'linkedin.com/in/satoshikobayashi',
-      sector: 'Cloud Infrastructure',
-      productTag: 'PRODUCT: Q-NET',
-    ),
-    _buildGenericProfile(
-      initials: 'LW',
-      name: 'Lena Weiss',
-      title: 'Head of Growth',
-      company: 'Munich Agri-Tech',
-      eventTag: 'AgriWorld 24',
-      followUpDue: false,
-      location: 'Munich, Germany',
-      website: 'munichagritech.example',
-      email: 'l.weiss@munichagritech.example',
-      phone: '+49 89 555 2190',
-      linkedin: 'linkedin.com/in/lenaweiss',
-      sector: 'Agriculture',
-      productTag: 'PRODUCT: CORE PLATFORM',
-    ),
-    _ContactProfileData(
-      initials: 'MV',
-      name: 'MARCUS VANCE',
-      listName: 'Marcus Thorne',
-      title: 'SVP Global Infrastructure',
-      company: 'NEXUS DYNAMICS',
-      listSubtitle: 'Principal Partner • Blackwood Strategy',
-      eventTag: 'CES 2024',
-      followUpDue: true,
-      productTag: 'PRODUCT: Q-NET',
-      briefingItems: const [
-        'Last discussed the Quantum-V shift at CES; expressed concern about legacy integration.',
-        'Mentioned interest in the Q3 Beta for enterprise-grade security protocols.',
-      ],
-      buyingAuthority: 'Economic Buyer',
-      currentSentiment: 'Strategic Advocate',
-      primaryPainPoint: 'Scalability Latency',
-      email: 'm.vance@nexusdynamics.com',
-      phone: '+1 (555) 012-3456',
-      linkedin: 'linkedin.com/in/marcusvance',
-      location: 'San Francisco, USA',
-      employeeRange: '10,000+ Employees',
-      sector: 'Cloud Infrastructure',
-      website: 'nexusdynamics.com',
-      companyDescription:
-          'Nexus Dynamics provides enterprise-grade cloud infrastructure and edge computing solutions.',
-      recentNews:
-          'Announced strategic partnership with Q-Net for Quantum-V integration.',
-      keyMarkets: const ['North America', 'EMEA', 'APAC'],
-      decisionStructure:
-          'Decentralized with regional SVP approval required for Q1 budgets.',
-      aiInsights: const [
-        'Expressed urgency for Q3 beta; follow up on security protocol documentation.',
-        'Consistent engagement at CES suggests high intent for enterprise integration.',
-        'Budget approval cycle starting in two weeks—prime time for a technical deep dive.',
-      ],
-      strategicContext:
-          '"Vance is navigating a complex migration phase. Focus the conversation on risk mitigation and our zero-downtime deployment record. He responds better to hard engineering data than high-level visionary pitches. Position EXONO as the stability layer for their 2025 expansion."',
-      timelineItems: const [
-        _TimelineItem(
-          dateLabel: 'Today • 14:00',
-          title: 'Planned Briefing',
-          description: 'Private meeting room A4, Exhibition Hall.',
-          isCurrent: true,
-        ),
-        _TimelineItem(
-          dateLabel: 'Jan 12, 2024',
-          title: 'CES Las Vegas',
-          description:
-              'Initial contact at Keynote Mixer. High interest in infrastructure resilience.',
-        ),
-        _TimelineItem(
-          dateLabel: 'Dec 04, 2023',
-          title: 'Inbound Query',
-          description: 'Requested technical whitepaper via LinkedIn DM.',
-        ),
-      ],
-    ),
-    _buildGenericProfile(
-      initials: 'EF',
-      name: 'Elena Flores',
-      title: 'Operations Lead',
-      company: 'Aero Dynamics',
-      eventTag: 'Paris Air Show',
-      followUpDue: false,
-      location: 'Madrid, Spain',
-      website: 'aerodynamics.example',
-      email: 'elena.f@aerodynamics.example',
-      phone: '+34 91 555 0032',
-      linkedin: 'linkedin.com/in/elenaflores',
-      sector: 'Aerospace',
-      productTag: 'PRODUCT: FLIGHT OPS',
-    ),
-  ];
+  List<_ContactProfileData> _allContacts = [];
+  bool _isLoading = true;
+  bool _isEnriching = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  Future<void> _loadContacts() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final contacts = await ApiService.getContacts();
+      if (mounted) {
+        setState(() {
+          _allContacts = contacts.map(_mapContactToProfileData).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  _ContactProfileData _mapContactToProfileData(Contact contact) {
+    final initials = contact.firstName.isNotEmpty
+        ? (contact.firstName[0] + (contact.lastName?.isNotEmpty == true ? contact.lastName![0] : ''))
+        : '??';
+    
+    return _buildGenericProfile(
+      id: contact.id,
+      initials: initials.toUpperCase(),
+      name: contact.fullName,
+      title: contact.jobTitle ?? 'Professional',
+      company: contact.company?.name ?? 'Unknown Company',
+      eventTag: 'Summit 2024', // Default for now
+      followUpDue: contact.followUpStatus == 'urgent' || contact.followUpStatus == 'contacted',
+      location: contact.company?.location ?? 'Global',
+      website: contact.company?.website ?? '',
+      email: contact.email ?? '',
+      phone: contact.phone ?? '',
+      linkedin: contact.linkedinUrl ?? '',
+      sector: contact.company?.industry ?? 'Technology',
+      productTag: contact.company?.productsServices ?? 'Strategic Solution',
+      companyDescription: contact.company?.description,
+      employeeRange: contact.company?.companySize,
+    );
+  }
+
+  Future<void> _fetchContactDetails(_ContactProfileData profile) async {
+    try {
+      // Fetch timeline
+      final timelineData = await ApiService.getContactTimeline(profile.id);
+      
+      final timelineItems = timelineData.map((item) {
+        final date = DateTime.parse(item['date']);
+        final type = item['type'] as String;
+        String title = item['title'] ?? (type == 'note' ? 'Note Added' : 'Interaction');
+        
+        // Refine title based on type
+        if (type == 'meeting') {
+          title = 'Meeting: ${item['subject'] ?? 'Strategy Session'}';
+        } else if (type == 'interaction' && item['interaction_type'] == 'capture') {
+          title = 'Scanner Capture';
+        }
+
+        return _TimelineItem(
+          dateLabel: '${_formatDate(date)} • ${_formatTime(date)}',
+          title: title,
+          description: item['summary'] ?? item['content'] ?? 'No additional details.',
+          isCurrent: false,
+        );
+      }).toList();
+
+      if (mounted && _selectedContact?.id == profile.id) {
+        setState(() {
+          _selectedContact = _selectedContact!.copyWith(
+            timelineItems: timelineItems,
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching contact details: $e');
+    }
+  }
+
+  Future<void> _enrichContact(_ContactProfileData contact) async {
+    if (_isEnriching) return;
+
+    setState(() {
+      _isEnriching = true;
+    });
+
+    try {
+      await ApiService.enrichContact(contact.id);
+      
+      // Reload contacts to get updated data
+      await _loadContacts();
+      
+      // Update selected contact
+      if (mounted) {
+        final updated = _allContacts.firstWhere((c) => c.id == contact.id);
+        setState(() {
+          _selectedContact = updated;
+          _isEnriching = false;
+        });
+        _showSuccessMessage('Contact enriched with AI intelligence');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isEnriching = false;
+        });
+        _showErrorMessage('Enrichment failed: $e');
+      }
+    }
+  }
+
+  void _showSuccessMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade800,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade800,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      return 'Today';
+    }
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _formatTime(DateTime date) {
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
 
   String _searchQuery = '';
   String _selectedFilter = 'All';
   _ContactProfileData? _selectedContact;
+  bool _showBriefing = true;
 
   List<_ContactProfileData> get _filteredContacts {
     final query = _searchQuery.trim().toLowerCase();
@@ -178,19 +210,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
           query.isEmpty ||
           contact.listName.toLowerCase().contains(query) ||
           contact.listSubtitle.toLowerCase().contains(query) ||
-          contact.eventTag.toLowerCase().contains(query);
+          contact.eventTag.toLowerCase().contains(query) ||
+          contact.productTag.toLowerCase().contains(query) ||
+          contact.location.toLowerCase().contains(query);
 
       final matchesFilter = switch (_selectedFilter) {
         'All' => true,
         'This Event' => contact.eventTag == 'Summit 2024',
-        'By Product' =>
-          contact.productTag.contains('Q-NET') ||
-              contact.productTag.contains('EDGE') ||
-              contact.productTag.contains('CORE'),
-        'By Country' =>
-          contact.location.contains('Germany') ||
-              contact.location.contains('Japan') ||
-              contact.location.contains('Spain'),
+        'By Product' => contact.productTag != 'Strategic Solution' && contact.productTag.isNotEmpty,
+        'By Country' => contact.location != 'Global' && contact.location.isNotEmpty,
         'By Company' => true,
         _ => true,
       };
@@ -213,9 +241,22 @@ class _ContactsScreenState extends State<ContactsScreen> {
         bottom: false,
         child: Column(
           children: [
-            _selectedContact == null
-                ? _buildListTopBar()
-                : _buildDetailTopBar(),
+            if (_selectedContact == null)
+              AppHeader(
+                onNotificationPressed: () => _showUiOnlyMessage('Notifications'),
+                actionIcon: Icons.add_rounded,
+                actionTooltip: 'Add Contact',
+                onActionPressed: _showAddContactSheet,
+              )
+            else
+              AppHeader(
+                onNotificationPressed: () => _showUiOnlyMessage('Notifications'),
+                actionWidget: IconButton(
+                  onPressed: () => setState(() => _selectedContact = null),
+                  icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary),
+                  splashRadius: 20,
+                ),
+              ),
             Expanded(
               child: _selectedContact == null
                   ? _buildListBody()
@@ -229,92 +270,35 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Widget _buildListTopBar() {
-    return Container(
-      height: 64,
-      decoration: BoxDecoration(
-        color: _c.surface,
-        border: Border(bottom: BorderSide(color: _c.border, width: 1)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Icon(Icons.menu, color: _c.textPrimary, size: 22),
-          const SizedBox(width: 14),
-          Text(
-            'EXONO',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1.2,
-              color: _c.textPrimary,
-              height: 1,
-            ),
-          ),
-          const Spacer(),
-          Icon(
-            Icons.notifications_none_rounded,
-            color: _c.textPrimary,
-            size: 22,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailTopBar() {
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        color: _c.surface,
-        border: Border(bottom: BorderSide(color: _c.border, width: 1)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => setState(() => _selectedContact = null),
-            splashRadius: 20,
-            icon: Icon(Icons.arrow_back, color: _c.textPrimary),
-          ),
-          const Spacer(),
-          Text(
-            'EXONO',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1.2,
-              color: _c.textPrimary,
-              height: 1,
-            ),
-          ),
-          const Spacer(),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => _showUiOnlyMessage('Share contact'),
-                splashRadius: 20,
-                icon: Icon(Icons.share_outlined, color: _c.textPrimary),
-              ),
-              IconButton(
-                onPressed: () => _showUiOnlyMessage('More actions'),
-                splashRadius: 20,
-                icon: Icon(Icons.more_vert, color: _c.textPrimary),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildListBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Error: $_error', textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadContacts,
+              child: const Text('RETRY'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final filtered = _filteredContacts;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildListHeader(),
+          _buildListHeader(filtered.length),
           const SizedBox(height: 28),
           _buildSearchField(),
           const SizedBox(height: 24),
@@ -323,7 +307,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
           _buildLegend(),
           const SizedBox(height: 26),
           Container(height: 1, color: _c.border),
-          ..._filteredContacts.map(_buildContactRow),
+          if (filtered.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: Text(
+                  'No contacts found.',
+                  style: TextStyle(color: _c.textSecondary),
+                ),
+              ),
+            )
+          else
+            ...filtered.map(_buildContactRow),
           const SizedBox(height: 28),
           Center(child: _buildLoadMoreButton()),
         ],
@@ -331,7 +326,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Widget _buildListHeader() {
+  Widget _buildListHeader(int count) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -348,7 +343,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
         ),
         Text(
-          'Total 1,482',
+          'Total $count',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -460,76 +455,85 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Widget _buildContactRow(_ContactProfileData contact) {
-    return InkWell(
-      onTap: () => setState(() => _selectedContact = contact),
-      child: AppCard(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 18),
-        radius: 24,
-        child: Row(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: _c.accentSoft,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: _c.border),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      contact.initials,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
-                        color: _c.textPrimary,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedContact = contact;
+            _showBriefing = true;
+          });
+          _fetchContactDetails(contact);
+        },
+        child: AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          radius: 16,
+          child: Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: _c.accentSoft,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _c.border),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        contact.initials,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
+                          color: _c.textPrimary,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          contact.listName,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            height: 1,
-                            color: _c.textPrimary,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            contact.listName,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              height: 1,
+                              color: _c.textPrimary,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          contact.listSubtitle,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            height: 1.2,
-                            color: _c.textSecondary,
+                          const SizedBox(height: 6),
+                          Text(
+                            contact.listSubtitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                              height: 1.2,
+                              color: _c.textSecondary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: contact.followUpDue ? _c.textPrimary : _c.border,
+              const SizedBox(width: 14),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: contact.followUpDue ? _c.textPrimary : _c.border,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -562,22 +566,41 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _buildBriefingCard(contact),
-          const SizedBox(height: 20),
+          if (_showBriefing)
+            SizedBox(
+              width: double.infinity,
+              child: _buildBriefingCard(contact),
+            ),
+          if (_showBriefing) const SizedBox(height: 24),
           _buildProfileHeader(contact),
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: _buildCoreAttributesSection(contact),
+          ),
           const SizedBox(height: 24),
-          _buildCoreAttributesSection(contact),
-          const SizedBox(height: 20),
-          _buildCompanyIntelligenceSection(contact),
-          const SizedBox(height: 20),
-          _buildInsightsSection(contact),
-          const SizedBox(height: 20),
-          _buildStrategicContextSection(contact),
-          const SizedBox(height: 20),
-          _buildTimelineSection(contact),
-          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: _buildCompanyIntelligenceSection(contact),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: _buildInsightsSection(contact),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: _buildStrategicContextSection(contact),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: _buildTimelineSection(contact),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -607,9 +630,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          ...contact.briefingItems.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+          ...contact.briefingItems.asMap().entries.map(
+            (entry) => Padding(
+              padding: EdgeInsets.only(bottom: entry.key < contact.briefingItems.length - 1 ? 12 : 0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -625,7 +648,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      item,
+                      entry.value,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
@@ -638,15 +661,19 @@ class _ContactsScreenState extends State<ContactsScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 16),
           Align(
             alignment: Alignment.centerRight,
-            child: Text(
-              'Dismiss',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.2,
-                color: _c.textSecondary,
+            child: GestureDetector(
+              onTap: () => setState(() => _showBriefing = false),
+              child: Text(
+                'Dismiss',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                  color: _c.textSecondary,
+                ),
               ),
             ),
           ),
@@ -657,32 +684,86 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildProfileHeader(_ContactProfileData contact) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          width: 128,
-          height: 128,
-          decoration: BoxDecoration(
-            color: _c.accentSoft,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: _c.border),
-            boxShadow: [
-              BoxShadow(
-                color: _c.accentGlow.withValues(alpha: 0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
+        Stack(
           alignment: Alignment.center,
-          child: Text(
-            contact.initials,
-            style: TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1.8,
-              color: _c.textPrimary,
+          children: [
+            Container(
+              width: 128,
+              height: 128,
+              decoration: BoxDecoration(
+                color: _c.accentSoft,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: _c.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: _c.accentGlow.withValues(alpha: 0.08),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                contact.initials,
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.8,
+                  color: _c.textPrimary,
+                ),
+              ),
             ),
-          ),
+            Positioned(
+              right: -10,
+              bottom: -10,
+              child: _isEnriching
+                  ? Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: _c.accent,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: _c.accentGlow,
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      ),
+                    )
+                  : GestureDetector(
+                      onTap: () => _enrichContact(contact),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: _c.accent,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: _c.accentGlow,
+                              blurRadius: 12,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.auto_awesome,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         Text(
@@ -807,17 +888,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildInfoBlock('Description', contact.companyDescription),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           _buildInfoBlock('Recent News', contact.recentNews),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Text('Key Markets', style: _labelStyle()),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: contact.keyMarkets.map((m) => AppChip(m)).toList(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           _buildInfoBlock('Decision Structure', contact.decisionStructure),
         ],
       ),
@@ -830,63 +911,48 @@ class _ContactsScreenState extends State<ContactsScreen> {
       title: 'AI INSIGHTS',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: contact.aiInsights
-            .map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      margin: const EdgeInsets.only(top: 7),
-                      decoration: BoxDecoration(
-                        color: _c.textPrimary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        item,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: _c.textPrimary,
-                          height: 1.45,
-                        ),
-                      ),
-                    ),
-                  ],
+        children: contact.aiInsights.asMap().entries.map(
+          (entry) => Padding(
+            padding: EdgeInsets.only(
+              bottom: entry.key < contact.aiInsights.length - 1 ? 16 : 0,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  margin: const EdgeInsets.only(top: 7),
+                  decoration: BoxDecoration(
+                    color: _c.textPrimary,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-            )
-            .toList(),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    entry.value,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: _c.textPrimary,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ).toList(),
       ),
     );
   }
 
   Widget _buildStrategicContextSection(_ContactProfileData contact) {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _c.surfaceAlt,
-        borderRadius: BorderRadius.circular(24),
-        border: Border(
-          left: BorderSide(color: _c.accent, width: 4),
-          top: BorderSide(color: _c.border),
-          right: BorderSide(color: _c.border),
-          bottom: BorderSide(color: _c.border),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: _c.accentGlow.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+      radius: 24,
+      borderColor: _c.accent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -967,7 +1033,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildTimelineItem(_TimelineItem item) {
     return Padding(
-      padding: const EdgeInsets.only(left: 0, bottom: 26),
+      padding: const EdgeInsets.only(left: 0, bottom: 32),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1041,6 +1107,45 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
+  Future<void> _sendPriorityBrief(_ContactProfileData contact) async {
+    setState(() => _isEnriching = true);
+    try {
+      final result = await ApiService.generateEmailDraft(
+        contactId: contact.id,
+        emailType: 'briefing',
+        customContext: 'High priority event follow-up requested by user.',
+      );
+      
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Priority Brief Drafted'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Subject: ${result['data']['subject']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  Text(result['data']['body']),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('DISMISS')),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('SEND NOW')),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      _showErrorMessage('Failed to generate brief: $e');
+    } finally {
+      if (mounted) setState(() => _isEnriching = false);
+    }
+  }
+
   Widget _buildDetailActionBar(_ContactProfileData contact) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
@@ -1049,43 +1154,45 @@ class _ContactsScreenState extends State<ContactsScreen> {
           Expanded(
             child: SizedBox(
               height: 56,
-              child: FilledButton.icon(
-                onPressed: () => _showUiOnlyMessage('Send priority brief'),
-                icon: Icon(Icons.mail_outline, size: 20),
-                label: Text(
-                  'SEND PRIORITY\nBRIEF',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5,
-                    color: Colors.white,
-                    height: 1.15,
+              child: _isEnriching 
+                ? const Center(child: CircularProgressIndicator())
+                : FilledButton.icon(
+                    onPressed: () => _sendPriorityBrief(contact),
+                    icon: Icon(Icons.mail_outline, size: 20),
+                    label: Text(
+                      'SEND PRIORITY\nBRIEF',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5,
+                        color: Colors.white,
+                        height: 1.15,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _c.textPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _c.textPrimary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
             ),
           ),
           const SizedBox(width: 10),
           ...[
-            Icons.call_outlined,
-            Icons.calendar_month_outlined,
-            Icons.more_horiz,
+            {'icon': Icons.call_outlined, 'action': () => _showUiOnlyMessage('Call ${contact.phone}')},
+            {'icon': Icons.calendar_month_outlined, 'action': () => _showUiOnlyMessage('Schedule Meeting')},
+            {'icon': Icons.more_horiz, 'action': () => _showUiOnlyMessage('More Actions')},
           ].map(
-            (icon) => Padding(
+            (btn) => Padding(
               padding: const EdgeInsets.only(left: 0, right: 10),
               child: SizedBox(
                 width: 56,
                 height: 56,
                 child: OutlinedButton(
-                  onPressed: () => _showUiOnlyMessage('Contact action'),
+                  onPressed: btn['action'] as VoidCallback,
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(
                       color: Colors.white.withValues(alpha: 0.10),
@@ -1096,7 +1203,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     ),
                     padding: EdgeInsets.zero,
                   ),
-                  child: Icon(icon, color: _c.textPrimary),
+                  child: Icon(btn['icon'] as IconData, color: _c.textPrimary),
                 ),
               ),
             ),
@@ -1162,7 +1269,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildKeyValueRow(String key, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: _c.border.withValues(alpha: 0.25)),
@@ -1202,7 +1309,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     bool underline = false,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: _c.border.withValues(alpha: 0.25)),
@@ -1235,7 +1342,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildSectorRow(List<String> sectors) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: _c.border.withValues(alpha: 0.25)),
@@ -1330,7 +1437,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final hasAssets = contact.assets.isNotEmpty;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: _c.border.withValues(alpha: 0.25)),
@@ -1391,6 +1498,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
 
   _ContactProfileData _buildGenericProfile({
+    required String id,
     required String initials,
     required String name,
     required String title,
@@ -1404,8 +1512,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
     required String linkedin,
     required String sector,
     required String productTag,
+    String? companyDescription,
+    String? employeeRange,
   }) {
     return _ContactProfileData(
+      id: id,
       initials: initials,
       name: name.toUpperCase(),
       listName: name,
@@ -1416,55 +1527,35 @@ class _ContactsScreenState extends State<ContactsScreen> {
       followUpDue: followUpDue,
       productTag: productTag,
       briefingItems: [
-        'Recently discussed platform modernization priorities and integration timelines.',
-        'Asked for a concise follow-up that includes implementation examples relevant to ${company.split(' ').first}.',
+        'Evaluating ${productTag.isNotEmpty ? productTag : 'modernization'} priorities and integration timelines.',
+        'Focus on implementation examples relevant to ${company.split(' ').first}.',
       ],
-      buyingAuthority: 'Department Lead',
-      currentSentiment: followUpDue ? 'Warm Opportunity' : 'Monitoring',
-      primaryPainPoint: 'Operational Complexity',
+      buyingAuthority: 'Verified Lead',
+      currentSentiment: followUpDue ? 'Warm Opportunity' : 'Evaluating',
+      primaryPainPoint: 'Operational Efficiency',
       email: email,
       phone: phone,
       linkedin: linkedin,
       location: location,
-      employeeRange: '1,000+ Employees',
+      employeeRange: employeeRange ?? '1,000+ Employees',
       sector: sector,
       website: website,
       assets: const [],
-      companyDescription:
-          '$company operates in the $sector space and is evaluating modernization and efficiency programs for 2025.',
+      companyDescription: companyDescription ??
+          '$company operates in the $sector space and is exploring efficiency programs for 2025.',
       recentNews:
-          'Recently expanded its digital transformation roadmap and is exploring strategic technology partnerships.',
-      keyMarkets: const ['North America', 'EMEA'],
+          'Actively expanding digital transformation roadmap and exploring strategic partnerships.',
+      keyMarkets: const ['North America', 'EMEA', 'APAC'],
       decisionStructure:
-          'Cross-functional sign-off required across operations, finance, and IT leadership.',
+          'Stakeholder alignment required across operations and technology leadership.',
       aiInsights: [
-        'Engagement suggests interest in pragmatic, implementation-first messaging.',
-        'A short technical follow-up with proof points is likely to perform best.',
-        'Good candidate for a focused follow-up within the next 72 hours.',
+        'Strategic interest in ${productTag.isNotEmpty ? productTag : 'solutions'} with clear ROI.',
+        'Technical follow-up with concrete proof points recommended.',
+        'High potential for engagement within existing networks.',
       ],
       strategicContext:
-          '"Position EXONO as an operational accelerator rather than a disruptive replacement. Lead with implementation confidence and measurable outcomes."',
-      timelineItems: const [
-        _TimelineItem(
-          dateLabel: 'Today • 14:00',
-          title: 'Planned Briefing',
-          description:
-              'Focused follow-up planned after event-floor conversation.',
-          isCurrent: true,
-        ),
-        _TimelineItem(
-          dateLabel: 'Jan 12, 2024',
-          title: 'Event Introduction',
-          description:
-              'Initial relationship-building conversation with strong product curiosity.',
-        ),
-        _TimelineItem(
-          dateLabel: 'Dec 04, 2023',
-          title: 'Inbound Research',
-          description:
-              'Looked at shared material and requested additional context.',
-        ),
-      ],
+          '"Position as an operational accelerator with measurable outcomes and implementation confidence."',
+      timelineItems: const [], // Will be populated by _fetchContactDetails
     );
   }
 
@@ -1476,9 +1567,167 @@ class _ContactsScreenState extends State<ContactsScreen> {
       ),
     );
   }
+
+  void _showAddContactSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _buildAddContactBottomSheet(),
+    );
+  }
+
+  Widget _buildAddContactBottomSheet() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _c.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border(top: BorderSide(color: _c.border, width: 1)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 48,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _c.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Add New Contact',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: _c.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildAddContactOption(
+                icon: Icons.qr_code_scanner,
+                label: 'Scan Card',
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => CaptureScreen()),
+                  );
+                  if (result == true) {
+                    _loadContacts();
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildAddContactOption(
+                icon: Icons.mic,
+                label: 'Voice Entry',
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => VoiceMemoryCaptureScreen(),
+                    ),
+                  );
+                  if (result != null) {
+                    _loadContacts();
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildAddContactOption(
+                icon: Icons.edit,
+                label: 'Manual Entry',
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => const AddContactDialog(),
+                  );
+                  if (result == true) {
+                    _loadContacts();
+                  }
+                },
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: _c.border),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'CANCEL',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 2.0,
+                      color: _c.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddContactOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _c.surfaceAlt,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _c.border),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: _c.textPrimary, size: 20),
+              const SizedBox(width: 16),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1.8,
+                  color: _c.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ContactProfileData {
+  final String id;
   final String initials;
   final String name;
   final String listName;
@@ -1510,6 +1759,7 @@ class _ContactProfileData {
   final List<_TimelineItem> timelineItems;
 
   const _ContactProfileData({
+    required this.id,
     required this.initials,
     required this.name,
     required this.listName,
@@ -1542,6 +1792,7 @@ class _ContactProfileData {
   });
 
   _ContactProfileData copyWith({
+    String? id,
     String? initials,
     String? name,
     String? listName,
@@ -1573,6 +1824,7 @@ class _ContactProfileData {
     List<_TimelineItem>? timelineItems,
   }) {
     return _ContactProfileData(
+      id: id ?? this.id,
       initials: initials ?? this.initials,
       name: name ?? this.name,
       listName: listName ?? this.listName,

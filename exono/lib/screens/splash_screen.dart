@@ -3,8 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/entry_flow_components.dart';
@@ -57,17 +55,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       if (!mounted) return;
 
       if (authProvider.isAuthenticated) {
-        final prefs = await SharedPreferences.getInstance();
         if (!mounted) return;
-
-        final selectedMode = prefs.getString('selected_mode');
-        if (selectedMode == 'chat') {
-          Navigator.of(context).pushReplacementNamed('/chat');
-        } else if (selectedMode == 'main' || selectedMode == 'crm') {
-          Navigator.of(context).pushReplacementNamed('/main');
-        } else {
-          Navigator.of(context).pushReplacementNamed('/mode-selection');
-        }
+        Navigator.of(context).pushReplacementNamed('/home');
       } else {
         Navigator.of(context).pushReplacementNamed(kIsWeb ? '/landing' : '/auth');
       }

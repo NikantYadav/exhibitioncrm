@@ -69,6 +69,33 @@ class ApiService {
     }
   }
 
+  static Future<List<Map<String, dynamic>>> getContactTimeline(String contactId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId/timeline'),
+      headers: await _headers(),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return (data['data'] as List).cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Failed to load contact timeline');
+    }
+  }
+
+  static Future<Map<String, dynamic>> enrichContact(String contactId) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/contacts/$contactId/enrich'),
+      headers: await _headers(),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to enrich contact');
+    }
+  }
+
   static Future<Event> createEvent(Map<String, dynamic> eventData) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}'),
@@ -100,7 +127,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getDashboardSummary() async {
     final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/dashboard/summary'),
+      Uri.parse('${ApiConfig.baseUrl}/dashboard/summary'),
       headers: await _headers(),
     );
 
@@ -216,5 +243,64 @@ class ApiService {
     }
     final body = json.decode(response.body);
     throw Exception(body is Map && body['error'] != null ? body['error'] : 'Assistant error');
+  }
+
+  static Future<void> deleteConversation(String conversationId) async {
+    final response = await http.delete(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.conversations}/$conversationId'),
+      headers: await _headers(),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete conversation');
+    }
+  }
+
+  static Future<Map<String, dynamic>> generateEmailDraft({
+    required String contactId,
+    String? eventId,
+    required String emailType,
+    String? customContext,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/emails/draft'),
+      headers: await _headers(),
+      body: json.encode({
+        'contact_id': contactId,
+        'event_id': eventId,
+        'email_type': emailType,
+        'custom_context': customContext,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to generate email draft');
+  }
+
+  static Future<Map<String, dynamic>> logInteraction({
+    required String contactId,
+    String? eventId,
+    required String type,
+    required String summary,
+    Map<String, dynamic>? details,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/interactions'),
+      headers: await _headers(),
+      body: json.encode({
+        'contact_id': contactId,
+        'event_id': eventId,
+        'interaction_type': type,
+        'summary': summary,
+        'details': details,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to log interaction');
   }
 }

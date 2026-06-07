@@ -165,7 +165,7 @@ export class LiteLLMService {
     ): Promise<string> {
         return this.withGemini(async (apiKey) => {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ 
+            const model = genAI.getGenerativeModel({
                 model: this.config.model!,
                 generationConfig: {
                     temperature,
@@ -406,7 +406,7 @@ export class LiteLLMService {
             // OpenAI Whisper transcription
             throw new Error('OpenAI Whisper transcription not implemented in this version');
         }
-        
+
         throw new Error('No transcription provider available');
     }
 

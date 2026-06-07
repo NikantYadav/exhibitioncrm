@@ -23,8 +23,9 @@ SystemUiOverlayStyle entryFlowOverlayStyle(BuildContext context) {
 
 class EntryFlowScaffold extends StatelessWidget {
   final Widget child;
+  final bool showGrid;
 
-  const EntryFlowScaffold({super.key, required this.child});
+  const EntryFlowScaffold({super.key, required this.child, this.showGrid = true});
 
   @override
   Widget build(BuildContext context) {
@@ -34,24 +35,11 @@ class EntryFlowScaffold extends StatelessWidget {
       value: entryFlowOverlayStyle(context),
       child: Scaffold(
         backgroundColor: colors.background,
-        body: DecoratedBox(
-          decoration: AppTheme.appBackground(context),
-          child: Stack(
-            children: [
-              Positioned.fill(child: CustomPaint(painter: _EntryGridPainter(colors))),
-              Positioned(
-                top: -120,
-                right: -80,
-                child: _GlowOrb(color: colors.accentGlow.withValues(alpha: colors.isDark ? 0.34 : 0.38), size: 260),
-              ),
-              Positioned(
-                bottom: 120,
-                left: -100,
-                child: _GlowOrb(color: colors.accent.withValues(alpha: colors.isDark ? 0.16 : 0.20), size: 220),
-              ),
-              SafeArea(child: child),
-            ],
-          ),
+        body: Stack(
+          children: [
+            if (showGrid) Positioned.fill(child: CustomPaint(painter: _EntryGridPainter(colors))),
+            SafeArea(child: child),
+          ],
         ),
       ),
     );
@@ -486,29 +474,6 @@ class EntryBullet extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  final Color color;
-  final double size;
-
-  const _GlowOrb({required this.color, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [color, color.withValues(alpha: 0)],
-          ),
-        ),
-      ),
     );
   }
 }

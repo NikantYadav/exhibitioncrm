@@ -3,8 +3,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../config/app_theme.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_section_label.dart';
 
 class FollowUpsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -163,23 +165,20 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 768;
-
-    if (!isMobile) {
-      return ColoredBox(
-        color: _c.background,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: _buildScrollableBody(bottomPadding: 32),
-          ),
-        ),
-      );
-    }
-
-    return ColoredBox(
-      color: _c.background,
-      child: SafeArea(
+    return Scaffold(
+      backgroundColor: _c.background,
+      bottomNavigationBar: AppBottomNav(
+        selectedIndex: 4,
+        onNavigate: (i) {
+          if (widget.onNavigateTab != null) {
+            Navigator.of(context).pop();
+            widget.onNavigateTab!(i);
+          } else {
+            Navigator.of(context).pop();
+          }
+        },
+      ),
+      body: SafeArea(
         bottom: false,
         child: Column(
           children: [
@@ -248,6 +247,11 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 ),
                 splashRadius: 20,
               ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: Icon(Icons.close, color: _c.textMuted, size: 22),
+                splashRadius: 20,
+              ),
             ],
           ),
         ),
@@ -278,7 +282,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
 
   Widget _buildQueueStatusSection() {
     return AppCard(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       radius: 24,
       child: Column(
         children: [
@@ -289,16 +293,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Queue Status',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 2.4,
-                        color: _c.borderStrong.withValues(alpha: 0.80),
-                        height: 1.33,
-                      ),
-                    ),
+                    AppSectionLabel('Queue Status'),
                     const SizedBox(height: 6),
                     Text(
                       'Pending Outbox',
@@ -361,10 +356,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                       alignment: Alignment.centerLeft,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: _c.textPrimary,
-                          boxShadow: const [
-                            BoxShadow(color: Color(0x66FFFFFF), blurRadius: 8),
-                          ],
+                          color: _c.accent,
                         ),
                       ),
                     );
@@ -494,39 +486,27 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-            decoration: BoxDecoration(
-              color: _c.accentSoft,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _c.border),
-            ),
+          AppCard(
+            padding: const EdgeInsets.all(14),
+            radius: 20,
+            elevated: true,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(
-                      Icons.auto_awesome,
-                      size: 16,
-                      color: _c.accent,
-                    ),
+                    Icon(Icons.auto_awesome, size: 16, color: _c.accent),
                     const SizedBox(width: 8),
-                    Text(
+                    AppSectionLabel(
                       'AI Strategy Insight',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.4,
-                        color: _c.textPrimary,
-                        height: 1.33,
-                      ),
+                      color: _c.accent,
+                      letterSpacing: 1.4,
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '“${_currentItem.insight}”',
+                  '”${_currentItem.insight}”',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
@@ -560,18 +540,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text(
-                'Smart Draft',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1.2,
-                  color: _c.borderStrong,
-                  height: 1.33,
-                ),
-              ),
-            ),
+            Expanded(child: AppSectionLabel('Smart Draft')),
             Row(
               children: [
                 _PulseDot(color: _c.accent),

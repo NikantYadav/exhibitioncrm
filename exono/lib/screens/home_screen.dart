@@ -179,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           : AppTheme.stone600),
                   const SizedBox(width: 6),
                   Text(
-                    active?.displayTitle ?? 'Global Assistant',
+                    active?.displayTitle() ?? 'Global Assistant',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -314,7 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                convo.displayTitle,
+                convo.displayTitle(),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight:

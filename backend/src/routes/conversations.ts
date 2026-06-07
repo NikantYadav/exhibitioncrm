@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { autoTitleConversation } from '../services/ai/titling';
+
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { requireAuth } from '../middleware/requireAuth';
@@ -53,7 +55,24 @@ router.get('/', async (req, res) => {
   const { data, error } = await query;
   if (error) return res.status(400).json({ error: error.message });
 
-  res.json({ data });
+  // Enrich each conversation with the first user message as a preview
+  // (used as fallback title in the app when AI title hasn't been set yet)
+  const enriched = await Promise.all(
+    (data ?? []).map(async (conv) => {
+      if (conv.title) return conv; // already has a title, no need for preview
+      const { data: firstMsg } = await supabase
+        .from('messages')
+        .select('content')
+        .eq('conversation_id', conv.id)
+        .eq('sender_type', 'user')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      return { ...conv, first_message_preview: firstMsg?.content ?? null };
+    })
+  );
+
+  res.json({ data: enriched });
 });
 
 // POST /api/conversations
@@ -67,18 +86,8 @@ router.post('/', async (req, res) => {
   const ownerUserId = req.user!.id;
   const { kind, title, contact_id, event_id } = parsed.data;
 
-  // Optional: reuse an existing global conversation
-  if (kind === 'global') {
-    const { data: existing } = await supabase
-      .from('conversations')
-      .select('*')
-      .eq('kind', 'global')
-      .eq('owner_user_id', ownerUserId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (existing) return res.json({ data: existing, reused: true });
-  }
+  // We no longer reuse conversations for 'global' kind to support multiple chats.
+  // The frontend now manages when to create a new chat vs using an existing one.
 
   const { data: conversation, error } = await supabase
     .from('conversations')
@@ -273,7 +282,48 @@ router.post('/:id/messages', async (req, res) => {
     .single();
 
   if (error) return res.status(400).json({ error: error.message });
+
+  // Auto-titling service (fire and forget)
+  autoTitleConversation(supabase, conversationId, parsed.data.content);
+
   res.json({ data });
+});
+
+// PATCH /api/conversations/:id
+router.patch('/:id', async (req, res) => {
+  const conversationId = req.params.id;
+  const schema = z.object({
+    title: z.string().trim().min(1).max(200).optional(),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const supabase = createSupabaseUserClient(req.accessToken!);
+
+  const { data, error } = await supabase
+    .from('conversations')
+    .update(parsed.data)
+    .eq('id', conversationId)
+    .select('*')
+    .single();
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json({ data });
+});
+
+// DELETE /api/conversations/:id
+router.delete('/:id', async (req, res) => {
+  const conversationId = req.params.id;
+  const supabase = createSupabaseUserClient(req.accessToken!);
+
+  const { error } = await supabase
+    .from('conversations')
+    .delete()
+    .eq('id', conversationId);
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json({ success: true });
 });
 
 export default router;

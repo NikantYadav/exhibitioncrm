@@ -6,6 +6,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
 import 'log_interaction_screen.dart';
+import 'target_list_full_view_screen.dart';
 
 class EventFloorPriorityTarget {
   final int rank;
@@ -61,6 +62,118 @@ class EventFloorHomeScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _openTargetList(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TargetListFullViewScreen(
+          onNavigateTab: onNavigateTab,
+          eventTitle: data.title,
+          countLabel: '${_sampleTargets.length} / 120',
+          items: _sampleTargets,
+          goals: const [
+            EventGoalData(label: 'Meet 5 VCs', current: 2, target: 5),
+            EventGoalData(label: 'Scan 10 Booths', current: 10, target: 10),
+            EventGoalData(label: 'Attend 3 Keynotes', current: 0, target: 3),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static const List<TargetListItemData> _sampleTargets = [
+    TargetListItemData(
+      company: 'Quantum Financial',
+      booth: 'A-12',
+      sector: 'FinTech',
+      contact: 'James Hartwell',
+      title: 'Managing Director',
+      score: 90,
+      overview: 'Leading provider of enterprise-grade financial technology solutions, specialising in risk analytics and payment infrastructure.',
+      products: 'Quantum Pay, Risk Analytics Suite, Q-Bond Platform',
+      meetingObjective: 'Discuss partnership for digital payment infrastructure integration.',
+      notes: '',
+      prepNotes: [
+        'Recently closed a Series B round — emphasise scalability.',
+        'CTO previously worked at Stripe; use technical depth in conversation.',
+      ],
+      relationshipStrength: 0.25,
+      isMet: false,
+    ),
+    TargetListItemData(
+      company: 'Nexus Group',
+      booth: 'B-04',
+      sector: 'SaaS',
+      contact: 'Sarah Chen',
+      title: 'Head of Partnerships',
+      score: 85,
+      overview: 'Leading provider of cloud-based enterprise resource planning solutions focusing on AI-driven supply chain optimisation.',
+      products: 'Nexus Cloud ERP, Nexus AI Analytics, Supply Chain Predictor',
+      meetingObjective: 'Discuss integration partnership for EU expansion.',
+      notes: '',
+      prepNotes: [
+        'Recently raised Series C funding.',
+        'Looking to expand into EU markets.',
+        'Exploring Blockchain integration.',
+      ],
+      relationshipStrength: 0.60,
+      isMet: false,
+    ),
+    TargetListItemData(
+      company: 'Apex Ventures',
+      booth: 'C-21',
+      sector: 'VC',
+      contact: 'Michael Torres',
+      title: 'General Partner',
+      score: 78,
+      overview: 'Tier-1 venture capital firm focused on early-stage enterprise and deep-tech investments across North America and Europe.',
+      products: 'Early-Stage Fund IV, Growth Equity Portfolio',
+      meetingObjective: 'Pitch Exono for Series A consideration.',
+      notes: '',
+      prepNotes: [
+        'Portfolio includes three direct competitors — lead with differentiation.',
+        'GP Michael Torres responds well to data-driven pitches.',
+      ],
+      relationshipStrength: 0.15,
+      isMet: false,
+    ),
+    TargetListItemData(
+      company: 'Ironclad Security',
+      booth: 'D-01',
+      sector: 'CyberSec',
+      contact: 'Priya Mehta',
+      title: 'Chief Revenue Officer',
+      score: 70,
+      overview: 'Enterprise cybersecurity firm offering zero-trust architecture and threat intelligence platforms.',
+      products: 'IronShield XDR, ThreatIntel API, ZeroGate Access',
+      meetingObjective: 'Explore co-sell motion for shared enterprise accounts.',
+      notes: '',
+      prepNotes: [
+        'Finalist for three major enterprise RFPs this quarter.',
+        'CRO is a champion of partner-led growth models.',
+      ],
+      relationshipStrength: 0.80,
+      isMet: true,
+    ),
+    TargetListItemData(
+      company: 'Lumina X',
+      booth: 'E-55',
+      sector: 'AI Hardware',
+      contact: 'Yuki Tanaka',
+      title: 'VP Business Development',
+      score: 65,
+      overview: 'Next-generation AI hardware company developing custom silicon for edge inference and distributed robotics.',
+      products: 'LX-9 Edge Chip, Lumina Robotics SDK, AI Inference Cloud',
+      meetingObjective: 'Evaluate hardware integration for Exono field intelligence module.',
+      notes: '',
+      prepNotes: [
+        'Recently launched in North America after strong Osaka debut.',
+        'Looking for software partners to complement their hardware stack.',
+      ],
+      relationshipStrength: 0.10,
+      isMet: false,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -371,7 +484,7 @@ class EventFloorHomeScreen extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () => _showUiOnlyMessage(context, 'View target list'),
+              onPressed: () => _openTargetList(context),
               style: TextButton.styleFrom(
                 foregroundColor: colors.textMuted,
                 padding: EdgeInsets.zero,

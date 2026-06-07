@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import 'account_settings_screen.dart';
 
@@ -163,14 +164,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: SafeArea(
         top: false,
         bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 960),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+        child: Column(
+          children: [
+            AppHeader(
+              onNotificationPressed: () => _showUiOnlyMessage('Notifications'),
+              actionIcon: Icons.settings_rounded,
+              actionTooltip: 'Settings',
+              onActionPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AccountSettingsScreen()),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 960),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                   _buildHeroCard(
                     auth: auth,
                     displayName: displayName,
@@ -345,10 +357,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
-                ],
+                    ],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

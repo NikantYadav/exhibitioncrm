@@ -6,6 +6,7 @@ import { createSupabaseUserClient } from '../config/supabaseClients';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { litellm, ConversationTurn, ToolCall } from '../services/litellm-service';
 import { slayerQuery, slayerHealthy } from '../services/slayer-client';
+import { autoTitleConversation } from '../services/ai/titling';
 
 const router = Router();
 router.use(requireAuth);
@@ -446,12 +447,12 @@ async function executeTool(
     } else {
       // ── WRITE: execute directly against Supabase ────────────────────────────
       switch (call.name) {
-        case 'create_contact':  result = await execCreateContact(call.args, userId); break;
-        case 'update_contact':  result = await execUpdateContact(call.args); break;
-        case 'create_event':    result = await execCreateEvent(call.args); break;
-        case 'create_note':     result = await execCreateNote(call.args); break;
+        case 'create_contact': result = await execCreateContact(call.args, userId); break;
+        case 'update_contact': result = await execUpdateContact(call.args); break;
+        case 'create_event': result = await execCreateEvent(call.args); break;
+        case 'create_note': result = await execCreateNote(call.args); break;
         case 'create_reminder': result = await execCreateReminder(call.args); break;
-        case 'draft_email':     result = await execDraftEmail(call.args); break;
+        case 'draft_email': result = await execDraftEmail(call.args); break;
         default:
           throw new Error(`Unknown tool: ${call.name}`);
       }
@@ -548,6 +549,8 @@ router.post('/respond', async (req, res) => {
     .insert({ conversation_id, owner_user_id: userId, sender_type: 'user', sender_user_id: userId, content: text })
     .select('*').single();
   if (userMsgErr) return res.status(400).json({ error: userMsgErr.message });
+
+  // (auto-titling is done after the assistant response, see below)
 
   // 2. Create assistant run record
   const { data: run, error: runErr } = await supabaseUser
@@ -670,7 +673,16 @@ router.post('/respond', async (req, res) => {
       .update({ status: errCount > 0 ? 'failed' : 'succeeded', finished_at: new Date().toISOString() })
       .eq('id', run.id).select('*').single();
 
-    res.json({ user_message: userMessage, assistant_message: assistantMessage, run: updatedRun ?? run });
+    // 9. Await titling (only happens on first message) and fetch updated conversation
+    await autoTitleConversation(supabaseUser, conversation_id, text);
+    const { data: conversation } = await supabaseUser.from('conversations').select('*').eq('id', conversation_id).single();
+
+    res.json({
+      user_message: userMessage,
+      assistant_message: assistantMessage,
+      run: updatedRun ?? run,
+      conversation: conversation
+    });
 
   } catch (err: any) {
     await supabaseUser.from('assistant_runs').update({
