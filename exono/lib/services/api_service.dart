@@ -279,6 +279,38 @@ class ApiService {
     throw Exception('Failed to generate email draft');
   }
 
+  static Future<void> updateContact(String contactId, Map<String, dynamic> data) async {
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId'),
+      headers: await _headers(),
+      body: json.encode(data),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update contact');
+    }
+  }
+
+  static Future<void> deleteContact(String contactId) async {
+    final response = await http.delete(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId'),
+      headers: await _headers(),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete contact');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getContactInsights(String contactId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId/insights'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to load contact insights');
+  }
+
   static Future<Map<String, dynamic>> logInteraction({
     required String contactId,
     String? eventId,

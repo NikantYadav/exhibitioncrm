@@ -9,6 +9,7 @@ class Contact {
   final String? linkedinUrl;
   final String? notes;
   final String? avatarUrl;
+  final List<Map<String, dynamic>> contactAssets;
   final String enrichmentStatus;
   final String followUpStatus;
   final String followUpUrgency;
@@ -28,6 +29,7 @@ class Contact {
     this.linkedinUrl,
     this.notes,
     this.avatarUrl,
+    this.contactAssets = const [],
     this.enrichmentStatus = 'pending',
     this.followUpStatus = 'not_contacted',
     this.followUpUrgency = 'medium',
@@ -49,6 +51,9 @@ class Contact {
       linkedinUrl: json['linkedin_url'],
       notes: json['notes'],
       avatarUrl: json['avatar_url'],
+      contactAssets: (json['contact_assets'] as List?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList() ?? const [],
       enrichmentStatus: json['enrichment_status'] ?? 'pending',
       followUpStatus: json['follow_up_status'] ?? 'not_contacted',
       followUpUrgency: json['follow_up_urgency'] ?? 'medium',

@@ -463,17 +463,33 @@ export class LiteLLMService {
             clean = clean.substring(start, end + 1);
         }
 
+        // Remove control characters that break JSON parsing
+        clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+        // Strip trailing commas
         clean = clean.replace(/,\s*([}\]])/g, '$1');
 
-        try {
-            return JSON.parse(clean);
-        } catch (e) {
+        const tryParse = (s: string): T => {
             try {
-                const fixed = clean.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
+                return JSON.parse(s);
+            } catch {
+                // Fix unquoted keys
+                const fixed = s.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
                 return JSON.parse(fixed);
-            } catch (innerE) {
-                throw e;
             }
+        };
+
+        try {
+            return tryParse(clean);
+        } catch (e) {
+            // Last resort: truncate to last complete top-level object by finding
+            // the last closing brace preceded by valid content
+            const lastClose = clean.lastIndexOf('}');
+            if (lastClose > 0) {
+                try {
+                    return tryParse(clean.substring(0, lastClose + 1));
+                } catch {}
+            }
+            throw e;
         }
     }
 }

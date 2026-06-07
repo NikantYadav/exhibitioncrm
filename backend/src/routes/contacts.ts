@@ -10,7 +10,7 @@ router.get('/', async (req, res, next) => {
 
     let query = supabase
       .from('contacts')
-      .select('*, company:companies(*)');
+      .select('*');
 
     if (company_id) {
       query = query.eq('company_id', company_id);
@@ -18,9 +18,35 @@ router.get('/', async (req, res, next) => {
 
     const { data, error } = await query.order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
-    res.json({ data });
+    // Fetch company details separately for each contact
+    const enrichedData = await Promise.all(
+      (data || []).map(async (contact: any) => {
+        if (contact.company_id) {
+          const { data: company, error: companyError } = await supabase
+            .from('companies')
+            .select('*')
+            .eq('id', contact.company_id)
+            .single();
+
+          if (companyError) {
+            console.error('Company fetch error:', companyError);
+          }
+
+          return {
+            ...contact,
+            company: company || null
+          };
+        }
+        return { ...contact, company: null };
+      })
+    );
+
+    res.json({ data: enrichedData });
   } catch (error) {
     next(error);
   }
@@ -303,6 +329,255 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+// ─── Gemini 2.5 Pro context budget ───────────────────────────────────────────
+// Input limit: 1,048,576 tokens ≈ 4,194,304 chars (4 chars/token estimate)
+// We use 80% of that for timeline content, leaving room for prompt + response.
+const GEMINI_25_PRO_INPUT_TOKENS = 1_048_576;
+const CHARS_PER_TOKEN = 4;
+const TIMELINE_BUDGET_CHARS = Math.floor(GEMINI_25_PRO_INPUT_TOKENS * 0.80 * CHARS_PER_TOKEN); // ~3.36M chars
+const RECENT_WINDOW_CHARS = Math.floor(TIMELINE_BUDGET_CHARS * 0.30);                           // ~1M chars kept as "recent"
+
+// GET /api/contacts/:id/insights
+// Returns AI-generated insights. Uses cached version unless contact/company/timeline changed.
+// Implements rolling-summary context management for Gemini 2.5 Pro's 1M token window.
+router.get('/:id/insights', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch contact with company (including AI context state)
+    const { data: contact, error: contactError } = await supabase
+      .from('contacts')
+      .select('*, company:companies(*)')
+      .eq('id', id)
+      .single();
+
+    if (contactError || !contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const contactName = `${contact.first_name} ${contact.last_name || ''}`.trim();
+    console.log(`[insights] ${contactName} (${id}) — checking cache`);
+
+    // ── Cache validity check ─────────────────────────────────────────────────
+    const [latestInteraction, latestNote, latestMeeting] = await Promise.all([
+      supabase.from('interactions').select('updated_at').eq('contact_id', id)
+        .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('notes').select('updated_at').eq('contact_id', id)
+        .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('meeting_briefs').select('updated_at').eq('contact_id', id)
+        .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+
+    const insightsTs      = contact.ai_insights_generated_at ? new Date(contact.ai_insights_generated_at).getTime() : 0;
+    const contactTs       = new Date(contact.updated_at).getTime();
+    const companyTs       = contact.company ? new Date(contact.company.updated_at).getTime() : 0;
+    const interactionTs   = latestInteraction.data ? new Date(latestInteraction.data.updated_at).getTime() : 0;
+    const noteTs          = latestNote.data ? new Date(latestNote.data.updated_at).getTime() : 0;
+    const meetingTs       = latestMeeting.data ? new Date(latestMeeting.data.updated_at).getTime() : 0;
+    const latestActivityTime = Math.max(contactTs, companyTs, interactionTs, noteTs, meetingTs);
+
+    console.log(`[insights]   ai_insights_generated_at : ${contact.ai_insights_generated_at ?? 'none'}`);
+    console.log(`[insights]   contact.updated_at       : ${contact.updated_at}${contactTs > insightsTs ? '  ← NEWER' : ''}`);
+    console.log(`[insights]   company.updated_at       : ${contact.company?.updated_at ?? 'n/a'}${companyTs > insightsTs ? '  ← NEWER' : ''}`);
+    console.log(`[insights]   latest interaction       : ${latestInteraction.data?.updated_at ?? 'none'}${interactionTs > insightsTs ? '  ← NEWER' : ''}`);
+    console.log(`[insights]   latest note              : ${latestNote.data?.updated_at ?? 'none'}${noteTs > insightsTs ? '  ← NEWER' : ''}`);
+    console.log(`[insights]   latest meeting           : ${latestMeeting.data?.updated_at ?? 'none'}${meetingTs > insightsTs ? '  ← NEWER' : ''}`);
+
+    if (
+      contact.ai_insights &&
+      contact.ai_insights_generated_at &&
+      insightsTs >= latestActivityTime
+    ) {
+      console.log(`[insights] ✓ CACHE HIT — returning stored insights, no AI call`);
+      return res.json({ data: contact.ai_insights, cached: true });
+    }
+
+    const reason = !contact.ai_insights
+      ? 'no insights stored yet'
+      : !contact.ai_insights_generated_at
+      ? 'generated_at timestamp missing'
+      : `data changed after last generation (delta: +${Math.round((latestActivityTime - insightsTs) / 1000)}s)`;
+    console.log(`[insights] ✗ CACHE MISS — calling AI (reason: ${reason})`);
+
+    // ── Fetch full timeline (no artificial limit) ────────────────────────────
+    const [interactionsRes, notesRes, meetingsRes] = await Promise.all([
+      supabase.from('interactions')
+        .select('interaction_type, summary, interaction_date')
+        .eq('contact_id', id)
+        .order('interaction_date', { ascending: true }),
+      supabase.from('notes')
+        .select('content, created_at')
+        .eq('contact_id', id)
+        .order('created_at', { ascending: true }),
+      supabase.from('meeting_briefs')
+        .select('interaction_summary, pre_meeting_notes, post_meeting_notes, meeting_date')
+        .eq('contact_id', id)
+        .order('meeting_date', { ascending: true }),
+    ]);
+
+    type TimelineEntry = { text: string; date: string };
+
+    const allTimeline: TimelineEntry[] = [
+      ...(interactionsRes.data || []).map((i: any) => ({
+        text: `[${i.interaction_type}] ${(i.summary || '').slice(0, 1000)} (${i.interaction_date?.slice(0, 10)})`,
+        date: i.interaction_date || '',
+      })),
+      ...(notesRes.data || []).map((n: any) => ({
+        text: `[note] ${(n.content || '').slice(0, 1000)} (${n.created_at?.slice(0, 10)})`,
+        date: n.created_at || '',
+      })),
+      ...(meetingsRes.data || []).map((m: any) => ({
+        text: `[meeting] ${(m.interaction_summary || m.pre_meeting_notes || '').slice(0, 1000)} (${m.meeting_date?.slice(0, 10)})`,
+        date: m.meeting_date || '',
+      })),
+    ]
+      .filter(item => item.text.trim() && item.date)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // ── Links & files context ────────────────────────────────────────────────
+    const assets: any[] = contact.contact_assets || [];
+    const assetsContext = assets.length > 0
+      ? `\nLinks & Files shared with contact:\n${assets.map((a: any) => `  - [${a.type}] ${a.title}: ${a.url}`).join('\n')}`
+      : '';
+
+    // ── Rolling summary context management ───────────────────────────────────
+    const fullTimelineStr = allTimeline.map(t => t.text).join('\n');
+    let timelineContext: string;
+
+    const totalTimelineChars = fullTimelineStr.length;
+    const totalTimelineTokensEst = Math.round(totalTimelineChars / CHARS_PER_TOKEN);
+    console.log(`[insights] timeline size: ${allTimeline.length} items, ~${totalTimelineChars.toLocaleString()} chars (~${totalTimelineTokensEst.toLocaleString()} tokens)`);
+
+    if (totalTimelineChars <= TIMELINE_BUDGET_CHARS) {
+      // Fits within Gemini 2.5 Pro budget — use everything as-is
+      console.log(`[insights] timeline fits in budget (limit: ~${(TIMELINE_BUDGET_CHARS / 1_000_000).toFixed(1)}M chars) — sending verbatim`);
+      timelineContext = fullTimelineStr;
+    } else {
+      // Over budget: split into "old" (to summarise) + "recent" (verbatim)
+      let recentChars = 0;
+      let recentStartIdx = allTimeline.length;
+
+      for (let i = allTimeline.length - 1; i >= 0; i--) {
+        const len = allTimeline[i].text.length + 1;
+        if (recentChars + len > RECENT_WINDOW_CHARS) break;
+        recentChars += len;
+        recentStartIdx = i;
+      }
+
+      const recentItems = allTimeline.slice(recentStartIdx);
+      const oldItems    = allTimeline.slice(0, recentStartIdx);
+
+      const existingSummary      = contact.ai_context_summary as string | null;
+      const summarizedThrough    = contact.ai_context_summarized_through as string | null;
+      const lastOldDate          = oldItems.length > 0 ? oldItems[oldItems.length - 1].date : null;
+      const summaryCoversAll     = existingSummary && summarizedThrough && lastOldDate
+                                    && summarizedThrough >= lastOldDate;
+
+      let historySummary: string;
+
+      console.log(`[insights] timeline EXCEEDS budget — activating rolling summary`);
+      console.log(`[insights]   old items: ${oldItems.length}, recent items: ${recentItems.length}`);
+
+      if (summaryCoversAll) {
+        // Existing rolling summary is still current — reuse it
+        historySummary = existingSummary!;
+        console.log(`[insights]   rolling summary: REUSED (covers up to ${summarizedThrough}) — no extra AI call`);
+      } else {
+        // Need to (re)generate summary for old items
+        console.log(`[insights]   rolling summary: STALE or missing — calling AI to regenerate summary`);
+        const { AIService: AI } = await import('../config/ai');
+        const name = `${contact.first_name} ${contact.last_name || ''}`.trim();
+        const oldContent = oldItems.map(t => t.text).join('\n');
+
+        // Summarise in chunks if old content itself is massive
+        const SUMMARY_CHUNK = 800_000; // chars
+        let summaryInput = oldContent;
+        if (oldContent.length > SUMMARY_CHUNK && existingSummary && summarizedThrough) {
+          // Combine old summary with newly unsummarised chunk
+          const newChunk = oldItems
+            .filter(t => t.date > summarizedThrough!)
+            .map(t => t.text).join('\n');
+          summaryInput = `Previous summary:\n${existingSummary}\n\nNew activity to incorporate:\n${newChunk}`;
+        }
+
+        const summaryPrompt =
+          `You are a CRM assistant. Summarise the engagement history for ${name} into a concise factual paragraph (max 600 words). ` +
+          `Preserve: key decisions, relationship sentiment, topics discussed, commitments made, and any important context a salesperson needs to know.\n\n` +
+          summaryInput;
+
+        const summaryRaw = await AI.generateCompletion(
+          [{ role: 'user', content: summaryPrompt }],
+          { temperature: 0.2 }
+        );
+        historySummary = summaryRaw.trim();
+
+        // Persist rolling summary (does NOT bump updated_at — trigger excludes AI columns)
+        await supabase.from('contacts').update({
+          ai_context_summary: historySummary,
+          ai_context_summarized_through: lastOldDate,
+        }).eq('id', id);
+      }
+
+      const recentStr = recentItems.map(t => t.text).join('\n');
+      timelineContext =
+        `[HISTORICAL SUMMARY (older interactions condensed)]\n${historySummary}` +
+        (recentStr ? `\n\n[RECENT ACTIVITY (verbatim)]\n${recentStr}` : '');
+    }
+
+    // ── Build final prompt ───────────────────────────────────────────────────
+    const name = `${contact.first_name} ${contact.last_name || ''}`.trim();
+    const company = contact.company;
+    const isIndependent = !company || !company.name || company.name.toUpperCase() === 'INDEPENDENT';
+
+    const companyContext = isIndependent
+      ? `Company: This person is an independent professional or freelancer — not affiliated with any company.`
+      : `Company:
+- Name: ${company.name}
+- Industry: ${company.industry || 'Unknown'}
+- Description: ${company.description || 'Not available'}
+- Location: ${company.location || 'Unknown'}
+- Size: ${company.company_size || 'Unknown'}
+- Products/Services: ${company.products_services || 'Unknown'}
+- Website: ${company.website || 'Not available'}`;
+
+    const prompt =
+      `You are a CRM assistant helping a sales professional understand a contact.\n\n` +
+      `Contact:\n` +
+      `- Name: ${name}\n` +
+      `- Job Title: ${contact.job_title || 'Unknown'}\n` +
+      `- LinkedIn: ${contact.linkedin_url || 'Not provided'}\n` +
+      `- Follow-up Status: ${contact.follow_up_status || 'not_contacted'}\n\n` +
+      `${companyContext}\n` +
+      (assetsContext ? `${assetsContext}\n` : '') +
+      `\nEngagement History:\n${timelineContext || 'No prior engagement recorded.'}\n\n` +
+      `Return ONLY a single-line minified JSON with exactly these keys. No literal newlines inside string values:\n` +
+      `{"briefing_items":["up to 3 short bullets"],"buying_authority":"Decision Maker|Influencer|Evaluator|Gatekeeper|Unknown","current_sentiment":"Hot Lead|Warm Opportunity|Evaluating|Cold|Unknown","primary_pain_point":"one sentence","ai_insights":["up to 3 insights"],"strategic_context":"one sentence","key_markets":["up to 3 markets"],"decision_structure":"one sentence"}`;
+
+    const promptChars = prompt.length;
+    console.log(`[insights] → calling Gemini AI for insights (prompt: ~${promptChars.toLocaleString()} chars / ~${Math.round(promptChars / CHARS_PER_TOKEN).toLocaleString()} tokens)`);
+    const t0 = Date.now();
+
+    const { AIService, litellm } = await import('../config/ai');
+    const raw = await AIService.generateCompletion(
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.4, jsonMode: true }
+    );
+
+    console.log(`[insights] ← AI responded in ${Date.now() - t0}ms`);
+    const insights = litellm.cleanAndParseJSON(raw);
+
+    await supabase.from('contacts').update({
+      ai_insights: insights,
+      ai_insights_generated_at: new Date().toISOString(),
+    }).eq('id', id);
+
+    console.log(`[insights] insights saved to DB — next open will be a cache hit`);
+    return res.json({ data: insights, cached: false });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
 
 
@@ -310,20 +585,36 @@ export default router;
 router.post('/:id/enrich', async (req, res, next) => {
   try {
     const { id } = req.params;
+    const force = req.body.force === true;
     const { EnrichmentService } = await import('../services/enrichment-service');
 
     // Fetch contact with company data
     const { data: contact, error: fetchError } = await supabase
       .from('contacts')
-      .select(`
-        *,
-        company:companies(*)
-      `)
+      .select('*, company:companies(*)')
       .eq('id', id)
       .single();
 
     if (fetchError || !contact) {
       return res.status(404).json({ error: fetchError?.message || 'Contact not found' });
+    }
+
+    // Skip if already enriched and nothing changed since last enrichment
+    if (!force && contact.last_enriched_at) {
+      const lastEnriched = new Date(contact.last_enriched_at).getTime();
+      const contactChanged = new Date(contact.updated_at).getTime() > lastEnriched;
+      const companyChanged = contact.company
+        ? new Date(contact.company.updated_at).getTime() > lastEnriched
+        : false;
+
+      if (!contactChanged && !companyChanged) {
+        return res.json({
+          success: true,
+          cached: true,
+          message: 'Already enriched — no changes detected since last enrichment.',
+          data: contact,
+        });
+      }
     }
 
     // Perform AI Research
@@ -365,13 +656,15 @@ router.post('/:id/enrich', async (req, res, next) => {
       if (companyError) console.error('Error updating company enrichment:', companyError);
     }
 
-    // Update Contact data (LinkedIn URL)
+    // Update Contact: LinkedIn URL + enrichment timestamp
+    const contactUpdate: Record<string, any> = {
+      enrichment_status: 'enriched',
+      last_enriched_at: new Date().toISOString(),
+    };
     if (enrichResult.linkedin_url && !contact.linkedin_url) {
-      await supabase
-        .from('contacts')
-        .update({ linkedin_url: enrichResult.linkedin_url })
-        .eq('id', id);
+      contactUpdate.linkedin_url = enrichResult.linkedin_url;
     }
+    await supabase.from('contacts').update(contactUpdate).eq('id', id);
 
     res.json({
       success: true,

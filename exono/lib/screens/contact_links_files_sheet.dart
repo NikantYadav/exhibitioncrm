@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/app_card.dart';
 
 Future<List<ContactAsset>?> showContactLinksFilesSheet(
   BuildContext context, {
+  required String contactId,
   required List<ContactAsset> initialAssets,
 }) {
   return showModalBottomSheet<List<ContactAsset>>(
@@ -13,14 +17,21 @@ Future<List<ContactAsset>?> showContactLinksFilesSheet(
     useSafeArea: false,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.50),
-    builder: (_) => _ContactLinksFilesSheet(initialAssets: initialAssets),
+    builder: (_) => _ContactLinksFilesSheet(
+      contactId: contactId,
+      initialAssets: initialAssets,
+    ),
   );
 }
 
 class _ContactLinksFilesSheet extends StatefulWidget {
+  final String contactId;
   final List<ContactAsset> initialAssets;
 
-  const _ContactLinksFilesSheet({required this.initialAssets});
+  const _ContactLinksFilesSheet({
+    required this.contactId,
+    required this.initialAssets,
+  });
 
   @override
   State<_ContactLinksFilesSheet> createState() =>
@@ -31,6 +42,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   late final List<ContactAsset> _assets = [...widget.initialAssets];
+  bool _uploading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -74,11 +86,21 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                         ),
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      splashRadius: 20,
-                      icon: Icon(Icons.close, color: _c.textMuted),
-                    ),
+                    if (_uploading)
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(_c.accent),
+                        ),
+                      )
+                    else
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(_assets),
+                        splashRadius: 20,
+                        icon: Icon(Icons.close, color: _c.textMuted),
+                      ),
                   ],
                 ),
               ),
@@ -94,7 +116,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _addLink,
+                        onPressed: _uploading ? null : _addLink,
                         icon: const Icon(Icons.link, size: 18),
                         label: const Text('ADD LINK'),
                         style: OutlinedButton.styleFrom(
@@ -115,7 +137,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _addFile,
+                        onPressed: _uploading ? null : _addFile,
                         icon: const Icon(Icons.upload_file_outlined, size: 18),
                         label: const Text('ADD FILE'),
                         style: OutlinedButton.styleFrom(
@@ -158,31 +180,18 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
               ),
-              child: Icon(
-                Icons.attachment_outlined,
-                color: _c.textMuted,
-                size: 32,
-              ),
+              child: Icon(Icons.attachment_outlined, color: _c.textMuted, size: 32),
             ),
             const SizedBox(height: 20),
             Text(
-              'No links added',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: _c.textPrimary,
-              ),
+              'No links or files yet',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _c.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
-              'Attach priority docs, shared decks, or useful follow-up links for this contact.',
+              'Attach shared decks, proposals, or useful follow-up links for this contact.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                height: 1.5,
-                color: _c.textMuted,
-              ),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, height: 1.5, color: _c.textMuted),
             ),
           ],
         ),
@@ -194,144 +203,206 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       itemCount: _assets.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final asset = _assets[index];
         return AppCard(
           padding: const EdgeInsets.all(16),
           radius: 8,
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: asset.url.isNotEmpty ? () => _openAsset(asset) : null,
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    asset.type == ContactAssetType.link
+                        ? Icons.link
+                        : Icons.insert_drive_file_outlined,
+                    color: _c.textPrimary,
+                    size: 20,
+                  ),
                 ),
-                child: Icon(
-                  asset.type == ContactAssetType.link
-                      ? Icons.link
-                      : Icons.insert_drive_file_outlined,
-                  color: _c.textPrimary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      asset.title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _c.textPrimary,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        asset.title,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _c.textPrimary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      asset.subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        color: _c.textMuted,
-                      ),
-                    ),
-                  ],
+                      if (asset.url.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          asset.url,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: _c.textMuted),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    _assets.removeAt(index);
-                  });
-                },
-                splashRadius: 18,
-                icon: Icon(
-                  Icons.delete_outline,
-                  color: _c.textMuted,
-                  size: 20,
+                IconButton(
+                  onPressed: () => setState(() => _assets.removeAt(index)),
+                  splashRadius: 18,
+                  icon: Icon(Icons.delete_outline, color: _c.textMuted, size: 20),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
     );
   }
 
+  Future<void> _openAsset(ContactAsset asset) async {
+    final url = Uri.tryParse(asset.url);
+    if (url == null) return;
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open ${asset.url}'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
   Future<void> _addLink() async {
-    final result = await _showAddDialog(
-      title: 'Add link',
-      hint: 'https://example.com/brief',
-      type: ContactAssetType.link,
-    );
+    final result = await _showAddLinkDialog();
     if (result == null) return;
     setState(() => _assets.insert(0, result));
   }
 
   Future<void> _addFile() async {
-    final result = await _showAddDialog(
-      title: 'Add file',
-      hint: 'Q3_Security_Deck.pdf',
-      type: ContactAssetType.file,
-    );
-    if (result == null) return;
-    setState(() => _assets.insert(0, result));
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null || !mounted) return;
+
+    setState(() => _uploading = true);
+    try {
+      final bytes = await picked.readAsBytes();
+      final ext = picked.path.split('.').last.toLowerCase();
+      final filename = picked.name;
+      final path = 'contacts/${widget.contactId}/files/${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      final supabase = Supabase.instance.client;
+      await supabase.storage.from('contact-avatars').uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(upsert: true),
+      );
+      final url = supabase.storage.from('contact-avatars').getPublicUrl(path);
+
+      if (mounted) {
+        setState(() {
+          _assets.insert(0, ContactAsset(
+            type: ContactAssetType.file,
+            title: filename,
+            url: url,
+          ));
+          _uploading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
   }
 
-  Future<ContactAsset?> _showAddDialog({
-    required String title,
-    required String hint,
-    required ContactAssetType type,
-  }) async {
-    final controller = TextEditingController();
-    final value = await showDialog<String>(
+  Future<ContactAsset?> _showAddLinkDialog() async {
+    final titleCtrl = TextEditingController();
+    final urlCtrl = TextEditingController();
+
+    final result = await showDialog<ContactAsset>(
       context: context,
-      builder: (context) {
-        final _c = AppTheme.colorsOf(context);
+      builder: (ctx) {
+        final c = AppTheme.colorsOf(ctx);
         return AlertDialog(
-          backgroundColor: _c.background,
+          backgroundColor: c.background,
           title: Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: _c.textPrimary,
-            ),
+            'Add link',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.textPrimary),
           ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            cursorColor: _c.textPrimary,
-            style: TextStyle(color: _c.textPrimary),
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: TextStyle(color: _c.textMuted),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: _c.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.30),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                autofocus: true,
+                cursorColor: c.textPrimary,
+                style: TextStyle(color: c.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Label',
+                  labelStyle: TextStyle(color: c.textMuted),
+                  hintText: 'e.g. Proposal Deck',
+                  hintStyle: TextStyle(color: c.textMuted),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: c.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: c.textPrimary),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: urlCtrl,
+                cursorColor: c.textPrimary,
+                style: TextStyle(color: c.textPrimary),
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                  labelText: 'URL',
+                  labelStyle: TextStyle(color: c.textMuted),
+                  hintText: 'https://',
+                  hintStyle: TextStyle(color: c.textMuted),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: c.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: c.textPrimary),
+                  ),
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Cancel', style: TextStyle(color: c.textMuted)),
             ),
             FilledButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(controller.text.trim()),
+              onPressed: () {
+                final url = urlCtrl.text.trim();
+                final title = titleCtrl.text.trim();
+                if (url.isEmpty) return;
+                Navigator.of(ctx).pop(ContactAsset(
+                  type: ContactAssetType.link,
+                  title: title.isEmpty ? url : title,
+                  url: url,
+                ));
+              },
               style: FilledButton.styleFrom(
-                backgroundColor: _c.textPrimary,
+                backgroundColor: c.textPrimary,
                 foregroundColor: Colors.white,
               ),
               child: const Text('Add'),
@@ -340,15 +411,10 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
         );
       },
     );
-    controller.dispose();
 
-    if (value == null || value.isEmpty) return null;
-
-    return ContactAsset(
-      type: type,
-      title: value,
-      subtitle: type == ContactAssetType.link ? 'Shared link' : 'Uploaded file',
-    );
+    titleCtrl.dispose();
+    urlCtrl.dispose();
+    return result;
   }
 }
 
@@ -357,11 +423,19 @@ enum ContactAssetType { link, file }
 class ContactAsset {
   final ContactAssetType type;
   final String title;
-  final String subtitle;
+  final String url;
 
   const ContactAsset({
     required this.type,
     required this.title,
-    required this.subtitle,
+    required this.url,
   });
+
+  factory ContactAsset.fromJson(Map<String, dynamic> j) => ContactAsset(
+        type: j['type'] == 'file' ? ContactAssetType.file : ContactAssetType.link,
+        title: j['title'] ?? '',
+        url: j['url'] ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {'type': type.name, 'title': title, 'url': url};
 }
