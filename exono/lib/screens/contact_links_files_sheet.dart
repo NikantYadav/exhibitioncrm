@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import '../config/app_theme.dart';
+import '../widgets/app_card.dart';
 
 Future<List<ContactAsset>?> showContactLinksFilesSheet(
   BuildContext context, {
@@ -26,12 +28,7 @@ class _ContactLinksFilesSheet extends StatefulWidget {
 }
 
 class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surfaceContainerLow = Color(0xFF0C0C0C);
-  static const Color _outline = Color(0x1AFFFFFF);
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _onPrimary = Color(0xFF000000);
-  static const Color _onSurfaceVariant = Color(0xFFA3A3A3);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   late final List<ContactAsset> _assets = [...widget.initialAssets];
 
@@ -43,10 +40,10 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
         alignment: Alignment.bottomCenter,
         child: Container(
           height: MediaQuery.of(context).size.height * 0.82,
-          decoration: const BoxDecoration(
-            color: _background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            border: Border(top: BorderSide(color: _outline)),
+          decoration: BoxDecoration(
+            color: _c.background,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            border: Border(top: BorderSide(color: _c.border)),
           ),
           child: Column(
             children: [
@@ -61,26 +58,26 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: _outline)),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: _c.border)),
                 ),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
                         'LINKS & FILES',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.2,
-                          color: _primary,
+                          color: _c.textPrimary,
                         ),
                       ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
                       splashRadius: 20,
-                      icon: const Icon(Icons.close, color: _onSurfaceVariant),
+                      icon: Icon(Icons.close, color: _c.textMuted),
                     ),
                   ],
                 ),
@@ -90,8 +87,8 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: _outline)),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: _c.border)),
                 ),
                 child: Row(
                   children: [
@@ -101,13 +98,13 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                         icon: const Icon(Icons.link, size: 18),
                         label: const Text('ADD LINK'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: _primary,
-                          side: const BorderSide(color: _outline),
+                          foregroundColor: _c.textPrimary,
+                          side: BorderSide(color: _c.border),
                           minimumSize: const Size.fromHeight(52),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          textStyle: GoogleFonts.inter(
+                          textStyle: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 1.4,
@@ -122,13 +119,13 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                         icon: const Icon(Icons.upload_file_outlined, size: 18),
                         label: const Text('ADD FILE'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: _primary,
-                          side: const BorderSide(color: _outline),
+                          foregroundColor: _c.textPrimary,
+                          side: BorderSide(color: _c.border),
                           minimumSize: const Size.fromHeight(52),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          textStyle: GoogleFonts.inter(
+                          textStyle: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 1.4,
@@ -157,34 +154,34 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: _surfaceContainerLow,
+                color: _c.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.attachment_outlined,
-                color: _onSurfaceVariant,
+                color: _c.textMuted,
                 size: 32,
               ),
             ),
             const SizedBox(height: 20),
             Text(
               'No links added',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: _primary,
+                color: _c.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Attach priority docs, shared decks, or useful follow-up links for this contact.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
                 height: 1.5,
-                color: _onSurfaceVariant,
+                color: _c.textMuted,
               ),
             ),
           ],
@@ -200,13 +197,9 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final asset = _assets[index];
-        return Container(
+        return AppCard(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _surfaceContainerLow,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-          ),
+          radius: 8,
           child: Row(
             children: [
               Container(
@@ -220,7 +213,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                   asset.type == ContactAssetType.link
                       ? Icons.link
                       : Icons.insert_drive_file_outlined,
-                  color: _primary,
+                  color: _c.textPrimary,
                   size: 20,
                 ),
               ),
@@ -231,19 +224,19 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                   children: [
                     Text(
                       asset.title,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: _primary,
+                        color: _c.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       asset.subtitle,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                       ),
                     ),
                   ],
@@ -256,9 +249,9 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                   });
                 },
                 splashRadius: 18,
-                icon: const Icon(
+                icon: Icon(
                   Icons.delete_outline,
-                  color: _onSurfaceVariant,
+                  color: _c.textMuted,
                   size: 20,
                 ),
               ),
@@ -298,27 +291,28 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
     final value = await showDialog<String>(
       context: context,
       builder: (context) {
+        final _c = AppTheme.colorsOf(context);
         return AlertDialog(
-          backgroundColor: _background,
+          backgroundColor: _c.background,
           title: Text(
             title,
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: _primary,
+              color: _c.textPrimary,
             ),
           ),
           content: TextField(
             controller: controller,
             autofocus: true,
-            cursorColor: _primary,
-            style: GoogleFonts.inter(color: _primary),
+            cursorColor: _c.textPrimary,
+            style: TextStyle(color: _c.textPrimary),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: GoogleFonts.inter(color: _onSurfaceVariant),
+              hintStyle: TextStyle(color: _c.textMuted),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _outline),
+                borderSide: BorderSide(color: _c.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -337,8 +331,8 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
               onPressed: () =>
                   Navigator.of(context).pop(controller.text.trim()),
               style: FilledButton.styleFrom(
-                backgroundColor: _primary,
-                foregroundColor: _onPrimary,
+                backgroundColor: _c.textPrimary,
+                foregroundColor: Colors.white,
               ),
               child: const Text('Add'),
             ),

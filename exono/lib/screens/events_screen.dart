@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../config/app_theme.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
 import 'event_floor_home_screen.dart';
 import 'pre_event_prep_screen.dart';
 
@@ -14,17 +16,7 @@ class EventsScreen extends StatefulWidget {
 }
 
 class _EventsScreenState extends State<EventsScreen> {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surfaceContainerLow = Color(0xFF1C1B1B);
-  static const Color _surfaceContainerHighest = Color(0xFF353434);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _outline = Color(0xFF8E9192);
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _onPrimary = Color(0xFF2F3131);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
-  static const Color _secondary = Color(0xFFC6C6CF);
-  static const Color _rowBackground = Color(0xFF0C0C0C);
-  static const Color _idle = Color(0xFF262626);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   bool _showUpcoming = true;
 
@@ -216,8 +208,8 @@ class _EventsScreenState extends State<EventsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: _background,
+    return ColoredBox(
+      color: _c.background,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
         child: Column(
@@ -256,21 +248,21 @@ class _EventsScreenState extends State<EventsScreen> {
       children: [
         Text(
           'Network Hub',
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.48,
-            color: _primary,
+            color: _c.textPrimary,
           ),
         ),
         const SizedBox(height: 10),
         Text(
           '12 TOTAL SCHEDULED EVENTS',
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
             letterSpacing: 3.2,
-            color: _onSurfaceVariant,
+            color: _c.textSecondary,
           ),
         ),
       ],
@@ -284,9 +276,11 @@ class _EventsScreenState extends State<EventsScreen> {
       child: FilledButton(
         onPressed: () => _showUiOnlyMessage('New Event'),
         style: FilledButton.styleFrom(
-          backgroundColor: _primary,
-          foregroundColor: _onPrimary,
-          shape: const RoundedRectangleBorder(),
+          backgroundColor: _c.accent,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
           elevation: 0,
         ),
         child: Row(
@@ -296,11 +290,11 @@ class _EventsScreenState extends State<EventsScreen> {
             const SizedBox(width: 12),
             Text(
               'NEW EVENT',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 3.2,
-                color: _onPrimary,
+                color: Colors.white,
               ),
             ),
           ],
@@ -311,8 +305,11 @@ class _EventsScreenState extends State<EventsScreen> {
 
   Widget _buildTabs() {
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _idle)),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: _c.surfaceElevated,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _c.border),
       ),
       child: Row(
         children: [
@@ -327,23 +324,29 @@ class _EventsScreenState extends State<EventsScreen> {
   Widget _buildTabButton({required String label, required bool isActive}) {
     return InkWell(
       onTap: () => setState(() => _showUpcoming = label == 'UPCOMING'),
-      child: Container(
-        padding: const EdgeInsets.only(bottom: 12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isActive ? _primary : Colors.transparent,
-              width: 2,
-            ),
-          ),
+          color: isActive ? _c.surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: _c.accentGlow.withValues(alpha: 0.07),
+                    blurRadius: 14,
+                    offset: Offset(0, 6),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 2.0,
-            color: isActive ? _primary : const Color(0xFFA1A1AA),
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.2,
+            color: isActive ? _c.textPrimary : _c.textMuted,
           ),
         ),
       ),
@@ -355,12 +358,10 @@ class _EventsScreenState extends State<EventsScreen> {
 
     return InkWell(
       onTap: event.floorData == null ? null : () => _openEventFloor(event),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(36, 36, 36, 36),
-        decoration: BoxDecoration(
-          color: _surfaceContainerLow,
-          border: Border.all(color: _outlineVariant),
-        ),
+      borderRadius: BorderRadius.circular(28),
+      child: AppCard(
+        padding: const EdgeInsets.all(24),
+        radius: 28,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -370,24 +371,7 @@ class _EventsScreenState extends State<EventsScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: _outline),
-                      ),
-                      child: Text(
-                        event.category.toUpperCase(),
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.7,
-                          color: _onSurfaceVariant,
-                        ),
-                      ),
-                    ),
+                    AppChip(event.category),
                     if (event.floorData != null) ...[
                       const SizedBox(height: 10),
                       Row(
@@ -403,11 +387,11 @@ class _EventsScreenState extends State<EventsScreen> {
                           const SizedBox(width: 8),
                           Text(
                             'LIVE FLOOR AVAILABLE',
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.4,
-                              color: _primary,
+                              color: _c.textPrimary,
                             ),
                           ),
                         ],
@@ -418,9 +402,9 @@ class _EventsScreenState extends State<EventsScreen> {
                 const Spacer(),
                 InkWell(
                   onTap: () => _showUiOnlyMessage('Event actions'),
-                  child: const Icon(
+                  child: Icon(
                     Icons.more_vert,
-                    color: _onSurfaceVariant,
+                    color: _c.textSecondary,
                     size: 22,
                   ),
                 ),
@@ -429,11 +413,11 @@ class _EventsScreenState extends State<EventsScreen> {
             const SizedBox(height: 24),
             Text(
               event.title,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.2,
-                color: _primary,
+                color: _c.textPrimary,
               ),
             ),
             const SizedBox(height: 16),
@@ -446,20 +430,20 @@ class _EventsScreenState extends State<EventsScreen> {
                 Expanded(
                   child: Text(
                     'PREPARATION STATUS',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 1.2,
-                      color: _onSurfaceVariant,
+                      color: _c.textSecondary,
                     ),
                   ),
                 ),
                 Text(
                   '$progressPercent%',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: _primary,
+                    color: _c.textPrimary,
                   ),
                 ),
               ],
@@ -467,12 +451,12 @@ class _EventsScreenState extends State<EventsScreen> {
             const SizedBox(height: 10),
             Container(
               height: 2,
-              color: _surfaceContainerHighest,
+              color: _c.surfaceElevated,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: FractionallySizedBox(
                   widthFactor: event.progress,
-                  child: Container(color: _primary),
+                  child: Container(color: _c.textPrimary),
                 ),
               ),
             ),
@@ -483,18 +467,20 @@ class _EventsScreenState extends State<EventsScreen> {
               child: FilledButton(
                 onPressed: () => _openPrepScreen(event),
                 style: FilledButton.styleFrom(
-                  backgroundColor: _primary,
-                  foregroundColor: _onPrimary,
-                  shape: const RoundedRectangleBorder(),
+                  backgroundColor: _c.accent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   elevation: 0,
                 ),
                 child: Text(
                   'PREPARE',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 2.4,
-                    color: _onPrimary,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -508,12 +494,10 @@ class _EventsScreenState extends State<EventsScreen> {
   Widget _buildPastEventCard(_PastEventData event) {
     final completionPercent = (event.followUpCompletion * 100).round();
 
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: _rowBackground,
-        border: Border.all(color: _idle),
-      ),
+      radius: 28,
+      elevated: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -525,33 +509,16 @@ class _EventsScreenState extends State<EventsScreen> {
                     Flexible(
                       child: Text(
                         event.title,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
-                          color: _primary,
+                          color: _c.textPrimary,
                         ),
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: _idle),
-                      ),
-                      child: Text(
-                        'COMPLETED',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 1.0,
-                          color: _secondary,
-                        ),
-                      ),
-                    ),
+                    AppChip('COMPLETED'),
                   ],
                 ),
               ),
@@ -560,10 +527,10 @@ class _EventsScreenState extends State<EventsScreen> {
           const SizedBox(height: 10),
           Text(
             event.dateLocation,
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: _secondary,
+              color: _c.textMuted,
             ),
           ),
           const SizedBox(height: 20),
@@ -575,20 +542,20 @@ class _EventsScreenState extends State<EventsScreen> {
                 children: [
                   Text(
                     'CONTACTS SCANNED',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 1.1,
-                      color: _secondary,
+                      color: _c.textMuted,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     '${event.contactsScanned}',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: _primary,
+                      color: _c.textPrimary,
                     ),
                   ),
                 ],
@@ -603,20 +570,20 @@ class _EventsScreenState extends State<EventsScreen> {
                         Expanded(
                           child: Text(
                             'FOLLOW-UP COMPLETION',
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w500,
                               letterSpacing: 1.0,
-                              color: _secondary,
+                              color: _c.textMuted,
                             ),
                           ),
                         ),
                         Text(
                           '$completionPercent%',
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: _primary,
+                            color: _c.textPrimary,
                           ),
                         ),
                       ],
@@ -624,12 +591,12 @@ class _EventsScreenState extends State<EventsScreen> {
                     const SizedBox(height: 8),
                     Container(
                       height: 4,
-                      color: _idle,
+                      color: _c.border,
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: FractionallySizedBox(
                           widthFactor: event.followUpCompletion,
-                          child: Container(color: _primary),
+                          child: Container(color: _c.textPrimary),
                         ),
                       ),
                     ),
@@ -646,17 +613,20 @@ class _EventsScreenState extends State<EventsScreen> {
                   onPressed: () =>
                       _showUiOnlyMessage('View contacts for ${event.title}'),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: _idle),
-                    shape: const RoundedRectangleBorder(),
+                    side: BorderSide(color: _c.border),
+                    backgroundColor: _c.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   child: Text(
                     'VIEW CONTACTS',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 1.6,
-                      color: _secondary,
+                      color: _c.textMuted,
                     ),
                   ),
                 ),
@@ -667,17 +637,20 @@ class _EventsScreenState extends State<EventsScreen> {
                   onPressed: () =>
                       _showUiOnlyMessage('Follow-up queue for ${event.title}'),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: _primary),
-                    shape: const RoundedRectangleBorder(),
+                    side: BorderSide(color: _c.accent),
+                    backgroundColor: _c.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   child: Text(
                     'FOLLOW-UP QUEUE',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 1.4,
-                      color: _primary,
+                      color: _c.textPrimary,
                     ),
                   ),
                 ),
@@ -692,15 +665,15 @@ class _EventsScreenState extends State<EventsScreen> {
   Widget _buildUpcomingMetaRow(IconData icon, String value) {
     return Row(
       children: [
-        Icon(icon, color: _onSurfaceVariant, size: 18),
+        Icon(icon, color: _c.textSecondary, size: 18),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             value,
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: _onSurfaceVariant,
+              color: _c.textSecondary,
             ),
           ),
         ),

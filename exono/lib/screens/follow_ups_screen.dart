@@ -1,7 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import '../config/app_theme.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
 
 class FollowUpsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -13,17 +16,7 @@ class FollowUpsScreen extends StatefulWidget {
 }
 
 class _FollowUpsScreenState extends State<FollowUpsScreen> {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surfaceContainerLowest = Color(0xFF0E0E0E);
-  static const Color _surfaceContainerLow = Color(0xFF1C1B1B);
-  static const Color _surfaceContainerHigh = Color(0xFF2A2A2A);
-  static const Color _surfaceContainerHighest = Color(0xFF353434);
-  static const Color _outline = Color(0xFF8E9192);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _primaryFixedDim = Color(0xFFC6C6C7);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
-  static const Color _onPrimary = Color(0xFF000000);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   final List<_FollowUpQueueItem> _queueItems = [
     const _FollowUpQueueItem(
@@ -139,10 +132,6 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     );
   }
 
-  void _navigateTo(int index) {
-    widget.onNavigateTab?.call(index);
-  }
-
   void _setTone(_DraftTone tone) {
     setState(() {
       _selectedTone = tone;
@@ -178,7 +167,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
 
     if (!isMobile) {
       return ColoredBox(
-        color: _background,
+        color: _c.background,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
@@ -189,14 +178,13 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     }
 
     return ColoredBox(
-      color: _background,
+      color: _c.background,
       child: SafeArea(
         bottom: false,
         child: Column(
           children: [
             _buildTopBar(),
             Expanded(child: _buildScrollableBody(bottomPadding: 24)),
-            _buildBottomNav(),
           ],
         ),
       ),
@@ -210,17 +198,27 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
         child: Container(
           height: 56,
           decoration: BoxDecoration(
-            color: _background.withValues(alpha: 0.80),
-            border: const Border(
-              bottom: BorderSide(color: Color(0xFF262626), width: 1),
+            color: _c.surface.withValues(alpha: 0.92),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(24),
             ),
+            border: Border(
+              bottom: BorderSide(color: _c.border, width: 1),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _c.accentGlow.withValues(alpha: 0.07),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
               IconButton(
                 onPressed: () => _showUiOnlyMessage('Menu is UI-only for now.'),
-                icon: const Icon(Icons.menu, color: _primary, size: 22),
+                icon: Icon(Icons.menu, color: _c.textPrimary, size: 22),
                 splashRadius: 20,
               ),
               Expanded(
@@ -229,11 +227,11 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                     offset: const Offset(-10, 0),
                     child: Text(
                       'EXONO',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -1.2,
-                        color: _primary,
+                        color: _c.textPrimary,
                         height: 1,
                       ),
                     ),
@@ -243,9 +241,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
               IconButton(
                 onPressed: () =>
                     _showUiOnlyMessage('Notifications are UI-only for now.'),
-                icon: const Icon(
+                icon: Icon(
                   Icons.notifications_none_rounded,
-                  color: _primary,
+                  color: _c.textPrimary,
                   size: 22,
                 ),
                 splashRadius: 20,
@@ -279,11 +277,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
   }
 
   Widget _buildQueueStatusSection() {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.only(bottom: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _surfaceContainerHighest)),
-      ),
+      radius: 24,
       child: Column(
         children: [
           Row(
@@ -295,22 +291,22 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   children: [
                     Text(
                       'Queue Status',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 2.4,
-                        color: _outline.withValues(alpha: 0.80),
+                        color: _c.borderStrong.withValues(alpha: 0.80),
                         height: 1.33,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'Pending Outbox',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w600,
                         letterSpacing: -0.48,
-                        color: _primary,
+                        color: _c.textPrimary,
                         height: 1.2,
                       ),
                     ),
@@ -324,19 +320,19 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                     children: [
                       TextSpan(
                         text: '$_queuePosition ',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: _primaryFixedDim,
+                          color: _c.accent,
                           height: 1.33,
                         ),
                       ),
                       TextSpan(
                         text: 'of $_totalQueue',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
-                          color: _outline,
+                          color: _c.borderStrong,
                           height: 1.33,
                         ),
                       ),
@@ -352,7 +348,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
             child: Container(
               height: 6,
               width: double.infinity,
-              color: _surfaceContainerHighest,
+              color: _c.surfaceElevated,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: TweenAnimationBuilder<double>(
@@ -364,9 +360,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                       widthFactor: value,
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        decoration: const BoxDecoration(
-                          color: _primary,
-                          boxShadow: [
+                        decoration: BoxDecoration(
+                          color: _c.textPrimary,
+                          boxShadow: const [
                             BoxShadow(color: Color(0x66FFFFFF), blurRadius: 8),
                           ],
                         ),
@@ -383,14 +379,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
   }
 
   Widget _buildPriorityCard() {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _outlineVariant.withValues(alpha: 0.30)),
-        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 4)],
-      ),
+      radius: 24,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -405,18 +396,18 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: _surfaceContainerHigh,
+                        color: _c.accentSoft,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _outlineVariant),
+                        border: Border.all(color: _c.border),
                       ),
                       alignment: Alignment.center,
                       child: Text(
                         _currentItem.initials,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
-                          color: _primary,
+                          color: _c.textPrimary,
                           height: 1.2,
                         ),
                       ),
@@ -428,40 +419,40 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                         children: [
                           Text(
                             _currentItem.name,
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
                               letterSpacing: -0.2,
-                              color: _primary,
+                              color: _c.textPrimary,
                               height: 1.2,
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             _currentItem.roleCompany,
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: _outline,
+                              color: _c.borderStrong,
                               height: 1.33,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.event_outlined,
                                 size: 14,
-                                color: _outline,
+                                color: _c.borderStrong,
                               ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   'Last met · ${_currentItem.lastMetEvent}',
-                                  style: GoogleFonts.inter(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
-                                    color: _outline.withValues(alpha: 0.70),
+                                    color: _c.borderStrong.withValues(alpha: 0.70),
                                     height: 1.33,
                                   ),
                                 ),
@@ -480,21 +471,21 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 children: [
                   Text(
                     '${_currentItem.aiScore}%',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       letterSpacing: -0.2,
-                      color: _primary,
+                      color: _c.textPrimary,
                       height: 1.2,
                     ),
                   ),
                   Text(
                     'AI Score',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       letterSpacing: -0.1,
-                      color: _outline,
+                      color: _c.borderStrong,
                       height: 1.27,
                     ),
                   ),
@@ -506,38 +497,28 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
           Container(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             decoration: BoxDecoration(
-              color: _surfaceContainerLow.withValues(alpha: 0.50),
-              borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(8),
-                bottomRight: Radius.circular(8),
-                bottomLeft: Radius.circular(2),
-                topLeft: Radius.circular(2),
-              ),
-              border: Border(
-                left: BorderSide(
-                  color: _primary.withValues(alpha: 0.20),
-                  width: 2,
-                ),
-              ),
+              color: _c.accentSoft,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _c.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.auto_awesome,
                       size: 16,
-                      color: _primaryFixedDim,
+                      color: _c.accent,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'AI Strategy Insight',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.4,
-                        color: _primary,
+                        color: _c.textPrimary,
                         height: 1.33,
                       ),
                     ),
@@ -546,11 +527,11 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 const SizedBox(height: 10),
                 Text(
                   '“${_currentItem.insight}”',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
                     fontStyle: FontStyle.italic,
-                    color: _onSurfaceVariant,
+                    color: _c.textSecondary,
                     height: 1.6,
                   ),
                 ),
@@ -563,26 +544,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
             runSpacing: 8,
             children: [
               for (var i = 0; i < _currentItem.tags.length; i++)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: i == 0 ? _primary : _surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: Text(
-                    _currentItem.tags[i],
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: i == 0 ? FontWeight.w700 : FontWeight.w600,
-                      letterSpacing: 1.2,
-                      color: i == 0 ? _onPrimary : _outline,
-                      height: 1.27,
-                    ),
-                  ),
-                ),
+                i == 0
+                    ? AppChip.status(_currentItem.tags[i], color: _c.accent)
+                    : AppChip.label(_currentItem.tags[i]),
             ],
           ),
         ],
@@ -599,43 +563,39 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
             Expanded(
               child: Text(
                 'Smart Draft',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.2,
-                  color: _outline,
+                  color: _c.borderStrong,
                   height: 1.33,
                 ),
               ),
             ),
             Row(
-              children: const [
-                _PulseDot(color: Colors.white),
-                SizedBox(width: 4),
-                _PulseDot(color: Color(0x66FFFFFF)),
-                SizedBox(width: 4),
-                _PulseDot(color: Color(0x33FFFFFF)),
+              children: [
+                _PulseDot(color: _c.accent),
+                const SizedBox(width: 4),
+                _PulseDot(color: _c.accent.withValues(alpha: 0.5)),
+                const SizedBox(width: 4),
+                _PulseDot(color: _c.accent.withValues(alpha: 0.3)),
               ],
             ),
           ],
         ),
         const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: _background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFF262626)),
-          ),
+        AppCard(
+          radius: 24,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 decoration: BoxDecoration(
-                  color: _surfaceContainerLow.withValues(alpha: 0.30),
+                  color: _c.surfaceAlt.withValues(alpha: 0.30),
                   border: Border(
                     bottom: BorderSide(
-                      color: _outlineVariant.withValues(alpha: 0.30),
+                      color: _c.border.withValues(alpha: 0.30),
                     ),
                   ),
                 ),
@@ -644,24 +604,24 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   children: [
                     Text(
                       'Subject',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 1.6,
-                        color: _outline,
+                        color: _c.borderStrong,
                         height: 1.27,
                       ),
                     ),
                     const SizedBox(height: 4),
                     TextField(
                       controller: _subjectController,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: _primary,
+                        color: _c.textPrimary,
                         height: 1.5,
                       ),
-                      cursorColor: _primary,
+                      cursorColor: _c.textPrimary,
                       decoration: const InputDecoration(
                         isDense: true,
                         border: InputBorder.none,
@@ -678,11 +638,11 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   children: [
                     Text(
                       'Message',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 1.6,
-                        color: _outline,
+                        color: _c.borderStrong,
                         height: 1.27,
                       ),
                     ),
@@ -691,13 +651,13 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                       controller: _messageController,
                       maxLines: null,
                       minLines: 8,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
-                        color: _onSurfaceVariant,
+                        color: _c.textSecondary,
                         height: 1.55,
                       ),
-                      cursorColor: _primary,
+                      cursorColor: _c.textPrimary,
                       decoration: const InputDecoration(
                         isDense: true,
                         border: InputBorder.none,
@@ -758,23 +718,27 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: filled ? _primary : Colors.transparent,
+          color: filled ? _c.accent : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
-          border: filled ? null : Border.all(color: _primary),
+          border: filled ? null : Border.all(color: _c.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 14, color: filled ? _onPrimary : _primary),
+              Icon(
+                icon,
+                size: 14,
+                color: filled ? Colors.white : _c.accent,
+              ),
               const SizedBox(width: 6),
             ],
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: filled ? _onPrimary : _primary,
+                color: filled ? Colors.white : _c.textPrimary,
                 height: 1.33,
               ),
             ),
@@ -792,13 +756,13 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
           child: FilledButton.icon(
             onPressed: () => _advanceQueue('Priority follow-up sent.'),
             style: FilledButton.styleFrom(
-              backgroundColor: _primary,
-              foregroundColor: _onPrimary,
+              backgroundColor: _c.accent,
+              foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(56),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(20),
               ),
-              textStyle: GoogleFonts.inter(
+              textStyle: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
@@ -815,13 +779,14 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
               child: OutlinedButton.icon(
                 onPressed: () => _showUiOnlyMessage('Draft saved locally.'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primary,
-                  side: const BorderSide(color: _outlineVariant),
+                  foregroundColor: _c.textPrimary,
+                  backgroundColor: _c.surface,
+                  side: BorderSide(color: _c.border),
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  textStyle: GoogleFonts.inter(
+                  textStyle: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.6,
@@ -837,13 +802,14 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 onPressed: () =>
                     _advanceQueue('Skipped for now. Next contact loaded.'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primary,
-                  side: const BorderSide(color: _outlineVariant),
+                  foregroundColor: _c.textPrimary,
+                  backgroundColor: _c.surface,
+                  side: BorderSide(color: _c.border),
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  textStyle: GoogleFonts.inter(
+                  textStyle: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.6,
@@ -856,144 +822,6 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _background.withValues(alpha: 0.90),
-            border: const Border(
-              top: BorderSide(color: Color(0xFF262626), width: 1),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 80,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildBottomNavItem(
-                      icon: Icons.gps_fixed,
-                      label: 'Targets',
-                      isActive: false,
-                      onTap: () => _navigateTo(0),
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildBottomNavItem(
-                      icon: Icons.group_outlined,
-                      label: 'Contacts',
-                      isActive: false,
-                      onTap: () => _navigateTo(3),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 78,
-                    child: Center(
-                      child: Transform.translate(
-                        offset: const Offset(0, -16),
-                        child: InkWell(
-                          onTap: () => _navigateTo(2),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: _primary,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Color(0x80000000),
-                                      blurRadius: 20,
-                                      offset: Offset(0, 8),
-                                    ),
-                                  ],
-                                ),
-                                alignment: Alignment.center,
-                                child: const Icon(
-                                  Icons.qr_code_scanner_rounded,
-                                  size: 30,
-                                  color: _onPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Scan',
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.4,
-                                  color: _primary,
-                                  height: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildBottomNavItem(
-                      icon: Icons.event,
-                      label: 'Events',
-                      isActive: true,
-                      filled: true,
-                      onTap: () => _navigateTo(1),
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildBottomNavItem(
-                      icon: Icons.person_outline_rounded,
-                      label: 'Profile',
-                      isActive: false,
-                      onTap: () => _navigateTo(5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem({
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-    bool filled = false,
-  }) {
-    final color = isActive ? _primary : _outline;
-
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 22, color: color),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-              color: color,
-              height: 1,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

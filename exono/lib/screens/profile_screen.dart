@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_section_label.dart';
 import 'account_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -14,13 +17,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  static const Color _background = Color(0xFF141313);
-  static const Color _surface = Color(0xFF0E0E0E);
-  static const Color _surfaceAlt = Color(0xFF1C1B1B);
-  static const Color _border = Color(0xFF444748);
-  static const Color _outline = Color(0xFF8E9192);
-  static const Color _textPrimary = Color(0xFFE5E2E1);
-  static const Color _textSecondary = Color(0xFFC4C7C8);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   bool _dailyBriefEnabled = true;
   bool _offlinePrepEnabled = true;
@@ -162,7 +159,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final signedUpName = _readString(userMetadata, ['name']);
 
     return ColoredBox(
-      color: _background,
+      color: _c.background,
       child: SafeArea(
         top: false,
         bottom: false,
@@ -184,7 +181,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 16),
                   _buildQuickActionsCard(),
                   const SizedBox(height: 16),
-                  _buildSectionLabel('Account Snapshot'),
+                  AppSectionLabel('Account Snapshot'),
                   const SizedBox(height: 10),
                   _buildInfoGrid(
                     children: [
@@ -223,7 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildSectionLabel('Profile Details'),
+                  AppSectionLabel('Profile Details'),
                   const SizedBox(height: 10),
                   _buildDetailPanel(
                     title: 'Company & Identity Links',
@@ -274,7 +271,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildSectionLabel('Workspace Preferences'),
+                  AppSectionLabel('Workspace Preferences'),
                   const SizedBox(height: 10),
                   _buildPreferenceTile(
                     title: 'Daily brief notifications',
@@ -306,7 +303,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  _buildSectionLabel('Actions'),
+                  AppSectionLabel('Actions'),
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 10,
@@ -364,14 +361,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String email,
     required String profileType,
   }) {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: _border),
-      ),
+      radius: 28,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -388,10 +380,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 alignment: Alignment.center,
                 child: Text(
                   auth.initials,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: _background,
+                    color: _c.background,
                   ),
                 ),
               ),
@@ -400,40 +392,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'PROFILE',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,
-                        color: _textSecondary,
+                        color: _c.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       displayName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -1.0,
-                        color: _textPrimary,
+                        color: _c.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       designation,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.6,
-                        color: _textSecondary,
+                        color: _c.textSecondary,
                       ),
                     ),
                     if (email.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
                         email,
-                        style: const TextStyle(fontSize: 13, color: _outline),
+                        style: TextStyle(fontSize: 13, color: _c.borderStrong),
                       ),
                     ],
                   ],
@@ -466,21 +458,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: _surfaceAlt,
+        color: _c.surfaceAlt,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _border),
+        border: Border.all(color: _c.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: _textPrimary),
+          Icon(icon, size: 15, color: _c.textPrimary),
           const SizedBox(width: 8),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: _textPrimary,
+              color: _c.textPrimary,
             ),
           ),
         ],
@@ -489,26 +481,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildQuickActionsCard() {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _border),
-      ),
+      radius: 24,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'QUICK ACTIONS',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: _textSecondary,
-            ),
-          ),
+          AppSectionLabel('Quick Actions'),
           const SizedBox(height: 14),
           Wrap(
             spacing: 10,
@@ -552,21 +531,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: _surfaceAlt,
+          color: _c.surfaceAlt,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _border),
+          border: Border.all(color: _c.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: _textPrimary),
+            Icon(icon, size: 18, color: _c.textPrimary),
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: _textPrimary,
+                color: _c.textPrimary,
               ),
             ),
           ],
@@ -575,17 +554,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSectionLabel(String label) {
-    return Text(
-      label.toUpperCase(),
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.2,
-        color: _textSecondary,
-      ),
-    );
-  }
 
   Widget _buildInfoGrid({required List<Widget> children}) {
     return LayoutBuilder(
@@ -611,27 +579,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required List<Widget> children,
   }) {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _border),
-      ),
+      radius: 24,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: _textPrimary),
+              Icon(icon, size: 18, color: _c.textPrimary),
               const SizedBox(width: 10),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: _textPrimary,
+                  color: _c.textPrimary,
                 ),
               ),
             ],
@@ -649,17 +612,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.1,
-            color: _textSecondary,
+            color: _c.textSecondary,
           ),
         ),
         const SizedBox(height: 6),
         Text(
           value,
-          style: const TextStyle(fontSize: 14, height: 1.45, color: _outline),
+          style: TextStyle(fontSize: 14, height: 1.45, color: _c.borderStrong),
         ),
       ],
     );
@@ -671,17 +634,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.1,
-            color: _textSecondary,
+            color: _c.textSecondary,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           value,
-          style: const TextStyle(fontSize: 14, height: 1.55, color: _outline),
+          style: TextStyle(fontSize: 14, height: 1.55, color: _c.borderStrong),
         ),
       ],
     );
@@ -693,14 +656,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _border),
-      ),
+      radius: 24,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -710,19 +668,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: _textPrimary,
+                    color: _c.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     height: 1.5,
-                    color: _outline,
+                    color: _c.borderStrong,
                   ),
                 ),
               ],
@@ -733,8 +691,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             value: value,
             activeThumbColor: Colors.white,
             activeTrackColor: Colors.white.withValues(alpha: 0.35),
-            inactiveThumbColor: _outline,
-            inactiveTrackColor: _surfaceAlt,
+            inactiveThumbColor: _c.borderStrong,
+            inactiveTrackColor: _c.surfaceAlt,
             onChanged: onChanged,
           ),
         ],
@@ -773,12 +731,7 @@ class _EditProfileSheet extends StatefulWidget {
 }
 
 class _EditProfileSheetState extends State<_EditProfileSheet> {
-  static const Color _background = Color(0xFF141313);
-  static const Color _surface = Color(0xFF0E0E0E);
-  static const Color _border = Color(0xFF444748);
-  static const Color _textPrimary = Color(0xFFE5E2E1);
-  static const Color _textSecondary = Color(0xFFC4C7C8);
-  static const Color _textMuted = Color(0xFF8E9192);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   final _formKey = GlobalKey<FormState>();
 
@@ -853,13 +806,13 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
         alignment: Alignment.bottomCenter,
         child: Container(
           constraints: const BoxConstraints(maxWidth: 760),
-          decoration: const BoxDecoration(
-            color: _background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: _c.background,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             border: Border(
-              top: BorderSide(color: _border),
-              left: BorderSide(color: _border),
-              right: BorderSide(color: _border),
+              top: BorderSide(color: _c.border),
+              left: BorderSide(color: _c.border),
+              right: BorderSide(color: _c.border),
             ),
           ),
           child: SafeArea(
@@ -876,7 +829,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: _border,
+                          color: _c.border,
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
@@ -884,7 +837,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -894,15 +847,15 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                                   fontSize: 24,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: -0.8,
-                                  color: _textPrimary,
+                                  color: _c.textPrimary,
                                 ),
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
                               Text(
                                 'Update the visible profile snapshot in this app preview.',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: _textMuted,
+                                  color: _c.textMuted,
                                   height: 1.45,
                                 ),
                               ),
@@ -912,7 +865,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                         IconButton(
                           onPressed: () => Navigator.of(context).pop(),
                           icon: const Icon(Icons.close_rounded),
-                          color: _textPrimary,
+                          color: _c.textPrimary,
                         ),
                       ],
                     ),
@@ -1006,8 +959,8 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                           child: OutlinedButton(
                             onPressed: () => Navigator.of(context).pop(),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: _textPrimary,
-                              side: const BorderSide(color: _border),
+                              foregroundColor: _c.textPrimary,
+                              side: BorderSide(color: _c.border),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(18),
@@ -1029,7 +982,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                             onPressed: _save,
                             style: FilledButton.styleFrom(
                               backgroundColor: Colors.white,
-                              foregroundColor: _background,
+                              foregroundColor: _c.background,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(18),
@@ -1069,11 +1022,11 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.1,
-            color: _textSecondary,
+            color: _c.textSecondary,
           ),
         ),
         const SizedBox(height: 8),
@@ -1082,20 +1035,20 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
           minLines: minLines,
           maxLines: maxLines,
           validator: validator,
-          style: const TextStyle(fontSize: 14, color: _textPrimary),
-          cursorColor: _textPrimary,
+          style: TextStyle(fontSize: 14, color: _c.textPrimary),
+          cursorColor: _c.textPrimary,
           decoration: InputDecoration(
             filled: true,
-            fillColor: _surface,
-            hintStyle: const TextStyle(color: _textMuted),
+            fillColor: _c.surface,
+            hintStyle: TextStyle(color: _c.textMuted),
             errorStyle: const TextStyle(color: Color(0xFFFFB4AB)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: _border),
+              borderSide: BorderSide(color: _c.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: _textPrimary),
+              borderSide: BorderSide(color: _c.textPrimary),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
@@ -1126,13 +1079,10 @@ class _InfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final _c = AppTheme.colorsOf(context);
+    return AppCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E0E0E),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF444748)),
-      ),
+      radius: 24,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1140,11 +1090,11 @@ class _InfoTile extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1B1B),
+              color: _c.surfaceAlt,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF444748)),
+              border: Border.all(color: _c.border),
             ),
-            child: Icon(icon, size: 18, color: const Color(0xFFE5E2E1)),
+            child: Icon(icon, size: 18, color: _c.textPrimary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1153,20 +1103,20 @@ class _InfoTile extends StatelessWidget {
               children: [
                 Text(
                   title.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.0,
-                    color: Color(0xFFC4C7C8),
+                    color: _c.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     height: 1.45,
-                    color: Color(0xFF8E9192),
+                    color: _c.textMuted,
                   ),
                 ),
               ],

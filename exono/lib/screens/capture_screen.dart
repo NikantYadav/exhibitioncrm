@@ -1,8 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../config/app_theme.dart';
+import '../widgets/app_chip.dart';
 import 'voice_memory_capture_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
@@ -20,17 +21,7 @@ enum _CaptureNotesTab { manual, voice, upload }
 
 class _CaptureScreenState extends State<CaptureScreen>
     with SingleTickerProviderStateMixin {
-  static const Color _surface = Color(0xFF141313);
-  static const Color _surfaceContainer = Color(0xFF201F1F);
-  static const Color _surfaceContainerLow = Color(0xFF1C1B1B);
-  static const Color _surfaceContainerHigh = Color(0xFF2A2A2A);
-  static const Color _surfaceContainerLowest = Color(0xFF0E0E0E);
-  static const Color _outline = Color(0xFF8E9192);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _onPrimary = Color(0xFF2F3131);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
-  static const Color _onSurface = Color(0xFFE5E2E1);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   late final AnimationController _scanController;
   final TextEditingController _manualNotesController = TextEditingController();
@@ -75,8 +66,8 @@ class _CaptureScreenState extends State<CaptureScreen>
   Widget build(BuildContext context) {
     final baseScreen = ColoredBox(
       color: _stage == _CaptureStage.scanner
-          ? _surfaceContainerLowest
-          : _surface,
+          ? _c.surface
+          : _c.background,
       child: SafeArea(
         bottom: false,
         child: Column(
@@ -87,7 +78,6 @@ class _CaptureScreenState extends State<CaptureScreen>
                   ? _buildScannerStage()
                   : _buildNotesStage(),
             ),
-            _buildBottomNavigation(),
           ],
         ),
       ),
@@ -106,7 +96,7 @@ class _CaptureScreenState extends State<CaptureScreen>
           child: Container(
             height: 56,
             decoration: BoxDecoration(
-              color: _surfaceContainerLowest.withValues(alpha: 0.78),
+              color: _c.surface.withValues(alpha: 0.78),
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -115,11 +105,11 @@ class _CaptureScreenState extends State<CaptureScreen>
                   const Expanded(child: SizedBox()),
                   Text(
                     'EXONO',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -1.2,
-                      color: _primary,
+                      color: _c.textPrimary,
                       height: 1,
                     ),
                   ),
@@ -130,18 +120,18 @@ class _CaptureScreenState extends State<CaptureScreen>
                         IconButton(
                           onPressed: () => _showUiOnlyMessage('Flash toggle'),
                           splashRadius: 20,
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.flashlight_on,
-                            color: _primary,
+                            color: _c.textPrimary,
                             size: 22,
                           ),
                         ),
                         IconButton(
                           onPressed: () => widget.onNavigateTab?.call(0),
                           splashRadius: 20,
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.close,
-                            color: _primary,
+                            color: _c.textPrimary,
                             size: 22,
                           ),
                         ),
@@ -158,8 +148,8 @@ class _CaptureScreenState extends State<CaptureScreen>
 
     return Container(
       height: 56,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _outlineVariant, width: 1)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _c.border, width: 1)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -168,16 +158,16 @@ class _CaptureScreenState extends State<CaptureScreen>
             IconButton(
               onPressed: () => setState(() => _stage = _CaptureStage.scanner),
               splashRadius: 20,
-              icon: const Icon(Icons.arrow_back, color: _primary, size: 24),
+              icon: Icon(Icons.arrow_back, color: _c.textPrimary, size: 24),
             ),
             const Spacer(),
             Text(
               'EXONO',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -1.2,
-                color: _primary,
+                color: _c.textPrimary,
                 height: 1,
               ),
             ),
@@ -185,9 +175,9 @@ class _CaptureScreenState extends State<CaptureScreen>
             IconButton(
               onPressed: () => _showUiOnlyMessage('Settings'),
               splashRadius: 20,
-              icon: const Icon(
+              icon: Icon(
                 Icons.settings,
-                color: _onSurfaceVariant,
+                color: _c.textMuted,
                 size: 24,
               ),
             ),
@@ -263,21 +253,21 @@ class _CaptureScreenState extends State<CaptureScreen>
                         const SizedBox(height: 44),
                         Text(
                           'ALIGN CARD OR QR CODE',
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 4,
-                            color: _primary.withValues(alpha: 0.80),
+                            color: _c.textPrimary.withValues(alpha: 0.80),
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'PRECISE AUTO-CAPTURE ACTIVE',
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 1.5,
-                            color: _onSurfaceVariant.withValues(alpha: 0.60),
+                            color: _c.textMuted.withValues(alpha: 0.60),
                           ),
                         ),
                         const SizedBox(height: 32),
@@ -337,26 +327,26 @@ class _CaptureScreenState extends State<CaptureScreen>
             height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: _surfaceContainerLowest,
+              color: _c.surface,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _outlineVariant),
+              border: Border.all(color: _c.border),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     'Global Tech Summit 2024',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
-                      color: _onSurfaceVariant,
+                      color: _c.textMuted,
                     ),
                   ),
                 ),
                 Icon(
                   Icons.lock,
                   size: 18,
-                  color: _onSurfaceVariant.withValues(alpha: 0.5),
+                  color: _c.textMuted.withValues(alpha: 0.5),
                 ),
               ],
             ),
@@ -369,20 +359,20 @@ class _CaptureScreenState extends State<CaptureScreen>
             height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: _surface,
+              color: _c.background,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _outlineVariant),
+              border: Border.all(color: _c.border),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _selectedProduct,
-                dropdownColor: _surfaceContainerLow,
+                dropdownColor: _c.surfaceAlt,
                 isExpanded: true,
-                icon: const Icon(Icons.expand_more, color: _onSurfaceVariant),
-                style: GoogleFonts.inter(
+                icon: Icon(Icons.expand_more, color: _c.textMuted),
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: _primary,
+                  color: _c.textPrimary,
                 ),
                 items: _productOptions
                     .map(
@@ -403,15 +393,15 @@ class _CaptureScreenState extends State<CaptureScreen>
           const SizedBox(height: 30),
           Row(
             children: [
-              Container(width: 2, height: 24, color: _primary),
+              Container(width: 2, height: 24, color: _c.textPrimary),
               const SizedBox(width: 10),
               Text(
                 'CAPTURE NOTES',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.8,
-                  color: _primary,
+                  color: _c.textPrimary,
                 ),
               ),
             ],
@@ -429,8 +419,8 @@ class _CaptureScreenState extends State<CaptureScreen>
               style: FilledButton.styleFrom(
                 backgroundColor: _leadSaved
                     ? const Color(0xFF16A34A)
-                    : _primary,
-                foregroundColor: _onPrimary,
+                    : _c.accent,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -445,7 +435,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: _onPrimary,
+                          color: Colors.white,
                         ),
                       )
                     : Row(
@@ -456,11 +446,11 @@ class _CaptureScreenState extends State<CaptureScreen>
                             _leadSaved
                                 ? 'LEAD SAVED'
                                 : 'FINALIZE AND SAVE LEAD',
-                            style: GoogleFonts.inter(
+                            style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                               letterSpacing: 2.0,
-                              color: _onPrimary,
+                              color: Colors.white,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -469,7 +459,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                                 ? Icons.check_circle
                                 : Icons.save_outlined,
                             size: 18,
-                            color: _onPrimary,
+                            color: Colors.white,
                           ),
                         ],
                       ),
@@ -485,9 +475,9 @@ class _CaptureScreenState extends State<CaptureScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _surfaceContainerLow,
+        color: _c.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _outlineVariant),
+        border: Border.all(color: _c.border),
       ),
       child: Row(
         children: [
@@ -495,18 +485,18 @@ class _CaptureScreenState extends State<CaptureScreen>
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: _surfaceContainerHigh,
+              color: _c.surfaceElevated,
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: _outline),
+              border: Border.all(color: _c.borderStrong),
             ),
             alignment: Alignment.center,
             child: Text(
               _capturedLead.initials,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.2,
-                color: _primary,
+                color: _c.textPrimary,
               ),
             ),
           ),
@@ -517,31 +507,31 @@ class _CaptureScreenState extends State<CaptureScreen>
               children: [
                 Text(
                   _capturedLead.name,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.2,
-                    color: _primary,
+                    color: _c.textPrimary,
                     height: 1.2,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _capturedLead.company.toUpperCase(),
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.0,
-                    color: _onSurfaceVariant,
+                    color: _c.textMuted,
                   ),
                 ),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: const [
-                    _CaptureStatusPill(label: 'MET', isPrimary: true),
-                    _CaptureStatusPill(label: 'FOLLOW-UP'),
+                  children: [
+                    AppChip.status('MET', color: _c.textPrimary),
+                    AppChip('FOLLOW-UP'),
                   ],
                 ),
               ],
@@ -555,11 +545,11 @@ class _CaptureScreenState extends State<CaptureScreen>
   Widget _buildFieldLabel(String label) {
     return Text(
       label,
-      style: GoogleFonts.inter(
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w500,
         letterSpacing: 1.7,
-        color: _onSurfaceVariant,
+        color: _c.textMuted,
       ),
     );
   }
@@ -575,7 +565,7 @@ class _CaptureScreenState extends State<CaptureScreen>
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: isActive ? _primary : _outlineVariant,
+                  color: isActive ? _c.textPrimary : _c.border,
                   width: isActive ? 2 : 1,
                 ),
               ),
@@ -583,11 +573,11 @@ class _CaptureScreenState extends State<CaptureScreen>
             child: Text(
               label,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 2.1,
-                color: isActive ? _primary : _onSurfaceVariant,
+                color: isActive ? _c.textPrimary : _c.textMuted,
               ),
             ),
           ),
@@ -610,28 +600,28 @@ class _CaptureScreenState extends State<CaptureScreen>
         return Container(
           height: 160,
           decoration: BoxDecoration(
-            color: _surfaceContainerLow,
+            color: _c.surfaceAlt,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _outlineVariant),
+            border: Border.all(color: _c.border),
           ),
           child: TextField(
             controller: _manualNotesController,
             maxLines: null,
             expands: true,
-            cursorColor: _primary,
-            style: GoogleFonts.inter(
+            cursorColor: _c.textPrimary,
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: _onSurface,
+              color: _c.textSecondary,
               height: 1.4,
             ),
             decoration: InputDecoration(
               hintText:
                   'Key topics discussed, what they need, agreed next steps...',
-              hintStyle: GoogleFonts.inter(
+              hintStyle: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
-                color: _onSurfaceVariant.withValues(alpha: 0.4),
+                color: _c.textMuted.withValues(alpha: 0.4),
               ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.all(16),
@@ -642,8 +632,8 @@ class _CaptureScreenState extends State<CaptureScreen>
         return Container(
           height: 224,
           decoration: BoxDecoration(
-            color: _surfaceContainerLow,
-            border: Border.all(color: _outlineVariant),
+            color: _c.surfaceAlt,
+            border: Border.all(color: _c.border),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -654,9 +644,9 @@ class _CaptureScreenState extends State<CaptureScreen>
                 height: 64,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: _primary),
+                  border: Border.all(color: _c.textPrimary),
                 ),
-                child: const Icon(Icons.mic, color: _primary, size: 32),
+                child: Icon(Icons.mic, color: _c.textPrimary, size: 32),
               ),
               const SizedBox(height: 16),
               Row(
@@ -674,7 +664,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                         return Container(
                           width: 4,
                           height: height.clamp(4, 24),
-                          color: _primary,
+                          color: _c.textPrimary,
                         );
                       },
                     ),
@@ -684,20 +674,20 @@ class _CaptureScreenState extends State<CaptureScreen>
               const SizedBox(height: 12),
               Text(
                 '00:12',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w400,
-                  color: _primary,
+                  color: _c.textPrimary,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
                 'TAP TO STOP',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.0,
-                  color: _onSurfaceVariant,
+                  color: _c.textMuted,
                 ),
               ),
             ],
@@ -709,9 +699,9 @@ class _CaptureScreenState extends State<CaptureScreen>
           child: Container(
             height: 160,
             decoration: BoxDecoration(
-              color: _surfaceContainerLow,
+              color: _c.surfaceAlt,
               border: Border.all(
-                color: _outlineVariant,
+                color: _c.border,
                 style: BorderStyle.solid,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -719,25 +709,25 @@ class _CaptureScreenState extends State<CaptureScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.upload_file, color: _onSurfaceVariant),
+                Icon(Icons.upload_file, color: _c.textMuted),
                 const SizedBox(height: 10),
                 Text(
                   'DROP FILE HERE OR TAP TO BROWSE',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.1,
-                    color: _onSurfaceVariant,
+                    color: _c.textMuted,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'PDF, JPG, PNG UP TO 10MB',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.8,
-                    color: _onSurfaceVariant.withValues(alpha: 0.5),
+                    color: _c.textMuted.withValues(alpha: 0.5),
                   ),
                 ),
               ],
@@ -745,160 +735,6 @@ class _CaptureScreenState extends State<CaptureScreen>
           ),
         );
     }
-  }
-
-  Widget _buildBottomNavigation() {
-    if (_stage == _CaptureStage.scanner) {
-      return ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            height: 80,
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
-            decoration: BoxDecoration(
-              color: _surface.withValues(alpha: 0.95),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x80000000),
-                  blurRadius: 24,
-                  offset: Offset(0, -4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildNavItem(
-                    icon: Icons.track_changes_outlined,
-                    label: 'TARGETS',
-                    onTap: () => widget.onNavigateTab?.call(0),
-                  ),
-                ),
-                Expanded(
-                  child: _buildNavItem(
-                    icon: Icons.group_outlined,
-                    label: 'CONTACTS',
-                    onTap: () => widget.onNavigateTab?.call(3),
-                  ),
-                ),
-                Expanded(
-                  child: _buildNavItem(
-                    icon: Icons.event_outlined,
-                    label: 'EVENTS',
-                    onTap: () => widget.onNavigateTab?.call(1),
-                  ),
-                ),
-                Expanded(
-                  child: _buildNavItem(
-                    icon: Icons.person_outline_rounded,
-                    label: 'PROFILE',
-                    onTap: () => widget.onNavigateTab?.call(5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      height: 80,
-      decoration: const BoxDecoration(
-        color: _surface,
-        border: Border(top: BorderSide(color: _outlineVariant, width: 1)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildNavItem(
-              icon: Icons.track_changes_outlined,
-              label: 'TARGETS',
-              onTap: () => widget.onNavigateTab?.call(0),
-            ),
-          ),
-          Expanded(
-            child: _buildNavItem(
-              icon: Icons.group_outlined,
-              label: 'CONTACTS',
-              onTap: () => widget.onNavigateTab?.call(3),
-            ),
-          ),
-          SizedBox(
-            width: 74,
-            child: Center(
-              child: Transform.translate(
-                offset: const Offset(0, -8),
-                child: InkWell(
-                  onTap: () => setState(() => _stage = _CaptureStage.scanner),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: _primary,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x80000000),
-                          blurRadius: 20,
-                          offset: Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.qr_code_scanner_rounded,
-                      color: _onPrimary,
-                      size: 30,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: _buildNavItem(
-              icon: Icons.event_outlined,
-              label: 'EVENTS',
-              onTap: () => widget.onNavigateTab?.call(1),
-            ),
-          ),
-          Expanded(
-            child: _buildNavItem(
-              icon: Icons.person_outline_rounded,
-              label: 'PROFILE',
-              onTap: () => widget.onNavigateTab?.call(5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: _onSurfaceVariant, size: 24),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.6,
-              color: _onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildFinder() {
@@ -911,7 +747,7 @@ class _CaptureScreenState extends State<CaptureScreen>
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _primary.withValues(alpha: 0.18)),
+              border: Border.all(color: _c.textPrimary.withValues(alpha: 0.18)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.55),
@@ -932,28 +768,28 @@ class _CaptureScreenState extends State<CaptureScreen>
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: _surfaceContainer.withValues(alpha: 0.9),
+                  color: _c.surfaceAlt.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: _outlineVariant.withValues(alpha: 0.35),
+                    color: _c.border.withValues(alpha: 0.35),
                   ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.history,
                       size: 14,
-                      color: _onSurfaceVariant,
+                      color: _c.textMuted,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       'Last: Sarah Jenkins (Aero)',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.5,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                       ),
                     ),
                   ],
@@ -971,7 +807,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                 right: 0,
                 child: Container(
                   height: 1,
-                  color: _primary.withValues(alpha: 0.45),
+                  color: _c.textPrimary.withValues(alpha: 0.45),
                 ),
               );
             },
@@ -982,8 +818,8 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   List<Widget> _buildCornerGuides() {
-    const guideSize = 32.0;
-    const guideColor = _primary;
+    final guideSize = 32.0;
+    final guideColor = _c.textPrimary;
     const guideWidth = 1.3;
 
     Widget corner({
@@ -1027,19 +863,19 @@ class _CaptureScreenState extends State<CaptureScreen>
           height: 80,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: _primary.withValues(alpha: 0.30)),
+            border: Border.all(color: _c.textPrimary.withValues(alpha: 0.30)),
           ),
           padding: const EdgeInsets.all(6),
           child: Container(
-            decoration: BoxDecoration(color: _primary, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: _c.textPrimary, shape: BoxShape.circle),
             child: _isCapturing
-                ? const Center(
+                ? Center(
                     child: SizedBox(
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: _surface,
+                        color: _c.background,
                       ),
                     ),
                   )
@@ -1063,16 +899,16 @@ class _CaptureScreenState extends State<CaptureScreen>
           Icon(
             icon,
             size: 24,
-            color: _onSurfaceVariant.withValues(alpha: 0.72),
+            color: _c.textMuted.withValues(alpha: 0.72),
           ),
           const SizedBox(height: 8),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
               letterSpacing: 1.8,
-              color: _onSurfaceVariant.withValues(alpha: 0.72),
+              color: _c.textMuted.withValues(alpha: 0.72),
             ),
           ),
         ],
@@ -1154,14 +990,14 @@ class _CaptureScreenState extends State<CaptureScreen>
                   maxWidth: 760,
                 ),
                 decoration: BoxDecoration(
-                  color: _surfaceContainerLowest,
+                  color: _c.surface,
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(12),
                   ),
-                  border: const Border(
-                    top: BorderSide(color: _outlineVariant),
-                    left: BorderSide(color: _outlineVariant),
-                    right: BorderSide(color: _outlineVariant),
+                  border: Border(
+                    top: BorderSide(color: _c.border),
+                    left: BorderSide(color: _c.border),
+                    right: BorderSide(color: _c.border),
                   ),
                   boxShadow: const [
                     BoxShadow(
@@ -1179,7 +1015,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                       width: 48,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: _outlineVariant,
+                        color: _c.border,
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -1191,9 +1027,9 @@ class _CaptureScreenState extends State<CaptureScreen>
                           children: [
                             Container(
                               padding: const EdgeInsets.only(bottom: 22),
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 border: Border(
-                                  bottom: BorderSide(color: _outlineVariant),
+                                  bottom: BorderSide(color: _c.border),
                                 ),
                               ),
                               child: Column(
@@ -1203,20 +1039,20 @@ class _CaptureScreenState extends State<CaptureScreen>
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.warning,
-                                        color: _primary,
+                                        color: _c.textPrimary,
                                         size: 22,
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
                                         child: Text(
                                           'Deduplication Alert — Potential Conflict Detected',
-                                          style: GoogleFonts.inter(
+                                          style: TextStyle(
                                             fontSize: 20,
                                             fontWeight: FontWeight.w600,
                                             letterSpacing: -0.2,
-                                            color: _primary,
+                                            color: _c.textPrimary,
                                             height: 1.3,
                                           ),
                                         ),
@@ -1240,7 +1076,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                                             alpha: 0.05,
                                           ),
                                           border: Border.all(
-                                            color: _outlineVariant,
+                                            color: _c.border,
                                           ),
                                           borderRadius: BorderRadius.circular(
                                             4,
@@ -1251,20 +1087,20 @@ class _CaptureScreenState extends State<CaptureScreen>
                                           children: [
                                             Text(
                                               'AI CONFIDENCE SCORE',
-                                              style: GoogleFonts.inter(
+                                              style: TextStyle(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w600,
                                                 letterSpacing: 1.1,
-                                                color: _onSurfaceVariant,
+                                                color: _c.textMuted,
                                               ),
                                             ),
                                             const SizedBox(width: 12),
                                             Text(
                                               '98% Match',
-                                              style: GoogleFonts.inter(
+                                              style: TextStyle(
                                                 fontSize: 20,
                                                 fontWeight: FontWeight.w600,
-                                                color: _primary,
+                                                color: _c.textPrimary,
                                               ),
                                             ),
                                           ],
@@ -1276,11 +1112,11 @@ class _CaptureScreenState extends State<CaptureScreen>
                                         ),
                                         child: Text(
                                           '"High probability match based on matching email domain and phonetic name similarity across multiple datasets."',
-                                          style: GoogleFonts.inter(
+                                          style: TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w400,
                                             fontStyle: FontStyle.italic,
-                                            color: _onSurfaceVariant,
+                                            color: _c.textMuted,
                                             height: 1.4,
                                           ),
                                         ),
@@ -1299,9 +1135,9 @@ class _CaptureScreenState extends State<CaptureScreen>
                     ),
                     Container(
                       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                      decoration: const BoxDecoration(
-                        color: _surfaceContainerLow,
-                        border: Border(top: BorderSide(color: _outlineVariant)),
+                      decoration: BoxDecoration(
+                        color: _c.surfaceAlt,
+                        border: Border(top: BorderSide(color: _c.border)),
                       ),
                       child: Column(
                         children: [
@@ -1362,14 +1198,14 @@ class _CaptureScreenState extends State<CaptureScreen>
                             icon: const Icon(Icons.close, size: 18),
                             label: Text(
                               'DISMISS WITHOUT ACTION',
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 2.0,
                               ),
                             ),
                             style: TextButton.styleFrom(
-                              foregroundColor: _onSurfaceVariant,
+                              foregroundColor: _c.textMuted,
                             ),
                           ),
                         ],
@@ -1392,7 +1228,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         final existing = _buildDedupRecordCard(
           badge: 'Existing Record',
           badgeBackground: Colors.white.withValues(alpha: 0.10),
-          badgeColor: _onSurfaceVariant,
+          badgeColor: _c.textMuted,
           name: 'Alexander Thorne',
           email: 'a.thorne@vanguard-ops.io',
           company: 'Vanguard Operations Ltd.',
@@ -1401,8 +1237,8 @@ class _CaptureScreenState extends State<CaptureScreen>
         );
         final incoming = _buildDedupRecordCard(
           badge: 'New Submission',
-          badgeBackground: _primary,
-          badgeColor: _onPrimary,
+          badgeBackground: _c.textPrimary,
+          badgeColor: Colors.white,
           name: 'Alex Thorne',
           email: 'alex.thorne@vanguard-ops.io',
           company: 'Vanguard Ops',
@@ -1444,11 +1280,11 @@ class _CaptureScreenState extends State<CaptureScreen>
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
               letterSpacing: 1.4,
-              color: _onSurfaceVariant,
+              color: _c.textMuted,
             ),
           ),
           const SizedBox(height: 6),
@@ -1460,9 +1296,9 @@ class _CaptureScreenState extends State<CaptureScreen>
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
       decoration: BoxDecoration(
-        color: _surfaceContainerLow,
+        color: _c.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _outlineVariant),
+        border: Border.all(color: _c.border),
       ),
       child: Stack(
         children: [
@@ -1477,7 +1313,7 @@ class _CaptureScreenState extends State<CaptureScreen>
               ),
               child: Text(
                 badge.toUpperCase(),
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.0,
@@ -1497,10 +1333,10 @@ class _CaptureScreenState extends State<CaptureScreen>
                     children: [
                       Text(
                         name,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
-                          color: _primary,
+                          color: _c.textPrimary,
                         ),
                       ),
                       if (isNewSubmission) ...[
@@ -1519,10 +1355,10 @@ class _CaptureScreenState extends State<CaptureScreen>
                   'EMAIL',
                   Text(
                     email,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w400,
-                      color: _primary,
+                      color: _c.textPrimary,
                     ),
                   ),
                 ),
@@ -1531,10 +1367,10 @@ class _CaptureScreenState extends State<CaptureScreen>
                   'COMPANY',
                   Text(
                     company,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w400,
-                      color: _primary,
+                      color: _c.textPrimary,
                     ),
                   ),
                 ),
@@ -1543,10 +1379,10 @@ class _CaptureScreenState extends State<CaptureScreen>
                   'LAST ACTIVE',
                   Text(
                     lastActive,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
-                      color: isNewSubmission ? _primary : _onSurfaceVariant,
+                      color: isNewSubmission ? _c.textPrimary : _c.textMuted,
                     ),
                   ),
                 ),
@@ -1569,18 +1405,18 @@ class _CaptureScreenState extends State<CaptureScreen>
       child: OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
-          backgroundColor: isPrimary ? _primary : Colors.transparent,
-          foregroundColor: isPrimary ? _onPrimary : _onSurfaceVariant,
-          side: BorderSide(color: isPrimary ? _primary : _outlineVariant),
+          backgroundColor: isPrimary ? _c.textPrimary : Colors.transparent,
+          foregroundColor: isPrimary ? Colors.white : _c.textMuted,
+          side: BorderSide(color: isPrimary ? _c.textPrimary : _c.border),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
             letterSpacing: 2.0,
-            color: isPrimary ? _onPrimary : _onSurfaceVariant,
+            color: isPrimary ? Colors.white : _c.textMuted,
           ),
         ),
       ),
@@ -1605,36 +1441,6 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 }
 
-class _CaptureStatusPill extends StatelessWidget {
-  final String label;
-  final bool isPrimary;
-
-  const _CaptureStatusPill({required this.label, this.isPrimary = false});
-
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        border: Border.all(color: isPrimary ? _primary : _outlineVariant),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.0,
-          color: isPrimary ? _primary : _onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-}
 
 class _CapturedLead {
   final String initials;

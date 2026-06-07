@@ -3,6 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/theme_provider.dart';
+import '../widgets/app_bottom_nav.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_section_label.dart';
 import 'profile_screen.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
@@ -50,57 +54,67 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     final aiTone = (auth.profile?['ai_tone'] as String? ?? 'professional')
         .toUpperCase();
 
+    final colors = AppTheme.colorsOf(context);
+
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(isMobile ? 16 : 24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 980),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTopBar(),
-                  const SizedBox(height: 20),
-                  _buildHeroCard(
-                    name: auth.displayName,
-                    designation: auth.designation,
-                    email: email,
-                    profileType: profileType,
-                    aiTone: aiTone,
-                    initials: auth.initials,
-                  ),
-                  const SizedBox(height: 16),
-                  if (isMobile)
-                    Column(
-                      children: [
-                        _buildPreferencesPanel(),
-                        const SizedBox(height: 16),
-                        _buildAccountPanel(auth),
-                        const SizedBox(height: 16),
-                        _buildDangerPanel(),
-                      ],
-                    )
-                  else
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 11,
-                          child: Column(
-                            children: [
-                              _buildPreferencesPanel(),
-                              const SizedBox(height: 16),
-                              _buildDangerPanel(),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(flex: 8, child: _buildAccountPanel(auth)),
-                      ],
+      backgroundColor: colors.background,
+      bottomNavigationBar: AppBottomNav(
+        selectedIndex: 4,
+        onNavigate: (i) => Navigator.of(context).pop(),
+      ),
+      body: DecoratedBox(
+        decoration: AppTheme.appBackground(context),
+        child: SafeArea(
+          bottom: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 980),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTopBar(),
+                    const SizedBox(height: 20),
+                    _buildHeroCard(
+                      name: auth.displayName,
+                      designation: auth.designation,
+                      email: email,
+                      profileType: profileType,
+                      aiTone: aiTone,
+                      initials: auth.initials,
                     ),
-                ],
+                    const SizedBox(height: 16),
+                    if (isMobile)
+                      Column(
+                        children: [
+                          _buildPreferencesPanel(),
+                          const SizedBox(height: 16),
+                          _buildAccountPanel(auth),
+                          const SizedBox(height: 16),
+                          _buildDangerPanel(),
+                        ],
+                      )
+                    else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 11,
+                            child: Column(
+                              children: [
+                                _buildPreferencesPanel(),
+                                const SizedBox(height: 16),
+                                _buildDangerPanel(),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(flex: 8, child: _buildAccountPanel(auth)),
+                        ],
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -110,14 +124,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   }
 
   Widget _buildTopBar() {
+    final colors = AppTheme.colorsOf(context);
+
     return Row(
       children: [
         IconButton(
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
           style: IconButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: AppTheme.stone900,
+            backgroundColor: colors.surface,
+            foregroundColor: colors.textPrimary,
+            side: BorderSide(color: colors.border),
             padding: const EdgeInsets.all(12),
           ),
         ),
@@ -131,13 +148,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.6,
-                color: AppTheme.stone900,
+                color: colors.textPrimary,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               'Control your workspace defaults and session preferences.',
-              style: TextStyle(fontSize: 13, color: AppTheme.stone500),
+              style: TextStyle(fontSize: 13, color: colors.textSecondary),
             ),
           ],
         ),
@@ -153,21 +170,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     required String aiTone,
     required String initials,
   }) {
-    return Container(
-      width: double.infinity,
+    final colors = AppTheme.colorsOf(context);
+
+    return AppCard(
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.stone200.withValues(alpha: 0.6)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+      radius: 28,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -178,16 +185,16 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: AppTheme.stone900,
+                  color: colors.accent,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   initials,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: Colors.white,
+                    color: colors.isDark ? colors.background : Colors.white,
                   ),
                 ),
               ),
@@ -241,23 +248,26 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   }
 
   Widget _buildBadge(IconData icon, String label) {
+    final colors = AppTheme.colorsOf(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppTheme.stone100,
+        color: colors.accentSoft,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colors.border.withValues(alpha: 0.7)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: AppTheme.stone800),
+          Icon(icon, size: 15, color: colors.textPrimary),
           const SizedBox(width: 8),
           Text(
             label,
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppTheme.stone800,
+              color: colors.textPrimary,
             ),
           ),
         ],
@@ -266,26 +276,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   }
 
   Widget _buildPreferencesPanel() {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.stone200.withValues(alpha: 0.6)),
-      ),
+      radius: 28,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Workspace Preferences'.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: AppTheme.stone500,
-            ),
-          ),
+          AppSectionLabel('Workspace Preferences'),
           const SizedBox(height: 14),
           _buildPreferenceTile(
             title: 'Push notifications',
@@ -316,6 +313,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             value: _compactMeetingCards,
             onChanged: (value) => setState(() => _compactMeetingCards = value),
           ),
+          const SizedBox(height: 10),
+          _buildThemeModeTile(),
         ],
       ),
     );
@@ -327,14 +326,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Container(
-      width: double.infinity,
+    final colors = AppTheme.colorsOf(context);
+
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.stone50,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.stone200),
-      ),
+      radius: 20,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -347,7 +343,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.stone900,
+                    color: colors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -356,7 +352,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.5,
-                    color: AppTheme.stone600,
+                    color: colors.textSecondary,
                   ),
                 ),
               ],
@@ -365,10 +361,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           const SizedBox(width: 12),
           Switch.adaptive(
             value: value,
-            activeThumbColor: Colors.white,
-            activeTrackColor: AppTheme.stone900.withValues(alpha: 0.35),
-            inactiveThumbColor: AppTheme.stone400,
-            inactiveTrackColor: AppTheme.stone200,
+            activeThumbColor: colors.isDark ? colors.background : Colors.white,
+            activeTrackColor: colors.accent.withValues(alpha: 0.45),
+            inactiveThumbColor: colors.textMuted,
+            inactiveTrackColor: colors.border,
             onChanged: onChanged,
           ),
         ],
@@ -376,27 +372,69 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     );
   }
 
-  Widget _buildAccountPanel(AuthProvider auth) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.stone200.withValues(alpha: 0.6)),
+  Widget _buildThemeModeTile() {
+    final colors = AppTheme.colorsOf(context);
+
+    return Consumer<ThemeProvider>(
+      builder: (context, theme, _) => AppCard(
+        padding: const EdgeInsets.all(16),
+        radius: 20,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Appearance mode',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    theme.isDarkMode
+                        ? 'Night mode is active with dark-blue surfaces and brighter accents.'
+                        : 'Day mode is active with soft white cards and blue glass highlights.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Switch.adaptive(
+              value: theme.isDarkMode,
+              activeThumbColor: colors.isDark
+                  ? colors.background
+                  : Colors.white,
+              activeTrackColor: colors.accent.withValues(alpha: 0.45),
+              inactiveThumbColor: colors.textMuted,
+              inactiveTrackColor: colors.border,
+              onChanged: (value) {
+                theme.setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
+              },
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildAccountPanel(AuthProvider auth) {
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      radius: 28,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Account Controls'.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: AppTheme.stone500,
-            ),
-          ),
+          AppSectionLabel('Account Controls'),
           const SizedBox(height: 14),
           _buildActionTile(
             title: 'Refresh profile snapshot',
@@ -451,16 +489,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     required IconData icon,
     required VoidCallback onTap,
   }) {
+    final colors = AppTheme.colorsOf(context);
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
-      child: Container(
+      child: AppCard(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppTheme.stone50,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.stone200),
-        ),
+        radius: 20,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -468,10 +504,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: colors.surface,
                 borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.border.withValues(alpha: 0.7)),
               ),
-              child: Icon(icon, size: 18, color: AppTheme.stone800),
+              child: Icon(icon, size: 18, color: colors.textPrimary),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -483,7 +520,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.stone900,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -492,14 +529,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.5,
-                      color: AppTheme.stone600,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 12),
-            Icon(Icons.chevron_right_rounded, color: AppTheme.stone400),
+            Icon(Icons.chevron_right_rounded, color: colors.textMuted),
           ],
         ),
       ),
@@ -507,33 +544,22 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   }
 
   Widget _buildDangerPanel() {
-    return Container(
-      width: double.infinity,
+    final colors = AppTheme.colorsOf(context);
+
+    return AppCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.stone200.withValues(alpha: 0.6)),
-      ),
+      radius: 28,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Session'.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: AppTheme.stone500,
-            ),
-          ),
+          AppSectionLabel('Session'),
           const SizedBox(height: 14),
           Text(
             'Need to switch account or reset your environment?',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppTheme.stone900,
+              color: colors.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -542,7 +568,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             style: TextStyle(
               fontSize: 13,
               height: 1.5,
-              color: AppTheme.stone600,
+              color: colors.textSecondary,
             ),
           ),
           const SizedBox(height: 18),
@@ -551,19 +577,23 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             child: FilledButton.icon(
               onPressed: _isLoggingOut ? null : _logout,
               icon: _isLoggingOut
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          colors.isDark ? colors.background : Colors.white,
+                        ),
                       ),
                     )
                   : const Icon(Icons.logout_rounded, size: 18),
               label: Text(_isLoggingOut ? 'SIGNING OUT...' : 'LOG OUT'),
               style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.stone900,
-                foregroundColor: Colors.white,
+                backgroundColor: colors.accent,
+                foregroundColor: colors.isDark
+                    ? colors.background
+                    : Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),

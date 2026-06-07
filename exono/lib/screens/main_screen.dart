@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/theme_provider.dart';
 import 'events_screen.dart';
 import 'contacts_screen.dart';
 import 'capture_screen.dart';
@@ -14,6 +14,7 @@ import 'meetings_screen.dart';
 import 'integrations_screen.dart';
 import 'account_settings_screen.dart';
 import 'log_interaction_screen.dart';
+import '../widgets/app_bottom_nav.dart';
 
 /// Main screen with sidebar navigation matching CRM's information architecture
 class MainScreen extends StatefulWidget {
@@ -151,55 +152,33 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    final useStitchMobileChrome =
-        isMobile &&
-        (_selectedIndex == 0 ||
-            _selectedIndex == 1 ||
-            _selectedIndex == 2 ||
-            _selectedIndex == 3 ||
-            _selectedIndex == 4 ||
-            _selectedIndex == 5);
-    final usesInternalMobileChrome =
-        isMobile &&
-        (_selectedIndex == 0 ||
-            _selectedIndex == 2 ||
-            _selectedIndex == 3 ||
-            _selectedIndex == 4);
+    final colors = AppTheme.colorsOf(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: useStitchMobileChrome
-          ? const SystemUiOverlayStyle(
+      value: colors.isDark
+          ? SystemUiOverlayStyle.light.copyWith(
               statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.light,
-              systemNavigationBarColor: Color(0xFF141313),
+              systemNavigationBarColor: colors.navBackground,
               systemNavigationBarIconBrightness: Brightness.light,
             )
-          : SystemUiOverlayStyle.dark,
+          : SystemUiOverlayStyle.dark.copyWith(
+              statusBarColor: Colors.transparent,
+              systemNavigationBarColor: colors.navBackground,
+              systemNavigationBarIconBrightness: Brightness.dark,
+            ),
       child: Scaffold(
-        backgroundColor: useStitchMobileChrome
-            ? (_selectedIndex == 0
-                  ? const Color(0xFF000000)
-                  : _selectedIndex == 2
-                  ? const Color(0xFF0E0E0E)
-                  : _selectedIndex == 4
-                  ? const Color(0xFF080808)
-                  : const Color(0xFF141313))
-            : AppTheme.background,
-        body: isMobile ? _buildMobileLayout() : _buildDesktopLayout(),
-        bottomNavigationBar: usesInternalMobileChrome
-            ? null
-            : isMobile
-            ? (useStitchMobileChrome
-                  ? _buildStitchBottomBar()
-                  : _buildBottomBar())
+        backgroundColor: colors.background,
+        body: DecoratedBox(
+          decoration: AppTheme.appBackground(context),
+          child: isMobile ? _buildMobileLayout() : _buildDesktopLayout(),
+        ),
+        bottomNavigationBar: isMobile
+            ? AppBottomNav(
+                selectedIndex: _selectedIndex,
+                onNavigate: (index) => setState(() => _selectedIndex = index),
+              )
             : null,
-        floatingActionButton:
-            (_selectedIndex == 0 ||
-                _selectedIndex == 1 ||
-                _selectedIndex == 2 ||
-                _selectedIndex == 3 ||
-                _selectedIndex == 4 ||
-                _selectedIndex == 5)
+        floatingActionButton: (_selectedIndex >= 0 && _selectedIndex <= 5)
             ? null
             : _buildFAB(),
       ),
@@ -207,6 +186,8 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildDesktopLayout() {
+    final colors = AppTheme.colorsOf(context);
+
     return Row(
       children: [
         // Sidebar Navigation
@@ -215,20 +196,16 @@ class _MainScreenState extends State<MainScreen> {
           curve: Curves.easeInOut,
           width: _isSidebarCollapsed ? 80 : 288,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: colors.surface.withValues(
+              alpha: colors.isDark ? 0.92 : 0.86,
+            ),
             border: Border(
               right: BorderSide(
-                color: AppTheme.stone200.withValues(alpha: 0.5),
+                color: colors.border.withValues(alpha: 0.8),
                 width: 1,
               ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.01),
-                blurRadius: 1,
-                offset: const Offset(1, 0),
-              ),
-            ],
+            boxShadow: AppTheme.softShadow(context),
           ),
           child: Column(
             children: [
@@ -247,7 +224,7 @@ class _MainScreenState extends State<MainScreen> {
                 margin: EdgeInsets.symmetric(
                   horizontal: _isSidebarCollapsed ? 20 : 24,
                 ),
-                color: AppTheme.stone100.withValues(alpha: 0.5),
+                color: colors.border.withValues(alpha: 0.6),
               ),
 
               const SizedBox(height: 24),
@@ -281,7 +258,7 @@ class _MainScreenState extends State<MainScreen> {
                               ? Icons.menu_open_rounded
                               : Icons.menu_rounded,
                           size: 20,
-                          color: AppTheme.stone400,
+                          color: colors.textMuted,
                         ),
                         if (!_isSidebarCollapsed) ...[
                           const SizedBox(width: 12),
@@ -290,7 +267,7 @@ class _MainScreenState extends State<MainScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: AppTheme.stone400,
+                              color: colors.textMuted,
                             ),
                           ),
                         ],
@@ -323,7 +300,7 @@ class _MainScreenState extends State<MainScreen> {
                     Container(
                       width: _isSidebarCollapsed ? 32 : double.infinity,
                       height: 1,
-                      color: AppTheme.stone100,
+                      color: colors.border,
                     ),
                     const SizedBox(height: 8),
                     _buildSettingsItem(),
@@ -374,115 +351,34 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildBottomBar() {
-    // Show only first 5 items in bottom bar
-    final bottomNavItems = _navItems.take(5).toList();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: AppTheme.stone200.withValues(alpha: 0.5),
-            width: 1,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(bottomNavItems.length, (index) {
-              final item = bottomNavItems[index];
-              final isActive = _selectedIndex == index;
-
-              return InkWell(
-                onTap: () {
-                  setState(() {
-                    _selectedIndex = index;
-                  });
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? AppTheme.stone900
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          item.icon,
-                          size: 20,
-                          color: isActive ? Colors.white : AppTheme.stone400,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        item.label.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                          color: isActive
-                              ? AppTheme.stone900
-                              : AppTheme.stone400,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildCollapsedBrand() {
+    final colors = AppTheme.colorsOf(context);
     return Container(
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: AppTheme.stone900,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.stone900.withValues(alpha: 0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [colors.accent, colors.accentStrong],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AppTheme.softShadow(context),
       ),
       child: Center(
         child: Stack(
           alignment: Alignment.center,
           children: [
             Transform.rotate(
-              angle: 0.785398, // 45 degrees
+              angle: 0.785398,
               child: Container(
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withValues(alpha: 0.25),
                     width: 2,
                   ),
                   borderRadius: BorderRadius.circular(2),
@@ -490,13 +386,13 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
             Transform.rotate(
-              angle: -0.785398, // -45 degrees
+              angle: -0.785398,
               child: Container(
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.4),
+                    color: Colors.white.withValues(alpha: 0.55),
                     width: 2,
                   ),
                   borderRadius: BorderRadius.circular(2),
@@ -524,6 +420,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildExpandedBrand() {
+    final colors = AppTheme.colorsOf(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
@@ -532,15 +429,13 @@ class _MainScreenState extends State<MainScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppTheme.stone900,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.stone900.withValues(alpha: 0.2),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [colors.accent, colors.accentStrong],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: AppTheme.softShadow(context),
             ),
             child: Center(
               child: Stack(
@@ -553,7 +448,7 @@ class _MainScreenState extends State<MainScreen> {
                       height: 20,
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
+                          color: Colors.white.withValues(alpha: 0.25),
                           width: 2,
                         ),
                         borderRadius: BorderRadius.circular(2),
@@ -567,7 +462,7 @@ class _MainScreenState extends State<MainScreen> {
                       height: 20,
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.4),
+                          color: Colors.white.withValues(alpha: 0.55),
                           width: 2,
                         ),
                         borderRadius: BorderRadius.circular(2),
@@ -601,7 +496,7 @@ class _MainScreenState extends State<MainScreen> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
-                  color: AppTheme.stone900,
+                  color: colors.textPrimary,
                   letterSpacing: -0.5,
                   height: 1,
                 ),
@@ -612,7 +507,7 @@ class _MainScreenState extends State<MainScreen> {
                 style: TextStyle(
                   fontSize: 8,
                   fontWeight: FontWeight.w900,
-                  color: AppTheme.stone400,
+                  color: colors.textMuted,
                   letterSpacing: 1.5,
                   height: 1,
                 ),
@@ -625,6 +520,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildNavItem(int index) {
+    final colors = AppTheme.colorsOf(context);
     final item = _navItems[index];
     final isActive = _selectedIndex == index;
 
@@ -641,17 +537,9 @@ class _MainScreenState extends State<MainScreen> {
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: isActive ? AppTheme.stone900 : Colors.transparent,
+            color: isActive ? colors.accent : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: AppTheme.stone900.withValues(alpha: 0.1),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            boxShadow: isActive ? AppTheme.softShadow(context) : null,
           ),
           child: Row(
             mainAxisAlignment: _isSidebarCollapsed
@@ -661,7 +549,9 @@ class _MainScreenState extends State<MainScreen> {
               Icon(
                 item.icon,
                 size: 20,
-                color: isActive ? Colors.white : AppTheme.stone400,
+                color: isActive
+                    ? (colors.isDark ? colors.background : Colors.white)
+                    : colors.textMuted,
               ),
               if (!_isSidebarCollapsed) ...[
                 const SizedBox(width: 16),
@@ -671,7 +561,9 @@ class _MainScreenState extends State<MainScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
-                      color: isActive ? Colors.white : AppTheme.stone400,
+                      color: isActive
+                          ? (colors.isDark ? colors.background : Colors.white)
+                          : colors.textMuted,
                       letterSpacing: 2,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -685,7 +577,32 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _buildThemeToggle() {
+    final colors = AppTheme.colorsOf(context);
+
+    return Consumer<ThemeProvider>(
+      builder: (context, theme, _) => IconButton(
+        onPressed: () => theme.toggleTheme(),
+        tooltip: theme.isDarkMode
+            ? 'Switch to day mode'
+            : 'Switch to night mode',
+        icon: Icon(
+          theme.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+          color: colors.textPrimary,
+          size: 20,
+        ),
+        style: IconButton.styleFrom(
+          backgroundColor: colors.surfaceAlt,
+          foregroundColor: colors.textPrimary,
+          side: BorderSide(color: colors.border),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSettingsItem() {
+    final colors = AppTheme.colorsOf(context);
+
     return InkWell(
       onTap: () {
         Navigator.of(context).push(
@@ -704,7 +621,7 @@ class _MainScreenState extends State<MainScreen> {
               ? MainAxisAlignment.center
               : MainAxisAlignment.start,
           children: [
-            Icon(Icons.settings_rounded, size: 20, color: AppTheme.stone400),
+            Icon(Icons.settings_rounded, size: 20, color: colors.textMuted),
             if (!_isSidebarCollapsed) ...[
               const SizedBox(width: 12),
               Text(
@@ -712,7 +629,7 @@ class _MainScreenState extends State<MainScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.stone400,
+                  color: colors.textMuted,
                 ),
               ),
             ],
@@ -723,23 +640,17 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildTopBar() {
+    final colors = AppTheme.colorsOf(context);
     final currentPage = _navItems[_selectedIndex].label;
     final isMobile = MediaQuery.of(context).size.width < 768;
-
-    // Debug: Check if topBarAction is provided
-    if (widget.topBarAction != null) {
-      debugPrint('TopBarAction is provided');
-    } else {
-      debugPrint('TopBarAction is NULL');
-    }
 
     return Container(
       height: 64,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.8),
+        color: colors.surface.withValues(alpha: colors.isDark ? 0.82 : 0.74),
         border: Border(
           bottom: BorderSide(
-            color: AppTheme.stone200.withValues(alpha: 0.6),
+            color: colors.border.withValues(alpha: 0.85),
             width: 1,
           ),
         ),
@@ -756,7 +667,7 @@ class _MainScreenState extends State<MainScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: AppTheme.stone400,
+                    color: colors.textMuted,
                   ),
                 ),
                 Padding(
@@ -764,7 +675,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: Icon(
                     Icons.chevron_right_rounded,
                     size: 16,
-                    color: AppTheme.stone300,
+                    color: colors.borderStrong,
                   ),
                 ),
                 Text(
@@ -772,7 +683,7 @@ class _MainScreenState extends State<MainScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.stone900,
+                    color: colors.textPrimary,
                     letterSpacing: -0.2,
                   ),
                 ),
@@ -789,6 +700,8 @@ class _MainScreenState extends State<MainScreen> {
                   widget.topBarAction!,
                   const SizedBox(width: 16),
                 ],
+                _buildThemeToggle(),
+                const SizedBox(width: 12),
                 // User Profile
                 Row(
                   children: [
@@ -803,7 +716,7 @@ class _MainScreenState extends State<MainScreen> {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: AppTheme.stone900,
+                                color: colors.textPrimary,
                                 height: 1,
                               ),
                             ),
@@ -813,7 +726,7 @@ class _MainScreenState extends State<MainScreen> {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w500,
-                                color: AppTheme.stone400,
+                                color: colors.textMuted,
                                 letterSpacing: 1.5,
                                 height: 1,
                               ),
@@ -828,26 +741,23 @@ class _MainScreenState extends State<MainScreen> {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: AppTheme.stone900,
+                          color: colors.accent,
                           borderRadius: BorderRadius.circular(9),
                           border: Border.all(
-                            color: AppTheme.stone100,
+                            color: colors.borderStrong,
                             width: 1,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 4,
-                            ),
-                          ],
+                          boxShadow: AppTheme.softShadow(context),
                         ),
                         child: Center(
                           child: Text(
                             auth.initials,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              color: colors.isDark
+                                  ? colors.background
+                                  : Colors.white,
                             ),
                           ),
                         ),
@@ -864,10 +774,17 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildStitchMobileTopBar() {
+    final colors = AppTheme.colorsOf(context);
+
     if (_selectedIndex == 2) {
       return Container(
         height: 56,
-        decoration: const BoxDecoration(color: Color(0xFF0E0E0E)),
+        decoration: BoxDecoration(
+          color: colors.surface.withValues(alpha: colors.isDark ? 0.96 : 0.95),
+          border: Border(
+            bottom: BorderSide(color: colors.border.withValues(alpha: 0.8)),
+          ),
+        ),
         child: SafeArea(
           bottom: false,
           child: Padding(
@@ -877,11 +794,11 @@ class _MainScreenState extends State<MainScreen> {
                 const Expanded(child: SizedBox()),
                 Text(
                   'EXONO',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -1.2,
-                    color: Colors.white,
+                    color: colors.textPrimary,
                     height: 1,
                   ),
                 ),
@@ -897,18 +814,18 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                           );
                         },
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.flashlight_on,
-                          color: Colors.white,
+                          color: colors.textSecondary,
                           size: 22,
                         ),
                         splashRadius: 20,
                       ),
                       IconButton(
                         onPressed: () => setState(() => _selectedIndex = 0),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.close,
-                          color: Colors.white,
+                          color: colors.textSecondary,
                           size: 22,
                         ),
                         splashRadius: 20,
@@ -925,9 +842,15 @@ class _MainScreenState extends State<MainScreen> {
 
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        color: Color(0xFF141313),
-        border: Border(bottom: BorderSide(color: Color(0xFF444748), width: 1)),
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: colors.isDark ? 0.96 : 0.92),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.border.withValues(alpha: 0.85),
+            width: 1,
+          ),
+        ),
+        boxShadow: AppTheme.softShadow(context),
       ),
       child: SafeArea(
         bottom: false,
@@ -935,22 +858,22 @@ class _MainScreenState extends State<MainScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              const Icon(Icons.menu, color: Colors.white, size: 22),
+              Icon(Icons.menu, color: colors.textSecondary, size: 22),
               const SizedBox(width: 14),
               Text(
                 'EXONO',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -1.2,
-                  color: Colors.white,
+                  color: colors.textPrimary,
                   height: 1,
                 ),
               ),
               const Spacer(),
-              const Icon(
+              Icon(
                 Icons.notifications_none_rounded,
-                color: Colors.white,
+                color: colors.textSecondary,
                 size: 22,
               ),
             ],
@@ -960,212 +883,21 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildStitchBottomBar() {
-    if (_selectedIndex == 2) {
-      return Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF141313),
-          border: Border(top: BorderSide(color: Color(0xFF444748), width: 1)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 80,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildStitchNavItem(
-                    icon: Icons.track_changes_outlined,
-                    label: 'Targets',
-                    isActive: false,
-                    showLabel: true,
-                    onTap: () => setState(() => _selectedIndex = 0),
-                  ),
-                ),
-                Expanded(
-                  child: _buildStitchNavItem(
-                    icon: Icons.group_outlined,
-                    label: 'Contacts',
-                    isActive: false,
-                    showLabel: true,
-                    onTap: () => setState(() => _selectedIndex = 3),
-                  ),
-                ),
-                Expanded(
-                  child: _buildStitchNavItem(
-                    icon: Icons.event_outlined,
-                    label: 'Events',
-                    isActive: false,
-                    showLabel: true,
-                    onTap: () => setState(() => _selectedIndex = 1),
-                  ),
-                ),
-                Expanded(
-                  child: _buildStitchNavItem(
-                    icon: Icons.person_outline_rounded,
-                    label: 'Profile',
-                    isActive: _selectedIndex == 5,
-                    showLabel: true,
-                    onTap: () => setState(() => _selectedIndex = 5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    final showLabels = _selectedIndex == 0 || _selectedIndex == 1;
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF141313),
-        border: Border(top: BorderSide(color: Color(0xFF444748), width: 1)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: showLabels ? 66 : 84,
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildStitchNavItem(
-                  icon: Icons.track_changes_outlined,
-                  label: 'Targets',
-                  isActive: _selectedIndex == 0,
-                  showLabel: showLabels,
-                  onTap: () => setState(() => _selectedIndex = 0),
-                ),
-              ),
-              Expanded(
-                child: _buildStitchNavItem(
-                  icon: _selectedIndex == 3
-                      ? Icons.contact_page_outlined
-                      : Icons.group_outlined,
-                  label: 'Contacts',
-                  isActive: _selectedIndex == 3,
-                  showLabel: showLabels,
-                  onTap: () => setState(() => _selectedIndex = 3),
-                ),
-              ),
-              SizedBox(
-                width: 78,
-                child: Center(
-                  child: Transform.translate(
-                    offset: Offset(0, showLabels ? -14 : -18),
-                    child: InkWell(
-                      onTap: () => setState(() => _selectedIndex = 2),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: showLabels
-                              ? Colors.white
-                              : const Color(0xFF080808),
-                          borderRadius: BorderRadius.circular(12),
-                          border: showLabels
-                              ? null
-                              : Border.all(color: const Color(0xFF262626)),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x80000000),
-                              blurRadius: 20,
-                              offset: Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.qr_code_scanner_rounded,
-                          color: showLabels
-                              ? const Color(0xFF141313)
-                              : Colors.white,
-                          size: 26,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _buildStitchNavItem(
-                  icon: Icons.calendar_today_outlined,
-                  label: 'Events',
-                  isActive: _selectedIndex == 1,
-                  showLabel: showLabels,
-                  onTap: () => setState(() => _selectedIndex = 1),
-                ),
-              ),
-              Expanded(
-                child: _buildStitchNavItem(
-                  icon: Icons.person_outline_rounded,
-                  label: 'Profile',
-                  isActive: _selectedIndex == 5,
-                  showLabel: showLabels,
-                  onTap: () => setState(() => _selectedIndex = 5),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStitchNavItem({
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required bool showLabel,
-    required VoidCallback onTap,
-  }) {
-    const activeColor = Colors.white;
-    const inactiveColor = Color(0xFFC4C7C8);
-
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 20, color: isActive ? activeColor : inactiveColor),
-          if (showLabel) ...[
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                color: isActive ? activeColor : inactiveColor,
-                height: 1,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _buildMobileTopBar() {
+    final colors = AppTheme.colorsOf(context);
     final currentPage = _navItems[_selectedIndex].label;
 
     return Container(
       height: 64,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface.withValues(alpha: colors.isDark ? 0.84 : 0.78),
         border: Border(
           bottom: BorderSide(
-            color: AppTheme.stone200.withValues(alpha: 0.6),
+            color: colors.border.withValues(alpha: 0.8),
             width: 1,
           ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: AppTheme.softShadow(context),
       ),
       child: SafeArea(
         bottom: false,
@@ -1178,15 +910,9 @@ class _MainScreenState extends State<MainScreen> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: AppTheme.stone900,
+                  color: colors.accent,
                   borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.stone900.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  boxShadow: AppTheme.softShadow(context),
                 ),
                 child: Center(
                   child: Stack(
@@ -1248,7 +974,7 @@ class _MainScreenState extends State<MainScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
-                      color: AppTheme.stone900,
+                      color: colors.textPrimary,
                       letterSpacing: -0.5,
                       height: 1,
                     ),
@@ -1259,7 +985,7 @@ class _MainScreenState extends State<MainScreen> {
                     style: TextStyle(
                       fontSize: 8,
                       fontWeight: FontWeight.w900,
-                      color: AppTheme.stone400,
+                      color: colors.textMuted,
                       letterSpacing: 1.2,
                       height: 1,
                     ),
@@ -1267,22 +993,26 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
               const Spacer(),
+              _buildThemeToggle(),
+              const SizedBox(width: 10),
               // User Avatar
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: AppTheme.stone900,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.stone100, width: 1),
-                ),
-                child: const Center(
-                  child: Text(
-                    'JD',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+              Consumer<AuthProvider>(
+                builder: (context, auth, _) => Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: colors.accent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: colors.borderStrong, width: 1),
+                  ),
+                  child: Center(
+                    child: Text(
+                      auth.initials,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: colors.isDark ? colors.background : Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -1295,18 +1025,24 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildFAB() {
+    final colors = AppTheme.colorsOf(context);
     final isMobile = MediaQuery.of(context).size.width < 768;
 
     return FloatingActionButton.extended(
       onPressed: () => showLogInteractionSheet(context),
-      backgroundColor: AppTheme.stone900,
-      icon: const Icon(Icons.add_rounded, size: 24),
+      backgroundColor: colors.accent,
+      icon: Icon(
+        Icons.add_rounded,
+        size: 24,
+        color: colors.isDark ? colors.background : Colors.white,
+      ),
       label: Text(
         'ADD NOTE',
         style: TextStyle(
           fontSize: isMobile ? 9 : 10,
           fontWeight: FontWeight.w900,
           letterSpacing: isMobile ? 1.5 : 2,
+          color: colors.isDark ? colors.background : Colors.white,
         ),
       ),
       elevation: 8,

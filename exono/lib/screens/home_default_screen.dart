@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/app_bottom_nav.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_section_label.dart';
 import 'log_interaction_screen.dart';
-import 'main_screen.dart';
 
 class HomeDefaultScreen extends StatefulWidget {
   const HomeDefaultScreen({super.key});
@@ -14,14 +16,7 @@ class HomeDefaultScreen extends StatefulWidget {
 }
 
 class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
-  static const Color _background = Color(0xFF141313);
-  static const Color _surface = Color(0xFF201F1F);
-  static const Color _surfaceLow = Color(0xFF1C1B1B);
-  static const Color _surfaceLowest = Color(0xFF0E0E0E);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _primary = Colors.white;
-  static const Color _onSurface = Color(0xFFE5E2E1);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -51,7 +46,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     ),
     _InsightCardData(
       title: 'Sarah Jenkins',
-      subtitle: 'Mentioned “Q3 Expansion” in LinkedIn post',
+      subtitle: 'Mentioned "Q3 Expansion" in LinkedIn post',
       avatarLabel: 'SJ',
       actionPrimary: 'Draft Follow-Up',
       actionSecondary: 'Signal',
@@ -98,7 +93,11 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     final firstName = auth.displayName.trim().split(RegExp(r'\s+')).first;
 
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: _c.background,
+      bottomNavigationBar: AppBottomNav(
+        selectedIndex: 4,
+        onNavigate: (i) => Navigator.of(context).pop(),
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -112,36 +111,28 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                   children: [
                     Text(
                       'Good Morning, $firstName',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -1.0,
-                        color: _primary,
+                        color: _c.textPrimary,
                         height: 1.1,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'Your professional network is ready.',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                         height: 1.4,
                       ),
                     ),
                     const SizedBox(height: 24),
                     _buildAiCard(),
                     const SizedBox(height: 24),
-                    Text(
-                      'Today\'s Priorities'.toUpperCase(),
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.2,
-                        color: _onSurfaceVariant,
-                      ),
-                    ),
+                    AppSectionLabel('Today\'s Priorities'),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -163,15 +154,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    Text(
-                      'Network Insights'.toUpperCase(),
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.2,
-                        color: _onSurfaceVariant,
-                      ),
-                    ),
+                    AppSectionLabel('Network Insights'),
                     const SizedBox(height: 12),
                     ..._insights.map(
                       (item) => Padding(
@@ -180,15 +163,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      'Upcoming Events'.toUpperCase(),
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.2,
-                        color: _onSurfaceVariant,
-                      ),
-                    ),
+                    AppSectionLabel('Upcoming Events'),
                     const SizedBox(height: 12),
                     ..._events.map(
                       (event) => Padding(
@@ -203,29 +178,28 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomBar(),
     );
   }
 
   Widget _buildTopBar() {
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        color: _background,
-        border: Border(bottom: BorderSide(color: _outlineVariant)),
+      decoration: BoxDecoration(
+        color: _c.background,
+        border: Border(bottom: BorderSide(color: _c.border)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          const Icon(Icons.menu_rounded, color: _primary, size: 22),
+          Icon(Icons.menu_rounded, color: _c.textPrimary, size: 22),
           const SizedBox(width: 14),
           Text(
             'EXONO',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w800,
               letterSpacing: -1.2,
-              color: _primary,
+              color: _c.textPrimary,
               height: 1,
             ),
           ),
@@ -233,9 +207,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           IconButton(
             onPressed: () =>
                 _showUiOnlyMessage('Notifications are UI-only for now.'),
-            icon: const Icon(
+            icon: Icon(
               Icons.notifications_none_rounded,
-              color: _primary,
+              color: _c.textPrimary,
               size: 22,
             ),
             splashRadius: 20,
@@ -248,14 +222,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   Widget _buildAiCard() {
     return Column(
       children: [
-        Container(
-          width: double.infinity,
+        AppCard(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: _surfaceLowest,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _outlineVariant),
-          ),
+          radius: 16,
           child: Stack(
             children: [
               Positioned(
@@ -264,7 +233,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                 child: Icon(
                   Icons.psychology_alt_rounded,
                   size: 120,
-                  color: _primary.withValues(alpha: 0.08),
+                  color: _c.textPrimary.withValues(alpha: 0.08),
                 ),
               ),
               Column(
@@ -272,37 +241,37 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                 children: [
                   Text(
                     'EXONO AI INTELLIGENCE',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 1.2,
-                      color: _primary,
+                      color: _c.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     'How can I assist your network today?',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
                       letterSpacing: -0.8,
-                      color: _primary,
+                      color: _c.textPrimary,
                       height: 1.2,
                     ),
                   ),
                   const SizedBox(height: 18),
                   Container(
                     decoration: BoxDecoration(
-                      color: _surface,
+                      color: _c.surfaceAlt,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _outlineVariant),
+                      border: Border.all(color: _c.border),
                     ),
                     child: Row(
                       children: [
                         const SizedBox(width: 14),
-                        const Icon(
+                        Icon(
                           Icons.search_rounded,
-                          color: _onSurfaceVariant,
+                          color: _c.textMuted,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
@@ -312,18 +281,18 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                             onSubmitted: (value) {
                               if (value.trim().isEmpty) return;
                               _showUiOnlyMessage(
-                                'Search for “${value.trim()}” is UI-only for now.',
+                                'Search for "${value.trim()}" is UI-only for now.',
                               );
                             },
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 14,
-                              color: _onSurface,
+                              color: _c.textSecondary,
                             ),
                             decoration: InputDecoration(
                               hintText: 'Search contacts, notes, or ask AI...',
-                              hintStyle: GoogleFonts.inter(
+                              hintStyle: TextStyle(
                                 fontSize: 14,
-                                color: _onSurfaceVariant,
+                                color: _c.textMuted,
                               ),
                               border: InputBorder.none,
                             ),
@@ -333,9 +302,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                           onPressed: () => _showUiOnlyMessage(
                             'Voice input is UI-only for now.',
                           ),
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.mic_none_rounded,
-                            color: _onSurfaceVariant,
+                            color: _c.textMuted,
                             size: 20,
                           ),
                           splashRadius: 20,
@@ -361,14 +330,14 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                               ),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: _outlineVariant),
+                                border: Border.all(color: _c.border),
                               ),
                               child: Text(
                                 prompt,
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: _onSurfaceVariant,
+                                  color: _c.textMuted,
                                 ),
                               ),
                             ),
@@ -389,15 +358,15 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
             icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
             label: Text(
               'LOG INTERACTION',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
               ),
             ),
             style: FilledButton.styleFrom(
-              backgroundColor: _primary,
-              foregroundColor: _background,
+              backgroundColor: _c.accent,
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -414,23 +383,19 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     required String value,
     required String label,
   }) {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surfaceLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _outlineVariant),
-      ),
+      radius: 12,
       child: Row(
         children: [
           Container(
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: _primary.withValues(alpha: 0.10),
+              color: _c.textPrimary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: _primary, size: 20),
+            child: Icon(icon, color: _c.textPrimary, size: 20),
           ),
           const SizedBox(width: 12),
           Column(
@@ -438,20 +403,20 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
             children: [
               Text(
                 value,
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
-                  color: _primary,
+                  color: _c.textPrimary,
                   height: 1,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 label,
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: _onSurfaceVariant,
+                  color: _c.textMuted,
                 ),
               ),
             ],
@@ -462,14 +427,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   }
 
   Widget _buildInsightCard(_InsightCardData item) {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _surfaceLowest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _outlineVariant),
-      ),
+      radius: 16,
       child: Column(
         children: [
           Row(
@@ -479,19 +439,19 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: _surface,
+                  color: _c.surfaceAlt,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: _outlineVariant),
+                  border: Border.all(color: _c.border),
                 ),
                 alignment: Alignment.center,
                 child: item.useIconAvatar
-                    ? Icon(item.icon, color: _onSurfaceVariant, size: 22)
+                    ? Icon(item.icon, color: _c.textMuted, size: 22)
                     : Text(
                         item.avatarLabel,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: _primary,
+                          color: _c.textPrimary,
                         ),
                       ),
               ),
@@ -502,19 +462,19 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                   children: [
                     Text(
                       item.title,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: _primary,
+                        color: _c.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       item.subtitle,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                         height: 1.4,
                       ),
                     ),
@@ -532,8 +492,8 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                     '${item.actionPrimary} is UI-only for now.',
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: _primary,
-                    side: const BorderSide(color: _outlineVariant),
+                    foregroundColor: _c.textPrimary,
+                    side: BorderSide(color: _c.border),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -541,7 +501,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                   ),
                   child: Text(
                     item.actionPrimary,
-                    style: GoogleFonts.inter(
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -554,8 +514,8 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                   '${item.actionSecondary} is UI-only for now.',
                 ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primary,
-                  side: const BorderSide(color: _outlineVariant),
+                  foregroundColor: _c.textPrimary,
+                  side: BorderSide(color: _c.border),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 12,
@@ -566,7 +526,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                 ),
                 child: Text(
                   item.actionSecondary,
-                  style: GoogleFonts.inter(
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -580,40 +540,35 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   }
 
   Widget _buildEventCard(_EventCardData event) {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surfaceLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _outlineVariant),
-      ),
+      radius: 12,
       child: Row(
         children: [
           Container(
             width: 52,
             padding: const EdgeInsets.only(right: 12),
-            decoration: const BoxDecoration(
-              border: Border(right: BorderSide(color: _outlineVariant)),
+            decoration: BoxDecoration(
+              border: Border(right: BorderSide(color: _c.border)),
             ),
             child: Column(
               children: [
                 Text(
                   event.month,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.0,
-                    color: _onSurfaceVariant,
+                    color: _c.textMuted,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   event.day,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: _primary,
+                    color: _c.textPrimary,
                     height: 1,
                   ),
                 ),
@@ -627,142 +582,23 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
               children: [
                 Text(
                   event.title,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: _primary,
+                    color: _c.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   event.subtitle,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: _onSurfaceVariant,
+                    color: _c.textMuted,
                     height: 1.4,
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomBar() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: _background,
-        border: Border(top: BorderSide(color: _outlineVariant)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 80,
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildBottomItem(
-                  icon: Icons.track_changes_outlined,
-                  label: 'Targets',
-                  isActive: true,
-                  onTap: () =>
-                      Navigator.of(context).pushReplacementNamed('/main'),
-                ),
-              ),
-              Expanded(
-                child: _buildBottomItem(
-                  icon: Icons.group_outlined,
-                  label: 'Contacts',
-                  onTap: () => _showUiOnlyMessage(
-                    'Contacts shortcut returns to the main shell in this preview.',
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 78,
-                child: Center(
-                  child: Transform.translate(
-                    offset: const Offset(0, -18),
-                    child: InkWell(
-                      onTap: () =>
-                          _showUiOnlyMessage('Scanner is UI-only for now.'),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: _primary,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x80000000),
-                              blurRadius: 20,
-                              offset: Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.qr_code_scanner_rounded,
-                          color: _background,
-                          size: 26,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _buildBottomItem(
-                  icon: Icons.calendar_today_outlined,
-                  label: 'Events',
-                  onTap: () => _showUiOnlyMessage(
-                    'Events shortcut returns to the main shell in this preview.',
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _buildBottomItem(
-                  icon: Icons.person_outline_rounded,
-                  label: 'Profile',
-                  onTap: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) => const MainScreen(initialIndex: 5),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomItem({
-    required IconData icon,
-    required String label,
-    bool isActive = false,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 20, color: isActive ? _primary : _onSurfaceVariant),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-              color: isActive ? _primary : _onSurfaceVariant,
-              height: 1,
             ),
           ),
         ],

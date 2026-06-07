@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../config/app_theme.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
+import '../widgets/app_filter_row.dart';
+import '../widgets/app_section_label.dart';
 import 'contact_links_files_sheet.dart';
 import 'edit_sectors_sheet.dart';
 import 'log_interaction_screen.dart';
@@ -15,15 +19,7 @@ class ContactsScreen extends StatefulWidget {
 }
 
 class _ContactsScreenState extends State<ContactsScreen> {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surface = Color(0xFF141313);
-  static const Color _surfaceContainerLow = Color(0xFF0C0C0C);
-  static const Color _surfaceContainerHigh = Color(0xFF1C1C1C);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _onPrimary = Color(0xFF000000);
-  static const Color _onSurfaceVariant = Color(0xFFA3A3A3);
-  static const Color _idle = Color(0xFF262626);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   final TextEditingController _searchController = TextEditingController();
   final List<String> _filters = const [
@@ -212,7 +208,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _background,
+      color: _c.background,
       child: SafeArea(
         bottom: false,
         child: Column(
@@ -227,9 +223,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
             ),
             if (_selectedContact != null)
               _buildDetailActionBar(_selectedContact!),
-            _selectedContact == null
-                ? _buildListBottomNav()
-                : _buildDetailBottomNav(),
           ],
         ),
       ),
@@ -239,29 +232,29 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Widget _buildListTopBar() {
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        color: _background,
-        border: Border(bottom: BorderSide(color: _idle, width: 1)),
+      decoration: BoxDecoration(
+        color: _c.surface,
+        border: Border(bottom: BorderSide(color: _c.border, width: 1)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          const Icon(Icons.menu, color: _primary, size: 22),
+          Icon(Icons.menu, color: _c.textPrimary, size: 22),
           const SizedBox(width: 14),
           Text(
             'EXONO',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w800,
               letterSpacing: -1.2,
-              color: _primary,
+              color: _c.textPrimary,
               height: 1,
             ),
           ),
           const Spacer(),
-          const Icon(
+          Icon(
             Icons.notifications_none_rounded,
-            color: _primary,
+            color: _c.textPrimary,
             size: 22,
           ),
         ],
@@ -272,9 +265,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Widget _buildDetailTopBar() {
     return Container(
       height: 56,
-      decoration: const BoxDecoration(
-        color: _background,
-        border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF), width: 1)),
+      decoration: BoxDecoration(
+        color: _c.surface,
+        border: Border(bottom: BorderSide(color: _c.border, width: 1)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
@@ -282,16 +275,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
           IconButton(
             onPressed: () => setState(() => _selectedContact = null),
             splashRadius: 20,
-            icon: const Icon(Icons.arrow_back, color: _primary),
+            icon: Icon(Icons.arrow_back, color: _c.textPrimary),
           ),
           const Spacer(),
           Text(
             'EXONO',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w800,
               letterSpacing: -1.2,
-              color: _primary,
+              color: _c.textPrimary,
               height: 1,
             ),
           ),
@@ -301,12 +294,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
               IconButton(
                 onPressed: () => _showUiOnlyMessage('Share contact'),
                 splashRadius: 20,
-                icon: const Icon(Icons.share_outlined, color: _primary),
+                icon: Icon(Icons.share_outlined, color: _c.textPrimary),
               ),
               IconButton(
                 onPressed: () => _showUiOnlyMessage('More actions'),
                 splashRadius: 20,
-                icon: const Icon(Icons.more_vert, color: _primary),
+                icon: Icon(Icons.more_vert, color: _c.textPrimary),
               ),
             ],
           ),
@@ -329,7 +322,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           const SizedBox(height: 12),
           _buildLegend(),
           const SizedBox(height: 26),
-          Container(height: 1, color: _idle),
+          Container(height: 1, color: _c.border),
           ..._filteredContacts.map(_buildContactRow),
           const SizedBox(height: 28),
           Center(child: _buildLoadMoreButton()),
@@ -345,23 +338,23 @@ class _ContactsScreenState extends State<ContactsScreen> {
         Expanded(
           child: Text(
             'Contacts',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w600,
               height: 1,
               letterSpacing: -0.48,
-              color: _primary,
+              color: _c.textPrimary,
             ),
           ),
         ),
         Text(
           'Total 1,482',
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
             height: 1,
             letterSpacing: 1.7,
-            color: _onSurfaceVariant.withValues(alpha: 0.6),
+            color: _c.textSecondary.withValues(alpha: 0.6),
           ),
         ),
       ],
@@ -371,33 +364,36 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Widget _buildSearchField() {
     return Container(
       decoration: BoxDecoration(
-        color: _surfaceContainerLow,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: _outlineVariant),
+        color: _c.surfaceAlt,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _c.border),
+        boxShadow: [
+          BoxShadow(
+            color: _c.accentGlow.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: TextField(
         controller: _searchController,
         onChanged: (value) => setState(() => _searchQuery = value),
-        cursorColor: _primary,
-        style: GoogleFonts.inter(
+        cursorColor: _c.textPrimary,
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w400,
-          color: _primary,
+          color: _c.textPrimary,
         ),
         decoration: InputDecoration(
           border: InputBorder.none,
           hintText: 'Search across network...',
-          hintStyle: GoogleFonts.inter(
+          hintStyle: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w400,
-            color: _onSurfaceVariant,
+            color: _c.textSecondary,
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 16),
-          prefixIcon: const Icon(
-            Icons.search,
-            color: _onSurfaceVariant,
-            size: 22,
-          ),
+          prefixIcon: Icon(Icons.search, color: _c.textSecondary, size: 22),
         ),
       ),
     );
@@ -407,53 +403,28 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: 40,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _filters.length,
-            separatorBuilder: (_, index) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final label = _filters[index];
-              final isActive = label == _selectedFilter;
-              return InkWell(
-                onTap: () => setState(() => _selectedFilter = label),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: isActive ? _primary : Colors.transparent,
-                    border: isActive
-                        ? null
-                        : Border.all(color: _outlineVariant),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: Text(
-                    label.toUpperCase(),
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                      letterSpacing: 1.2,
-                      color: isActive ? _background : _onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+        AppFilterRow(
+          filters: _filters,
+          selected: _selectedFilter,
+          onSelect: (f) => setState(() => _selectedFilter = f),
+          style: AppFilterRowStyle.filled,
         ),
         const SizedBox(height: 18),
         Container(
           decoration: BoxDecoration(
-            border: Border.all(color: _idle),
-            color: _surface,
+            border: Border.all(color: _c.border),
+            color: _c.surface,
+            borderRadius: BorderRadius.circular(18),
           ),
           padding: const EdgeInsets.all(5),
           child: Container(
             width: 40,
             height: 40,
-            decoration: const BoxDecoration(color: _idle),
-            child: const Icon(Icons.list, color: _primary, size: 18),
+            decoration: BoxDecoration(
+              color: _c.accentSoft,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.list, color: _c.textPrimary, size: 18),
           ),
         ),
       ],
@@ -468,19 +439,19 @@ class _ContactsScreenState extends State<ContactsScreen> {
           Container(
             width: 6,
             height: 6,
-            decoration: const BoxDecoration(
-              color: _primary,
+            decoration: BoxDecoration(
+              color: _c.textPrimary,
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 10),
           Text(
             'FOLLOW-UP DUE',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 2.0,
-              color: _onSurfaceVariant,
+              color: _c.textSecondary,
             ),
           ),
         ],
@@ -491,12 +462,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Widget _buildContactRow(_ContactProfileData contact) {
     return InkWell(
       onTap: () => setState(() => _selectedContact = contact),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 88),
+      child: AppCard(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 18),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: _idle)),
-        ),
+        radius: 24,
         child: Row(
           children: [
             Expanded(
@@ -506,18 +474,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1A),
+                      color: _c.accentSoft,
                       shape: BoxShape.circle,
-                      border: Border.all(color: _idle),
+                      border: Border.all(color: _c.border),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       contact.initials,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.3,
-                        color: _primary,
+                        color: _c.textPrimary,
                       ),
                     ),
                   ),
@@ -529,21 +497,21 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       children: [
                         Text(
                           contact.listName,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w600,
                             height: 1,
-                            color: _primary,
+                            color: _c.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           contact.listSubtitle,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w400,
                             height: 1.2,
-                            color: _onSurfaceVariant,
+                            color: _c.textSecondary,
                           ),
                         ),
                       ],
@@ -558,7 +526,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               height: 10,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: contact.followUpDue ? _primary : _idle,
+                color: contact.followUpDue ? _c.textPrimary : _c.border,
               ),
             ),
           ],
@@ -572,17 +540,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
       onPressed: () => _showUiOnlyMessage('Load more records'),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 16),
-        side: const BorderSide(color: _idle),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+        side: BorderSide(color: _c.border),
+        backgroundColor: _c.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       child: Text(
         'LOAD MORE\nRECORDS',
         textAlign: TextAlign.center,
-        style: GoogleFonts.inter(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 3.0,
-          color: _primary,
+          color: _c.textPrimary,
           height: 1.25,
         ),
       ),
@@ -615,27 +584,24 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Widget _buildBriefingCard(_ContactProfileData contact) {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surfaceContainerLow,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-      ),
+      radius: 24,
+      elevated: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.bolt, color: _primary, size: 18),
+              Icon(Icons.bolt, color: _c.textPrimary, size: 18),
               const SizedBox(width: 8),
               Text(
                 'Before your meeting',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.2,
-                  color: _primary,
+                  color: _c.textPrimary,
                 ),
               ),
             ],
@@ -651,8 +617,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     width: 6,
                     height: 6,
                     margin: const EdgeInsets.only(top: 7),
-                    decoration: const BoxDecoration(
-                      color: _primary,
+                    decoration: BoxDecoration(
+                      color: _c.textPrimary,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -660,10 +626,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   Expanded(
                     child: Text(
                       item,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
-                        color: _onSurfaceVariant,
+                        color: _c.textSecondary,
                         height: 1.4,
                       ),
                     ),
@@ -676,11 +642,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
             alignment: Alignment.centerRight,
             child: Text(
               'Dismiss',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.2,
-                color: _onSurfaceVariant,
+                color: _c.textSecondary,
               ),
             ),
           ),
@@ -696,18 +662,25 @@ class _ContactsScreenState extends State<ContactsScreen> {
           width: 128,
           height: 128,
           decoration: BoxDecoration(
-            color: _surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            color: _c.accentSoft,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: _c.border),
+            boxShadow: [
+              BoxShadow(
+                color: _c.accentGlow.withValues(alpha: 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           alignment: Alignment.center,
           child: Text(
             contact.initials,
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 48,
               fontWeight: FontWeight.w800,
               letterSpacing: -1.8,
-              color: _primary,
+              color: _c.textPrimary,
             ),
           ),
         ),
@@ -715,30 +688,30 @@ class _ContactsScreenState extends State<ContactsScreen> {
         Text(
           contact.name,
           textAlign: TextAlign.center,
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.8,
-            color: _primary,
+            color: _c.textPrimary,
           ),
         ),
         const SizedBox(height: 6),
         Text(
           contact.title,
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w400,
-            color: _onSurfaceVariant,
+            color: _c.textSecondary,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           contact.company,
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
             letterSpacing: 2.2,
-            color: _primary,
+            color: _c.textPrimary,
           ),
         ),
         const SizedBox(height: 16),
@@ -747,9 +720,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            _buildPill('MET', filled: true),
-            _buildPill(contact.productTag, filled: true),
-            _buildPill(contact.eventTag),
+            AppChip.status('MET', color: _c.accent),
+            AppChip.status(contact.productTag, color: _c.accent),
+            AppChip(contact.eventTag),
           ],
         ),
       ],
@@ -765,16 +738,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
             Expanded(
               child: Container(
                 padding: const EdgeInsets.only(bottom: 10),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: _c.border.withValues(alpha: 0.25),
+                    ),
+                  ),
                 ),
                 child: Text(
                   'Core Attributes',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.2,
-                    color: _onSurfaceVariant,
+                    color: _c.textSecondary,
                   ),
                 ),
               ),
@@ -782,20 +759,21 @@ class _ContactsScreenState extends State<ContactsScreen> {
             const SizedBox(width: 12),
             OutlinedButton.icon(
               onPressed: () => showLogInteractionSheet(context),
-              icon: const Icon(Icons.add, size: 14),
+              icon: Icon(Icons.add, size: 14),
               label: Text(
                 'LOG INTERACTION',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.6,
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: _primary,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+                foregroundColor: _c.textPrimary,
+                backgroundColor: _c.surface,
+                side: BorderSide(color: _c.border),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
             ),
@@ -837,7 +815,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: contact.keyMarkets.map(_buildMarketTag).toList(),
+            children: contact.keyMarkets.map((m) => AppChip(m)).toList(),
           ),
           const SizedBox(height: 16),
           _buildInfoBlock('Decision Structure', contact.decisionStructure),
@@ -863,8 +841,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       width: 6,
                       height: 6,
                       margin: const EdgeInsets.only(top: 7),
-                      decoration: const BoxDecoration(
-                        color: _primary,
+                      decoration: BoxDecoration(
+                        color: _c.textPrimary,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -872,10 +850,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     Expanded(
                       child: Text(
                         item,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
-                          color: _primary,
+                          color: _c.textPrimary,
                           height: 1.45,
                         ),
                       ),
@@ -893,29 +871,36 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _surfaceContainerLow,
-        borderRadius: BorderRadius.circular(8),
+        color: _c.surfaceAlt,
+        borderRadius: BorderRadius.circular(24),
         border: Border(
-          left: BorderSide(color: _primary, width: 4),
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
-          right: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
-          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+          left: BorderSide(color: _c.accent, width: 4),
+          top: BorderSide(color: _c.border),
+          right: BorderSide(color: _c.border),
+          bottom: BorderSide(color: _c.border),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: _c.accentGlow.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.psychology_outlined, color: _primary, size: 14),
+              Icon(Icons.psychology_outlined, color: _c.textPrimary, size: 14),
               const SizedBox(width: 8),
               Text(
                 'Strategic Context',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.4,
-                  color: _primary,
+                  color: _c.textPrimary,
                 ),
               ),
             ],
@@ -923,11 +908,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
           const SizedBox(height: 12),
           Text(
             contact.strategicContext,
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w400,
               fontStyle: FontStyle.italic,
-              color: _onSurfaceVariant,
+              color: _c.textSecondary,
               height: 1.55,
             ),
           ),
@@ -942,16 +927,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
       children: [
         Container(
           padding: const EdgeInsets.only(bottom: 10),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: _c.border.withValues(alpha: 0.25)),
+            ),
           ),
           child: Text(
             'Engagement Timeline',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
               letterSpacing: 1.2,
-              color: _onSurfaceVariant,
+              color: _c.textSecondary,
             ),
           ),
         ),
@@ -989,10 +976,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
             height: 21,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _background,
+              color: _c.background,
               border: Border.all(
                 color: item.isCurrent
-                    ? _primary
+                    ? _c.textPrimary
                     : Colors.white.withValues(alpha: 0.20),
                 width: 2,
               ),
@@ -1002,8 +989,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     child: Container(
                       width: 6,
                       height: 6,
-                      decoration: const BoxDecoration(
-                        color: _primary,
+                      decoration: BoxDecoration(
+                        color: _c.textPrimary,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -1019,29 +1006,29 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 children: [
                   Text(
                     item.dateLabel,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 1.0,
-                      color: _onSurfaceVariant,
+                      color: _c.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     item.title,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: _primary,
+                      color: _c.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     item.description,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
-                      color: _onSurfaceVariant,
+                      color: _c.textSecondary,
                       height: 1.4,
                     ),
                   ),
@@ -1064,21 +1051,21 @@ class _ContactsScreenState extends State<ContactsScreen> {
               height: 56,
               child: FilledButton.icon(
                 onPressed: () => _showUiOnlyMessage('Send priority brief'),
-                icon: const Icon(Icons.mail_outline, size: 20),
+                icon: Icon(Icons.mail_outline, size: 20),
                 label: Text(
                   'SEND PRIORITY\nBRIEF',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.5,
-                    color: _onPrimary,
+                    color: Colors.white,
                     height: 1.15,
                   ),
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: _primary,
-                  foregroundColor: _onPrimary,
+                  backgroundColor: _c.textPrimary,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -1103,193 +1090,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     side: BorderSide(
                       color: Colors.white.withValues(alpha: 0.10),
                     ),
-                    backgroundColor: _surfaceContainerLow,
+                    backgroundColor: _c.surfaceAlt,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                     padding: EdgeInsets.zero,
                   ),
-                  child: Icon(icon, color: _primary),
+                  child: Icon(icon, color: _c.textPrimary),
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildListBottomNav() {
-    return Container(
-      height: 84,
-      decoration: const BoxDecoration(
-        color: _surface,
-        border: Border(top: BorderSide(color: Color(0x1AFFFFFF), width: 1)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildBottomNavIcon(
-              Icons.track_changes_outlined,
-              false,
-              () => widget.onNavigateTab?.call(0),
-            ),
-          ),
-          Expanded(
-            child: _buildBottomNavIcon(Icons.contact_page_outlined, true, null),
-          ),
-          Expanded(
-            child: Center(
-              child: Transform.translate(
-                offset: const Offset(0, -18),
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: _background,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.10),
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x80000000),
-                        blurRadius: 20,
-                        offset: Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    onPressed: () => widget.onNavigateTab?.call(2),
-                    icon: const Icon(
-                      Icons.qr_code_scanner_rounded,
-                      color: _primary,
-                      size: 30,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: _buildBottomNavIcon(
-              Icons.event_outlined,
-              false,
-              () => widget.onNavigateTab?.call(1),
-            ),
-          ),
-          Expanded(
-            child: _buildBottomNavIcon(
-              Icons.person_outline_rounded,
-              false,
-              () => widget.onNavigateTab?.call(5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailBottomNav() {
-    return Container(
-      height: 80,
-      decoration: const BoxDecoration(
-        color: _surface,
-        border: Border(top: BorderSide(color: Color(0x1AFFFFFF), width: 1)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildBottomNavItem(
-              Icons.track_changes_outlined,
-              'TARGETS',
-              false,
-              () => widget.onNavigateTab?.call(0),
-            ),
-          ),
-          Expanded(
-            child: _buildBottomNavItem(Icons.group, 'CONTACTS', true, null),
-          ),
-          Expanded(
-            child: Center(
-              child: Transform.translate(
-                offset: const Offset(0, -24),
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: _surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.10),
-                    ),
-                  ),
-                  child: IconButton(
-                    onPressed: () => widget.onNavigateTab?.call(2),
-                    icon: const Icon(
-                      Icons.qr_code_scanner_rounded,
-                      color: _primary,
-                      size: 32,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: _buildBottomNavItem(
-              Icons.event_outlined,
-              'EVENTS',
-              false,
-              () => widget.onNavigateTab?.call(1),
-            ),
-          ),
-          Expanded(
-            child: _buildBottomNavItem(
-              Icons.person_outline_rounded,
-              'PROFILE',
-              false,
-              () => widget.onNavigateTab?.call(5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNavIcon(IconData icon, bool active, VoidCallback? onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Center(
-        child: Icon(
-          icon,
-          color: active ? _primary : _onSurfaceVariant,
-          size: 24,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem(
-    IconData icon,
-    String label,
-    bool active,
-    VoidCallback? onTap,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: active ? _primary : _onSurfaceVariant, size: 24),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.8,
-              color: active ? _primary : _onSurfaceVariant,
             ),
           ),
         ],
@@ -1302,29 +1111,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
     required String title,
     required Widget child,
   }) {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surfaceContainerLow,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-      ),
+      radius: 24,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: _primary, size: 16),
+              Icon(icon, color: _c.textPrimary, size: 16),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.8,
-                  color: _primary,
-                ),
-              ),
+              AppSectionLabel(title, letterSpacing: 1.8),
             ],
           ),
           const SizedBox(height: 14),
@@ -1342,10 +1139,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
         const SizedBox(height: 4),
         Text(
           value,
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w400,
-            color: _primary,
+            color: _c.textPrimary,
             height: 1.45,
           ),
         ),
@@ -1354,51 +1151,32 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   TextStyle _labelStyle() {
-    return GoogleFonts.inter(
+    return TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w600,
       letterSpacing: 1.2,
-      color: _onSurfaceVariant,
+      color: _c.textSecondary,
     );
   }
 
-  Widget _buildPill(String label, {bool filled = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: filled ? _primary : Colors.transparent,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: filled ? _primary : Colors.white.withValues(alpha: 0.20),
-        ),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.4,
-          color: filled ? _onPrimary : _primary,
-        ),
-      ),
-    );
-  }
 
   Widget _buildKeyValueRow(String key, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: _c.border.withValues(alpha: 0.25)),
+        ),
       ),
       child: Row(
         children: [
           Expanded(
             child: Text(
               key,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: _onSurfaceVariant,
+                color: _c.textSecondary,
               ),
             ),
           ),
@@ -1406,10 +1184,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: _primary,
+                color: _c.textPrimary,
               ),
             ),
           ),
@@ -1425,23 +1203,25 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: _c.border.withValues(alpha: 0.25)),
+        ),
       ),
       child: Row(
         children: [
           SizedBox(
             width: 20,
-            child: Icon(icon, color: _onSurfaceVariant, size: 20),
+            child: Icon(icon, color: _c.textSecondary, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
               value,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
-                color: _primary,
+                color: _c.textPrimary,
                 decoration: underline
                     ? TextDecoration.underline
                     : TextDecoration.none,
@@ -1456,8 +1236,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Widget _buildSectorRow(List<String> sectors) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: _c.border.withValues(alpha: 0.25)),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1466,7 +1248,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             width: 20,
             child: Icon(
               Icons.domain_outlined,
-              color: _onSurfaceVariant,
+              color: _c.textSecondary,
               size: 20,
             ),
           ),
@@ -1475,37 +1257,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: sectors
-                  .map(
-                    (sector) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.20),
-                        ),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        sector,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.6,
-                          color: _primary,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
+              children: sectors.map((sector) => AppChip(sector)).toList(),
             ),
           ),
           IconButton(
             onPressed: _openEditSectors,
             splashRadius: 18,
-            icon: const Icon(Icons.edit, color: _onSurfaceVariant, size: 16),
+            icon: Icon(Icons.edit, color: _c.textSecondary, size: 16),
           ),
         ],
       ),
@@ -1573,8 +1331,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: _c.border.withValues(alpha: 0.25)),
+        ),
       ),
       child: InkWell(
         onTap: _openLinksFiles,
@@ -1585,17 +1345,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
               width: 20,
               child: Icon(
                 Icons.attachment_outlined,
-                color: _onSurfaceVariant,
+                color: _c.textSecondary,
                 size: 20,
               ),
             ),
             const SizedBox(width: 16),
             Text(
               'Links & Files',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: _onSurfaceVariant,
+                color: _c.textSecondary,
               ),
             ),
             const Spacer(),
@@ -1606,11 +1366,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     : 'No links added',
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.right,
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                   fontStyle: hasAssets ? FontStyle.normal : FontStyle.italic,
-                  color: _onSurfaceVariant,
+                  color: _c.textSecondary,
                 ),
               ),
             ),
@@ -1619,7 +1379,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               splashRadius: 18,
               icon: Icon(
                 hasAssets ? Icons.chevron_right : Icons.add,
-                color: _onSurfaceVariant,
+                color: _c.textSecondary,
                 size: 20,
               ),
             ),
@@ -1629,24 +1389,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Widget _buildMarketTag(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-          color: _primary,
-        ),
-      ),
-    );
-  }
 
   _ContactProfileData _buildGenericProfile({
     required String initials,

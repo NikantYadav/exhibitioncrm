@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import '../config/app_theme.dart';
+import '../widgets/app_bottom_nav.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
+import '../widgets/app_section_label.dart';
 
 class PreEventPrepScreen extends StatefulWidget {
   final PreEventPrepData data;
@@ -12,18 +17,7 @@ class PreEventPrepScreen extends StatefulWidget {
 }
 
 class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surfaceContainerLowest = Color(0xFF0E0E0E);
-  static const Color _surfaceContainerLow = Color(0xFF1C1B1B);
-  static const Color _surfaceContainer = Color(0xFF201F1F);
-  static const Color _surfaceContainerHigh = Color(0xFF2A2A2A);
-  static const Color _surfaceContainerHighest = Color(0xFF353434);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _primary = Colors.white;
-  static const Color _onPrimary = Color(0xFF2F3131);
-  static const Color _onSurface = Color(0xFFE5E2E1);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
-  static const Color _glassPanel = Color(0xFF0C0C0C);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   final TextEditingController _searchController = TextEditingController();
   late PrepTargetCompany _selectedCompany = widget.data.targets.first;
@@ -55,15 +49,17 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     );
   }
 
-  void _handleBottomNav(int index) {
-    Navigator.of(context).pop();
-    widget.onNavigateTab?.call(index);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: _c.background,
+      bottomNavigationBar: AppBottomNav(
+        selectedIndex: 4,
+        onNavigate: (i) {
+          Navigator.of(context).pop();
+          widget.onNavigateTab?.call(i);
+        },
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -119,7 +115,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
         ),
       ),
       floatingActionButton: _buildAskAiButton(),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -128,15 +123,15 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: _background.withValues(alpha: 0.80),
-        border: const Border(bottom: BorderSide(color: _outlineVariant)),
+        color: _c.background.withValues(alpha: 0.80),
+        border: Border(bottom: BorderSide(color: _c.border)),
       ),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             splashRadius: 20,
-            icon: const Icon(Icons.arrow_back, color: _primary, size: 22),
+            icon: Icon(Icons.arrow_back, color: _c.textPrimary, size: 22),
           ),
           const SizedBox(width: 4),
           Expanded(
@@ -144,11 +139,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
               widget.data.shortTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -1.2,
-                color: _primary,
+                color: _c.textPrimary,
                 height: 1,
               ),
             ),
@@ -156,14 +151,14 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
           IconButton(
             onPressed: () => _showUiOnlyMessage('Notifications'),
             splashRadius: 20,
-            icon: const Icon(Icons.notifications, color: _primary, size: 22),
+            icon: Icon(Icons.notifications, color: _c.textPrimary, size: 22),
           ),
           IconButton(
             onPressed: () => _showUiOnlyMessage('Settings'),
             splashRadius: 20,
-            icon: const Icon(
+            icon: Icon(
               Icons.settings_outlined,
-              color: _primary,
+              color: _c.textPrimary,
               size: 22,
             ),
           ),
@@ -183,21 +178,21 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: _primary,
+                color: _c.textPrimary,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.timer, size: 14, color: _onPrimary),
+                  Icon(Icons.timer, size: 14, color: Colors.white),
                   const SizedBox(width: 8),
                   Text(
                     widget.data.countdownLabel.toUpperCase(),
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 1.4,
-                      color: _onPrimary,
+                      color: Colors.white,
                     ),
                   ),
                 ],
@@ -206,11 +201,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
             const SizedBox(height: 16),
             Text(
               widget.data.title,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: isWide ? 32 : 24,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.5,
-                color: _primary,
+                color: _c.textPrimary,
                 height: 1.15,
               ),
             ),
@@ -222,19 +217,19 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on_outlined,
                       size: 16,
-                      color: _onSurfaceVariant,
+                      color: _c.textMuted,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       widget.data.location.toUpperCase(),
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 1.1,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                       ),
                     ),
                   ],
@@ -242,19 +237,19 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.calendar_month_outlined,
                       size: 16,
-                      color: _onSurfaceVariant,
+                      color: _c.textMuted,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       widget.data.dateRange.toUpperCase(),
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 1.1,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                       ),
                     ),
                   ],
@@ -274,20 +269,20 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                   Expanded(
                     child: Text(
                       'Research Progress',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 1.4,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                       ),
                     ),
                   ),
                   Text(
                     '${widget.data.researchedTargets} of ${widget.data.totalTargets} Targets',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: _primary,
+                      color: _c.textPrimary,
                     ),
                   ),
                 ],
@@ -297,11 +292,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                 borderRadius: BorderRadius.circular(999),
                 child: Container(
                   height: 4,
-                  color: _surfaceContainerHighest,
+                  color: _c.surfaceElevated,
                   child: FractionallySizedBox(
                     widthFactor: widget.data.progress,
                     alignment: Alignment.centerLeft,
-                    child: const ColoredBox(color: _primary),
+                    child: ColoredBox(color: _c.accent),
                   ),
                 ),
               ),
@@ -341,10 +336,10 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
               Expanded(
                 child: Text(
                   'Target List',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
-                    color: _primary,
+                    color: _c.textPrimary,
                   ),
                 ),
               ),
@@ -364,16 +359,16 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          Container(height: 1, color: _outlineVariant),
+          Container(height: 1, color: _c.border),
           if (targets.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: Text(
                 'No attending companies match that search.',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: _onSurfaceVariant,
+                  color: _c.textMuted,
                 ),
               ),
             )
@@ -396,25 +391,25 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: filled ? _primary : Colors.transparent,
+          color: filled ? _c.accent : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: filled ? _primary : _outlineVariant),
+          border: Border.all(color: filled ? _c.accent : _c.border),
         ),
         child: Row(
           children: [
             Icon(
               icon,
               size: 16,
-              color: filled ? _onPrimary : _onSurfaceVariant,
+              color: filled ? Colors.white : _c.textMuted,
             ),
             const SizedBox(width: 8),
             Text(
               label.toUpperCase(),
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 1.2,
-                color: filled ? _onPrimary : _onSurfaceVariant,
+                color: filled ? Colors.white : _c.textMuted,
               ),
             ),
           ],
@@ -433,9 +428,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: isSelected
-              ? _surfaceContainerLowest.withValues(alpha: 0.90)
+              ? _c.surface.withValues(alpha: 0.90)
               : Colors.transparent,
-          border: Border(bottom: BorderSide(color: _outlineVariant)),
+          border: Border(bottom: BorderSide(color: _c.border)),
         ),
         child: Row(
           children: [
@@ -444,15 +439,15 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
               height: 40,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: _surfaceContainer,
-                border: Border.all(color: _outlineVariant),
+                color: _c.surfaceAlt,
+                border: Border.all(color: _c.border),
               ),
               child: Text(
                 target.initials,
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: _primary,
+                  color: _c.textPrimary,
                 ),
               ),
             ),
@@ -468,60 +463,20 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                     children: [
                       Text(
                         target.name,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: _primary,
+                          color: _c.textPrimary,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _surfaceContainerHigh,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: _outlineVariant),
-                        ),
-                        child: Text(
-                          'BOOTH ${target.booth}'.toUpperCase(),
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: _onSurfaceVariant,
-                          ),
-                        ),
-                      ),
+                      AppChip.label('BOOTH ${target.booth}'),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 8,
                     runSpacing: 6,
-                    children: target.tags
-                        .map(
-                          (tag) => Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: _primary.withValues(alpha: 0.20),
-                              ),
-                            ),
-                            child: Text(
-                              tag.toUpperCase(),
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: _primary,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
+                    children: target.tags.map((tag) => AppChip(tag)).toList(),
                   ),
                 ],
               ),
@@ -531,7 +486,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
               offset: isSelected ? const Offset(0.15, 0) : Offset.zero,
               child: Icon(
                 Icons.chevron_right,
-                color: _onSurfaceVariant,
+                color: _c.textMuted,
                 size: 22,
               ),
             ),
@@ -549,14 +504,14 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome, color: _primary, size: 20),
+              Icon(Icons.auto_awesome, color: _c.textPrimary, size: 20),
               const SizedBox(width: 8),
               Text(
                 'AI Research',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: _primary,
+                  color: _c.textPrimary,
                   letterSpacing: -0.2,
                 ),
               ),
@@ -565,8 +520,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
           const SizedBox(height: 20),
           Container(
             decoration: BoxDecoration(
-              color: _surfaceContainerLow,
-              border: Border.all(color: _outlineVariant),
+              color: _c.surfaceAlt,
+              border: Border.all(color: _c.border),
             ),
             child: TextField(
               controller: _searchController,
@@ -579,33 +534,29 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                   setState(() {});
                 }
               },
-              cursorColor: _primary,
-              style: GoogleFonts.inter(
+              cursorColor: _c.textPrimary,
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
-                color: _primary,
+                color: _c.textPrimary,
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Search any attending company...',
-                hintStyle: GoogleFonts.inter(
+                hintStyle: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: _onSurfaceVariant.withValues(alpha: 0.50),
+                  color: _c.textMuted.withValues(alpha: 0.50),
                 ),
-                prefixIcon: const Icon(Icons.search, color: _onSurfaceVariant),
+                prefixIcon: Icon(Icons.search, color: _c.textMuted),
                 contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
           ),
           const SizedBox(height: 20),
-          Container(
+          AppCard(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: _surfaceContainerLowest,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _outlineVariant),
-            ),
+            radius: 16,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -618,19 +569,19 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                         children: [
                           Text(
                             _selectedCompany.name,
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
-                              color: _primary,
+                              color: _c.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             _selectedCompany.industry,
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w400,
-                              color: _onSurfaceVariant,
+                              color: _c.textMuted,
                             ),
                           ),
                         ],
@@ -642,31 +593,23 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                       height: 64,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: _surfaceContainer,
+                        color: _c.surfaceAlt,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _outlineVariant),
+                        border: Border.all(color: _c.border),
                       ),
                       child: Text(
                         _selectedCompany.initials,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: _primary,
+                          color: _c.textPrimary,
                         ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  'AI Talking Points',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 1.4,
-                    color: _onSurfaceVariant,
-                  ),
-                ),
+                AppSectionLabel('AI Talking Points', letterSpacing: 1.4),
                 const SizedBox(height: 12),
                 ..._selectedCompany.talkingPoints.map(
                   (point) => Padding(
@@ -678,16 +621,16 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                           width: 6,
                           height: 6,
                           margin: const EdgeInsets.only(top: 7),
-                          color: _primary,
+                          color: _c.textPrimary,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             point,
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
-                              color: _onSurface,
+                              color: _c.textSecondary,
                               height: 1.45,
                             ),
                           ),
@@ -704,19 +647,19 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                     onPressed: () =>
                         _showUiOnlyMessage('Generate detailed briefing'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: _primary,
-                      side: const BorderSide(color: _primary),
+                      foregroundColor: _c.textPrimary,
+                      side: BorderSide(color: _c.textPrimary),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ),
                     child: Text(
                       'GENERATE DETAILED BRIEFING',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 2.0,
-                        color: _primary,
+                        color: _c.textPrimary,
                       ),
                     ),
                   ),
@@ -733,13 +676,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     required EdgeInsets padding,
     required Widget child,
   }) {
-    return Container(
+    return AppCard(
       padding: padding,
-      decoration: BoxDecoration(
-        color: _glassPanel,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF262626)),
-      ),
+      radius: 16,
       child: child,
     );
   }
@@ -752,9 +691,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
         width: 64,
         height: 64,
         decoration: BoxDecoration(
-          color: _primary,
+          color: _c.textPrimary,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _outlineVariant),
+          border: Border.all(color: _c.border),
           boxShadow: const [
             BoxShadow(
               color: Color(0x80000000),
@@ -763,88 +702,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
             ),
           ],
         ),
-        child: const Icon(Icons.auto_awesome, size: 30, color: _background),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: _background.withValues(alpha: 0.95),
-        border: const Border(top: BorderSide(color: _outlineVariant)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildBottomNavItem(
-              icon: Icons.gps_fixed,
-              isActive: false,
-              onTap: () => _handleBottomNav(0),
-            ),
-            _buildBottomNavItem(
-              icon: Icons.contacts_outlined,
-              isActive: false,
-              onTap: () => _handleBottomNav(3),
-            ),
-            Transform.translate(
-              offset: const Offset(0, -12),
-              child: InkWell(
-                onTap: () => _handleBottomNav(2),
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF141313),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _outlineVariant),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x66000000),
-                        blurRadius: 20,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.qr_code_scanner_rounded,
-                    size: 28,
-                    color: _primary,
-                  ),
-                ),
-              ),
-            ),
-            _buildBottomNavItem(
-              icon: Icons.calendar_today,
-              isActive: true,
-              onTap: () => Navigator.of(context).pop(),
-            ),
-            _buildBottomNavItem(
-              icon: Icons.person_outline,
-              isActive: false,
-              onTap: () => _handleBottomNav(5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem({
-    required IconData icon,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Icon(
-        icon,
-        size: 24,
-        color: isActive ? _primary : _onSurfaceVariant,
+        child: Icon(Icons.auto_awesome, size: 30, color: _c.background),
       ),
     );
   }

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../config/app_theme.dart';
+import '../widgets/app_bottom_nav.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
+import '../widgets/app_filter_row.dart';
+import '../widgets/app_section_label.dart';
 import 'log_interaction_screen.dart';
 
 class TargetListItemData {
@@ -47,15 +52,7 @@ class TargetListFullViewScreen extends StatefulWidget {
 }
 
 class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surfaceContainerLow = Color(0xFF1C1B1B);
-  static const Color _surfaceContainerHigh = Color(0xFF2A2A2A);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _outline = Color(0xFF8E9192);
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _onPrimary = Color(0xFF080808);
-  static const Color _onSurface = Color(0xFFE5E2E1);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   final List<String> _filters = const ['All', 'Must Meet', 'Met', 'Remaining'];
   final List<String> _sortOptions = const [
@@ -110,7 +107,14 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: _c.background,
+      bottomNavigationBar: AppBottomNav(
+        selectedIndex: 4,
+        onNavigate: (i) {
+          Navigator.of(context).pop();
+          widget.onNavigateTab?.call(i);
+        },
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -139,7 +143,6 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -147,32 +150,32 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
     return Container(
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(
-        color: _background,
-        border: Border(bottom: BorderSide(color: _outlineVariant)),
+      decoration: BoxDecoration(
+        color: _c.background,
+        border: Border(bottom: BorderSide(color: _c.border)),
       ),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             splashRadius: 20,
-            icon: const Icon(Icons.arrow_back, color: _primary),
+            icon: Icon(Icons.arrow_back, color: _c.textPrimary),
           ),
           const SizedBox(width: 4),
           Text(
             'EXONO',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w800,
               letterSpacing: -1.2,
-              color: _primary,
+              color: _c.textPrimary,
             ),
           ),
           const Spacer(),
           IconButton(
             onPressed: () => _showUiOnlyMessage('Notifications'),
             splashRadius: 20,
-            icon: const Icon(Icons.notifications, color: _primary),
+            icon: Icon(Icons.notifications, color: _c.textPrimary),
           ),
         ],
       ),
@@ -189,21 +192,21 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
             children: [
               Text(
                 'ACTIVE EVENT',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.8,
-                  color: _onSurfaceVariant,
+                  color: _c.textMuted,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 widget.eventTitle,
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
                   letterSpacing: -0.5,
-                  color: _primary,
+                  color: _c.textPrimary,
                 ),
               ),
             ],
@@ -215,20 +218,20 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
           children: [
             Text(
               'TARGETS',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 1.8,
-                color: _onSurfaceVariant,
+                color: _c.textMuted,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               widget.countLabel,
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: _primary,
+                color: _c.textPrimary,
               ),
             ),
           ],
@@ -240,48 +243,17 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
   Widget _buildFilterSortBar() {
     return Container(
       padding: const EdgeInsets.only(bottom: 16),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _outlineVariant)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _c.border)),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final stacked = constraints.maxWidth < 720;
 
-          final filters = SizedBox(
-            height: 40,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _filters.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final filter = _filters[index];
-                final isActive = filter == _selectedFilter;
-                return InkWell(
-                  onTap: () => setState(() => _selectedFilter = filter),
-                  borderRadius: BorderRadius.circular(8),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: isActive ? _primary : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isActive ? _primary : _outlineVariant,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      filter,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: isActive ? _onPrimary : _onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+          final filters = AppFilterRow(
+            filters: _filters,
+            selected: _selectedFilter,
+            onSelect: (f) => setState(() => _selectedFilter = f),
           );
 
           final sort = Container(
@@ -289,20 +261,20 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
             width: stacked ? double.infinity : 220,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: const Color(0xFF0C0C0C),
+              color: _c.surface,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _outlineVariant),
+              border: Border.all(color: _c.border),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _selectedSort,
-                dropdownColor: _surfaceContainerLow,
-                icon: const Icon(Icons.expand_more, color: _onSurfaceVariant),
+                dropdownColor: _c.surfaceAlt,
+                icon: Icon(Icons.expand_more, color: _c.textMuted),
                 isExpanded: true,
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: _primary,
+                  color: _c.textPrimary,
                 ),
                 items: _sortOptions
                     .map(
@@ -344,19 +316,14 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
     final items = _visibleItems;
     if (items.isEmpty) {
       return [
-        Container(
-          margin: const EdgeInsets.only(top: 8),
+        AppCard(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: _surfaceContainerLow,
-            border: Border.all(color: _outlineVariant),
-          ),
           child: Text(
             'No targets match the current filters.',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: _onSurfaceVariant,
+              color: _c.textMuted,
             ),
           ),
         ),
@@ -375,11 +342,8 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 160),
       opacity: item.isMet ? 0.60 : 1,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0C0C0C),
-          border: Border.all(color: _outlineVariant),
-        ),
+      child: AppCard(
+        radius: 16,
         child: Column(
           children: [
             InkWell(
@@ -401,9 +365,9 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: _background,
-                  border: Border(top: BorderSide(color: _outlineVariant)),
+                decoration: BoxDecoration(
+                  color: _c.background,
+                  border: Border(top: BorderSide(color: _c.border)),
                 ),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -443,10 +407,10 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
           width: 32,
           child: Text(
             '${index + 1}'.padLeft(2, '0'),
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: _onSurfaceVariant,
+              color: _c.textMuted,
             ),
           ),
         ),
@@ -461,10 +425,10 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
                   children: [
                     Text(
                       item.company,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
-                        color: item.isMet ? _onSurfaceVariant : _primary,
+                        color: item.isMet ? _c.textMuted : _c.textPrimary,
                         decoration: item.isMet
                             ? TextDecoration.lineThrough
                             : null,
@@ -475,14 +439,14 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
                       spacing: 8,
                       runSpacing: 6,
                       children: [
-                        _buildBoothChip(item.booth),
+                        AppChip.label(item.booth),
                         Text(
                           item.sector.toUpperCase(),
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 1.0,
-                            color: _onSurfaceVariant,
+                            color: _c.textMuted,
                           ),
                         ),
                       ],
@@ -498,19 +462,19 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
                   children: [
                     Text(
                       item.contact,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
-                        color: _onSurface,
+                        color: _c.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       item.title,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                       ),
                     ),
                   ],
@@ -528,9 +492,9 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
               InkWell(
                 onTap: () => _showUiOnlyMessage('Scan target card'),
                 borderRadius: BorderRadius.circular(8),
-                child: const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Icon(Icons.qr_code_scanner, color: _primary, size: 22),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Icon(Icons.qr_code_scanner, color: _c.textPrimary, size: 22),
                 ),
               ),
             ],
@@ -548,10 +512,10 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
           width: 32,
           child: Text(
             '${index + 1}'.padLeft(2, '0'),
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: _onSurfaceVariant,
+              color: _c.textMuted,
             ),
           ),
         ),
@@ -562,11 +526,11 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
             children: [
               Text(
                 item.company,
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   height: 1.15,
-                  color: item.isMet ? _onSurfaceVariant : _primary,
+                  color: item.isMet ? _c.textMuted : _c.textPrimary,
                   decoration: item.isMet ? TextDecoration.lineThrough : null,
                 ),
               ),
@@ -575,17 +539,17 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  _buildBoothChip(item.booth),
+                  AppChip.label(item.booth),
                   Text(
                     item.sector.toUpperCase(),
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 1.0,
-                      color: _onSurfaceVariant,
+                      color: _c.textMuted,
                     ),
                   ),
-                  if (item.isMet) _buildMetPill(),
+                  if (item.isMet) AppChip.status('MET', color: _c.textPrimary),
                 ],
               ),
             ],
@@ -599,9 +563,9 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
             InkWell(
               onTap: () => _showUiOnlyMessage('Scan target card'),
               borderRadius: BorderRadius.circular(8),
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(Icons.qr_code_scanner, color: _primary, size: 22),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(Icons.qr_code_scanner, color: _c.textPrimary, size: 22),
               ),
             ),
           ],
@@ -614,23 +578,15 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'PREP NOTES',
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 1.4,
-            color: _onSurfaceVariant,
-          ),
-        ),
+        AppSectionLabel('Prep Notes', letterSpacing: 1.4),
         const SizedBox(height: 12),
         Text(
           item.prepNotes.join(' '),
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w400,
             height: 1.5,
-            color: _onSurface,
+            color: _c.textSecondary,
           ),
         ),
       ],
@@ -641,36 +597,28 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'CONTACT INTENSITY',
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 1.2,
-            color: _onSurfaceVariant,
-          ),
-        ),
+        AppSectionLabel('Contact Intensity'),
         const SizedBox(height: 12),
         ClipRRect(
           borderRadius: BorderRadius.circular(999),
           child: Container(
             height: 4,
-            color: _outlineVariant,
+            color: _c.border,
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: item.relationshipStrength,
-              child: const ColoredBox(color: _primary),
+              child: ColoredBox(color: _c.accent),
             ),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'Relationship depth based on interactions',
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w400,
             fontStyle: FontStyle.italic,
-            color: _onSurfaceVariant,
+            color: _c.textMuted,
           ),
         ),
         const SizedBox(height: 20),
@@ -686,20 +634,20 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
               showLogInteractionSheet(context);
             },
             style: FilledButton.styleFrom(
-              backgroundColor: item.isMet ? Colors.transparent : _primary,
-              foregroundColor: item.isMet ? _primary : _onPrimary,
+              backgroundColor: item.isMet ? Colors.transparent : _c.textPrimary,
+              foregroundColor: item.isMet ? _c.textPrimary : _c.background,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(6),
                 side: item.isMet
-                    ? const BorderSide(color: _primary)
+                    ? BorderSide(color: _c.textPrimary)
                     : BorderSide.none,
               ),
             ),
             child: Text(
               item.isMet ? 'VIEW MEETING SUMMARY' : 'ADD NOTE',
-              style: GoogleFonts.inter(
+              style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.3,
@@ -711,44 +659,6 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
     );
   }
 
-  Widget _buildBoothChip(String booth) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: _surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: _outlineVariant),
-      ),
-      child: Text(
-        booth,
-        style: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.8,
-          color: _primary,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetPill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: _primary,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        'MET',
-        style: GoogleFonts.inter(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
-          color: _onPrimary,
-        ),
-      ),
-    );
-  }
 
   Widget _buildMetToggle(_FullTargetItem item) {
     return InkWell(
@@ -765,129 +675,15 @@ class _TargetListFullViewScreenState extends State<TargetListFullViewScreen> {
         width: 20,
         height: 20,
         decoration: BoxDecoration(
-          color: item.isMet ? _primary : Colors.transparent,
+          color: item.isMet ? _c.textPrimary : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: item.isMet ? _primary : _outline),
+          border: Border.all(color: item.isMet ? _c.textPrimary : _c.borderStrong),
         ),
         child: item.isMet
-            ? const Icon(Icons.check, size: 14, color: _onPrimary)
+            ? Icon(Icons.check, size: 14, color: _c.background)
             : null,
       ),
     );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      height: 84,
-      decoration: BoxDecoration(
-        color: _background.withValues(alpha: 0.92),
-        border: Border(
-          top: BorderSide(color: _outlineVariant.withValues(alpha: 0.6)),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(
-              icon: Icons.gps_fixed,
-              label: 'Targets',
-              isActive: true,
-              onTap: () {},
-            ),
-            _buildNavItem(
-              icon: Icons.contacts_outlined,
-              label: 'Contacts',
-              onTap: () => _navigateTo(3),
-            ),
-            Transform.translate(
-              offset: const Offset(0, -12),
-              child: InkWell(
-                onTap: () => _navigateTo(2),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: _background,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.20),
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x80000000),
-                        blurRadius: 20,
-                        offset: Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.qr_code_scanner_rounded,
-                    color: _primary,
-                    size: 28,
-                  ),
-                ),
-              ),
-            ),
-            _buildNavItem(
-              icon: Icons.calendar_today_outlined,
-              label: 'Events',
-              onTap: () => _navigateTo(1),
-            ),
-            _buildNavItem(
-              icon: Icons.person_outline,
-              label: 'Profile',
-              onTap: () => _navigateTo(5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isActive = false,
-  }) {
-    final color = isActive ? _primary : _onSurfaceVariant;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 68,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          border: isActive
-              ? const Border(top: BorderSide(color: _primary, width: 2))
-              : null,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 22, color: color),
-            const SizedBox(height: 4),
-            Text(
-              label.toUpperCase(),
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.9,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _navigateTo(int index) {
-    Navigator.of(context).pop();
-    widget.onNavigateTab?.call(index);
   }
 
   void _showUiOnlyMessage(String label) {

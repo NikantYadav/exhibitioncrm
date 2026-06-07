@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import '../config/app_theme.dart';
+import '../widgets/app_bottom_nav.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
+import '../widgets/app_filter_row.dart';
+import '../widgets/app_section_label.dart';
 
 class OfflineModeScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -11,20 +17,10 @@ class OfflineModeScreen extends StatefulWidget {
 }
 
 class _OfflineModeScreenState extends State<OfflineModeScreen> {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surface = Color(0xFF141313);
-  static const Color _surfaceContainer = Color(0xFF201F1F);
-  static const Color _surfaceContainerLow = Color(0xFF1C1B1B);
-  static const Color _surfaceContainerHigh = Color(0xFF2A2A2A);
-  static const Color _surfaceContainerHighest = Color(0xFF353434);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _outline = Color(0xFF8E9192);
-  static const Color _primary = Colors.white;
-  static const Color _onPrimary = Color(0xFF2F3131);
-  static const Color _onSurface = Color(0xFFE5E2E1);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
+  ExonoColors get _c => AppTheme.colorsOf(context);
+
   static const Color _pending = Color(0xFFFACC15);
-  static const Color _hairline = Color(0xFF262626);
+
 
   final List<String> _filters = const ['All', 'Must Meet', 'Met', 'Remaining'];
   String _selectedFilter = 'All';
@@ -102,7 +98,11 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: _c.background,
+      bottomNavigationBar: AppBottomNav(
+        selectedIndex: 4,
+        onNavigate: _navigate,
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -111,7 +111,7 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
             _buildTopBar(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 560),
@@ -136,7 +136,6 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -144,24 +143,24 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
-        color: _surfaceContainer,
-        border: Border(bottom: BorderSide(color: _outlineVariant)),
+      decoration: BoxDecoration(
+        color: _c.surfaceAlt,
+        border: Border(bottom: BorderSide(color: _c.border)),
       ),
       child: Row(
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off, color: _onSurface, size: 16),
+              Icon(Icons.cloud_off, color: _c.textSecondary, size: 16),
               const SizedBox(width: 8),
               Text(
                 'Offline',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.0,
-                  color: _onSurface,
+                  color: _c.textSecondary,
                 ),
               ),
             ],
@@ -181,30 +180,30 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
               const SizedBox(width: 8),
               Text(
                 '$_pendingSyncCount PENDING SYNC',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.1,
-                  color: _onSurfaceVariant,
+                  color: _c.textMuted,
                 ),
               ),
               const SizedBox(width: 14),
               Text(
                 'SYNC: 2M AGO',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.1,
-                  color: _onSurfaceVariant.withValues(alpha: 0.40),
+                  color: _c.textMuted.withValues(alpha: 0.40),
                 ),
               ),
               const SizedBox(width: 10),
               InkWell(
                 onTap: () => _showUiOnlyMessage('Refresh attempted.'),
                 borderRadius: BorderRadius.circular(999),
-                child: const Padding(
-                  padding: EdgeInsets.all(2),
-                  child: Icon(Icons.refresh, color: _onSurface, size: 18),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(Icons.refresh, color: _c.textSecondary, size: 18),
                 ),
               ),
             ],
@@ -218,52 +217,48 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
     return Container(
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(
-        color: _background,
-        border: Border(bottom: BorderSide(color: _hairline)),
+      decoration: BoxDecoration(
+        color: _c.background,
+        border: Border(bottom: BorderSide(color: _c.border)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.menu, color: _primary, size: 22),
+          Icon(Icons.menu, color: _c.textPrimary, size: 22),
           const SizedBox(width: 14),
           Text(
             'EXONO',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w800,
               letterSpacing: -1.2,
-              color: _primary,
+              color: _c.textPrimary,
               height: 1,
             ),
           ),
           const Spacer(),
-          const Icon(Icons.notifications, color: _primary, size: 22),
+          Icon(Icons.notifications, color: _c.textPrimary, size: 22),
         ],
       ),
     );
   }
 
   Widget _buildPreEventCacheCard() {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _outlineVariant),
-      ),
+      radius: 16,
       child: Row(
         children: [
           Container(
             width: 40,
             height: 40,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _surfaceContainer,
+              color: _c.surfaceAlt,
             ),
             alignment: Alignment.center,
-            child: const Icon(
+            child: Icon(
               Icons.cloud_download_outlined,
-              color: _onSurfaceVariant,
+              color: _c.textMuted,
             ),
           ),
           const SizedBox(width: 14),
@@ -273,20 +268,20 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
               children: [
                 Text(
                   'Pre-Event Cache',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: _onSurface,
+                    color: _c.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'CACHE ALL TARGET DATA FOR UPCOMING EVENT',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.2,
-                    color: _onSurfaceVariant,
+                    color: _c.textMuted,
                   ),
                 ),
               ],
@@ -296,16 +291,14 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
           FilledButton(
             onPressed: () => _showUiOnlyMessage('Cache download started.'),
             style: FilledButton.styleFrom(
-              backgroundColor: _primary,
-              foregroundColor: _onPrimary,
+              backgroundColor: _c.accent,
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              shape: const StadiumBorder(),
             ),
-            child: Text(
+            child: const Text(
               'DOWNLOAD',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.4,
@@ -327,20 +320,20 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
             children: [
               Text(
                 'Web Summit 2026',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: _primary,
+                  color: _c.textPrimary,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
                 '14 TARGETS',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.8,
-                  color: _onSurfaceVariant,
+                  color: _c.textMuted,
                 ),
               ),
             ],
@@ -349,15 +342,15 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
         TextButton.icon(
           onPressed: () => _showUiOnlyMessage('Sort by booth'),
           style: TextButton.styleFrom(
-            foregroundColor: _onSurfaceVariant,
+            foregroundColor: _c.textMuted,
             padding: EdgeInsets.zero,
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           icon: const Icon(Icons.sort, size: 16),
-          label: Text(
+          label: const Text(
             'SORT BY BOOTH',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w500,
               letterSpacing: 1.2,
@@ -369,39 +362,10 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
   }
 
   Widget _buildFilterRow() {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _filters.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final filter = _filters[index];
-          final isActive = filter == _selectedFilter;
-          return InkWell(
-            onTap: () => setState(() => _selectedFilter = filter),
-            borderRadius: BorderRadius.circular(999),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 140),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: isActive ? Colors.transparent : null,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: isActive ? _primary : _hairline),
-              ),
-              child: Text(
-                filter.toUpperCase(),
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1.2,
-                  color: isActive ? _primary : _onSurfaceVariant,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+    return AppFilterRow(
+      filters: _filters,
+      selected: _selectedFilter,
+      onSelect: (f) => setState(() => _selectedFilter = f),
     );
   }
 
@@ -412,13 +376,13 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _surfaceContainerLow,
+            color: _c.surfaceAlt,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _outlineVariant),
+            border: Border.all(color: _c.border),
           ),
           child: Text(
             'No cached targets match the current filter.',
-            style: GoogleFonts.inter(fontSize: 14, color: _onSurfaceVariant),
+            style: TextStyle(fontSize: 14, color: _c.textMuted),
           ),
         ),
       ];
@@ -438,12 +402,8 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 160),
       opacity: isMet ? 0.5 : 1,
-      child: Container(
-        decoration: BoxDecoration(
-          color: _surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _outlineVariant),
-        ),
+      child: AppCard(
+        radius: 16,
         child: Column(
           children: [
             Padding(
@@ -457,10 +417,10 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         target.indexLabel,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: _outline,
+                          color: _c.borderStrong,
                         ),
                       ),
                     ),
@@ -477,17 +437,17 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
                           children: [
                             Text(
                               target.company,
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: isMet ? _onSurfaceVariant : _onSurface,
+                                color: isMet ? _c.textMuted : _c.textSecondary,
                                 decoration: isMet
                                     ? TextDecoration.lineThrough
                                     : null,
                               ),
                             ),
-                            _buildBoothChip(target.booth),
-                            if (isMet) _buildMetChip(),
+                            AppChip.label('BOOTH ${target.booth}'),
+                            if (isMet) AppChip.status('MET', color: _c.textSecondary),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -497,18 +457,18 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
                               child: isMet
                                   ? Text(
                                       'Will sync when reconnected',
-                                      style: GoogleFonts.inter(
+                                      style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w500,
                                         fontStyle: FontStyle.italic,
-                                        color: _onSurfaceVariant,
+                                        color: _c.textMuted,
                                       ),
                                     )
                                   : Wrap(
                                       spacing: 6,
                                       runSpacing: 6,
                                       children: target.tags
-                                          .map(_buildTagChip)
+                                          .map((t) => AppChip(t))
                                           .toList(),
                                     ),
                             ),
@@ -519,11 +479,11 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
                               child: AnimatedRotation(
                                 duration: const Duration(milliseconds: 160),
                                 turns: target.isExpanded ? 0.5 : 0,
-                                child: const Padding(
-                                  padding: EdgeInsets.all(2),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2),
                                   child: Icon(
                                     Icons.expand_more,
-                                    color: _onSurfaceVariant,
+                                    color: _c.textMuted,
                                     size: 18,
                                   ),
                                 ),
@@ -542,17 +502,17 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: isMet ? _onSurface : Colors.transparent,
+                        color: isMet ? _c.textSecondary : Colors.transparent,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: isMet ? _onSurface : _outlineVariant,
+                          color: isMet ? _c.textSecondary : _c.border,
                         ),
                       ),
                       alignment: Alignment.center,
                       child: Icon(
                         Icons.check,
                         size: 18,
-                        color: isMet ? _surface : Colors.transparent,
+                        color: isMet ? _c.surface : Colors.transparent,
                       ),
                     ),
                   ),
@@ -563,33 +523,25 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                decoration: const BoxDecoration(
-                  color: _surfaceContainer,
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
+                decoration: BoxDecoration(
+                  color: _c.surfaceElevated.withValues(alpha: 0.6),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
                   ),
-                  border: Border(top: BorderSide(color: _outlineVariant)),
+                  border: Border(top: BorderSide(color: _c.border)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'PREPARED NOTES',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.6,
-                        color: _onSurfaceVariant,
-                      ),
-                    ),
+                    const AppSectionLabel('Prepared Notes'),
                     const SizedBox(height: 10),
                     Text(
                       target.notes,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                         height: 1.45,
                       ),
                     ),
@@ -599,17 +551,15 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
                       child: OutlinedButton.icon(
                         onPressed: () => _showUiOnlyMessage('Add interaction'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: _onSurface,
-                          side: const BorderSide(color: _outlineVariant),
+                          foregroundColor: _c.textSecondary,
+                          side: BorderSide(color: _c.border),
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                          shape: const StadiumBorder(),
                         ),
                         icon: const Icon(Icons.note_add_outlined, size: 18),
-                        label: Text(
+                        label: const Text(
                           'ADD INTERACTION',
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.4,
@@ -626,183 +576,16 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
     );
   }
 
-  Widget _buildBoothChip(String booth) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: _surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        'BOOTH $booth',
-        style: GoogleFonts.inter(
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
-          color: _onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetChip() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: _onSurface,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        'MET',
-        style: GoogleFonts.inter(
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
-          color: _surface,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTagChip(String tag) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _outlineVariant),
-      ),
-      child: Text(
-        tag.toUpperCase(),
-        style: GoogleFonts.inter(
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
-          color: _onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-
   Widget _buildOfflineFooterNote() {
     return Text(
       'Viewing cached data from last sync. New contacts and AI features unavailable offline.',
       textAlign: TextAlign.center,
-      style: GoogleFonts.inter(
+      style: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         fontStyle: FontStyle.italic,
-        color: _onSurfaceVariant.withValues(alpha: 0.70),
+        color: _c.textMuted.withValues(alpha: 0.70),
         height: 1.45,
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      height: 92,
-      decoration: const BoxDecoration(
-        color: Color(0xF2141313),
-        border: Border(top: BorderSide(color: _outlineVariant)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _buildBottomItem(
-              icon: Icons.gps_fixed,
-              label: 'Scope',
-              onTap: () => _navigate(0),
-            ),
-            _buildBottomItem(
-              icon: Icons.contacts_outlined,
-              label: 'Intel',
-              onTap: () => _navigate(3),
-            ),
-            Transform.translate(
-              offset: const Offset(0, -10),
-              child: InkWell(
-                onTap: () => _navigate(2),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: _primary,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.20),
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x66000000),
-                        blurRadius: 18,
-                        offset: Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.qr_code_scanner_rounded,
-                    color: _onPrimary,
-                    size: 30,
-                  ),
-                ),
-              ),
-            ),
-            _buildBottomItem(
-              icon: Icons.calendar_today,
-              label: 'Events',
-              onTap: () => _navigate(1),
-            ),
-            _buildBottomItem(
-              icon: Icons.wifi_off,
-              label: 'System',
-              active: true,
-              onTap: () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool active = false,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: 64,
-        padding: const EdgeInsets.only(bottom: 14, top: 10),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            if (active)
-              Container(
-                width: 28,
-                height: 2,
-                margin: const EdgeInsets.only(bottom: 8),
-                color: _primary,
-              )
-            else
-              const SizedBox(height: 10),
-            Icon(icon, color: active ? _primary : _onSurfaceVariant, size: 21),
-            const SizedBox(height: 6),
-            Text(
-              label.toUpperCase(),
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                letterSpacing: 1.3,
-                color: active ? _primary : _onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

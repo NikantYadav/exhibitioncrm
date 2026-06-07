@@ -26,7 +26,7 @@ class MessageLinkChips extends StatelessWidget {
           context,
           icon: Icons.event_rounded,
           label: 'Event',
-          color: const Color(0xFF7C3AED),
+          color: const Color(0xFF2563EB),
           onTap: () => _showInfo(context, 'Event', link.eventId!),
         ));
       }

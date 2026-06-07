@@ -2,7 +2,12 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import '../config/app_theme.dart';
+import '../widgets/app_bottom_nav.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
+import '../widgets/app_section_label.dart';
 
 class VoiceMemoryCaptureScreen extends StatefulWidget {
   const VoiceMemoryCaptureScreen({super.key});
@@ -14,14 +19,7 @@ class VoiceMemoryCaptureScreen extends StatefulWidget {
 
 class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
     with TickerProviderStateMixin {
-  static const Color _background = Color(0xFF080808);
-
-  static const Color _surfaceContainerHigh = Color(0xFF2A2A2A);
-  static const Color _outline = Color(0xFF262626);
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _onPrimary = Color(0xFF2F3131);
-  static const Color _onSurface = Color(0xFFE5E2E1);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   late final AnimationController _ringController;
   late final AnimationController _waveController;
@@ -58,7 +56,11 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: _c.background,
+      bottomNavigationBar: AppBottomNav(
+        selectedIndex: 4,
+        onNavigate: (i) => Navigator.of(context).pop(),
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -112,8 +114,8 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: _background.withValues(alpha: 0.88),
-        border: const Border(bottom: BorderSide(color: _outline, width: 1)),
+        color: _c.background.withValues(alpha: 0.88),
+        border: Border(bottom: BorderSide(color: _c.border, width: 1)),
       ),
       child: Row(
         children: [
@@ -123,15 +125,15 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
                   splashRadius: 20,
-                  icon: const Icon(Icons.close, color: _primary, size: 22),
+                  icon: Icon(Icons.close, color: _c.textPrimary, size: 22),
                 ),
                 Text(
                   'EXONO',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -1.2,
-                    color: _primary,
+                    color: _c.textPrimary,
                     height: 1,
                   ),
                 ),
@@ -141,9 +143,9 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
           IconButton(
             onPressed: () => _showUiOnlyMessage('Help is UI-only for now.'),
             splashRadius: 20,
-            icon: const Icon(
+            icon: Icon(
               Icons.help_outline,
-              color: _onSurfaceVariant,
+              color: _c.textMuted,
               size: 22,
             ),
           ),
@@ -157,11 +159,11 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
       children: [
         Text(
           'Record Memory',
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.6,
-            color: _primary,
+            color: _c.textPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -170,11 +172,11 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
           child: Text(
             'Speak naturally. Our AI will extract key insights and link them to your timeline.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w400,
               height: 1.5,
-              color: _onSurfaceVariant,
+              color: _c.textMuted,
             ),
           ),
         ),
@@ -202,7 +204,7 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                 width: 112,
                 height: 112,
                 decoration: BoxDecoration(
-                  color: _primary,
+                  color: _c.textPrimary,
                   shape: BoxShape.circle,
                   boxShadow: const [
                     BoxShadow(
@@ -215,7 +217,7 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                 child: Icon(
                   _isRecording ? Icons.stop_rounded : Icons.mic,
                   size: 40,
-                  color: _onPrimary,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -240,7 +242,7 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
             height: 192,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: _primary.withValues(alpha: opacity)),
+              border: Border.all(color: _c.textPrimary.withValues(alpha: opacity)),
             ),
           ),
         );
@@ -255,11 +257,11 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
         children: [
           Text(
             _formatDuration(_elapsed),
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w800,
               letterSpacing: 4,
-              color: _primary,
+              color: _c.textPrimary,
               height: 1,
             ),
           ),
@@ -280,7 +282,7 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                       height: height,
                       margin: const EdgeInsets.symmetric(horizontal: 2),
                       decoration: BoxDecoration(
-                        color: _primary,
+                        color: _c.textPrimary,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     );
@@ -292,11 +294,11 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
           const SizedBox(height: 8),
           Text(
             'RECORDING...',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
               letterSpacing: 2.2,
-              color: _primary,
+              color: _c.textPrimary,
             ),
           ),
         ],
@@ -330,11 +332,11 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
             'CANCEL',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
               letterSpacing: 2.2,
-              color: const Color(0x99C4C7C8),
+              color: _c.textMuted,
             ),
           ),
         ),
@@ -352,11 +354,11 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
       icon: Icon(icon, size: 20),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: _onSurfaceVariant,
-        side: const BorderSide(color: _outline),
+        foregroundColor: _c.textMuted,
+        side: BorderSide(color: _c.border),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        textStyle: GoogleFonts.inter(
+        textStyle: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
           letterSpacing: 1.8,
@@ -374,28 +376,13 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
           children: [
             Text(
               'AI Analysis',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: _primary,
+                color: _c.textPrimary,
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: _surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'DRAFT',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.0,
-                  color: _onSurfaceVariant,
-                ),
-              ),
-            ),
+            AppChip.label('DRAFT'),
           ],
         ),
         const SizedBox(height: 24),
@@ -404,11 +391,11 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
           title: 'MEMORIES',
           child: Text(
             'Discussed the strategic expansion into the Southeast Asian market during the Q3 planning session.',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w400,
               height: 1.45,
-              color: _primary,
+              color: _c.textPrimary,
             ),
           ),
         ),
@@ -423,28 +410,7 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                 child: Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _topics
-                      .map(
-                        (topic) => Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: _outline),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            topic.toUpperCase(),
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: _primary,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
+                  children: _topics.map((topic) => AppChip(topic)).toList(),
                 ),
               ),
             ),
@@ -461,10 +427,10 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Text(
                             '• $action',
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w400,
-                              color: _primary,
+                              color: _c.textPrimary,
                             ),
                           ),
                         ),
@@ -485,14 +451,14 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                 icon: const Icon(Icons.edit_outlined, size: 18),
                 label: const Text('EDIT'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _onSurface,
-                  side: const BorderSide(color: _outline),
-                  backgroundColor: const Color(0xFF0C0C0C),
+                  foregroundColor: _c.textSecondary,
+                  side: BorderSide(color: _c.border),
+                  backgroundColor: _c.surface,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  textStyle: GoogleFonts.inter(
+                  textStyle: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.8,
@@ -508,13 +474,13 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                 icon: const Icon(Icons.save_outlined, size: 18),
                 label: const Text('SAVE TO TIMELINE'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: _primary,
-                  foregroundColor: _onPrimary,
+                  backgroundColor: _c.textPrimary,
+                  foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  textStyle: GoogleFonts.inter(
+                  textStyle: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.3,
@@ -533,30 +499,17 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
     required String title,
     required Widget child,
   }) {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0C0C0C),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _outline),
-      ),
+      radius: 8,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: _primary),
+              Icon(icon, size: 18, color: _c.textPrimary),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1.6,
-                  color: _onSurfaceVariant,
-                ),
-              ),
+              AppSectionLabel(title),
             ],
           ),
           const SizedBox(height: 12),

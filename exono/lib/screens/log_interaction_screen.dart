@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import '../config/app_theme.dart';
 
 Future<void> showLogInteractionSheet(BuildContext context) async {
   final saved = await showModalBottomSheet<bool>(
@@ -29,15 +30,7 @@ class _LogInteractionSheet extends StatefulWidget {
 }
 
 class _LogInteractionSheetState extends State<_LogInteractionSheet> {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surfaceContainerLow = Color(0xFF1C1B1B);
-
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _onPrimary = Color(0xFF2F3131);
-  static const Color _onSurface = Color(0xFFE5E2E1);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
-  static const Color _success = Color(0xFF22C55E);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   final TextEditingController _notesController = TextEditingController();
 
@@ -78,13 +71,13 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: 420, maxHeight: maxHeight),
             child: Container(
-              decoration: const BoxDecoration(
-                color: _background,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              decoration: BoxDecoration(
+                color: _c.background,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 border: Border(
-                  top: BorderSide(color: _outlineVariant),
-                  left: BorderSide(color: _outlineVariant),
-                  right: BorderSide(color: _outlineVariant),
+                  top: BorderSide(color: _c.border),
+                  left: BorderSide(color: _c.border),
+                  right: BorderSide(color: _c.border),
                 ),
               ),
               child: Column(
@@ -94,7 +87,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                     width: 32,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: _outlineVariant.withValues(alpha: 0.50),
+                      color: _c.border.withValues(alpha: 0.50),
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -104,11 +97,11 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Log Interaction',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
-                          color: _primary,
+                          color: _c.textPrimary,
                         ),
                       ),
                     ),
@@ -144,24 +137,24 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: isSelected
-                                          ? _primary
+                                          ? _c.textPrimary
                                           : Colors.transparent,
                                       borderRadius: BorderRadius.circular(999),
                                       border: Border.all(
                                         color: isSelected
-                                            ? _primary
-                                            : _outlineVariant,
+                                            ? _c.textPrimary
+                                            : _c.border,
                                       ),
                                     ),
                                     child: Center(
                                       child: Text(
                                         type,
-                                        style: GoogleFonts.inter(
+                                        style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                           color: isSelected
-                                              ? _onPrimary
-                                              : _onSurfaceVariant,
+                                              ? Colors.white
+                                              : _c.textMuted,
                                         ),
                                       ),
                                     ),
@@ -182,26 +175,26 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                                 horizontal: 14,
                               ),
                               decoration: BoxDecoration(
-                                color: _surfaceContainerLow,
+                                color: _c.surfaceAlt,
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: _outlineVariant),
+                                border: Border.all(color: _c.border),
                               ),
                               child: Row(
                                 children: [
                                   Expanded(
                                     child: Text(
                                       _formatDate(_selectedDate),
-                                      style: GoogleFonts.inter(
+                                      style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w400,
-                                        color: _onSurface,
+                                        color: _c.textSecondary,
                                       ),
                                     ),
                                   ),
-                                  const Icon(
+                                  Icon(
                                     Icons.calendar_today,
                                     size: 20,
-                                    color: _onSurfaceVariant,
+                                    color: _c.textMuted,
                                   ),
                                 ],
                               ),
@@ -230,28 +223,28 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                           const SizedBox(height: 8),
                           Container(
                             decoration: BoxDecoration(
-                              color: _surfaceContainerLow,
+                              color: _c.surfaceAlt,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: _outlineVariant),
+                              border: Border.all(color: _c.border),
                             ),
                             child: TextField(
                               controller: _notesController,
                               minLines: 6,
                               maxLines: 6,
-                              cursorColor: _primary,
-                              style: GoogleFonts.inter(
+                              cursorColor: _c.textPrimary,
+                              style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w400,
-                                color: _onSurface,
+                                color: _c.textSecondary,
                                 height: 1.45,
                               ),
                               decoration: InputDecoration(
                                 hintText:
                                     'Type summary or key discussion points...',
-                                hintStyle: GoogleFonts.inter(
+                                hintStyle: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w400,
-                                  color: _onSurfaceVariant.withValues(
+                                  color: _c.textMuted.withValues(
                                     alpha: 0.55,
                                   ),
                                 ),
@@ -264,22 +257,22 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Padding(
-                                padding: EdgeInsets.only(top: 1),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 1),
                                 child: Icon(
                                   Icons.auto_awesome,
                                   size: 18,
-                                  color: _primary,
+                                  color: _c.textPrimary,
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   'AI will summarize these notes for the executive dashboard.',
-                                  style: GoogleFonts.inter(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
-                                    color: _onSurfaceVariant,
+                                    color: _c.textMuted,
                                     height: 1.35,
                                   ),
                                 ),
@@ -299,12 +292,12 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                       child: FilledButton(
                         onPressed: _isSaving ? null : _saveInteraction,
                         style: FilledButton.styleFrom(
-                          backgroundColor: _isSaved ? _success : _primary,
-                          foregroundColor: _onPrimary,
-                          disabledBackgroundColor: _primary.withValues(
+                          backgroundColor: _isSaved ? _c.success : _c.textPrimary,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: _c.textPrimary.withValues(
                             alpha: 0.88,
                           ),
-                          disabledForegroundColor: _onPrimary,
+                          disabledForegroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -319,7 +312,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: _onPrimary,
+                                    color: Colors.white,
                                   ),
                                 )
                               : Row(
@@ -328,10 +321,10 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                                   children: [
                                     Text(
                                       _isSaved ? 'Saved' : 'Save to Timeline',
-                                      style: GoogleFonts.inter(
+                                      style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
-                                        color: _onPrimary,
+                                        color: Colors.white,
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -340,7 +333,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
                                           ? Icons.check_circle
                                           : Icons.arrow_forward,
                                       size: 20,
-                                      color: _onPrimary,
+                                      color: Colors.white,
                                     ),
                                   ],
                                 ),
@@ -360,11 +353,11 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
   Widget _buildLabel(String label) {
     return Text(
       label,
-      style: GoogleFonts.inter(
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w500,
         letterSpacing: 1.6,
-        color: _onSurfaceVariant,
+        color: _c.textMuted,
       ),
     );
   }
@@ -379,11 +372,11 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
       child: Container(
         width: 32,
         height: 32,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.all(Radius.circular(999)),
         ),
-        child: Icon(icon, size: 20, color: _onSurfaceVariant),
+        child: Icon(icon, size: 20, color: _c.textMuted),
       ),
     );
   }
@@ -395,15 +388,16 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
       builder: (context, child) {
+        final _c = AppTheme.colorsOf(context);
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              surface: _surfaceContainerLow,
-              primary: _primary,
-              onPrimary: _onPrimary,
-              onSurface: _onSurface,
+            colorScheme: ColorScheme.dark(
+              surface: _c.surfaceAlt,
+              primary: _c.textPrimary,
+              onPrimary: Colors.white,
+              onSurface: _c.textSecondary,
             ),
-            dialogTheme: const DialogThemeData(backgroundColor: _background),
+            dialogTheme: DialogThemeData(backgroundColor: _c.background),
           ),
           child: child ?? const SizedBox.shrink(),
         );

@@ -1,340 +1,529 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-/// App theme matching the CRM's calm, near-monochrome palette with indigo accent
+class ExonoColors extends ThemeExtension<ExonoColors> {
+  final bool isDark;
+  final Color background;
+  final Color backgroundAlt;
+  final Color surface;
+  final Color surfaceAlt;
+  final Color surfaceElevated;
+  final Color border;
+  final Color borderStrong;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textMuted;
+  final Color accent;
+  final Color accentStrong;
+  final Color accentSoft;
+  final Color accentGlow;
+  final Color navBackground;
+  final Color destructive;
+  final Color success;
+
+  const ExonoColors({
+    required this.isDark,
+    required this.background,
+    required this.backgroundAlt,
+    required this.surface,
+    required this.surfaceAlt,
+    required this.surfaceElevated,
+    required this.border,
+    required this.borderStrong,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textMuted,
+    required this.accent,
+    required this.accentStrong,
+    required this.accentSoft,
+    required this.accentGlow,
+    required this.navBackground,
+    required this.destructive,
+    required this.success,
+  });
+
+  @override
+  ExonoColors copyWith({
+    bool? isDark,
+    Color? background,
+    Color? backgroundAlt,
+    Color? surface,
+    Color? surfaceAlt,
+    Color? surfaceElevated,
+    Color? border,
+    Color? borderStrong,
+    Color? textPrimary,
+    Color? textSecondary,
+    Color? textMuted,
+    Color? accent,
+    Color? accentStrong,
+    Color? accentSoft,
+    Color? accentGlow,
+    Color? navBackground,
+    Color? destructive,
+    Color? success,
+  }) {
+    return ExonoColors(
+      isDark: isDark ?? this.isDark,
+      background: background ?? this.background,
+      backgroundAlt: backgroundAlt ?? this.backgroundAlt,
+      surface: surface ?? this.surface,
+      surfaceAlt: surfaceAlt ?? this.surfaceAlt,
+      surfaceElevated: surfaceElevated ?? this.surfaceElevated,
+      border: border ?? this.border,
+      borderStrong: borderStrong ?? this.borderStrong,
+      textPrimary: textPrimary ?? this.textPrimary,
+      textSecondary: textSecondary ?? this.textSecondary,
+      textMuted: textMuted ?? this.textMuted,
+      accent: accent ?? this.accent,
+      accentStrong: accentStrong ?? this.accentStrong,
+      accentSoft: accentSoft ?? this.accentSoft,
+      accentGlow: accentGlow ?? this.accentGlow,
+      navBackground: navBackground ?? this.navBackground,
+      destructive: destructive ?? this.destructive,
+      success: success ?? this.success,
+    );
+  }
+
+  @override
+  ExonoColors lerp(ThemeExtension<ExonoColors>? other, double t) {
+    if (other is! ExonoColors) return this;
+    return ExonoColors(
+      isDark: t < 0.5 ? isDark : other.isDark,
+      background: Color.lerp(background, other.background, t)!,
+      backgroundAlt: Color.lerp(backgroundAlt, other.backgroundAlt, t)!,
+      surface: Color.lerp(surface, other.surface, t)!,
+      surfaceAlt: Color.lerp(surfaceAlt, other.surfaceAlt, t)!,
+      surfaceElevated: Color.lerp(surfaceElevated, other.surfaceElevated, t)!,
+      border: Color.lerp(border, other.border, t)!,
+      borderStrong: Color.lerp(borderStrong, other.borderStrong, t)!,
+      textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
+      textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
+      textMuted: Color.lerp(textMuted, other.textMuted, t)!,
+      accent: Color.lerp(accent, other.accent, t)!,
+      accentStrong: Color.lerp(accentStrong, other.accentStrong, t)!,
+      accentSoft: Color.lerp(accentSoft, other.accentSoft, t)!,
+      accentGlow: Color.lerp(accentGlow, other.accentGlow, t)!,
+      navBackground: Color.lerp(navBackground, other.navBackground, t)!,
+      destructive: Color.lerp(destructive, other.destructive, t)!,
+      success: Color.lerp(success, other.success, t)!,
+    );
+  }
+}
+
+/// Centralized design system for EXONO.
+///
+/// Future visual refreshes should primarily happen in this file so the rest of
+/// the codebase can consume semantic tokens instead of hardcoded palette values.
 class AppTheme {
-  // Color palette - matching CRM's CSS variables
-  static const Color background = Color(0xFFF8FAFB); // --background: 210 20% 98%
-  static const Color foreground = Color(0xFF1C1917); // --foreground: 222 47% 11%
-  static const Color cardBackground = Color(0xFFFFFFFF); // --card: 0 0% 100%
-  static const Color primary = Color(0xFF6366F1); // --primary: 239 84% 67% (indigo-500)
-  static const Color primaryDark = Color(0xFF4F46E5); // indigo-600
-  static const Color secondary = Color(0xFFF5F5F4); // --secondary: 210 40% 96.1%
-  static const Color muted = Color(0xFFA8A29E); // --muted-foreground: 215 16% 47%
-  static const Color border = Color(0xFFE7E5E4); // --border: 214 32% 91%
-  static const Color destructive = Color(0xFFEF4444); // --destructive: 0 84.2% 60.2%
-  
-  // Stone palette (matching Tailwind stone)
-  static const Color stone50 = Color(0xFFFAFAF9);
-  static const Color stone100 = Color(0xFFF5F5F4);
-  static const Color stone200 = Color(0xFFE7E5E4);
-  static const Color stone300 = Color(0xFFD6D3D1);
-  static const Color stone400 = Color(0xFFA8A29E);
-  static const Color stone500 = Color(0xFF78716C);
-  static const Color stone600 = Color(0xFF57534E);
-  static const Color stone700 = Color(0xFF44403C);
-  static const Color stone800 = Color(0xFF292524);
-  static const Color stone900 = Color(0xFF1C1917);
+  // Legacy palette kept for older screens still migrating to semantic tokens.
+  static const Color background = Color(0xFFF5F8FF);
+  static const Color foreground = Color(0xFF152238);
+  static const Color cardBackground = Color(0xFFFFFFFF);
+  static const Color primary = Color(0xFF3A67C7);
+  static const Color primaryDark = Color(0xFF244FAE);
+  static const Color secondary = Color(0xFFEFF4FF);
+  static const Color muted = Color(0xFF6D7FA5);
+  static const Color border = Color(0xFFD6E0F2);
+  static const Color destructive = Color(0xFFDB5B68);
 
-  // Spacing
-  static const double radiusCard = 24.0;
-  static const double radiusButton = 12.0;
-  static const double radiusInput = 12.0;
-  static const double radiusLarge = 24.0;
+  static const Color stone50 = Color(0xFFF8FAFF);
+  static const Color stone100 = Color(0xFFEFF4FF);
+  static const Color stone200 = Color(0xFFD9E3F4);
+  static const Color stone300 = Color(0xFFBDCCE6);
+  static const Color stone400 = Color(0xFF93A4C4);
+  static const Color stone500 = Color(0xFF6D7FA5);
+  static const Color stone600 = Color(0xFF4E5E7F);
+  static const Color stone700 = Color(0xFF34425D);
+  static const Color stone800 = Color(0xFF1E2C43);
+  static const Color stone900 = Color(0xFF152238);
 
-  // Shadows
-  static List<BoxShadow> get cardShadow => [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.04),
-          blurRadius: 2,
-          offset: const Offset(0, 1),
-        ),
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.06),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        ),
-      ];
+  static const double radiusCard = 20.0;
+  static const double radiusButton = 999.0;
+  static const double radiusInput = 16.0;
+  static const double radiusLarge = 28.0;
 
-  static List<BoxShadow> get cardHoverShadow => [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.08),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.1),
-          blurRadius: 24,
-          offset: const Offset(0, 12),
-        ),
-      ];
+  static const ExonoColors lightColors = ExonoColors(
+    isDark: false,
+    background: Color(0xFFF4F7FF),
+    backgroundAlt: Color(0xFFE8F0FF),
+    surface: Color(0xFFFFFFFF),
+    surfaceAlt: Color(0xFFF0F5FF),
+    surfaceElevated: Color(0xFFE5EEFF),
+    border: Color(0xFFD4E0F7),
+    borderStrong: Color(0xFFB9C9EA),
+    textPrimary: Color(0xFF18253B),
+    textSecondary: Color(0xFF50627F),
+    textMuted: Color(0xFF7E8FAC),
+    accent: Color(0xFF4C78E6),
+    accentStrong: Color(0xFF2854C1),
+    accentSoft: Color(0xFFDCE8FF),
+    accentGlow: Color(0xFFBFD4FF),
+    navBackground: Color(0xFFF7FAFF),
+    destructive: Color(0xFFDB5B68),
+    success: Color(0xFF3AAE7A),
+  );
 
-  static List<BoxShadow> get softShadow => [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.04),
-          blurRadius: 2,
-          offset: const Offset(0, 1),
-        ),
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.08),
-          blurRadius: 24,
-          spreadRadius: -4,
-          offset: const Offset(0, 8),
-        ),
-      ];
+  static const ExonoColors darkColors = ExonoColors(
+    isDark: true,
+    background: Color(0xFF04060E),
+    backgroundAlt: Color(0xFF07091A),
+    surface: Color(0xFF0B1422),
+    surfaceAlt: Color(0xFF0F1B2E),
+    surfaceElevated: Color(0xFF152538),
+    border: Color(0xFF1C2F4A),
+    borderStrong: Color(0xFF283F62),
+    textPrimary: Color(0xFFF0F6FF),
+    textSecondary: Color(0xFFB5C6E4),
+    textMuted: Color(0xFF7A90B5),
+    accent: Color(0xFF4F7BFF),
+    accentStrong: Color(0xFF3360E0),
+    accentSoft: Color(0xFF162E5C),
+    accentGlow: Color(0xFF0C2048),
+    navBackground: Color(0xFF020408),
+    destructive: Color(0xFFFF7A8A),
+    success: Color(0xFF5DC89A),
+  );
 
-  static ThemeData get lightTheme {
+  static ExonoColors colorsOf(BuildContext context) {
+    final extension = Theme.of(context).extension<ExonoColors>();
+    assert(extension != null, 'ExonoColors theme extension is not configured.');
+    return extension!;
+  }
+
+  static List<BoxShadow> softShadow(BuildContext context) {
+    final colors = colorsOf(context);
+    return [
+      BoxShadow(
+        color: colors.accentGlow.withValues(alpha: colors.isDark ? 0.28 : 0.18),
+        blurRadius: 40,
+        spreadRadius: -12,
+        offset: const Offset(0, 14),
+      ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: colors.isDark ? 0.24 : 0.08),
+        blurRadius: 18,
+        spreadRadius: -8,
+        offset: const Offset(0, 8),
+      ),
+    ];
+  }
+
+  static BoxDecoration appBackground(BuildContext context) {
+    final colors = colorsOf(context);
+    return BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          colors.background,
+          Color.lerp(colors.background, colors.backgroundAlt, 0.9)!,
+          colors.backgroundAlt,
+        ],
+      ),
+    );
+  }
+
+  /// Standard card decoration with a subtle navy gradient in dark mode.
+  /// Use this instead of a flat `BoxDecoration(color: _c.surface)` on cards.
+  static BoxDecoration cardDecoration(
+    BuildContext context, {
+    double radius = radiusCard,
+    bool elevated = false,
+  }) {
+    final colors = colorsOf(context);
+    return BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: colors.isDark
+            ? [
+                elevated ? colors.surfaceAlt : colors.surface,
+                elevated ? colors.surfaceElevated : colors.surfaceAlt,
+              ]
+            : [
+                colors.surface,
+                colors.surfaceAlt,
+              ],
+      ),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: colors.border.withValues(alpha: colors.isDark ? 0.85 : 0.90),
+      ),
+    );
+  }
+
+  static ThemeData get lightTheme => _buildTheme(lightColors, Brightness.light);
+
+  static ThemeData get darkTheme => _buildTheme(darkColors, Brightness.dark);
+
+  static ThemeData _buildTheme(ExonoColors colors, Brightness brightness) {
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: colors.accent,
+          brightness: brightness,
+          primary: colors.accent,
+          secondary: colors.accentSoft,
+          surface: colors.surface,
+          error: colors.destructive,
+        ).copyWith(
+          onPrimary: colors.isDark ? colors.background : Colors.white,
+          onSecondary: colors.textPrimary,
+          onSurface: colors.textPrimary,
+          onError: Colors.white,
+          outline: colors.border,
+          outlineVariant: colors.borderStrong,
+          surfaceContainerHighest: colors.surfaceElevated,
+        );
+
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.light,
-      
-      // Color scheme
-      colorScheme: const ColorScheme.light(
-        primary: primary,
-        secondary: secondary,
-        surface: cardBackground,
-        error: destructive,
-        onPrimary: Colors.white,
-        onSecondary: foreground,
-        onSurface: foreground,
-        onError: Colors.white,
-      ),
-
-      // Scaffold
-      scaffoldBackgroundColor: background,
-
-      // AppBar
+      brightness: brightness,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: colors.background,
+      fontFamily: GoogleFonts.inter().fontFamily,
+      extensions: [colors],
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: false,
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-        titleTextStyle: const TextStyle(
+        systemOverlayStyle: colors.isDark
+            ? const SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness: Brightness.light,
+                systemNavigationBarColor: Color(0xFF04060E),
+                systemNavigationBarIconBrightness: Brightness.light,
+              )
+            : const SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness: Brightness.dark,
+                systemNavigationBarColor: Color(0xFFF4F7FF),
+                systemNavigationBarIconBrightness: Brightness.dark,
+              ),
+        titleTextStyle: TextStyle(
           fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: stone900,
+          fontWeight: FontWeight.w700,
+          color: colors.textPrimary,
           letterSpacing: -0.5,
         ),
-        iconTheme: const IconThemeData(color: stone700),
+        iconTheme: IconThemeData(color: colors.textPrimary),
       ),
-
-      // Card
       cardTheme: CardThemeData(
-        color: cardBackground,
+        color: colors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusCard),
-          side: BorderSide(color: stone200.withValues(alpha: 0.4)),
+          side: BorderSide(color: colors.border.withValues(alpha: 0.9)),
         ),
-        margin: const EdgeInsets.all(0),
+        margin: EdgeInsets.zero,
       ),
-
-      // Button themes
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primary,
-          foregroundColor: Colors.white,
-          elevation: 2,
-          shadowColor: primary.withValues(alpha: 0.3),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          backgroundColor: colors.accent,
+          foregroundColor: colors.isDark ? colors.background : Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusButton),
           ),
           textStyle: const TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
           ),
         ),
       ),
-
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: colors.accent,
+          foregroundColor: colors.isDark ? colors.background : Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusButton),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: stone700,
-          side: BorderSide(color: stone300),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          foregroundColor: colors.textPrimary,
+          side: BorderSide(color: colors.borderStrong),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusButton),
           ),
-          textStyle: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0,
-          ),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
-
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: stone600,
+          foregroundColor: colors.textSecondary,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusButton),
           ),
-          textStyle: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0,
-          ),
         ),
       ),
-
-      // Input decoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: cardBackground,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        fillColor: colors.surfaceAlt,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusInput),
-          borderSide: BorderSide(color: stone200),
+          borderSide: BorderSide(color: colors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusInput),
-          borderSide: BorderSide(color: stone200),
+          borderSide: BorderSide(color: colors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusInput),
-          borderSide: const BorderSide(color: primary, width: 2),
+          borderSide: BorderSide(color: colors.accent, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusInput),
-          borderSide: const BorderSide(color: destructive),
+          borderSide: BorderSide(color: colors.destructive),
         ),
-        labelStyle: TextStyle(color: stone600, fontSize: 14),
-        hintStyle: TextStyle(color: stone400, fontSize: 14),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusInput),
+          borderSide: BorderSide(color: colors.destructive),
+        ),
+        labelStyle: TextStyle(color: colors.textSecondary, fontSize: 14),
+        hintStyle: TextStyle(color: colors.textMuted, fontSize: 14),
       ),
-
-      // Bottom navigation bar
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: cardBackground,
-        selectedItemColor: stone900,
-        unselectedItemColor: stone500,
-        selectedLabelStyle: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
+        backgroundColor: colors.navBackground,
+        selectedItemColor: colors.accent,
+        unselectedItemColor: colors.textMuted,
         type: BottomNavigationBarType.fixed,
-        elevation: 8,
+        elevation: 0,
       ),
-
-      // Floating action button
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        backgroundColor: colors.accent,
+        foregroundColor: colors.isDark ? colors.background : Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
-
-      // Chip
       chipTheme: ChipThemeData(
-        backgroundColor: stone100,
-        labelStyle: TextStyle(color: stone700, fontSize: 12),
+        backgroundColor: colors.accentSoft,
+        labelStyle: TextStyle(color: colors.textPrimary, fontSize: 12),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(999),
+          side: BorderSide(color: colors.border),
         ),
       ),
-
-      // Divider
       dividerTheme: DividerThemeData(
-        color: stone200.withValues(alpha: 0.4),
+        color: colors.border.withValues(alpha: 0.8),
         thickness: 1,
         space: 1,
       ),
-
-      // Text theme
-      textTheme: const TextTheme(
+      iconTheme: IconThemeData(color: colors.textSecondary, size: 24),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: colors.surfaceElevated,
+        contentTextStyle: TextStyle(
+          color: colors.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: colors.borderStrong.withValues(alpha: 0.5)),
+        ),
+      ),
+      textTheme: TextTheme(
         displayLarge: TextStyle(
           fontSize: 32,
-          fontWeight: FontWeight.w600,
-          color: stone900,
-          letterSpacing: -0.5,
-          height: 1.2,
+          fontWeight: FontWeight.w700,
+          color: colors.textPrimary,
+          letterSpacing: -0.7,
+          height: 1.15,
         ),
         displayMedium: TextStyle(
           fontSize: 28,
-          fontWeight: FontWeight.w600,
-          color: stone900,
-          letterSpacing: -0.5,
-          height: 1.2,
+          fontWeight: FontWeight.w700,
+          color: colors.textPrimary,
+          letterSpacing: -0.6,
+          height: 1.15,
         ),
         displaySmall: TextStyle(
           fontSize: 24,
-          fontWeight: FontWeight.w600,
-          color: stone900,
+          fontWeight: FontWeight.w700,
+          color: colors.textPrimary,
           letterSpacing: -0.5,
-          height: 1.2,
+          height: 1.15,
         ),
         headlineLarge: TextStyle(
           fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: stone900,
-          letterSpacing: -0.3,
+          fontWeight: FontWeight.w700,
+          color: colors.textPrimary,
         ),
         headlineMedium: TextStyle(
           fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: stone900,
-          letterSpacing: -0.3,
+          fontWeight: FontWeight.w700,
+          color: colors.textPrimary,
         ),
         headlineSmall: TextStyle(
           fontSize: 16,
-          fontWeight: FontWeight.w600,
-          color: stone900,
-          letterSpacing: -0.2,
+          fontWeight: FontWeight.w700,
+          color: colors.textPrimary,
         ),
         titleLarge: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: stone900,
-          letterSpacing: -0.1,
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: colors.textPrimary,
         ),
         titleMedium: TextStyle(
           fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: stone900,
+          fontWeight: FontWeight.w600,
+          color: colors.textPrimary,
         ),
         titleSmall: TextStyle(
           fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: stone900,
+          fontWeight: FontWeight.w600,
+          color: colors.textSecondary,
         ),
         bodyLarge: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w400,
-          color: stone600,
+          color: colors.textSecondary,
           height: 1.5,
         ),
         bodyMedium: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w400,
-          color: stone600,
+          color: colors.textSecondary,
           height: 1.5,
         ),
         bodySmall: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w400,
-          color: stone500,
-          height: 1.5,
+          color: colors.textMuted,
+          height: 1.45,
         ),
         labelLarge: TextStyle(
           fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: stone700,
+          fontWeight: FontWeight.w700,
+          color: colors.textPrimary,
         ),
         labelMedium: TextStyle(
           fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: stone600,
+          fontWeight: FontWeight.w700,
+          color: colors.textSecondary,
         ),
         labelSmall: TextStyle(
           fontSize: 10,
-          fontWeight: FontWeight.w500,
-          color: stone500,
+          fontWeight: FontWeight.w700,
+          color: colors.textMuted,
         ),
-      ),
-
-      // Icon theme
-      iconTheme: const IconThemeData(
-        color: stone600,
-        size: 24,
       ),
     );
   }

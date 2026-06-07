@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import '../config/app_theme.dart';
 
 Future<List<String>?> showEditSectorsSheet(
   BuildContext context, {
@@ -25,12 +26,7 @@ class _EditSectorsSheet extends StatefulWidget {
 }
 
 class _EditSectorsSheetState extends State<_EditSectorsSheet> {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surfaceContainerLow = Color(0xFF0C0C0C);
-  static const Color _outline = Color(0x1AFFFFFF);
-  static const Color _primary = Color(0xFFFFFFFF);
-  static const Color _onPrimary = Color(0xFF000000);
-  static const Color _onSurfaceVariant = Color(0xFFA3A3A3);
+  ExonoColors get _c => AppTheme.colorsOf(context);
 
   final TextEditingController _searchController = TextEditingController();
   final List<String> _allSectors = [
@@ -89,10 +85,10 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
           alignment: Alignment.bottomCenter,
           child: Container(
             height: mediaQuery.size.height * 0.85,
-            decoration: const BoxDecoration(
-              color: _background,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border(top: BorderSide(color: _outline)),
+            decoration: BoxDecoration(
+              color: _c.background,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              border: Border(top: BorderSide(color: _c.border)),
             ),
             child: Column(
               children: [
@@ -107,65 +103,65 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
                 ),
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: _outline)),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: _c.border)),
                   ),
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
                           'EDIT SECTORS',
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
                             letterSpacing: -0.2,
-                            color: _primary,
+                            color: _c.textPrimary,
                           ),
                         ),
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
                         splashRadius: 20,
-                        icon: const Icon(Icons.close, color: _onSurfaceVariant),
+                        icon: Icon(Icons.close, color: _c.textMuted),
                       ),
                     ],
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: _outline)),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: _c.border)),
                   ),
                   child: TextField(
                     controller: _searchController,
                     onChanged: (value) => setState(() => _query = value),
-                    cursorColor: _primary,
-                    style: GoogleFonts.inter(
+                    cursorColor: _c.textPrimary,
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
-                      color: _primary,
+                      color: _c.textPrimary,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Search sectors...',
-                      hintStyle: GoogleFonts.inter(
+                      hintStyle: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                       ),
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         Icons.search,
-                        color: _onSurfaceVariant,
+                        color: _c.textMuted,
                         size: 20,
                       ),
                       filled: true,
-                      fillColor: _surfaceContainerLow,
+                      fillColor: _c.surface,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: _outline),
+                        borderSide: BorderSide(color: _c.border),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: _outline),
+                        borderSide: BorderSide(color: _c.border),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -193,16 +189,16 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
                         OutlinedButton.icon(
                           onPressed: _addCustomSector,
                           icon: const Icon(Icons.add, size: 18),
-                          label: Text(
+                          label: const Text(
                             'ADD CUSTOM SECTOR',
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                               letterSpacing: 1.8,
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: _primary,
+                            foregroundColor: _c.textPrimary,
                             side: BorderSide(
                               color: Colors.white.withValues(alpha: 0.20),
                             ),
@@ -218,9 +214,9 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
                 ),
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                  decoration: const BoxDecoration(
-                    color: _background,
-                    border: Border(top: BorderSide(color: _outline)),
+                  decoration: BoxDecoration(
+                    color: _c.background,
+                    border: Border(top: BorderSide(color: _c.border)),
                   ),
                   child: SizedBox(
                     width: double.infinity,
@@ -229,11 +225,11 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
                           ? null
                           : () => Navigator.of(context).pop(_selected.toList()),
                       style: FilledButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        disabledBackgroundColor: Colors.black.withValues(
+                        backgroundColor: _c.textPrimary,
+                        disabledBackgroundColor: _c.textPrimary.withValues(
                           alpha: 0.40,
                         ),
-                        foregroundColor: _primary,
+                        foregroundColor: _c.textPrimary,
                         minimumSize: const Size.fromHeight(56),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -244,11 +240,11 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
                       ),
                       child: Text(
                         'SAVE',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 2.0,
-                          color: _primary,
+                          color: _c.textPrimary,
                         ),
                       ),
                     ),
@@ -279,18 +275,18 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? _primary : _background,
+          color: isSelected ? _c.textPrimary : _c.background,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: isSelected ? _primary : Colors.white.withValues(alpha: 0.20),
+            color: isSelected ? _c.textPrimary : Colors.white.withValues(alpha: 0.20),
           ),
         ),
         child: Text(
           sector,
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: isSelected ? _onPrimary : _primary,
+            color: isSelected ? Colors.white : _c.textPrimary,
           ),
         ),
       ),
@@ -302,27 +298,28 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
     final newSector = await showDialog<String>(
       context: context,
       builder: (context) {
+        final _c = AppTheme.colorsOf(context);
         return AlertDialog(
-          backgroundColor: _background,
+          backgroundColor: _c.background,
           title: Text(
             'Add custom sector',
-            style: GoogleFonts.inter(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: _primary,
+              color: _c.textPrimary,
             ),
           ),
           content: TextField(
             controller: controller,
             autofocus: true,
-            cursorColor: _primary,
-            style: GoogleFonts.inter(color: _primary),
+            cursorColor: _c.textPrimary,
+            style: TextStyle(color: _c.textPrimary),
             decoration: InputDecoration(
               hintText: 'e.g. Mobility',
-              hintStyle: GoogleFonts.inter(color: _onSurfaceVariant),
+              hintStyle: TextStyle(color: _c.textMuted),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _outline),
+                borderSide: BorderSide(color: _c.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -341,8 +338,8 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
               onPressed: () =>
                   Navigator.of(context).pop(controller.text.trim()),
               style: FilledButton.styleFrom(
-                backgroundColor: _primary,
-                foregroundColor: _onPrimary,
+                backgroundColor: _c.textPrimary,
+                foregroundColor: Colors.white,
               ),
               child: const Text('Add'),
             ),

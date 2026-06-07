@@ -33,7 +33,7 @@ dependencies:
 
   # UI
   cupertino_icons: ^1.0.8
-  google_fonts: ^6.1.0
+  google_fonts: ^8.1.0
   
   # State Management
   provider: ^6.1.1
@@ -48,20 +48,20 @@ dependencies:
   path_provider: ^2.1.1
   
   # Camera & Media
-  camera: ^0.10.5+7
+  camera: ^0.12.0+1
   image_picker: ^1.0.7
-  permission_handler: ^11.1.0
+  permission_handler: ^12.0.3
   
   # QR & Barcode
   qr_code_scanner: ^1.0.1
-  mobile_scanner: ^3.5.5
+  mobile_scanner: ^7.2.0
   
   # Audio
-  record: ^5.0.4
-  audioplayers: ^5.2.1
+  record: ^7.0.0
+  audioplayers: ^6.7.1
   
   # Utils
-  intl: ^0.19.0
+  intl: ^0.20.2
   uuid: ^4.3.3
 
   # Supabase (Realtime for chat)

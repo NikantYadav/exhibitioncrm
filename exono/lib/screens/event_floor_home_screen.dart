@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../config/app_theme.dart';
+import '../widgets/app_bottom_nav.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
+import '../widgets/app_section_label.dart';
 import 'log_interaction_screen.dart';
 
 class EventFloorPriorityTarget {
@@ -40,16 +44,6 @@ class EventFloorHomeData {
 }
 
 class EventFloorHomeScreen extends StatelessWidget {
-  static const Color _background = Color(0xFF080808);
-  static const Color _surface = Color(0xFF141313);
-  static const Color _surfaceContainerLow = Color(0xFF1C1B1B);
-  static const Color _surfaceContainerHighest = Color(0xFF353434);
-  static const Color _outlineVariant = Color(0xFF444748);
-  static const Color _primary = Colors.white;
-  static const Color _onPrimary = Color(0xFF2F3131);
-  static const Color _onSurfaceVariant = Color(0xFFC4C7C8);
-  static const Color _error = Color(0xFFFFB4AB);
-
   final EventFloorHomeData data;
   final ValueChanged<int>? onNavigateTab;
 
@@ -58,11 +52,6 @@ class EventFloorHomeScreen extends StatelessWidget {
     required this.data,
     this.onNavigateTab,
   });
-
-  void _navigate(BuildContext context, int index) {
-    Navigator.of(context).pop();
-    onNavigateTab?.call(index);
-  }
 
   void _showUiOnlyMessage(BuildContext context, String label) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -75,8 +64,16 @@ class EventFloorHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: colors.background,
+      bottomNavigationBar: AppBottomNav(
+        selectedIndex: 4,
+        onNavigate: (i) {
+          Navigator.of(context).pop();
+          onNavigateTab?.call(i);
+        },
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -103,7 +100,6 @@ class EventFloorHomeScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(context),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(left: 16, right: 16, bottom: 64),
@@ -112,17 +108,17 @@ class EventFloorHomeScreen extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: () => showLogInteractionSheet(context),
             style: FilledButton.styleFrom(
-              backgroundColor: _primary,
-              foregroundColor: _onPrimary,
+              backgroundColor: colors.accent,
+              foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(56),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            icon: const Icon(Icons.chat_bubble_outline, size: 20),
+            icon: Icon(Icons.chat_bubble_outline, size: 20),
             label: Text(
               'LOG INTERACTION',
-              style: GoogleFonts.inter(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.8,
@@ -135,13 +131,14 @@ class EventFloorHomeScreen extends StatelessWidget {
   }
 
   Widget _buildTopBar(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: _surface.withValues(alpha: 0.85),
+        color: colors.surface.withValues(alpha: 0.85),
         border: Border(
-          bottom: BorderSide(color: _outlineVariant.withValues(alpha: 0.30)),
+          bottom: BorderSide(color: colors.border.withValues(alpha: 0.30)),
         ),
       ),
       child: Row(
@@ -149,17 +146,17 @@ class EventFloorHomeScreen extends StatelessWidget {
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             splashRadius: 20,
-            icon: const Icon(Icons.menu, color: _primary),
+            icon: Icon(Icons.menu, color: colors.textPrimary),
           ),
           Expanded(
             child: Center(
               child: Text(
                 'EXONO',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -1.2,
-                  color: _primary,
+                  color: colors.textPrimary,
                 ),
               ),
             ),
@@ -167,7 +164,7 @@ class EventFloorHomeScreen extends StatelessWidget {
           IconButton(
             onPressed: () => _showUiOnlyMessage(context, 'Notifications'),
             splashRadius: 20,
-            icon: const Icon(Icons.notifications, color: _primary),
+            icon: Icon(Icons.notifications, color: colors.textPrimary),
           ),
         ],
       ),
@@ -175,11 +172,12 @@ class EventFloorHomeScreen extends StatelessWidget {
   }
 
   Widget _buildHeroCard(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
     return Container(
       decoration: BoxDecoration(
-        color: _surfaceContainerLow,
+        color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _outlineVariant.withValues(alpha: 0.20)),
+        border: Border.all(color: colors.border.withValues(alpha: 0.20)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -220,19 +218,19 @@ class EventFloorHomeScreen extends StatelessWidget {
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(
-                        color: _error,
+                      decoration: BoxDecoration(
+                        color: colors.destructive,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'LIVE NOW',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 1.3,
-                        color: _primary,
+                        color: colors.textPrimary,
                       ),
                     ),
                   ],
@@ -240,30 +238,30 @@ class EventFloorHomeScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   data.title.toUpperCase(),
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.6,
-                    color: _primary,
+                    color: colors.textPrimary,
                     height: 1.05,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on_outlined,
                       size: 18,
-                      color: _onSurfaceVariant,
+                      color: colors.textMuted,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         '${data.venueLabel} • ${data.hallLabel}',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
-                          color: _onSurfaceVariant,
+                          color: colors.textMuted,
                         ),
                       ),
                     ),
@@ -275,7 +273,7 @@ class EventFloorHomeScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     border: Border(
                       top: BorderSide(
-                        color: _outlineVariant.withValues(alpha: 0.20),
+                        color: colors.border.withValues(alpha: 0.20),
                       ),
                     ),
                   ),
@@ -283,12 +281,25 @@ class EventFloorHomeScreen extends StatelessWidget {
                     builder: (context, constraints) {
                       final wide = constraints.maxWidth >= 560;
                       final children = [
-                        _buildStatTile('Target Reach', data.targetReachLabel),
-                        _buildStatTile('Scanned', data.scannedCountLabel),
-                        _buildStatTile('Targets Left', data.targetsLeftLabel),
+                        _buildStatTile(
+                          'Target Reach',
+                          data.targetReachLabel,
+                          colors,
+                        ),
+                        _buildStatTile(
+                          'Scanned',
+                          data.scannedCountLabel,
+                          colors,
+                        ),
+                        _buildStatTile(
+                          'Targets Left',
+                          data.targetsLeftLabel,
+                          colors,
+                        ),
                         _buildStatTile(
                           'Pending Follow-Ups',
                           data.pendingFollowUpsLabel,
+                          colors,
                         ),
                       ];
 
@@ -324,26 +335,18 @@ class EventFloorHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatTile(String label, String value) {
+  Widget _buildStatTile(String label, String value, ExonoColors colors) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label.toUpperCase(),
-          style: GoogleFonts.inter(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 1.0,
-            color: _onSurfaceVariant,
-          ),
-        ),
+        AppSectionLabel(label, letterSpacing: 1.0),
         const SizedBox(height: 4),
         Text(
           value,
-          style: GoogleFonts.inter(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
-            color: _primary,
+            color: colors.textPrimary,
           ),
         ),
       ],
@@ -351,6 +354,7 @@ class EventFloorHomeScreen extends StatelessWidget {
   }
 
   Widget _buildPriorityTargetsSection(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -359,24 +363,24 @@ class EventFloorHomeScreen extends StatelessWidget {
             Expanded(
               child: Text(
                 'Priority Targets',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: _primary,
+                  color: colors.textPrimary,
                 ),
               ),
             ),
             TextButton(
               onPressed: () => _showUiOnlyMessage(context, 'View target list'),
               style: TextButton.styleFrom(
-                foregroundColor: _onSurfaceVariant,
+                foregroundColor: colors.textMuted,
                 padding: EdgeInsets.zero,
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
                 'VIEW LIST',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.6,
@@ -404,16 +408,14 @@ class EventFloorHomeScreen extends StatelessWidget {
     BuildContext context,
     EventFloorPriorityTarget item,
   ) {
+    final colors = AppTheme.colorsOf(context);
     return InkWell(
       onTap: () => _showUiOnlyMessage(context, 'Target profile'),
       borderRadius: BorderRadius.circular(12),
-      child: Container(
+      child: AppCard(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _surfaceContainerLow.withValues(alpha: 0.50),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _outlineVariant.withValues(alpha: 0.20)),
-        ),
+        radius: 12,
+        elevated: true,
         child: Row(
           children: [
             Container(
@@ -421,16 +423,16 @@ class EventFloorHomeScreen extends StatelessWidget {
               height: 40,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: _surfaceContainerHighest,
+                color: colors.surfaceElevated,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: _outlineVariant),
+                border: Border.all(color: colors.border),
               ),
               child: Text(
                 '${item.rank}',
-                style: GoogleFonts.inter(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: _primary,
+                  color: colors.textPrimary,
                 ),
               ),
             ),
@@ -441,19 +443,19 @@ class EventFloorHomeScreen extends StatelessWidget {
                 children: [
                   Text(
                     item.name,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: _primary,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     item.subtitle,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: _onSurfaceVariant,
+                      color: colors.textMuted,
                     ),
                   ),
                 ],
@@ -463,126 +465,10 @@ class EventFloorHomeScreen extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: _outlineVariant),
-                  ),
-                  child: Text(
-                    item.booth.toUpperCase(),
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _onSurfaceVariant,
-                    ),
-                  ),
-                ),
+                AppChip(item.booth),
                 const SizedBox(height: 6),
-                const Icon(
-                  Icons.chevron_right,
-                  color: _onSurfaceVariant,
-                  size: 20,
-                ),
+                Icon(Icons.chevron_right, color: colors.textMuted, size: 20),
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav(BuildContext context) {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: _surface.withValues(alpha: 0.90),
-        border: Border(
-          top: BorderSide(color: _outlineVariant.withValues(alpha: 0.20)),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildBottomItem(
-              icon: Icons.gps_fixed,
-              label: 'Targets',
-              active: false,
-              onTap: () => _navigate(context, 0),
-            ),
-            _buildBottomItem(
-              icon: Icons.group_outlined,
-              label: 'Contacts',
-              active: false,
-              onTap: () => _navigate(context, 3),
-            ),
-            Transform.translate(
-              offset: const Offset(0, -10),
-              child: InkWell(
-                onTap: () => _navigate(context, 2),
-                borderRadius: BorderRadius.circular(18),
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: _primary,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: _surface, width: 4),
-                  ),
-                  child: const Icon(
-                    Icons.qr_code_scanner_rounded,
-                    color: _onPrimary,
-                    size: 28,
-                  ),
-                ),
-              ),
-            ),
-            _buildBottomItem(
-              icon: Icons.event,
-              label: 'Events',
-              active: true,
-              onTap: () => Navigator.of(context).pop(),
-            ),
-            _buildBottomItem(
-              icon: Icons.person_outline,
-              label: 'Profile',
-              active: false,
-              onTap: () => _navigate(context, 5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomItem({
-    required IconData icon,
-    required String label,
-    required bool active,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        width: 64,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: active ? _primary : _onSurfaceVariant, size: 22),
-            const SizedBox(height: 4),
-            Text(
-              label.toUpperCase(),
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: active ? _primary : _onSurfaceVariant,
-              ),
             ),
           ],
         ),
