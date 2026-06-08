@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -49,7 +50,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
         setState(() => _isLoading = false);
         if (result['success'] == true) {
-          Navigator.of(context).pushReplacementNamed('/home');
+          context.go('/');
         } else {
           _showError(result['error'] as String? ?? 'Login failed');
         }
@@ -77,14 +78,7 @@ class _AuthScreenState extends State<AuthScreen> {
           }
           if (!mounted) return;
 
-          Navigator.of(context).pushReplacementNamed(
-            '/onboarding',
-            arguments: {
-              'name': _nameController.text.trim(),
-              'email': _emailController.text.trim(),
-              'token': session?['access_token'] ?? '',
-            },
-          );
+          context.go('/onboarding');
         } else {
           _showError(result['error'] as String? ?? 'Signup failed');
         }

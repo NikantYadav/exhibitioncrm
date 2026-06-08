@@ -12,8 +12,9 @@ import '../models/contact.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import 'add_contact_dialog.dart';
+import 'app_shell.dart' show appNavBarHidden;
 import 'capture_screen.dart';
-import 'voice_memory_capture_screen.dart';
+import 'voice_contact_capture_screen.dart';
 import 'contact_links_files_sheet.dart';
 import 'edit_sectors_sheet.dart';
 import 'log_interaction_screen.dart';
@@ -294,6 +295,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       await ApiService.deleteContact(contact.id);
       if (mounted) {
         setState(() { _selectedContact = null; _contactInsights = null; });
+        appNavBarHidden.value = false;
         await _loadContacts();
         _showSuccessMessage('${contact.listName} deleted');
       }
@@ -365,6 +367,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();
+    appNavBarHidden.value = false;
     super.dispose();
   }
 
@@ -407,7 +410,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => setState(() { _selectedContact = null; _contactInsights = null; }),
+            onPressed: () {
+              setState(() { _selectedContact = null; _contactInsights = null; });
+              appNavBarHidden.value = false;
+            },
             icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 22),
             splashRadius: 20,
             tooltip: 'Back',
@@ -689,6 +695,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           setState(() {
             _selectedContact = contact;
           });
+          appNavBarHidden.value = true;
           _fetchContactDetails(contact);
         },
         child: AppCard(
@@ -1832,7 +1839,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => VoiceMemoryCaptureScreen(),
+                      builder: (context) => const VoiceContactCaptureScreen(),
                     ),
                   );
                   if (result != null) {

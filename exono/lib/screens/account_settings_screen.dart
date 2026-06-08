@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
@@ -40,7 +41,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     await context.read<AuthProvider>().logout();
     if (!mounted) return;
 
-    Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+    context.go('/auth');
   }
 
   @override
@@ -453,9 +454,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 'Return to mode selection and choose between AI Chat and CRM.',
             icon: Icons.swap_horiz_rounded,
             onTap: () {
-              Navigator.of(
-                context,
-              ).pushNamedAndRemoveUntil('/mode-selection', (route) => false);
+              context.go('/');
             },
           ),
           const SizedBox(height: 10),
@@ -476,7 +475,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             subtitle:
                 'Launch the standalone Stitch-style mobile home preview route.',
             icon: Icons.space_dashboard_outlined,
-            onTap: () => Navigator.of(context).pushNamed('/home-default'),
+            onTap: () => context.go('/'),
           ),
         ],
       ),

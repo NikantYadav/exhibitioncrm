@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -54,15 +55,15 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
       if (!mounted) return;
 
+      if (!mounted) return;
       if (authProvider.isAuthenticated) {
-        if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed('/home');
+        context.go('/');
       } else {
-        Navigator.of(context).pushReplacementNamed(kIsWeb ? '/landing' : '/auth');
+        context.go(kIsWeb ? '/landing' : '/auth');
       }
     } catch (_) {
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed(kIsWeb ? '/landing' : '/auth');
+        context.go(kIsWeb ? '/landing' : '/auth');
       }
     }
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../config/app_theme.dart';
 import '../services/auth_service.dart';
@@ -129,7 +130,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (_accessToken == null || _accessToken!.trim().isEmpty) {
       _showError('Session expired. Please login again.');
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/auth');
+        context.go('/auth');
       }
       return;
     }
@@ -163,7 +164,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       setState(() => _isLoading = false);
       if (result['success'] == true) {
-        Navigator.of(context).pushReplacementNamed('/mode-selection');
+        context.go('/');
       } else {
         _showError(result['error']?.toString() ?? 'Failed to complete profile');
       }

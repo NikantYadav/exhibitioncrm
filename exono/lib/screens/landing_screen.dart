@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ─── Dark navy palette ────────────────────────────────────────────────────────
@@ -1887,7 +1888,7 @@ class _LandingScreenState extends State<LandingScreen> {
   final _howKey = GlobalKey();
   final _pricingKey = GlobalKey();
 
-  void _goAuth() => Navigator.of(context).pushNamed('/auth');
+  void _goAuth() => context.go('/auth');
 
   void _scrollTo(GlobalKey k) {
     final ctx = k.currentContext;

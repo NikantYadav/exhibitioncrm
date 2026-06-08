@@ -1,24 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
-import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
-import 'capture_screen.dart';
-import 'chat_screen.dart';
-import 'chat_history_screen.dart';
-import 'contacts_screen.dart';
-import 'events_screen.dart';
 import '../widgets/app_filter_row.dart';
 import 'live_target_person_screen.dart';
 import 'log_interaction_screen.dart';
-import 'profile_screen.dart';
 
 class HomeDefaultScreen extends StatefulWidget {
   const HomeDefaultScreen({super.key});
@@ -30,8 +24,6 @@ class HomeDefaultScreen extends StatefulWidget {
 class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
-  // AppBottomNav index (0=Home/Targets, 1=Events, 2=Capture, 3=Contacts, 5=Profile)
-  int _navIndex = 0;
   bool _isLiveEvent = false;
   bool _isLoadingLiveEvent = false;
 
@@ -52,8 +44,6 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   final List<Map<String, String>> _aiMessages = [];
   bool _aiLoading = false;
   final TextEditingController _aiQueryCtrl = TextEditingController();
-
-  void _onNavigate(int index) => setState(() => _navIndex = index);
 
   Future<void> _toggleLiveEvent() async {
     if (_isLiveEvent) {
@@ -227,17 +217,6 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     }
   }
 
-  // Maps AppBottomNav's sparse index to IndexedStack position
-  int get _stackIndex {
-    switch (_navIndex) {
-      case 1: return 1;
-      case 2: return 2;
-      case 3: return 3;
-      case 5: return 4;
-      default: return 0;
-    }
-  }
-
   final List<String> _promptChips = const [
     'Draft follow-up for Sarah',
     'Analyze recent event leads',
@@ -343,42 +322,24 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _c.background,
-      bottomNavigationBar: AppBottomNav(
-        selectedIndex: _navIndex,
-        onNavigate: _onNavigate,
-      ),
       body: SafeArea(
         bottom: false,
-        child: IndexedStack(
-          index: _stackIndex,
+        child: Column(
           children: [
-            // Tab 0 — Home
-            Column(
-              children: [
-                AppHeader(
-                  onNotificationPressed: () => _toast('Notifications are UI-only for now.'),
-                  actionIcon: Icons.bolt_rounded,
-                  actionTooltip: _isLiveEvent ? 'Exit live event' : 'Enter live event',
-                  onActionPressed: _toggleLiveEvent,
-                ),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 280),
-                    switchInCurve: Curves.easeOut,
-                    switchOutCurve: Curves.easeIn,
-                    child: _isLiveEvent ? _buildLiveEventBody() : _buildNoEventBody(),
-                  ),
-                ),
-              ],
+            AppHeader(
+              onNotificationPressed: () => _toast('Notifications are UI-only for now.'),
+              actionIcon: Icons.bolt_rounded,
+              actionTooltip: _isLiveEvent ? 'Exit live event' : 'Enter live event',
+              onActionPressed: _toggleLiveEvent,
             ),
-            // Tab 1 — Events
-            EventsScreen(onNavigateTab: _onNavigate),
-            // Tab 2 — Capture
-            CaptureScreen(onNavigateTab: _onNavigate),
-            // Tab 3 — Contacts
-            ContactsScreen(onNavigateTab: _onNavigate),
-            // Tab 4 (nav index 5) — Profile
-            ProfileScreen(onNavigateTab: _onNavigate),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: _isLiveEvent ? _buildLiveEventBody() : _buildNoEventBody(),
+              ),
+            ),
           ],
         ),
       ),
@@ -462,20 +423,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
 
   void _openChat({String? initialMessage}) {
     if (initialMessage != null) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ChatScreen(
-            initialMessage: initialMessage,
-            isNewChat: true,
-          ),
-        ),
-      );
+      context.push('/chat?msg=${Uri.encodeComponent(initialMessage)}');
     } else {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const ChatHistoryScreen(),
-        ),
-      );
+      context.push('/chat');
     }
   }
 
@@ -1420,7 +1370,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                   onPressed: _liveEvent == null ? null : () {
                     Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => LiveTargetPersonScreen(
-                          event: _liveEvent!, target: target, onNavigateTab: _onNavigate),
+                          event: _liveEvent!, target: target),
                     ));
                   },
                   icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.textPrimary),

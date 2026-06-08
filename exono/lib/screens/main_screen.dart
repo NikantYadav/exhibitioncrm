@@ -31,6 +31,10 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   bool _isSidebarCollapsed = false;
 
+  // Incremented each time a tab is selected so the screen widget gets a new
+  // key, forcing Flutter to remount it and call initState (i.e. fresh fetch).
+  final Map<int, int> _tabGen = {};
+
   @override
   void initState() {
     super.initState();
@@ -72,79 +76,81 @@ class _MainScreenState extends State<MainScreen> {
     ),
   ];
 
+  void _handleNavigation(int index) {
+    if (index == 2) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => CaptureScreen(
+            onNavigateTab: (i) {
+              Navigator.of(context).pop();
+              _navigateTo(i);
+            },
+          ),
+        ),
+      ).then((_) {
+        // When Capture is dismissed (contact may have been saved), remount
+        // the current tab so it fetches fresh data.
+        if (mounted) setState(() => _tabGen[_selectedIndex] = (_tabGen[_selectedIndex] ?? 0) + 1);
+      });
+      return;
+    }
+    _navigateTo(index);
+  }
+
+  void _navigateTo(int index) {
+    setState(() {
+      _selectedIndex = index;
+      _tabGen[index] = (_tabGen[index] ?? 0) + 1;
+    });
+  }
+
+  Key _tabKey(int index) => ValueKey('tab_${index}_${_tabGen[index] ?? 0}');
+
   Widget _getScreen(int index) {
     switch (index) {
       case 0:
         return DashboardScreen(
-          onNavigateTab: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          key: _tabKey(0),
+          onNavigateTab: _navigateTo,
         );
       case 1:
         return EventsScreen(
-          onNavigateTab: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          key: _tabKey(1),
+          onNavigateTab: _navigateTo,
         );
       case 2:
-        return CaptureScreen(
-          onNavigateTab: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
-        );
+        // CaptureScreen is pushed as a full route via _handleNavigation
+        return const SizedBox.shrink();
       case 3:
         return ContactsScreen(
-          onNavigateTab: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          key: _tabKey(3),
+          onNavigateTab: _navigateTo,
         );
       case 4:
         return FollowUpsScreen(
-          onNavigateTab: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          key: _tabKey(4),
+          onNavigateTab: _navigateTo,
         );
       case 5:
         return ProfileScreen(
-          onNavigateTab: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          key: _tabKey(5),
+          onNavigateTab: _navigateTo,
         );
       case 6:
         return MeetingsScreen(
-          onNavigateTab: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          key: _tabKey(6),
+          onNavigateTab: _navigateTo,
         );
       case 7:
         return IntegrationsScreen(
-          onNavigateTab: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          key: _tabKey(7),
+          onNavigateTab: _navigateTo,
         );
       default:
         return DashboardScreen(
-          onNavigateTab: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          key: _tabKey(0),
+          onNavigateTab: _navigateTo,
         );
     }
   }
@@ -175,7 +181,7 @@ class _MainScreenState extends State<MainScreen> {
         bottomNavigationBar: isMobile
             ? AppBottomNav(
                 selectedIndex: _selectedIndex,
-                onNavigate: (index) => setState(() => _selectedIndex = index),
+                onNavigate: _handleNavigation,
               )
             : null,
         floatingActionButton: (_selectedIndex >= 0 && _selectedIndex <= 5)
@@ -329,7 +335,6 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildMobileLayout() {
     if (_selectedIndex == 0 ||
-        _selectedIndex == 2 ||
         _selectedIndex == 3 ||
         _selectedIndex == 4) {
       return _getScreen(_selectedIndex);

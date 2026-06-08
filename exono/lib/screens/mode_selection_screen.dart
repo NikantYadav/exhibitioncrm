@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_theme.dart';
@@ -32,7 +33,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
 
-    Navigator.of(context).pushReplacementNamed(mode == _chatMode ? '/chat' : '/main');
+    context.go(mode == _chatMode ? '/chat' : '/');
   }
 
   @override
