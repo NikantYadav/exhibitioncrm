@@ -20,7 +20,13 @@ if (!supabaseServiceRoleKey) {
   throw new Error('Missing Supabase service role key');
 }
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+});
 
 export function createSupabaseUserClient(accessToken: string) {
   if (!supabaseAnonKey) {

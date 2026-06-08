@@ -5,7 +5,9 @@ class Event {
   final String? location;
   final DateTime startDate;
   final DateTime? endDate;
-  final String eventType;
+  final String? venue;
+  final String? hall;
+  final double? prepProgress;
   final String status;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -17,7 +19,9 @@ class Event {
     this.location,
     required this.startDate,
     this.endDate,
-    required this.eventType,
+    this.venue,
+    this.hall,
+    this.prepProgress,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
@@ -31,7 +35,11 @@ class Event {
       location: json['location'],
       startDate: DateTime.parse(json['start_date']),
       endDate: json['end_date'] != null ? DateTime.parse(json['end_date']) : null,
-      eventType: json['event_type'],
+      venue: json['venue'],
+      hall: json['hall'],
+      prepProgress: json['prep_progress'] != null
+          ? (json['prep_progress'] as num).toDouble()
+          : null,
       status: json['status'],
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
@@ -45,7 +53,9 @@ class Event {
       'location': location,
       'start_date': startDate.toIso8601String(),
       'end_date': endDate?.toIso8601String(),
-      'event_type': eventType,
+      'venue': venue,
+      'hall': hall,
+      'prep_progress': prepProgress,
       'status': status,
     };
   }

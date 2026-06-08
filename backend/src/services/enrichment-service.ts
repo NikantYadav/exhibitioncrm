@@ -1,4 +1,5 @@
 import { AIService } from '../config/ai';
+import { TavilyService } from './tavily-service';
 
 export interface EnrichmentResult {
     industry?: string;
@@ -23,13 +24,22 @@ export class EnrichmentService {
         email?: string;
         job_title?: string;
     }): Promise<EnrichmentResult> {
+        const isIndependent = !params.company || params.company.toUpperCase() === 'INDEPENDENT';
+
+        console.log(`[enrichment] Running Tavily search for: ${params.name} @ ${params.company || 'independent'}`);
+        const webContext = await TavilyService.searchContact({
+            name: params.name,
+            company: isIndependent ? undefined : params.company,
+            jobTitle: params.job_title,
+        });
+
         const prompt = `Research and provide information about this professional contact:
 Name: ${params.name}
-Company: ${params.company || 'Unknown'}
+${isIndependent ? 'Company: Independent (freelancer / no company)' : `Company: ${params.company}`}
 Job Title: ${params.job_title || 'Unknown'}
 Email: ${params.email || 'Unknown'}
 
-Provide detailed information about the company and the person's LinkedIn profile if possible.
+${webContext ? `## Live Web Research\n${webContext}\n\n` : ''}Provide detailed information about ${isIndependent ? 'the person' : 'the company and the person'}.
 Return ONLY valid JSON.`;
 
         const schema = `{
@@ -44,11 +54,7 @@ Return ONLY valid JSON.`;
         }`;
 
         try {
-            const result = await AIService.extractStructuredData<any>(
-                prompt,
-                schema
-            );
-
+            const result = await AIService.extractStructuredData<any>(prompt, schema);
             return {
                 ...result,
                 confidence: {

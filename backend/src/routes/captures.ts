@@ -1,7 +1,23 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase';
+import { litellm } from '../services/litellm-service';
 
 const router = Router();
+
+// POST /api/captures/voice-transcribe
+router.post('/voice-transcribe', async (req, res, next) => {
+  try {
+    const { audio_data } = req.body;
+    if (!audio_data) {
+      return res.status(400).json({ error: 'audio_data is required' });
+    }
+    const transcript = await litellm.transcribeAudio(audio_data);
+    res.json({ transcript });
+  } catch (error) {
+    console.error('Transcription error:', error);
+    res.status(500).json({ error: 'Failed to transcribe audio' });
+  }
+});
 
 router.get('/', async (req, res, next) => {
   try {
@@ -32,15 +48,27 @@ router.post('/', async (req, res, next) => {
   try {
     const { image, capture_type, event_id, extracted_data, raw_text } = req.body;
 
-    if (!image) {
-      return res.status(400).json({ error: 'Image is required' });
+    const type = capture_type || 'card_scan';
+
+    if (type === 'card_scan' || type === 'file_scan') {
+      if (!image) {
+        return res.status(400).json({ error: 'Image is required for card_scan and file_scan capture types' });
+      }
+    } else if (type === 'voice') {
+      if (!raw_text) {
+        return res.status(400).json({ error: 'raw_text (transcription) is required for voice captures' });
+      }
+    } else if (type === 'manual') {
+      if (!extracted_data || !extracted_data.name) {
+        return res.status(400).json({ error: 'extracted_data with at least a name is required for manual captures' });
+      }
     }
 
     // Create capture record
     const { data: capture, error } = await supabase
       .from('captures')
       .insert({
-        capture_type: capture_type || 'card_scan',
+        capture_type: type,
         event_id: event_id || null,
         image_url: image,
         raw_data: { ocr_text: raw_text || '' },
@@ -127,7 +155,7 @@ router.post('/', async (req, res, next) => {
           .eq('id', capture.id);
 
         // Create interaction history
-        const humanCaptureType = (capture_type || 'card_scan')
+        const humanCaptureType = type
           .replace(/_/g, ' ')
           .split(' ')
           .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))

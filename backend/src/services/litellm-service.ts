@@ -165,13 +165,14 @@ export class LiteLLMService {
     ): Promise<string> {
         return this.withGemini(async (apiKey) => {
             const genAI = new GoogleGenerativeAI(apiKey);
+
             const model = genAI.getGenerativeModel({
                 model: this.config.model!,
                 generationConfig: {
                     temperature,
                     maxOutputTokens: maxTokens,
                     ...(jsonMode && { responseMimeType: 'application/json' })
-                }
+                },
             });
 
             const systemMessage = messages.find(m => m.role === 'system');

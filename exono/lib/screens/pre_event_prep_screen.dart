@@ -1,16 +1,21 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../config/app_theme.dart';
+import '../models/event.dart';
+import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
+import 'event_target_screen.dart';
 
 class PreEventPrepScreen extends StatefulWidget {
-  final PreEventPrepData data;
+  final Event event;
   final ValueChanged<int>? onNavigateTab;
 
-  const PreEventPrepScreen({super.key, required this.data, this.onNavigateTab});
+  const PreEventPrepScreen({super.key, required this.event, this.onNavigateTab});
 
   @override
   State<PreEventPrepScreen> createState() => _PreEventPrepScreenState();
@@ -19,34 +24,194 @@ class PreEventPrepScreen extends StatefulWidget {
 class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
-  final TextEditingController _searchController = TextEditingController();
-  late PrepTargetCompany _selectedCompany = widget.data.targets.first;
+  List<Map<String, dynamic>> _targets = [];
+  List<Map<String, dynamic>> _goals = [];
+  bool _isLoading = true;
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadAll();
   }
 
-  List<PrepTargetCompany> get _filteredTargets {
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) return widget.data.targets;
-
-    return widget.data.targets.where((target) {
-      return target.name.toLowerCase().contains(query) ||
-          target.industry.toLowerCase().contains(query) ||
-          target.booth.toLowerCase().contains(query) ||
-          target.tags.any((tag) => tag.toLowerCase().contains(query));
-    }).toList();
+  Future<void> _loadAll() async {
+    await Future.wait([_loadTargets(), _loadGoals()]);
   }
 
-  void _showUiOnlyMessage(String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label is UI-only for now.'),
-        behavior: SnackBarBehavior.floating,
+  Future<void> _loadGoals() async {
+    try {
+      final goals = await ApiService.getEventGoals(widget.event.id);
+      if (mounted) setState(() => _goals = goals);
+    } catch (_) {}
+  }
+
+  Future<void> _addGoal() async {
+    final labelCtrl = TextEditingController();
+    final totalCtrl = TextEditingController(text: '1');
+    final c = _c;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: c.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Add Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
+          const SizedBox(height: 20),
+          TextField(
+            controller: labelCtrl, autofocus: true,
+            style: TextStyle(color: c.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'e.g. Meet 5 VCs',
+              hintStyle: TextStyle(color: c.textMuted),
+              filled: true, fillColor: c.surfaceAlt,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: totalCtrl, keyboardType: TextInputType.number,
+            style: TextStyle(color: c.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'Target count',
+              hintStyle: TextStyle(color: c.textMuted),
+              filled: true, fillColor: c.surfaceAlt,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () async {
+                final label = labelCtrl.text.trim();
+                final total = int.tryParse(totalCtrl.text.trim()) ?? 1;
+                if (label.isEmpty) return;
+                Navigator.pop(ctx);
+                try {
+                  final newGoal = await ApiService.createEventGoal(widget.event.id, label, total);
+                  if (mounted) setState(() => _goals.add(newGoal));
+                } catch (_) {}
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: c.accent,
+                foregroundColor: c.isDark ? c.textPrimary : c.background,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('ADD GOAL', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+            ),
+          ),
+        ]),
       ),
     );
+  }
+
+  Future<void> _deleteGoalPrep(Map<String, dynamic> goal) async {
+    setState(() => _goals.removeWhere((g) => g['id'] == goal['id']));
+    try {
+      await ApiService.deleteEventGoal(widget.event.id, goal['id'] as String);
+    } catch (_) {
+      if (mounted) setState(() => _goals.add(goal));
+    }
+  }
+
+  Future<void> _loadTargets() async {
+    try {
+      final targets = await ApiService.getEventTargets(widget.event.id);
+      setState(() {
+        _targets = targets;
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  String _daysUntil(DateTime date) {
+    final diff = date.difference(DateTime.now()).inDays;
+    if (diff < 0) return 'Past';
+    if (diff == 0) return 'Today';
+    return 'In $diff Days';
+  }
+
+  String _formatDateRange(DateTime start, DateTime? end) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    if (end == null) return '${months[start.month - 1]} ${start.day}';
+    return '${months[start.month - 1]} ${start.day} — ${months[end.month - 1]} ${end.day}';
+  }
+
+  Future<void> _openTargetDetail(Map<String, dynamic> target, int index) async {
+    final updated = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (context) => EventTargetScreen(event: widget.event, target: target),
+      ),
+    );
+    if (updated != null) {
+      setState(() => _targets[index] = updated);
+    }
+  }
+
+  Future<void> _importTargets() async {
+    FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        withData: true,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open file picker.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+      return;
+    }
+
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final name = file.name.toLowerCase();
+    if (!name.endsWith('.csv') && !name.endsWith('.xlsx') && !name.endsWith('.xls')) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a CSV or Excel file.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+      return;
+    }
+    if (file.bytes == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not read file. Try again.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+      return;
+    }
+
+    try {
+      final imported = await ApiService.importEventTargets(widget.event.id, file.bytes!, file.name);
+      await _loadTargets();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import complete: ${imported['added']} added, ${imported['skipped']} skipped.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Upload failed. Check the file and try again.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
   }
 
   @override
@@ -64,268 +229,231 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
         bottom: false,
         child: Column(
           children: [
-            _buildTopBar(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1280),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildHeaderSection(),
-                        const SizedBox(height: 32),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isWide = constraints.maxWidth >= 960;
-                            if (isWide) {
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    flex: 7,
-                                    child: _buildTargetListPanel(),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    flex: 5,
-                                    child: _buildAiResearchPanel(),
-                                  ),
-                                ],
-                              );
-                            }
-
-                            return Column(
-                              children: [
-                                _buildTargetListPanel(),
-                                const SizedBox(height: 16),
-                                _buildAiResearchPanel(),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            AppHeader(
+              onNotificationPressed: () {},
+              actionWidget: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 22),
+                splashRadius: 20,
               ),
+            ),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1280),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildHeaderSection(),
+                              const SizedBox(height: 32),
+                              _buildGoalsPanel(),
+                              const SizedBox(height: 24),
+                              _buildTargetListPanel(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
             ),
           ],
         ),
-      ),
-      floatingActionButton: _buildAskAiButton(),
-    );
-  }
-
-  Widget _buildTopBar() {
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: _c.background.withValues(alpha: 0.80),
-        border: Border(bottom: BorderSide(color: _c.border)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            splashRadius: 20,
-            icon: Icon(Icons.arrow_back, color: _c.textPrimary, size: 22),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              widget.data.shortTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1.2,
-                color: _c.textPrimary,
-                height: 1,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: () => _showUiOnlyMessage('Notifications'),
-            splashRadius: 20,
-            icon: Icon(Icons.notifications, color: _c.textPrimary, size: 22),
-          ),
-          IconButton(
-            onPressed: () => _showUiOnlyMessage('Settings'),
-            splashRadius: 20,
-            icon: Icon(
-              Icons.settings_outlined,
-              color: _c.textPrimary,
-              size: 22,
-            ),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildHeaderSection() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 760;
-
-        final left = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _c.textPrimary,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.timer, size: 14, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                    widget.data.countdownLabel.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.4,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.data.title,
-              style: TextStyle(
-                fontSize: isWide ? 32 : 24,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-                color: _c.textPrimary,
-                height: 1.15,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 20,
-              runSpacing: 8,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.location_on_outlined,
-                      size: 16,
-                      color: _c.textMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.data.location.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 1.1,
-                        color: _c.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.calendar_month_outlined,
-                      size: 16,
-                      color: _c.textMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.data.dateRange.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 1.1,
-                        color: _c.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        );
-
-        final right = SizedBox(
-          width: isWide ? 320 : double.infinity,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: _c.textPrimary,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Research Progress',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 1.4,
-                        color: _c.textMuted,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '${widget.data.researchedTargets} of ${widget.data.totalTargets} Targets',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: _c.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: Container(
-                  height: 4,
-                  color: _c.surfaceElevated,
-                  child: FractionallySizedBox(
-                    widthFactor: widget.data.progress,
-                    alignment: Alignment.centerLeft,
-                    child: ColoredBox(color: _c.accent),
-                  ),
+              const Icon(Icons.timer, size: 14, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(
+                _daysUntil(widget.event.startDate).toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1.4,
+                  color: Colors.white,
                 ),
               ),
             ],
           ),
-        );
+        ),
+        const SizedBox(height: 16),
+        Text(
+          widget.event.name,
+          style: TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.5,
+            color: _c.textPrimary,
+            height: 1.15,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 20,
+          runSpacing: 8,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.location_on_outlined, size: 16, color: _c.textMuted),
+                const SizedBox(width: 8),
+                Text(
+                  (widget.event.location ?? 'Location TBD').toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.1,
+                    color: _c.textMuted,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.calendar_month_outlined, size: 16, color: _c.textMuted),
+                const SizedBox(width: 8),
+                Text(
+                  _formatDateRange(widget.event.startDate, widget.event.endDate).toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.1,
+                    color: _c.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
-        if (isWide) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(child: left),
-              const SizedBox(width: 24),
-              right,
+  Widget _buildGoalsPanel() {
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      radius: AppTheme.radiusCard,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(child: AppSectionLabel('Event Goals')),
+            GestureDetector(
+              onTap: _addGoal,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: _c.accent.withValues(alpha: 0.5)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.add_rounded, size: 12, color: _c.accent),
+                  const SizedBox(width: 4),
+                  Text('ADD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: _c.accent)),
+                ]),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          if (_goals.isEmpty)
+            Row(children: [
+              Icon(Icons.flag_outlined, size: 18, color: _c.textMuted),
+              const SizedBox(width: 10),
+              Expanded(child: Text('No goals yet. Set targets to stay focused during the event.',
+                  style: TextStyle(fontSize: 13, color: _c.textMuted, height: 1.4))),
+            ])
+          else
+            for (int i = 0; i < _goals.length; i++) ...[
+              _buildPrepGoalRow(_goals[i]),
+              if (i < _goals.length - 1) ...[
+                Divider(color: _c.border.withValues(alpha: 0.4), height: 1),
+                const SizedBox(height: 4),
+              ],
             ],
-          );
-        }
+        ],
+      ),
+    );
+  }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [left, const SizedBox(height: 20), right],
+  Widget _buildPrepGoalRow(Map<String, dynamic> goal) {
+    final current = goal['current'] as int? ?? 0;
+    final total = goal['total'] as int? ?? 1;
+    final progress = total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0;
+    final isComplete = progress >= 1.0;
+
+    return GestureDetector(
+      onLongPress: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: _c.surface,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (_) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 8),
+            Container(width: 36, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded, color: _c.destructive),
+              title: Text('Delete goal', style: TextStyle(color: _c.destructive)),
+              onTap: () { Navigator.pop(context); _deleteGoalPrep(goal); },
+            ),
+          ])),
         );
       },
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              width: 18, height: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isComplete ? _c.success : Colors.transparent,
+                border: Border.all(color: isComplete ? _c.success : _c.border, width: 1.5),
+              ),
+              child: isComplete ? Icon(Icons.check_rounded, size: 10, color: _c.isDark ? _c.textPrimary : _c.background) : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(goal['label'] as String? ?? '', style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w500,
+                color: isComplete ? _c.success : _c.textPrimary,
+                decoration: isComplete ? TextDecoration.lineThrough : null,
+                decorationColor: _c.success))),
+            const SizedBox(width: 8),
+            Text('$current / $total', style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700,
+                color: isComplete ? _c.success : _c.textMuted)),
+          ]),
+          const SizedBox(height: 7),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress, minHeight: 3,
+              backgroundColor: _c.surfaceElevated,
+              valueColor: AlwaysStoppedAnimation<Color>(isComplete ? _c.success : _c.accent),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 
   Widget _buildTargetListPanel() {
-    final targets = _filteredTargets;
-
     return _buildGlassPanel(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -347,24 +475,24 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                 icon: Icons.upload,
                 label: 'Import',
                 filled: false,
-                onTap: () => _showUiOnlyMessage('Import targets'),
+                onTap: () => _importTargets(),
               ),
               const SizedBox(width: 8),
               _buildHeaderAction(
                 icon: Icons.add,
                 label: 'Add',
                 filled: true,
-                onTap: () => _showUiOnlyMessage('Add target'),
+                onTap: () => _showAddTargetDialog(),
               ),
             ],
           ),
           const SizedBox(height: 20),
           Container(height: 1, color: _c.border),
-          if (targets.isEmpty)
+          if (_targets.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: Text(
-                'No attending companies match that search.',
+                'No target companies yet. Add or import some.',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
@@ -373,7 +501,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
               ),
             )
           else
-            ...targets.map(_buildTargetRow),
+            ..._targets.asMap().entries.map((entry) {
+              return _buildTargetRow(entry.value, entry.key);
+            }),
         ],
       ),
     );
@@ -397,11 +527,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: filled ? Colors.white : _c.textMuted,
-            ),
+            Icon(icon, size: 16, color: filled ? Colors.white : _c.textMuted),
             const SizedBox(width: 8),
             Text(
               label.toUpperCase(),
@@ -418,77 +544,68 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     );
   }
 
-  Widget _buildTargetRow(PrepTargetCompany target) {
-    final isSelected = target == _selectedCompany;
-
+  Widget _buildTargetRow(Map<String, dynamic> target, int globalIndex) {
+    final company = target['company'] as Map<String, dynamic>? ?? {};
+    final companyName = company['name'] as String? ?? 'Unknown';
+    final booth = target['booth_location'] as String?;
+    final rawTags = target['tags'] as List?;
+    final industryStr = company['industry'] as String?;
+    final tags = rawTags != null && rawTags.isNotEmpty
+        ? rawTags.cast<String>()
+        : (industryStr != null ? [industryStr] : <String>[]);
     return InkWell(
-      onTap: () => setState(() => _selectedCompany = target),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(vertical: 16),
+      onTap: () => _openTargetDetail(target, globalIndex),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected
-              ? _c.surface.withValues(alpha: 0.90)
-              : Colors.transparent,
           border: Border(bottom: BorderSide(color: _c.border)),
         ),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: _c.surfaceAlt,
-                border: Border.all(color: _c.border),
-              ),
-              child: Text(
-                target.initials,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: _c.textPrimary,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
+            // Company info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        target.name,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: _c.textPrimary,
-                        ),
-                      ),
-                      AppChip.label('BOOTH ${target.booth}'),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: target.tags.map((tag) => AppChip(tag)).toList(),
-                  ),
+                  Text(companyName, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+                  if (booth != null && booth.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    AppChip.label('BOOTH $booth'),
+                  ],
+                  if (tags.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Wrap(spacing: 6, runSpacing: 4, children: tags.map((t) => AppChip(t)).toList()),
+                  ],
                 ],
               ),
             ),
-            AnimatedSlide(
-              duration: const Duration(milliseconds: 160),
-              offset: isSelected ? const Offset(0.15, 0) : Offset.zero,
-              child: Icon(
-                Icons.chevron_right,
-                color: _c.textMuted,
-                size: 22,
+            const SizedBox(width: 8),
+            // Manage button
+            GestureDetector(
+              onTap: () => _openTargetDetail(target, globalIndex),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  border: Border.all(color: _c.borderStrong),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.open_in_new_rounded, size: 14, color: _c.textSecondary),
+                    const SizedBox(width: 4),
+                    Text('MANAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: _c.textSecondary)),
+                  ],
+                ),
               ),
+            ),
+            // Delete button
+            IconButton(
+              onPressed: () => _deleteTarget(target, globalIndex),
+              icon: Icon(Icons.delete_outline, color: _c.destructive, size: 20),
+              splashRadius: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             ),
           ],
         ),
@@ -496,180 +613,353 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     );
   }
 
-  Widget _buildAiResearchPanel() {
-    return _buildGlassPanel(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.auto_awesome, color: _c.textPrimary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'AI Research',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: _c.textPrimary,
-                  letterSpacing: -0.2,
-                ),
+  Future<void> _showAddTargetDialog() async {
+    String searchQuery = '';
+    List<Map<String, dynamic>> companies = [];
+    bool isSearching = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              decoration: BoxDecoration(
+                color: _c.background,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border(top: BorderSide(color: _c.border)),
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            decoration: BoxDecoration(
-              color: _c.surfaceAlt,
-              border: Border.all(color: _c.border),
-            ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) {
-                final filtered = _filteredTargets;
-                if (filtered.isNotEmpty &&
-                    !filtered.contains(_selectedCompany)) {
-                  setState(() => _selectedCompany = filtered.first);
-                } else {
-                  setState(() {});
-                }
-              },
-              cursorColor: _c.textPrimary,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: _c.textPrimary,
-              ),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Search any attending company...',
-                hintStyle: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: _c.textMuted.withValues(alpha: 0.50),
-                ),
-                prefixIcon: Icon(Icons.search, color: _c.textMuted),
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          AppCard(
-            padding: const EdgeInsets.all(20),
-            radius: 16,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _selectedCompany.name,
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: _c.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _selectedCompany.industry,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w400,
-                              color: _c.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Center(
+                      child: Container(width: 40, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
                     ),
-                    const SizedBox(width: 16),
-                    Container(
-                      width: 64,
-                      height: 64,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _c.surfaceAlt,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _c.border),
-                      ),
-                      child: Text(
-                        _selectedCompany.initials,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: _c.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                AppSectionLabel('AI Talking Points', letterSpacing: 1.4),
-                const SizedBox(height: 12),
-                ..._selectedCompany.talkingPoints.map(
-                  (point) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Row(
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          margin: const EdgeInsets.only(top: 7),
-                          color: _c.textPrimary,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            point,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                              color: _c.textSecondary,
-                              height: 1.45,
-                            ),
+                        Text('Add Target Company', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+                        const SizedBox(height: 16),
+                        TextField(
+                          autofocus: true,
+                          style: TextStyle(fontSize: 14, color: _c.textPrimary),
+                          cursorColor: _c.accent,
+                          decoration: InputDecoration(
+                            hintText: 'Search companies...',
+                            hintStyle: TextStyle(color: _c.textMuted),
+                            prefixIcon: Icon(Icons.search, color: _c.textMuted),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
+                            filled: true,
+                            fillColor: _c.surface,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           ),
+                          onChanged: (val) async {
+                            setModalState(() { searchQuery = val; isSearching = true; });
+                            try {
+                              final results = await ApiService.getCompanies(query: val);
+                              setModalState(() { companies = results; isSearching = false; });
+                            } catch (_) {
+                              setModalState(() => isSearching = false);
+                            }
+                          },
                         ),
                       ],
                     ),
                   ),
+                  Expanded(
+                    child: isSearching
+                        ? const Center(child: CircularProgressIndicator())
+                        : (companies.isEmpty && searchQuery.isEmpty)
+                            ? Center(child: Text('Type to search companies', style: TextStyle(color: _c.textMuted)))
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: companies.length + (searchQuery.isNotEmpty ? 1 : 0),
+                                itemBuilder: (_, i) {
+                                  if (searchQuery.isNotEmpty && i == companies.length) {
+                                    return ListTile(
+                                      leading: Icon(Icons.add_circle_outline, color: _c.accent),
+                                      title: Text('Create "$searchQuery"', style: TextStyle(color: _c.textPrimary, fontWeight: FontWeight.w500)),
+                                      subtitle: Text('Add as new company', style: TextStyle(color: _c.textMuted, fontSize: 12)),
+                                      onTap: () {
+                                        Navigator.of(sheetCtx).pop();
+                                        _showCreateCompanyDialog(searchQuery);
+                                      },
+                                    );
+                                  }
+                                  final co = companies[i];
+                                  return InkWell(
+                                    onTap: () async {
+                                      Navigator.of(sheetCtx).pop();
+                                      _showBoothInputDialog(co);
+                                    },
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 40, height: 40,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(color: _c.surfaceAlt, borderRadius: BorderRadius.circular(8), border: Border.all(color: _c.border)),
+                                            child: Text(
+                                              (co['name'] as String).length >= 2 ? (co['name'] as String).substring(0, 2).toUpperCase() : (co['name'] as String).toUpperCase(),
+                                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _c.textPrimary),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(co['name'] as String, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: _c.textPrimary)),
+                                                if (co['industry'] != null)
+                                                  Text(co['industry'] as String, style: TextStyle(fontSize: 13, color: _c.textMuted)),
+                                              ],
+                                            ),
+                                          ),
+                                          Icon(Icons.add_circle_outline, color: _c.accent, size: 22),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showBoothInputDialog(Map<String, dynamic> company) async {
+    final boothCtrl = TextEditingController();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _c.background,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(top: BorderSide(color: _c.border)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 16),
+              Text(company['name'] as String, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+              const SizedBox(height: 4),
+              Text('Adding to target list', style: TextStyle(fontSize: 14, color: _c.textMuted)),
+              const SizedBox(height: 20),
+              TextField(
+                controller: boothCtrl,
+                autofocus: true,
+                style: TextStyle(fontSize: 14, color: _c.textPrimary),
+                cursorColor: _c.accent,
+                textCapitalization: TextCapitalization.characters,
+                decoration: InputDecoration(
+                  labelText: 'Booth Number (optional)',
+                  hintText: 'e.g. A-12, Hall 3 B04',
+                  labelStyle: TextStyle(color: _c.textMuted),
+                  hintStyle: TextStyle(color: _c.textMuted),
+                  prefixIcon: Icon(Icons.location_on_outlined, color: _c.textMuted),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
+                  filled: true,
+                  fillColor: _c.surface,
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton(
-                    onPressed: () =>
-                        _showUiOnlyMessage('Generate detailed briefing'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _c.textPrimary,
-                      side: BorderSide(color: _c.textPrimary),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        Navigator.of(ctx).pop();
+                        await _addCompanyAsTarget(company, null);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: _c.border),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                    ),
-                    child: Text(
-                      'GENERATE DETAILED BRIEFING',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 2.0,
-                        color: _c.textPrimary,
-                      ),
+                      child: Text('SKIP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.4, color: _c.textSecondary)),
                     ),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton(
+                      onPressed: () async {
+                        final booth = boothCtrl.text.trim();
+                        Navigator.of(ctx).pop();
+                        await _addCompanyAsTarget(company, booth.isEmpty ? null : booth);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _c.accent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('ADD TO LIST', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.6, color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
+    boothCtrl.dispose();
+  }
+
+  Future<void> _addCompanyAsTarget(Map<String, dynamic> company, String? booth) async {
+    try {
+      final newTarget = await ApiService.addEventTarget(widget.event.id, company['id'] as String, boothLocation: booth);
+      setState(() => _targets.add(newTarget));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${company['name']} added to target list.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to add target.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  Future<void> _showCreateCompanyDialog(String initialName) async {
+    final nameCtrl = TextEditingController(text: initialName);
+    final industryCtrl = TextEditingController();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _c.background,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(top: BorderSide(color: _c.border)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 16),
+              Text('New Company', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+              const SizedBox(height: 20),
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                style: TextStyle(fontSize: 14, color: _c.textPrimary),
+                cursorColor: _c.accent,
+                decoration: InputDecoration(
+                  labelText: 'Company Name',
+                  labelStyle: TextStyle(color: _c.textMuted),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
+                  filled: true,
+                  fillColor: _c.surface,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: industryCtrl,
+                style: TextStyle(fontSize: 14, color: _c.textPrimary),
+                cursorColor: _c.accent,
+                decoration: InputDecoration(
+                  labelText: 'Industry (optional)',
+                  labelStyle: TextStyle(color: _c.textMuted),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
+                  filled: true,
+                  fillColor: _c.surface,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: () async {
+                    final name = nameCtrl.text.trim();
+                    if (name.isEmpty) return;
+                    Navigator.of(sheetCtx).pop();
+                    try {
+                      final companyData = <String, dynamic>{'name': name};
+                      final industryText = industryCtrl.text.trim();
+                      if (industryText.isNotEmpty) {
+                        companyData['industry'] = industryText;
+                      }
+                      final company = await ApiService.createCompany(companyData);
+                      nameCtrl.dispose();
+                      industryCtrl.dispose();
+                      await _showBoothInputDialog(company);
+                    } catch (_) {
+                      nameCtrl.dispose();
+                      industryCtrl.dispose();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Failed to add company.'), behavior: SnackBarBehavior.floating),
+                        );
+                      }
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _c.accent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('CONTINUE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 2.0, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteTarget(Map<String, dynamic> target, int index) async {
+    final targetId = target['id'] as String;
+    try {
+      await ApiService.deleteEventTarget(widget.event.id, targetId);
+      setState(() {
+        _targets.removeAt(index);
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to remove target.'), behavior: SnackBarBehavior.floating));
+      }
+    }
   }
 
   Widget _buildGlassPanel({
@@ -682,72 +972,4 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
       child: child,
     );
   }
-
-  Widget _buildAskAiButton() {
-    return InkWell(
-      onTap: () => _showUiOnlyMessage('Ask EXONO AI'),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          color: _c.textPrimary,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _c.border),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x80000000),
-              blurRadius: 30,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Icon(Icons.auto_awesome, size: 30, color: _c.background),
-      ),
-    );
-  }
-}
-
-class PreEventPrepData {
-  final String shortTitle;
-  final String title;
-  final String countdownLabel;
-  final String location;
-  final String dateRange;
-  final int researchedTargets;
-  final int totalTargets;
-  final double progress;
-  final List<PrepTargetCompany> targets;
-
-  const PreEventPrepData({
-    required this.shortTitle,
-    required this.title,
-    required this.countdownLabel,
-    required this.location,
-    required this.dateRange,
-    required this.researchedTargets,
-    required this.totalTargets,
-    required this.progress,
-    required this.targets,
-  });
-}
-
-class PrepTargetCompany {
-  final String initials;
-  final String name;
-  final String booth;
-  final List<String> tags;
-  final String industry;
-  final List<String> talkingPoints;
-  final String imageUrl;
-
-  const PrepTargetCompany({
-    required this.initials,
-    required this.name,
-    required this.booth,
-    required this.tags,
-    required this.industry,
-    required this.talkingPoints,
-    required this.imageUrl,
-  });
 }

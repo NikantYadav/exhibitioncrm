@@ -5,15 +5,17 @@ const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
-    const { search } = req.query;
+    const { search, q } = req.query;
+    const searchTerm = q || search;
 
     let query = supabase
       .from('companies')
-      .select('*')
+      .select('id, name, industry')
+      .not('name', 'ilike', 'independent')
       .order('name', { ascending: true });
 
-    if (search) {
-      query = query.or(`name.ilike.%${search}%,website.ilike.%${search}%,industry.ilike.%${search}%`);
+    if (searchTerm) {
+      query = query.ilike('name', `%${searchTerm}%`);
     }
 
     const { data, error } = await query.limit(20);

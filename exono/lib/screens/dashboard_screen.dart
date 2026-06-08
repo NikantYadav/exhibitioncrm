@@ -5,7 +5,6 @@ import '../widgets/app_card.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_section_label.dart';
 import 'offline_mode_screen.dart';
-import 'target_list_full_view_screen.dart';
 import 'log_interaction_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -192,30 +191,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _openTargetListFullView() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => TargetListFullViewScreen(
-          onNavigateTab: widget.onNavigateTab,
-          eventTitle: 'Global Fintech Expo 2024',
-          countLabel: '${_targets.length} / 120',
-          items: _targets
-              .map(
-                (target) => TargetListItemData(
-                  company: target.company,
-                  booth: target.booth,
-                  sector: target.sector,
-                  contact: target.contact,
-                  title: target.title,
-                  score: target.score,
-                  prepNotes: target.prepNotes,
-                  relationshipStrength: target.relationshipStrength,
-                  isMet: target.isMet,
-                ),
-              )
-              .toList(),
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Full target list is available in Live Event mode.'),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   @override

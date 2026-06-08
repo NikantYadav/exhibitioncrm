@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../models/event.dart';
+import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
@@ -13,9 +15,10 @@ import 'chat_screen.dart';
 import 'chat_history_screen.dart';
 import 'contacts_screen.dart';
 import 'events_screen.dart';
+import '../widgets/app_filter_row.dart';
+import 'live_target_person_screen.dart';
 import 'log_interaction_screen.dart';
 import 'profile_screen.dart';
-import 'target_list_full_view_screen.dart';
 
 class HomeDefaultScreen extends StatefulWidget {
   const HomeDefaultScreen({super.key});
@@ -30,8 +33,199 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   // AppBottomNav index (0=Home/Targets, 1=Events, 2=Capture, 3=Contacts, 5=Profile)
   int _navIndex = 0;
   bool _isLiveEvent = false;
+  bool _isLoadingLiveEvent = false;
+
+  // Live event state
+  Event? _liveEvent;
+  Map<String, dynamic>? _liveStats;
+  List<Map<String, dynamic>> _liveGoals = [];
+  List<Map<String, dynamic>> _liveTargets = [];
+
+  // Target list state
+  String _targetSearch = '';
+  String _targetFilter = 'All';
+  final TextEditingController _targetSearchCtrl = TextEditingController();
+  final Set<String> _expandedTargetIds = {};
+  final Map<String, bool> _targetMetOverrides = {};
+
+  // Quick AI state
+  final List<Map<String, String>> _aiMessages = [];
+  bool _aiLoading = false;
+  final TextEditingController _aiQueryCtrl = TextEditingController();
 
   void _onNavigate(int index) => setState(() => _navIndex = index);
+
+  Future<void> _toggleLiveEvent() async {
+    if (_isLiveEvent) {
+      setState(() { _isLiveEvent = false; });
+      return;
+    }
+    setState(() { _isLoadingLiveEvent = true; });
+    try {
+      final event = await ApiService.getOngoingEvent();
+      await _fetchLiveData(event);
+      if (mounted) setState(() { _isLiveEvent = true; _isLoadingLiveEvent = false; });
+    } catch (e) {
+      if (mounted) {
+        setState(() { _isLoadingLiveEvent = false; });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: _c.destructive,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  Future<void> _fetchLiveData(Event event) async {
+    final data = await ApiService.getLiveEventData(event.id);
+    if (!mounted) return;
+    setState(() {
+      _liveEvent = event;
+      _liveStats = data['stats'] as Map<String, dynamic>;
+      _liveGoals = List<Map<String, dynamic>>.from(data['goals'] as List);
+      _liveTargets = List<Map<String, dynamic>>.from(data['targets'] as List);
+      // Reset local overrides so fresh data is authoritative
+      _targetMetOverrides.clear();
+      _expandedTargetIds.clear();
+    });
+  }
+
+  Future<void> _refreshLiveData() async {
+    if (_liveEvent == null) return;
+    try { await _fetchLiveData(_liveEvent!); } catch (_) {}
+  }
+
+  Future<void> _incrementGoal(Map<String, dynamic> goal) async {
+    final eventId = _liveEvent?.id;
+    if (eventId == null) return;
+    final newVal = ((goal['current'] as int) + 1).clamp(0, goal['total'] as int);
+    // Optimistic update
+    setState(() {
+      final idx = _liveGoals.indexWhere((g) => g['id'] == goal['id']);
+      if (idx != -1) _liveGoals[idx] = {..._liveGoals[idx], 'current': newVal};
+    });
+    try {
+      await ApiService.updateEventGoal(eventId, goal['id'] as String, {'current': newVal});
+    } catch (_) {
+      // Revert
+      setState(() {
+        final idx = _liveGoals.indexWhere((g) => g['id'] == goal['id']);
+        if (idx != -1) _liveGoals[idx] = {..._liveGoals[idx], 'current': goal['current']};
+      });
+    }
+  }
+
+  Future<void> _showAddGoalSheet() async {
+    final eventId = _liveEvent?.id;
+    if (eventId == null) return;
+    final labelCtrl = TextEditingController();
+    final totalCtrl = TextEditingController(text: '1');
+    final c = _c;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: c.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Add Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
+            const SizedBox(height: 20),
+            TextField(
+              controller: labelCtrl,
+              autofocus: true,
+              style: TextStyle(color: c.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Goal label (e.g. Meet 5 VCs)',
+                hintStyle: TextStyle(color: c.textMuted),
+                filled: true, fillColor: c.surfaceAlt,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: totalCtrl,
+              keyboardType: TextInputType.number,
+              style: TextStyle(color: c.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Target count',
+                hintStyle: TextStyle(color: c.textMuted),
+                filled: true, fillColor: c.surfaceAlt,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () async {
+                  final label = labelCtrl.text.trim();
+                  final total = int.tryParse(totalCtrl.text.trim()) ?? 1;
+                  if (label.isEmpty) return;
+                  Navigator.pop(ctx);
+                  try {
+                    final newGoal = await ApiService.createEventGoal(eventId, label, total);
+                    if (mounted) setState(() { _liveGoals.add(newGoal); });
+                  } catch (e) {
+                    if (mounted) _toast('Failed to add goal');
+                  }
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: c.accent,
+                  foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('ADD GOAL', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteGoal(Map<String, dynamic> goal) async {
+    final eventId = _liveEvent?.id;
+    if (eventId == null) return;
+    setState(() { _liveGoals.removeWhere((g) => g['id'] == goal['id']); });
+    try {
+      await ApiService.deleteEventGoal(eventId, goal['id'] as String);
+    } catch (_) {
+      if (mounted) {
+        setState(() { _liveGoals.add(goal); });
+        _toast('Failed to delete goal');
+      }
+    }
+  }
+
+  Future<void> _sendAiQuery() async {
+    final question = _aiQueryCtrl.text.trim();
+    final eventId = _liveEvent?.id;
+    if (question.isEmpty || eventId == null) return;
+    _aiQueryCtrl.clear();
+    setState(() {
+      _aiMessages.add({'role': 'user', 'content': question});
+      _aiLoading = true;
+    });
+    try {
+      final answer = await ApiService.askEventQuestion(eventId, question);
+      if (mounted) setState(() { _aiMessages.add({'role': 'assistant', 'content': answer}); });
+    } catch (_) {
+      if (mounted) setState(() { _aiMessages.add({'role': 'assistant', 'content': 'Sorry, I couldn\'t answer that right now.'}); });
+    } finally {
+      if (mounted) setState(() => _aiLoading = false);
+    }
+  }
 
   // Maps AppBottomNav's sparse index to IndexedStack position
   int get _stackIndex {
@@ -84,28 +278,10 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     _EventCardData('NOV', '02', 'Growth Leaders Dinner', 'Aria Suite • 8:00 PM'),
   ];
 
-  static const _liveEvent = _LiveEventData(
-    title: 'Tech Summit 2024',
-    venue: 'Convention Center',
-    hall: 'Hall 4',
-    targetReach: '84%',
-    scanned: '142',
-    targetsLeft: '12',
-    pendingFollowUps: '08',
-    goals: [
-      _GoalItem('Secure 2 Pilot Demos', 2, 2),
-      _GoalItem('Meet 5 VCs', 2, 5),
-      _GoalItem('Keynote Attendance', 0, 3),
-    ],
-    targets: [
-      _PriorityTarget(rank: 1, name: 'Sarah Jenkins', company: 'VP Growth, NeoStream', booth: 'BOOTH 402'),
-      _PriorityTarget(rank: 2, name: 'Marcus Thorne', company: 'CTO, CloudScale Systems', booth: 'BOOTH 12B'),
-      _PriorityTarget(rank: 3, name: 'Elena Rodriguez', company: 'Managing Director, Futura', booth: 'BOOTH 219'),
-    ],
-  );
-
   @override
   void dispose() {
+    _targetSearchCtrl.dispose();
+    _aiQueryCtrl.dispose();
     super.dispose();
   }
 
@@ -115,75 +291,52 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     );
   }
 
-  void _openTargetList() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TargetListFullViewScreen(
-          onNavigateTab: _onNavigate,
-          eventTitle: _liveEvent.title,
-          countLabel: '${_liveEvent.targets.length} / 120',
-          goals: _liveEvent.goals
-              .map((g) => EventGoalData(label: g.label, current: g.current, target: g.total))
-              .toList(),
-          items: const [
-            TargetListItemData(
-              company: 'NeoStream',
-              booth: 'BOOTH 402',
-              sector: 'Growth',
-              contact: 'Sarah Jenkins',
-              title: 'VP Growth',
-              score: 92,
-              overview: 'High-growth SaaS platform focused on revenue intelligence and pipeline automation.',
-              products: 'NeoStream CRM, Revenue Intelligence Suite, Pipeline AI',
-              meetingObjective: 'Explore integration partnership for joint GTM.',
-              notes: '',
-              prepNotes: [
-                'Company is in active vendor evaluation mode — move quickly.',
-                'Sarah champions product-led growth; lead with self-serve metrics.',
-              ],
-              relationshipStrength: 0.55,
-              isMet: false,
-            ),
-            TargetListItemData(
-              company: 'CloudScale Systems',
-              booth: 'BOOTH 12B',
-              sector: 'Infrastructure',
-              contact: 'Marcus Thorne',
-              title: 'CTO',
-              score: 85,
-              overview: 'Enterprise cloud infrastructure platform offering managed Kubernetes, observability, and FinOps tooling.',
-              products: 'CloudScale K8s, ObserveStack, FinOps Dashboard',
-              meetingObjective: 'Discuss technical co-development and API partnership.',
-              notes: '',
-              prepNotes: [
-                'Recently raised Series C — focused on enterprise expansion.',
-                'CTO prefers technical depth; avoid high-level pitches.',
-              ],
-              relationshipStrength: 0.30,
-              isMet: false,
-            ),
-            TargetListItemData(
-              company: 'Futura',
-              booth: 'BOOTH 219',
-              sector: 'Consulting',
-              contact: 'Elena Rodriguez',
-              title: 'Managing Director',
-              score: 78,
-              overview: 'Global management consulting firm with a digital transformation practice serving F500 clients.',
-              products: 'Digital Transformation Advisory, Data Strategy, AI Ops',
-              meetingObjective: 'Position Exono as preferred tool for field intelligence engagements.',
-              notes: '',
-              prepNotes: [
-                'Elena is an executive sponsor for three active transformation projects.',
-                'Consulting firms value outcome metrics — lead with ROI data.',
-              ],
-              relationshipStrength: 0.20,
-              isMet: false,
-            ),
-          ],
-        ),
-      ),
-    );
+  bool _isTargetMet(Map<String, dynamic> t) {
+    final id = t['id'] as String? ?? '';
+    return _targetMetOverrides.containsKey(id)
+        ? _targetMetOverrides[id]!
+        : (t['status'] as String?) == 'met';
+  }
+
+  List<Map<String, dynamic>> get _filteredTargets {
+    final q = _targetSearch.toLowerCase();
+    final filtered = _liveTargets.where((t) {
+      final name = (t['name'] as String? ?? '').toLowerCase();
+      final company = (t['company_name'] as String? ?? '').toLowerCase();
+      final booth = (t['booth'] as String? ?? '').toLowerCase();
+      final matchesSearch = q.isEmpty ||
+          name.contains(q) || company.contains(q) || booth.contains(q);
+      final priority = t['priority'] as String? ?? 'low';
+      final matchesFilter = switch (_targetFilter) {
+        'Met' => _isTargetMet(t),
+        'Not Met' => !_isTargetMet(t),
+        'High' => priority == 'high',
+        'Medium' => priority == 'medium',
+        _ => true,
+      };
+      return matchesSearch && matchesFilter;
+    }).toList();
+    return filtered;
+  }
+
+  Future<void> _toggleTargetMet(Map<String, dynamic> target) async {
+    final id = target['id'] as String? ?? '';
+    final eventId = _liveEvent?.id;
+    if (eventId == null || id.isEmpty) return;
+    final nowMet = !_isTargetMet(target);
+    setState(() {
+      _targetMetOverrides[id] = nowMet;
+      if (nowMet) _expandedTargetIds.remove(id);
+    });
+    try {
+      await ApiService.updateTargetStatus(
+          eventId, id, nowMet ? 'met' : 'not_contacted');
+    } catch (_) {
+      if (mounted) {
+        setState(() => _targetMetOverrides.remove(id));
+        _toast('Failed to update target status');
+      }
+    }
   }
 
   @override
@@ -206,7 +359,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                   onNotificationPressed: () => _toast('Notifications are UI-only for now.'),
                   actionIcon: Icons.bolt_rounded,
                   actionTooltip: _isLiveEvent ? 'Exit live event' : 'Enter live event',
-                  onActionPressed: () => setState(() => _isLiveEvent = !_isLiveEvent),
+                  onActionPressed: _toggleLiveEvent,
                 ),
                 Expanded(
                   child: AnimatedSwitcher(
@@ -456,7 +609,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
             ),
             style: FilledButton.styleFrom(
               backgroundColor: _c.accent,
-              foregroundColor: Colors.white,
+              foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
@@ -616,31 +769,400 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   // ─── LIVE EVENT BODY ─────────────────────────────────────────────────────────
 
   Widget _buildLiveEventBody() {
-    return SingleChildScrollView(
-      key: const ValueKey('live-event'),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+    if (_isLoadingLiveEvent) {
+      return Center(
+        key: const ValueKey('live-loading'),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          CircularProgressIndicator(color: _c.accent, strokeWidth: 2),
+          const SizedBox(height: 16),
+          Text('Loading live event…', style: TextStyle(color: _c.textMuted, fontSize: 14)),
+        ]),
+      );
+    }
+
+    final event = _liveEvent;
+    if (event == null) return const SizedBox.shrink();
+
+    final stats = _liveStats;
+    final reach = stats?['target_reach'] as int? ?? 0;
+    final scanned = stats?['scanned'] as int? ?? 0;
+    final targetsLeft = stats?['targets_left'] as int? ?? 0;
+    final followUps = stats?['pending_follow_ups'] as int? ?? 0;
+
+    final location = [event.venue, event.hall]
+        .whereType<String>()
+        .where((s) => s.isNotEmpty)
+        .join(' • ');
+
+    return RefreshIndicator(
+      color: _c.accent,
+      backgroundColor: _c.surface,
+      onRefresh: _refreshLiveData,
+      child: SingleChildScrollView(
+        key: const ValueKey('live-event'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildLiveBanner(event, location),
+            const SizedBox(height: 12),
+            _buildLiveStatGrid(reach, scanned, targetsLeft, followUps),
+            const SizedBox(height: 24),
+            _buildLiveGoalsSection(),
+            const SizedBox(height: 24),
+            _buildQuickAiSection(),
+            const SizedBox(height: 24),
+            _buildLiveTargetsSection(),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => showLogInteractionSheet(context),
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                label: const Text('LOG INTERACTION',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _c.accent,
+                  foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLiveBanner(Event event, String location) {
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      radius: AppTheme.radiusCard,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildEventBannerCard(),
-          const SizedBox(height: 24),
-          _buildPriorityTargetsSection(),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => showLogInteractionSheet(context),
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
-              label: const Text(
-                'LOG INTERACTION',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6),
+          Row(children: [
+            _PulsingDot(color: _c.destructive),
+            const SizedBox(width: 8),
+            Text('LIVE NOW', style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w700,
+                letterSpacing: 1.6, color: _c.destructive)),
+          ]),
+          const SizedBox(height: 14),
+          Text(event.name, style: TextStyle(
+              fontSize: 22, fontWeight: FontWeight.w800,
+              letterSpacing: -0.6, color: _c.textPrimary, height: 1.1)),
+          if (location.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              Icon(Icons.location_on_outlined, size: 14, color: _c.textMuted),
+              const SizedBox(width: 6),
+              Expanded(child: Text(location,
+                  style: TextStyle(fontSize: 13, color: _c.textMuted),
+                  overflow: TextOverflow.ellipsis)),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveStatGrid(int reach, int scanned, int targetsLeft, int followUps) {
+    return Column(children: [
+      Row(children: [
+        Expanded(child: _buildLiveStatTile(Icons.show_chart_rounded, _c.accent, '$reach%', 'TARGET REACH')),
+        const SizedBox(width: 10),
+        Expanded(child: _buildLiveStatTile(Icons.qr_code_scanner_rounded, _c.success, '$scanned', 'SCANNED')),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: _buildLiveStatTile(Icons.people_outline_rounded, _c.textSecondary, '$targetsLeft', 'TARGETS LEFT')),
+        const SizedBox(width: 10),
+        Expanded(child: _buildLiveStatTile(Icons.mark_email_unread_outlined, _c.destructive, '$followUps', 'FOLLOW-UPS')),
+      ]),
+    ]);
+  }
+
+  Widget _buildLiveStatTile(IconData icon, Color color, String value, String label) {
+    return AppCard(
+      elevated: true,
+      padding: const EdgeInsets.all(14),
+      radius: 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(height: 10),
+          Text(value, style: TextStyle(
+              fontSize: 22, fontWeight: FontWeight.w800,
+              color: _c.textPrimary, height: 1)),
+          const SizedBox(height: 3),
+          Text(label, style: TextStyle(
+              fontSize: 9, fontWeight: FontWeight.w700,
+              letterSpacing: 0.7, color: _c.textMuted)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveGoalsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          AppSectionLabel('Goal Progress'),
+          const Spacer(),
+          GestureDetector(
+            onTap: _showAddGoalSheet,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: _c.accent.withValues(alpha: 0.5)),
               ),
-              style: FilledButton.styleFrom(
-                backgroundColor: _c.accent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.add_rounded, size: 12, color: _c.accent),
+                const SizedBox(width: 4),
+                Text('ADD GOAL', style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0, color: _c.accent)),
+              ]),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        if (_liveGoals.isEmpty)
+          AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            child: Row(children: [
+              Icon(Icons.flag_outlined, size: 20, color: _c.textMuted),
+              const SizedBox(width: 12),
+              Expanded(child: Text(
+                  'No goals yet — tap ADD GOAL to create one.',
+                  style: TextStyle(fontSize: 13, color: _c.textMuted, height: 1.4))),
+            ]),
+          )
+        else
+          AppCard(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Column(children: [
+              for (int i = 0; i < _liveGoals.length; i++) ...[
+                _buildGoalRow(_liveGoals[i]),
+                if (i < _liveGoals.length - 1) ...[
+                  Divider(color: _c.border.withValues(alpha: 0.4), height: 1),
+                  const SizedBox(height: 4),
+                ],
+              ],
+            ]),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLiveTargetsSection() {
+    final visible = _filteredTargets;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          AppSectionLabel('Targets'),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: _c.accentSoft,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text('${_liveTargets.length}', style: TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w700, color: _c.accent)),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        // Search
+        TextField(
+          controller: _targetSearchCtrl,
+          style: TextStyle(fontSize: 13, color: _c.textPrimary),
+          cursorColor: _c.accent,
+          onChanged: (v) => setState(() => _targetSearch = v),
+          decoration: InputDecoration(
+            hintText: 'Search companies, people, booths…',
+            hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 8),
+              child: Icon(Icons.search_rounded, size: 18, color: _c.textMuted),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 0),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            filled: true,
+            fillColor: _c.surface,
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: _c.border)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: _c.border)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: _c.accent)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Filters
+        AppFilterRow(
+          filters: const ['All', 'Not Met', 'Met', 'High', 'Medium'],
+          selected: _targetFilter,
+          onSelect: (f) => setState(() => _targetFilter = f),
+          style: AppFilterRowStyle.filled,
+        ),
+        const SizedBox(height: 14),
+        // Target list
+        if (_liveTargets.isEmpty)
+          AppCard(
+            padding: const EdgeInsets.all(20),
+            child: Center(child: Column(children: [
+              Icon(Icons.people_outline_rounded, color: _c.textMuted, size: 32),
+              const SizedBox(height: 10),
+              Text('No targets yet for this event.',
+                  style: TextStyle(color: _c.textMuted, fontSize: 13)),
+            ])),
+          )
+        else if (visible.isEmpty)
+          AppCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              Icon(Icons.search_off_rounded, color: _c.textMuted, size: 20),
+              const SizedBox(width: 12),
+              Text('No targets match.', style: TextStyle(fontSize: 13, color: _c.textMuted)),
+            ]),
+          )
+        else
+          Column(children: [
+            for (int i = 0; i < visible.length; i++) ...[
+              _buildTargetCard(visible[i], i + 1),
+              if (i < visible.length - 1) const SizedBox(height: 8),
+            ],
+          ]),
+      ],
+    );
+  }
+
+  Widget _buildQuickAiSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Icon(Icons.auto_awesome_rounded, size: 13, color: _c.accent),
+          const SizedBox(width: 7),
+          AppSectionLabel('Quick AI', color: _c.accent),
+        ]),
+        const SizedBox(height: 12),
+        AppCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(children: [
+            // Message history (max last 6)
+            if (_aiMessages.isNotEmpty) ...[
+              for (final msg in _aiMessages.reversed.take(6).toList().reversed)
+                _buildAiMessage(msg),
+              const SizedBox(height: 8),
+              Divider(color: _c.border.withValues(alpha: 0.5), height: 1),
+              const SizedBox(height: 8),
+            ],
+            // Input row
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _aiQueryCtrl,
+                  onSubmitted: (_) => _sendAiQuery(),
+                  style: TextStyle(fontSize: 13, color: _c.textPrimary),
+                  cursorColor: _c.accent,
+                  decoration: InputDecoration(
+                    hintText: 'Ask about this event…',
+                    hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    filled: true, fillColor: _c.surfaceAlt,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: BorderSide(color: _c.border)),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: BorderSide(color: _c.border)),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: BorderSide(color: _c.accent)),
+                  ),
+                ),
               ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _aiLoading ? null : _sendAiQuery,
+                child: Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: _aiLoading ? _c.surfaceElevated : _c.accent,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: _aiLoading
+                      ? Padding(
+                          padding: const EdgeInsets.all(11),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: _c.textMuted))
+                      : Icon(Icons.arrow_upward_rounded,
+                          size: 18, color: _c.isDark ? _c.textPrimary : _c.background),
+                ),
+              ),
+            ]),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAiMessage(Map<String, String> msg) {
+    final isUser = msg['role'] == 'user';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          if (!isUser) ...[
+            Container(
+              width: 24, height: 24,
+              decoration: BoxDecoration(
+                color: _c.accentSoft,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(Icons.auto_awesome_rounded, size: 12, color: _c.accent),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: isUser ? _c.accentSoft : _c.surfaceAlt,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(14),
+                  topRight: const Radius.circular(14),
+                  bottomLeft: Radius.circular(isUser ? 14 : 4),
+                  bottomRight: Radius.circular(isUser ? 4 : 14),
+                ),
+              ),
+              child: Text(msg['content'] ?? '', style: TextStyle(
+                  fontSize: 13,
+                  color: isUser ? _c.accent : _c.textSecondary,
+                  height: 1.45)),
             ),
           ),
         ],
@@ -648,332 +1170,273 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     );
   }
 
-  Widget _buildEventBannerCard() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _c.surface,
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-          border: Border.all(color: _c.border.withValues(alpha: 0.3)),
-        ),
-        child: Stack(
-          children: [
-            // Decorative background gradient
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      _c.accentSoft.withValues(alpha: 0.3),
-                      _c.surface,
-                      _c.surfaceAlt,
-                    ],
-                    stops: const [0.0, 0.35, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            // Faint decorative icon
-            Positioned(
-              right: -16,
-              top: -16,
-              child: Icon(
-                Icons.apartment_rounded,
-                size: 160,
-                color: _c.textPrimary.withValues(alpha: 0.04),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Live badge
-                  Row(
-                    children: [
-                      _PulsingDot(color: _c.destructive),
-                      const SizedBox(width: 8),
-                      Text(
-                        'LIVE NOW',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.4,
-                          color: _c.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // Event title
-                  Text(
-                    _liveEvent.title.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.6,
-                      color: _c.textPrimary,
-                      height: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Location
-                  Row(
-                    children: [
-                      Icon(Icons.location_on_outlined, size: 16, color: _c.textMuted),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${_liveEvent.venue} • ${_liveEvent.hall}',
-                        style: TextStyle(fontSize: 13, color: _c.textMuted),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  // Stats grid
-                  _buildStatsGrid(),
-                  // Goal progress section
-                  Padding(
-                    padding: const EdgeInsets.only(top: 20),
-                    child: Column(
-                      children: [
-                        Divider(color: _c.border.withValues(alpha: 0.5), height: 1),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            AppSectionLabel('Goal Progress'),
-                            GestureDetector(
-                              onTap: _openTargetList,
-                              child: Text(
-                                'VIEW LIST',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 1.2,
-                                  color: _c.textMuted,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        ..._liveEvent.goals.map(
-                          (goal) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _buildGoalRow(goal),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildGoalRow(Map<String, dynamic> goal) {
+    final current = goal['current'] as int;
+    final total = goal['total'] as int;
+    final progress = total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0;
+    final isComplete = progress >= 1.0;
 
-  Widget _buildStatsGrid() {
-    final stats = [
-      _StatItem('Target Reach', _liveEvent.targetReach),
-      _StatItem('Scanned', _liveEvent.scanned),
-      _StatItem('Targets Left', _liveEvent.targetsLeft),
-      _StatItem('Pending Follow-Ups', _liveEvent.pendingFollowUps),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 420;
-        if (wide) {
-          return Row(
-            children: [
-              for (int i = 0; i < stats.length; i++) ...[
-                Expanded(child: _buildStatTile(stats[i])),
-                if (i < stats.length - 1)
-                  Container(width: 1, height: 32, margin: const EdgeInsets.symmetric(horizontal: 12), color: _c.border),
-              ],
-            ],
-          );
-        }
-        return GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 12,
-          childAspectRatio: 2.8,
-          children: stats.map(_buildStatTile).toList(),
+    return GestureDetector(
+      onLongPress: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: _c.surface,
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (_) => SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SizedBox(height: 8),
+              Container(width: 36, height: 4,
+                  decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded, color: _c.destructive),
+                title: Text('Delete goal', style: TextStyle(color: _c.destructive)),
+                onTap: () { Navigator.pop(context); _deleteGoal(goal); },
+              ),
+            ]),
+          ),
         );
       },
-    );
-  }
-
-  Widget _buildStatTile(_StatItem stat) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          stat.label.toUpperCase(),
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: _c.textMuted),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          stat.value,
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: _c.textPrimary, height: 1),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGoalRow(_GoalItem goal) {
-    final progress = goal.progress;
-    final isComplete = progress >= 1.0;
-    final isNotStarted = progress == 0;
-
-    final Color barColor = isComplete
-        ? _c.success
-        : isNotStarted
-            ? _c.border
-            : _c.accent;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                goal.label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: isNotStarted ? _c.textMuted : _c.textPrimary,
+            Row(children: [
+              Container(
+                width: 20, height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isComplete ? _c.success : Colors.transparent,
+                  border: Border.all(
+                    color: isComplete ? _c.success : _c.border, width: 1.5),
                 ),
+                child: isComplete
+                    ? Icon(Icons.check_rounded, size: 11, color: (_c.isDark ? _c.textPrimary : _c.background))
+                    : null,
               ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              '${goal.current}/${goal.total}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isNotStarted ? _c.textMuted : _c.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 4,
-            backgroundColor: _c.surfaceElevated,
-            valueColor: AlwaysStoppedAnimation<Color>(barColor),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPriorityTargetsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Priority Targets',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, letterSpacing: -0.4, color: _c.textPrimary),
-              ),
-            ),
-            GestureDetector(
-              onTap: _openTargetList,
-              child: Text(
-                'VIEW LIST',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.4,
-                  color: _c.textMuted,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        ..._liveEvent.targets.asMap().entries.map((entry) {
-          final i = entry.key;
-          final item = entry.value;
-          return Padding(
-            padding: EdgeInsets.only(bottom: i < _liveEvent.targets.length - 1 ? 10 : 0),
-            child: _buildTargetRow(item),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildTargetRow(_PriorityTarget item) {
-    return InkWell(
-      onTap: () => _toast('Target profile is UI-only for now.'),
-      borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-      child: AppCard(
-        padding: const EdgeInsets.all(16),
-        radius: AppTheme.radiusCard,
-        child: Row(
-          children: [
-            // Rank badge
-            Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: _c.surfaceElevated,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: _c.border),
-              ),
-              child: Text(
-                '${item.rank}',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _c.textPrimary),
-              ),
-            ),
-            const SizedBox(width: 14),
-            // Name + company
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _c.textPrimary),
+              const SizedBox(width: 10),
+              Expanded(child: Text(goal['label'] as String, style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w500,
+                  color: isComplete ? _c.success : _c.textPrimary,
+                  decoration: isComplete ? TextDecoration.lineThrough : null,
+                  decorationColor: _c.success))),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: isComplete ? null : () => _incrementGoal(goal),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isComplete
+                        ? _c.success.withValues(alpha: 0.10)
+                        : _c.accentSoft,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 3),
-                  Text(item.company, style: TextStyle(fontSize: 12, color: _c.textMuted)),
-                ],
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (!isComplete) ...[
+                      Icon(Icons.add_rounded, size: 12, color: _c.accent),
+                      const SizedBox(width: 4),
+                    ],
+                    Text('$current / $total', style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w700,
+                        color: isComplete ? _c.success : _c.accent)),
+                  ]),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            // Booth chip + chevron
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                AppChip.label(item.booth),
-                const SizedBox(height: 6),
-                Icon(Icons.chevron_right_rounded, color: _c.textMuted, size: 18),
-              ],
+            ]),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 3,
+                backgroundColor: _c.surfaceElevated,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                    isComplete ? _c.success : _c.accent),
+              ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTargetCard(Map<String, dynamic> target, int rank) {
+    final id = target['id'] as String? ?? '';
+    final name = target['name'] as String? ?? '';
+    final jobTitle = target['job_title'] as String? ?? '';
+    final companyName = target['company_name'] as String? ?? '';
+    final booth = target['booth'] as String? ?? '';
+    final priority = target['priority'] as String? ?? 'low';
+    final isMet = _isTargetMet(target);
+    final isExpanded = _expandedTargetIds.contains(id);
+    final priorityColor = switch (priority) {
+      'high' => _c.destructive,
+      'medium' => _c.accent,
+      _ => _c.textMuted,
+    };
+    final priorityLabel = switch (priority) {
+      'high' => 'HIGH',
+      'medium' => 'MED',
+      _ => 'LOW',
+    };
+
+    return AppCard(
+      radius: AppTheme.radiusCard,
+      elevated: isExpanded,
+      borderColor: priority == 'high'
+          ? _c.destructive.withValues(alpha: 0.40)
+          : priority == 'medium'
+              ? _c.accent.withValues(alpha: 0.22)
+              : null,
+      child: Column(children: [
+        // ── Header ──
+        InkWell(
+          onTap: id.isEmpty ? null : () => setState(() {
+            if (isExpanded) { _expandedTargetIds.remove(id); }
+            else { _expandedTargetIds.add(id); }
+          }),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppTheme.radiusCard),
+            bottom: isExpanded ? Radius.zero : Radius.circular(AppTheme.radiusCard),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Priority badge + rank
+              Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: priorityColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(priorityLabel, style: TextStyle(
+                      fontSize: 8, fontWeight: FontWeight.w800,
+                      letterSpacing: 0.7, color: priorityColor)),
+                ),
+                const SizedBox(height: 5),
+                Text(rank.toString().padLeft(2, '0'), style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w700,
+                    color: _c.textMuted)),
+              ]),
+              const SizedBox(width: 12),
+              // Name + subtitle + tags
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    name.isNotEmpty ? name : companyName,
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        color: isMet ? _c.textMuted : _c.textPrimary),
+                  ),
+                  if (jobTitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(jobTitle, style: TextStyle(fontSize: 12, color: _c.textMuted),
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    if (companyName.isNotEmpty) ...[
+                      AppChip.label(companyName),
+                      const SizedBox(width: 6),
+                    ],
+                    if (booth.isNotEmpty) ...[
+                      AppChip.label('BOOTH $booth'),
+                      const SizedBox(width: 6),
+                    ],
+                    const Spacer(),
+                    Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      size: 18, color: _c.textMuted),
+                  ]),
+                ]),
+              ),
+              const SizedBox(width: 10),
+              // Met toggle
+              GestureDetector(
+                onTap: () => _toggleTargetMet(target),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isMet ? _c.success.withValues(alpha: 0.12) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: isMet ? _c.success : _c.border,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (isMet) ...[
+                      Icon(Icons.check_rounded, size: 12, color: _c.success),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      isMet ? 'MET' : 'MARK\nMET',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 9, fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                          color: isMet ? _c.success : _c.textMuted,
+                          height: 1.2),
+                    ),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+        // ── Expanded actions ──
+        if (isExpanded)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            decoration: BoxDecoration(
+              color: _c.surfaceAlt,
+              border: Border(top: BorderSide(color: _c.border)),
+              borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(AppTheme.radiusCard)),
+            ),
+            child: Row(children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => showLogInteractionSheet(context),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
+                  label: const Text('LOG'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _c.accent,
+                    foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
+                    minimumSize: const Size.fromHeight(42),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _liveEvent == null ? null : () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => LiveTargetPersonScreen(
+                          event: _liveEvent!, target: target, onNavigateTab: _onNavigate),
+                    ));
+                  },
+                  icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.textPrimary),
+                  label: const Text('PROFILE'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _c.textPrimary,
+                    side: BorderSide(color: _c.border),
+                    minimumSize: const Size.fromHeight(42),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+      ]),
     );
   }
 }
@@ -1048,48 +1511,3 @@ class _EventCardData {
   const _EventCardData(this.month, this.day, this.title, this.subtitle);
 }
 
-class _LiveEventData {
-  final String title;
-  final String venue;
-  final String hall;
-  final String targetReach;
-  final String scanned;
-  final String targetsLeft;
-  final String pendingFollowUps;
-  final List<_GoalItem> goals;
-  final List<_PriorityTarget> targets;
-
-  const _LiveEventData({
-    required this.title,
-    required this.venue,
-    required this.hall,
-    required this.targetReach,
-    required this.scanned,
-    required this.targetsLeft,
-    required this.pendingFollowUps,
-    required this.goals,
-    required this.targets,
-  });
-}
-
-class _GoalItem {
-  final String label;
-  final int current;
-  final int total;
-  const _GoalItem(this.label, this.current, this.total);
-  double get progress => total > 0 ? current / total : 0;
-}
-
-class _PriorityTarget {
-  final int rank;
-  final String name;
-  final String company;
-  final String booth;
-  const _PriorityTarget({required this.rank, required this.name, required this.company, required this.booth});
-}
-
-class _StatItem {
-  final String label;
-  final String value;
-  const _StatItem(this.label, this.value);
-}

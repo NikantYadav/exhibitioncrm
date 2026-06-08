@@ -1,58 +1,63 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_theme.dart';
+import '../models/event.dart';
+import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
 import 'log_interaction_screen.dart';
-import 'target_list_full_view_screen.dart';
 
-class EventFloorPriorityTarget {
-  final int rank;
-  final String name;
-  final String subtitle;
-  final String booth;
-
-  const EventFloorPriorityTarget({
-    required this.rank,
-    required this.name,
-    required this.subtitle,
-    required this.booth,
-  });
-}
-
-class EventFloorHomeData {
-  final String title;
-  final String venueLabel;
-  final String hallLabel;
-  final String targetReachLabel;
-  final String scannedCountLabel;
-  final String targetsLeftLabel;
-  final String pendingFollowUpsLabel;
-  final List<EventFloorPriorityTarget> priorityTargets;
-
-  const EventFloorHomeData({
-    required this.title,
-    required this.venueLabel,
-    required this.hallLabel,
-    required this.targetReachLabel,
-    required this.scannedCountLabel,
-    required this.targetsLeftLabel,
-    required this.pendingFollowUpsLabel,
-    required this.priorityTargets,
-  });
-}
-
-class EventFloorHomeScreen extends StatelessWidget {
-  final EventFloorHomeData data;
+class EventFloorHomeScreen extends StatefulWidget {
+  final Event event;
   final ValueChanged<int>? onNavigateTab;
 
   const EventFloorHomeScreen({
     super.key,
-    required this.data,
+    required this.event,
     this.onNavigateTab,
   });
+
+  @override
+  State<EventFloorHomeScreen> createState() => _EventFloorHomeScreenState();
+}
+
+class _EventFloorHomeScreenState extends State<EventFloorHomeScreen> {
+  ExonoColors get _c => AppTheme.colorsOf(context);
+
+  Map<String, dynamic>? _stats;
+  List<Map<String, dynamic>> _targets = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final results = await Future.wait([
+        ApiService.getEventStats(widget.event.id),
+        ApiService.getEventTargets(widget.event.id),
+      ]);
+      setState(() {
+        _stats = results[0] as Map<String, dynamic>;
+        final rawTargets = results[1] as List<Map<String, dynamic>>;
+        rawTargets.sort((a, b) {
+          const order = {'high': 0, 'medium': 1, 'low': 2};
+          final aPrio = order[a['priority']] ?? 3;
+          final bPrio = order[b['priority']] ?? 3;
+          return aPrio.compareTo(bPrio);
+        });
+        _targets = rawTargets;
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   void _showUiOnlyMessage(BuildContext context, String label) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -63,128 +68,43 @@ class EventFloorHomeScreen extends StatelessWidget {
     );
   }
 
-  void _openTargetList(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TargetListFullViewScreen(
-          onNavigateTab: onNavigateTab,
-          eventTitle: data.title,
-          countLabel: '${_sampleTargets.length} / 120',
-          items: _sampleTargets,
-          goals: const [
-            EventGoalData(label: 'Meet 5 VCs', current: 2, target: 5),
-            EventGoalData(label: 'Scan 10 Booths', current: 10, target: 10),
-            EventGoalData(label: 'Attend 3 Keynotes', current: 0, target: 3),
-          ],
-        ),
-      ),
-    );
+  String get _targetReachLabel {
+    final total = (_stats?['total_contacts'] as num?)?.toInt() ?? 0;
+    final captured = (_stats?['total_captures'] as num?)?.toInt() ?? 0;
+    if (total == 0) return 'N/A';
+    return '${((captured / total) * 100).round()}%';
   }
 
-  static const List<TargetListItemData> _sampleTargets = [
-    TargetListItemData(
-      company: 'Quantum Financial',
-      booth: 'A-12',
-      sector: 'FinTech',
-      contact: 'James Hartwell',
-      title: 'Managing Director',
-      score: 90,
-      overview: 'Leading provider of enterprise-grade financial technology solutions, specialising in risk analytics and payment infrastructure.',
-      products: 'Quantum Pay, Risk Analytics Suite, Q-Bond Platform',
-      meetingObjective: 'Discuss partnership for digital payment infrastructure integration.',
-      notes: '',
-      prepNotes: [
-        'Recently closed a Series B round — emphasise scalability.',
-        'CTO previously worked at Stripe; use technical depth in conversation.',
-      ],
-      relationshipStrength: 0.25,
-      isMet: false,
-    ),
-    TargetListItemData(
-      company: 'Nexus Group',
-      booth: 'B-04',
-      sector: 'SaaS',
-      contact: 'Sarah Chen',
-      title: 'Head of Partnerships',
-      score: 85,
-      overview: 'Leading provider of cloud-based enterprise resource planning solutions focusing on AI-driven supply chain optimisation.',
-      products: 'Nexus Cloud ERP, Nexus AI Analytics, Supply Chain Predictor',
-      meetingObjective: 'Discuss integration partnership for EU expansion.',
-      notes: '',
-      prepNotes: [
-        'Recently raised Series C funding.',
-        'Looking to expand into EU markets.',
-        'Exploring Blockchain integration.',
-      ],
-      relationshipStrength: 0.60,
-      isMet: false,
-    ),
-    TargetListItemData(
-      company: 'Apex Ventures',
-      booth: 'C-21',
-      sector: 'VC',
-      contact: 'Michael Torres',
-      title: 'General Partner',
-      score: 78,
-      overview: 'Tier-1 venture capital firm focused on early-stage enterprise and deep-tech investments across North America and Europe.',
-      products: 'Early-Stage Fund IV, Growth Equity Portfolio',
-      meetingObjective: 'Pitch Exono for Series A consideration.',
-      notes: '',
-      prepNotes: [
-        'Portfolio includes three direct competitors — lead with differentiation.',
-        'GP Michael Torres responds well to data-driven pitches.',
-      ],
-      relationshipStrength: 0.15,
-      isMet: false,
-    ),
-    TargetListItemData(
-      company: 'Ironclad Security',
-      booth: 'D-01',
-      sector: 'CyberSec',
-      contact: 'Priya Mehta',
-      title: 'Chief Revenue Officer',
-      score: 70,
-      overview: 'Enterprise cybersecurity firm offering zero-trust architecture and threat intelligence platforms.',
-      products: 'IronShield XDR, ThreatIntel API, ZeroGate Access',
-      meetingObjective: 'Explore co-sell motion for shared enterprise accounts.',
-      notes: '',
-      prepNotes: [
-        'Finalist for three major enterprise RFPs this quarter.',
-        'CRO is a champion of partner-led growth models.',
-      ],
-      relationshipStrength: 0.80,
-      isMet: true,
-    ),
-    TargetListItemData(
-      company: 'Lumina X',
-      booth: 'E-55',
-      sector: 'AI Hardware',
-      contact: 'Yuki Tanaka',
-      title: 'VP Business Development',
-      score: 65,
-      overview: 'Next-generation AI hardware company developing custom silicon for edge inference and distributed robotics.',
-      products: 'LX-9 Edge Chip, Lumina Robotics SDK, AI Inference Cloud',
-      meetingObjective: 'Evaluate hardware integration for Exono field intelligence module.',
-      notes: '',
-      prepNotes: [
-        'Recently launched in North America after strong Osaka debut.',
-        'Looking for software partners to complement their hardware stack.',
-      ],
-      relationshipStrength: 0.10,
-      isMet: false,
-    ),
-  ];
+  String get _scannedLabel =>
+      '${(_stats?['total_captures'] as num?)?.toInt() ?? 0}';
+
+  String get _targetsLeftLabel {
+    final total = (_stats?['total_contacts'] as num?)?.toInt() ?? 0;
+    final captured = (_stats?['total_captures'] as num?)?.toInt() ?? 0;
+    return '${(total - captured).clamp(0, total)}';
+  }
+
+  String get _pendingFollowUpsLabel =>
+      '${(_stats?['follow_ups_needed'] as num?)?.toInt() ?? 0}';
+
+  List<Map<String, dynamic>> get _priorityTargets => _targets.take(3).toList();
+
+  void _openTargetList(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Full target list is available in Live Event mode.'),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppTheme.colorsOf(context);
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: _c.background,
       bottomNavigationBar: AppBottomNav(
         selectedIndex: 4,
         onNavigate: (i) {
           Navigator.of(context).pop();
-          onNavigateTab?.call(i);
+          widget.onNavigateTab?.call(i);
         },
       ),
       body: SafeArea(
@@ -193,22 +113,24 @@ class EventFloorHomeScreen extends StatelessWidget {
           children: [
             _buildTopBar(context),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 180),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1280),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildHeroCard(context),
-                        const SizedBox(height: 24),
-                        _buildPriorityTargetsSection(context),
-                      ],
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 180),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1280),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildHeroCard(context),
+                              const SizedBox(height: 24),
+                              _buildPriorityTargetsSection(context),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
             ),
           ],
         ),
@@ -221,14 +143,14 @@ class EventFloorHomeScreen extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: () => showLogInteractionSheet(context),
             style: FilledButton.styleFrom(
-              backgroundColor: colors.accent,
+              backgroundColor: _c.accent,
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(56),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            icon: Icon(Icons.chat_bubble_outline, size: 20),
+            icon: const Icon(Icons.chat_bubble_outline, size: 20),
             label: Text(
               'LOG INTERACTION',
               style: TextStyle(
@@ -244,14 +166,13 @@ class EventFloorHomeScreen extends StatelessWidget {
   }
 
   Widget _buildTopBar(BuildContext context) {
-    final colors = AppTheme.colorsOf(context);
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.85),
+        color: _c.surface.withValues(alpha: 0.85),
         border: Border(
-          bottom: BorderSide(color: colors.border.withValues(alpha: 0.30)),
+          bottom: BorderSide(color: _c.border.withValues(alpha: 0.30)),
         ),
       ),
       child: Row(
@@ -259,7 +180,7 @@ class EventFloorHomeScreen extends StatelessWidget {
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             splashRadius: 20,
-            icon: Icon(Icons.menu, color: colors.textPrimary),
+            icon: Icon(Icons.menu, color: _c.textPrimary),
           ),
           Expanded(
             child: Center(
@@ -269,7 +190,7 @@ class EventFloorHomeScreen extends StatelessWidget {
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -1.2,
-                  color: colors.textPrimary,
+                  color: _c.textPrimary,
                 ),
               ),
             ),
@@ -277,7 +198,7 @@ class EventFloorHomeScreen extends StatelessWidget {
           IconButton(
             onPressed: () => _showUiOnlyMessage(context, 'Notifications'),
             splashRadius: 20,
-            icon: Icon(Icons.notifications, color: colors.textPrimary),
+            icon: Icon(Icons.notifications, color: _c.textPrimary),
           ),
         ],
       ),
@@ -285,12 +206,11 @@ class EventFloorHomeScreen extends StatelessWidget {
   }
 
   Widget _buildHeroCard(BuildContext context) {
-    final colors = AppTheme.colorsOf(context);
     return Container(
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: _c.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.border.withValues(alpha: 0.20)),
+        border: Border.all(color: _c.border.withValues(alpha: 0.20)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -332,7 +252,7 @@ class EventFloorHomeScreen extends StatelessWidget {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: colors.destructive,
+                        color: _c.destructive,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -343,19 +263,19 @@ class EventFloorHomeScreen extends StatelessWidget {
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 1.3,
-                        color: colors.textPrimary,
+                        color: _c.textPrimary,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  data.title.toUpperCase(),
+                  widget.event.name.toUpperCase(),
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.6,
-                    color: colors.textPrimary,
+                    color: _c.textPrimary,
                     height: 1.05,
                   ),
                 ),
@@ -365,16 +285,16 @@ class EventFloorHomeScreen extends StatelessWidget {
                     Icon(
                       Icons.location_on_outlined,
                       size: 18,
-                      color: colors.textMuted,
+                      color: _c.textMuted,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${data.venueLabel} • ${data.hallLabel}',
+                        '${widget.event.venue ?? widget.event.location ?? 'Venue'} • ${widget.event.hall ?? 'Main Hall'}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
-                          color: colors.textMuted,
+                          color: _c.textMuted,
                         ),
                       ),
                     ),
@@ -386,7 +306,7 @@ class EventFloorHomeScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     border: Border(
                       top: BorderSide(
-                        color: colors.border.withValues(alpha: 0.20),
+                        color: _c.border.withValues(alpha: 0.20),
                       ),
                     ),
                   ),
@@ -394,26 +314,10 @@ class EventFloorHomeScreen extends StatelessWidget {
                     builder: (context, constraints) {
                       final wide = constraints.maxWidth >= 560;
                       final children = [
-                        _buildStatTile(
-                          'Target Reach',
-                          data.targetReachLabel,
-                          colors,
-                        ),
-                        _buildStatTile(
-                          'Scanned',
-                          data.scannedCountLabel,
-                          colors,
-                        ),
-                        _buildStatTile(
-                          'Targets Left',
-                          data.targetsLeftLabel,
-                          colors,
-                        ),
-                        _buildStatTile(
-                          'Pending Follow-Ups',
-                          data.pendingFollowUpsLabel,
-                          colors,
-                        ),
+                        _buildStatTile('Target Reach', _targetReachLabel),
+                        _buildStatTile('Scanned', _scannedLabel),
+                        _buildStatTile('Targets Left', _targetsLeftLabel),
+                        _buildStatTile('Pending Follow-Ups', _pendingFollowUpsLabel),
                       ];
 
                       if (wide) {
@@ -448,7 +352,7 @@ class EventFloorHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatTile(String label, String value, ExonoColors colors) {
+  Widget _buildStatTile(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -459,7 +363,7 @@ class EventFloorHomeScreen extends StatelessWidget {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
+            color: _c.textPrimary,
           ),
         ),
       ],
@@ -467,7 +371,6 @@ class EventFloorHomeScreen extends StatelessWidget {
   }
 
   Widget _buildPriorityTargetsSection(BuildContext context) {
-    final colors = AppTheme.colorsOf(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -479,14 +382,14 @@ class EventFloorHomeScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
+                  color: _c.textPrimary,
                 ),
               ),
             ),
             TextButton(
               onPressed: () => _openTargetList(context),
               style: TextButton.styleFrom(
-                foregroundColor: colors.textMuted,
+                foregroundColor: _c.textMuted,
                 padding: EdgeInsets.zero,
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -503,25 +406,38 @@ class EventFloorHomeScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        ...data.priorityTargets.asMap().entries.map((entry) {
+        ..._priorityTargets.asMap().entries.map((entry) {
           final index = entry.key;
-          final item = entry.value;
+          final target = entry.value;
           return Padding(
             padding: EdgeInsets.only(
-              bottom: index == data.priorityTargets.length - 1 ? 0 : 12,
+              bottom: index == _priorityTargets.length - 1 ? 0 : 12,
             ),
-            child: _buildPriorityRow(context, item),
+            child: _buildPriorityRow(context, index + 1, target),
           );
         }),
+        if (_priorityTargets.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'No priority targets for this event.',
+              style: TextStyle(fontSize: 14, color: _c.textMuted),
+            ),
+          ),
       ],
     );
   }
 
   Widget _buildPriorityRow(
     BuildContext context,
-    EventFloorPriorityTarget item,
+    int rank,
+    Map<String, dynamic> target,
   ) {
-    final colors = AppTheme.colorsOf(context);
+    final company = target['company'] as Map<String, dynamic>? ?? {};
+    final companyName = company['name'] as String? ?? 'Unknown';
+    final industry = company['industry'] as String? ?? '';
+    final booth = target['booth_location'] as String? ?? 'TBD';
+
     return InkWell(
       onTap: () => _showUiOnlyMessage(context, 'Target profile'),
       borderRadius: BorderRadius.circular(12),
@@ -536,16 +452,16 @@ class EventFloorHomeScreen extends StatelessWidget {
               height: 40,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: colors.surfaceElevated,
+                color: _c.surfaceElevated,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: colors.border),
+                border: Border.all(color: _c.border),
               ),
               child: Text(
-                '${item.rank}',
+                '$rank',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
+                  color: _c.textPrimary,
                 ),
               ),
             ),
@@ -555,20 +471,20 @@ class EventFloorHomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.name,
+                    companyName,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
+                      color: _c.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    item.subtitle,
+                    industry,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: colors.textMuted,
+                      color: _c.textMuted,
                     ),
                   ),
                 ],
@@ -578,9 +494,9 @@ class EventFloorHomeScreen extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                AppChip(item.booth),
+                AppChip(booth),
                 const SizedBox(height: 6),
-                Icon(Icons.chevron_right, color: colors.textMuted, size: 20),
+                Icon(Icons.chevron_right, color: _c.textMuted, size: 20),
               ],
             ),
           ],

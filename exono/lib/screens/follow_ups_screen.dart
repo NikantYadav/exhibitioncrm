@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../config/app_theme.dart';
+import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
@@ -10,8 +11,9 @@ import '../widgets/app_section_label.dart';
 
 class FollowUpsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
+  final String? eventId;
 
-  const FollowUpsScreen({super.key, this.onNavigateTab});
+  const FollowUpsScreen({super.key, this.onNavigateTab, this.eventId});
 
   @override
   State<FollowUpsScreen> createState() => _FollowUpsScreenState();
@@ -20,82 +22,21 @@ class FollowUpsScreen extends StatefulWidget {
 class _FollowUpsScreenState extends State<FollowUpsScreen> {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
-  final List<_FollowUpQueueItem> _queueItems = [
-    const _FollowUpQueueItem(
-      initials: 'MT',
-      name: 'Marcus Thorne',
-      roleCompany: 'Chief Operations Officer @ Nexus Dynamics',
-      lastMetEvent: 'Global Tech Summit',
-      aiScore: 82,
-      insight:
-          'Marcus recently closed a Series C round. Reference the “Scalability bottleneck” mentioned in his LinkedIn post 4 hours ago for maximum resonance.',
-      tags: ['High Priority', 'Series C Milestone'],
-      subject: 'Strategic Operations: Addressing the Nexus Scalability Gap',
-      greeting: 'Dear Marcus,',
-      contextLine:
-          'I noted your recent update regarding the Series C milestone—congratulations to the Nexus team.',
-      problemLine:
-          'In your post, you touched on the “scalability bottleneck” that often follows such rapid expansion. EXONO has specifically engineered its high-density data pipeline to alleviate the exact pressure points Nexus is currently experiencing.',
-      closeLine:
-          'I’ve attached a brief comparative analysis of how we handled similar operational surges for Tier 1 partners. Are you available for a 10-minute brief next Tuesday?',
-    ),
-    const _FollowUpQueueItem(
-      initials: 'SR',
-      name: 'Sophia Reed',
-      roleCompany: 'VP Revenue Operations @ Altis Cloud',
-      lastMetEvent: 'Revenue Leaders Forum',
-      aiScore: 77,
-      insight:
-          'Sophia is under pressure to shorten rep onboarding. Anchor the note around EXONO’s guided enablement workflows and the 18% ramp-time reduction from a comparable rollout.',
-      tags: ['Follow-Up Due', 'Enablement'],
-      subject: 'A faster path to revenue ramp consistency at Altis',
-      greeting: 'Hi Sophia,',
-      contextLine:
-          'It was great meeting you at Revenue Leaders Forum and hearing how aggressively Altis is scaling the field team this quarter.',
-      problemLine:
-          'You mentioned that onboarding consistency becomes the bottleneck once hiring accelerates. EXONO’s guided enablement workflows were built for exactly that kind of operational strain.',
-      closeLine:
-          'If helpful, I can send over a one-page breakdown of how a similar team reduced rep ramp time by 18% within the first cycle.',
-    ),
-    const _FollowUpQueueItem(
-      initials: 'AK',
-      name: 'Amir Khan',
-      roleCompany: 'Director of Partnerships @ Vertex Grid',
-      lastMetEvent: 'Energy Connect Expo',
-      aiScore: 69,
-      insight:
-          'Amir responded positively to co-sell language. Keep the message concise, outcome-led, and centered on partner visibility across distributed accounts.',
-      tags: ['Partnership Lead', 'Co-Sell Motion'],
-      subject: 'Partner visibility for Vertex Grid’s next co-sell cycle',
-      greeting: 'Hello Amir,',
-      contextLine:
-          'I appreciated your perspective at Energy Connect Expo on how difficult it is to maintain partner visibility once opportunities spread across regional teams.',
-      problemLine:
-          'That distributed-account challenge is where EXONO tends to add immediate value—especially when partner managers need one reliable layer for activity, ownership, and momentum.',
-      closeLine:
-          'Would it be useful if I sent a short walkthrough focused specifically on co-sell coordination across regional accounts?',
-    ),
-  ];
-
-  late final TextEditingController _subjectController;
-  late final TextEditingController _messageController;
-
-  int _queuePosition = 5;
-  final int _totalQueue = 12;
+  List<Map<String, dynamic>> _followUps = [];
+  bool _isLoading = true;
   int _currentItemIndex = 0;
   _DraftTone _selectedTone = _DraftTone.base;
   bool _aiImproved = false;
 
-  _FollowUpQueueItem get _currentItem => _queueItems[_currentItemIndex];
-
-  double get _progress => _queuePosition / _totalQueue;
+  late final TextEditingController _subjectController;
+  late final TextEditingController _messageController;
 
   @override
   void initState() {
     super.initState();
     _subjectController = TextEditingController();
     _messageController = TextEditingController();
-    _syncDraftWithCurrentItem(resetImproved: true);
+    _loadFollowUps();
   }
 
   @override
@@ -105,62 +46,157 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     super.dispose();
   }
 
-  void _syncDraftWithCurrentItem({required bool resetImproved}) {
+  Future<void> _loadFollowUps() async {
+    if (widget.eventId == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+    try {
+      final followUps = await ApiService.getEventFollowUps(widget.eventId!);
+      setState(() {
+        _followUps = followUps;
+        _isLoading = false;
+        if (_followUps.isNotEmpty) {
+          _syncDraft(resetImproved: true);
+        }
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Map<String, dynamic> get _currentFollowUp => _followUps[_currentItemIndex];
+
+  String _contactInitials(Map<String, dynamic> contact) {
+    final first = (contact['first_name'] as String? ?? '');
+    final last = (contact['last_name'] as String? ?? '');
+    final fi = first.isNotEmpty ? first[0].toUpperCase() : '';
+    final li = last.isNotEmpty ? last[0].toUpperCase() : '';
+    return '$fi$li'.isNotEmpty ? '$fi$li' : '??';
+  }
+
+  String _contactName(Map<String, dynamic> contact) {
+    final first = contact['first_name'] as String? ?? '';
+    final last = contact['last_name'] as String? ?? '';
+    return '$first $last'.trim();
+  }
+
+  String _roleCompany(Map<String, dynamic> followUp) {
+    final contact = followUp['contact'] as Map<String, dynamic>? ?? {};
+    final company = followUp['company'] as Map<String, dynamic>?;
+    final role = contact['job_title'] as String? ?? 'Contact';
+    final companyName = company?['name'] as String? ?? 'Company';
+    return '$role @ $companyName';
+  }
+
+  int _aiScore(Map<String, dynamic> contact) {
+    final insights = contact['ai_insights'];
+    if (insights is Map) {
+      final score = insights['score'];
+      if (score is num) return score.toInt();
+    }
+    return 75;
+  }
+
+  String _insight(Map<String, dynamic> contact) {
+    final insights = contact['ai_insights'];
+    if (insights is Map) {
+      final summary = insights['summary'] as String?;
+      if (summary != null && summary.isNotEmpty) return summary;
+    }
+    return 'Follow up with this contact to strengthen the relationship.';
+  }
+
+  List<String> _tags(Map<String, dynamic> contact) {
+    final urgency = contact['follow_up_urgency'] as String? ?? '';
+    return [urgency == 'high' ? 'High Priority' : 'Pending Follow-Up'];
+  }
+
+  String _subject(Map<String, dynamic> emailDraft, Map<String, dynamic> contact) {
+    return emailDraft['subject'] as String? ??
+        'Following up from our meeting';
+  }
+
+  String _messageBody(Map<String, dynamic> emailDraft, Map<String, dynamic> contact) {
+    return emailDraft['body'] as String? ??
+        'Hi ${contact['first_name'] ?? ''},\n\nIt was great meeting you. I wanted to follow up on our conversation and explore how we can work together.\n\nBest,\nExono Intelligence';
+  }
+
+  void _syncDraft({required bool resetImproved}) {
+    if (_followUps.isEmpty) return;
     if (resetImproved) {
       _aiImproved = false;
       _selectedTone = _DraftTone.base;
     }
-
-    _subjectController.text = _currentItem.subject;
-    _messageController.text = _buildMessage(_currentItem, _selectedTone);
-  }
-
-  String _buildMessage(_FollowUpQueueItem item, _DraftTone tone) {
-    switch (tone) {
-      case _DraftTone.base:
-        return '${item.greeting}\n\n${item.contextLine}\n\n${item.problemLine}\n\n${item.closeLine}\n\nBest,\nExono Intelligence';
-      case _DraftTone.shorten:
-        return '${item.greeting}\n\n${item.contextLine}\n\nEXONO can help address this quickly and with very little operational lift.\n\nWould a 10-minute discussion next week be useful?\n\nBest,\nExono Intelligence';
-      case _DraftTone.professional:
-        return '${item.greeting}\n\nThank you again for the conversation. ${item.contextLine}\n\n${item.problemLine}\n\nIf appropriate, I would be glad to share a concise operating brief tailored to your team’s priorities.\n\nKind regards,\nExono Intelligence';
-      case _DraftTone.friendly:
-        return '${item.greeting}\n\nReally enjoyed meeting you. ${item.contextLine}\n\n${item.problemLine}\n\nHappy to send a short example or jump on a quick call if that’s easier.\n\nBest,\nExono Intelligence';
-    }
-  }
-
-  void _showUiOnlyMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    final followUp = _currentFollowUp;
+    final contact = followUp['contact'] as Map<String, dynamic>? ?? {};
+    final emailDraft = followUp['email_draft'] as Map<String, dynamic>? ?? {};
+    _subjectController.text = _subject(emailDraft, contact);
+    _messageController.text = _applyTone(
+      _messageBody(emailDraft, contact),
+      contact,
+      _selectedTone,
     );
   }
 
+  String _applyTone(String base, Map<String, dynamic> contact, _DraftTone tone) {
+    final firstName = contact['first_name'] as String? ?? '';
+    switch (tone) {
+      case _DraftTone.base:
+        return base;
+      case _DraftTone.shorten:
+        return 'Hi $firstName,\n\nGreat meeting you. EXONO can help address your needs quickly.\n\nWould a 10-minute call next week work?\n\nBest,\nExono Intelligence';
+      case _DraftTone.professional:
+        return 'Dear $firstName,\n\nThank you for the opportunity to connect. I would be glad to share a concise brief tailored to your team\'s priorities.\n\nKind regards,\nExono Intelligence';
+      case _DraftTone.friendly:
+        return 'Hey $firstName,\n\nReally enjoyed meeting you! Happy to send a short example or jump on a quick call if that\'s easier.\n\nBest,\nExono Intelligence';
+    }
+  }
+
   void _setTone(_DraftTone tone) {
+    if (_followUps.isEmpty) return;
     setState(() {
       _selectedTone = tone;
-      _messageController.text = _buildMessage(_currentItem, tone);
+      final followUp = _currentFollowUp;
+      final contact = followUp['contact'] as Map<String, dynamic>? ?? {};
+      final emailDraft = followUp['email_draft'] as Map<String, dynamic>? ?? {};
+      final base = _messageBody(emailDraft, contact);
+      _messageController.text = _applyTone(base, contact, tone);
     });
   }
 
   void _improveDraft() {
+    if (_followUps.isEmpty) return;
+    final followUp = _currentFollowUp;
+    final contact = followUp['contact'] as Map<String, dynamic>? ?? {};
+    final emailDraft = followUp['email_draft'] as Map<String, dynamic>? ?? {};
     setState(() {
       _aiImproved = true;
       _subjectController.text =
-          '${_currentItem.subject} — tailored for immediate action';
+          '${_subject(emailDraft, contact)} — tailored for immediate action';
       _messageController.text =
-          '${_currentItem.greeting}\n\n${_currentItem.contextLine}\n\n${_currentItem.problemLine}\n\nBased on the signals we captured, this is likely the most relevant moment to align around a focused next step instead of a broad overview.\n\n${_currentItem.closeLine}\n\nBest,\nExono Intelligence';
+          '${_messageBody(emailDraft, contact)}\n\nBased on the signals captured, this is the most relevant moment to align around a focused next step.';
     });
     _showUiOnlyMessage('Draft improved with AI suggestions.');
   }
 
   void _advanceQueue(String feedback) {
     setState(() {
-      if (_queuePosition < _totalQueue) {
-        _queuePosition += 1;
+      if (_followUps.isNotEmpty) {
+        _currentItemIndex = (_currentItemIndex + 1) % _followUps.length;
+        _syncDraft(resetImproved: true);
       }
-      _currentItemIndex = (_currentItemIndex + 1) % _queueItems.length;
-      _syncDraftWithCurrentItem(resetImproved: true);
     });
     _showUiOnlyMessage(feedback);
+  }
+
+  double get _progress =>
+      _followUps.isEmpty ? 0.0 : (_currentItemIndex + 1) / _followUps.length;
+
+  void _showUiOnlyMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
@@ -183,9 +219,31 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
         child: Column(
           children: [
             _buildTopBar(),
-            Expanded(child: _buildScrollableBody(bottomPadding: 24)),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _followUps.isEmpty
+                      ? _buildEmptyState()
+                      : _buildScrollableBody(bottomPadding: 24),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.inbox_outlined, size: 48, color: _c.textMuted),
+          const SizedBox(height: 16),
+          Text(
+            'No follow-ups pending for this event.',
+            style: TextStyle(fontSize: 16, color: _c.textSecondary),
+          ),
+        ],
       ),
     );
   }
@@ -208,7 +266,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
               BoxShadow(
                 color: _c.accentGlow.withValues(alpha: 0.07),
                 blurRadius: 18,
-                offset: Offset(0, 8),
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -314,7 +372,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   text: TextSpan(
                     children: [
                       TextSpan(
-                        text: '$_queuePosition ',
+                        text: '${_currentItemIndex + 1} ',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -323,7 +381,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                         ),
                       ),
                       TextSpan(
-                        text: 'of $_totalQueue',
+                        text: 'of ${_followUps.length}',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
@@ -355,9 +413,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                       widthFactor: value,
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        decoration: BoxDecoration(
-                          color: _c.accent,
-                        ),
+                        decoration: BoxDecoration(color: _c.accent),
                       ),
                     );
                   },
@@ -371,6 +427,15 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
   }
 
   Widget _buildPriorityCard() {
+    final followUp = _currentFollowUp;
+    final contact = followUp['contact'] as Map<String, dynamic>? ?? {};
+    final initials = _contactInitials(contact);
+    final name = _contactName(contact);
+    final roleCompany = _roleCompany(followUp);
+    final aiScore = _aiScore(contact);
+    final insight = _insight(contact);
+    final tags = _tags(contact);
+
     return AppCard(
       padding: const EdgeInsets.all(20),
       radius: 24,
@@ -394,7 +459,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        _currentItem.initials,
+                        initials,
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -410,7 +475,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _currentItem.name,
+                            name,
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
@@ -421,7 +486,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            _currentItem.roleCompany,
+                            roleCompany,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -440,7 +505,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  'Last met · ${_currentItem.lastMetEvent}',
+                                  'Last met · This Event',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
@@ -462,7 +527,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '${_currentItem.aiScore}%',
+                    '$aiScore%',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
@@ -506,7 +571,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '”${_currentItem.insight}”',
+                  '"$insight"',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
@@ -523,10 +588,10 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (var i = 0; i < _currentItem.tags.length; i++)
+              for (var i = 0; i < tags.length; i++)
                 i == 0
-                    ? AppChip.status(_currentItem.tags[i], color: _c.accent)
-                    : AppChip.label(_currentItem.tags[i]),
+                    ? AppChip.status(tags[i], color: _c.accent)
+                    : AppChip.label(tags[i]),
             ],
           ),
         ],
@@ -723,7 +788,10 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: () => _advanceQueue('Priority follow-up sent.'),
+            onPressed: () {
+              _showUiOnlyMessage('Follow-up queued.');
+              _advanceQueue('Priority follow-up sent.');
+            },
             style: FilledButton.styleFrom(
               backgroundColor: _c.accent,
               foregroundColor: Colors.white,
@@ -731,7 +799,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              textStyle: TextStyle(
+              textStyle: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
@@ -746,7 +814,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => _showUiOnlyMessage('Draft saved locally.'),
+                onPressed: () => _showUiOnlyMessage('Draft saved.'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: _c.textPrimary,
                   backgroundColor: _c.surface,
@@ -755,7 +823,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  textStyle: TextStyle(
+                  textStyle: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.6,
@@ -778,7 +846,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  textStyle: TextStyle(
+                  textStyle: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.6,
@@ -796,36 +864,6 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
 }
 
 enum _DraftTone { base, shorten, professional, friendly }
-
-class _FollowUpQueueItem {
-  final String initials;
-  final String name;
-  final String roleCompany;
-  final String lastMetEvent;
-  final int aiScore;
-  final String insight;
-  final List<String> tags;
-  final String subject;
-  final String greeting;
-  final String contextLine;
-  final String problemLine;
-  final String closeLine;
-
-  const _FollowUpQueueItem({
-    required this.initials,
-    required this.name,
-    required this.roleCompany,
-    required this.lastMetEvent,
-    required this.aiScore,
-    required this.insight,
-    required this.tags,
-    required this.subject,
-    required this.greeting,
-    required this.contextLine,
-    required this.problemLine,
-    required this.closeLine,
-  });
-}
 
 class _PulseDot extends StatefulWidget {
   final Color color;

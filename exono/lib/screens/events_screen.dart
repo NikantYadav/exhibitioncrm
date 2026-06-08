@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../config/app_theme.dart';
+import '../models/event.dart';
+import '../services/api_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
@@ -22,11 +25,14 @@ class _EventsScreenState extends State<EventsScreen> {
 
   bool _showUpcoming = true;
 
+  List<Event> _events = [];
+  bool _isLoading = true;
+  String? _error;
+
   late final TextEditingController _eventNameController;
   late final TextEditingController _locationController;
   late final TextEditingController _startDateController;
   late final TextEditingController _endDateController;
-  String _selectedCategory = 'SaaS';
 
   @override
   void initState() {
@@ -35,6 +41,7 @@ class _EventsScreenState extends State<EventsScreen> {
     _locationController = TextEditingController();
     _startDateController = TextEditingController();
     _endDateController = TextEditingController();
+    _loadEvents();
   }
 
   @override
@@ -46,191 +53,41 @@ class _EventsScreenState extends State<EventsScreen> {
     super.dispose();
   }
 
-  static const List<_UpcomingEventData> _upcomingEvents = [
-    _UpcomingEventData(
-      category: 'Flagship Summit',
-      title: 'Global Tech Summit 2024',
-      date: 'Oct 14 - 18, 2024',
-      location: 'San Francisco, CA',
-      progress: 0.60,
-      floorData: EventFloorHomeData(
-        title: 'Tech Summit 2024',
-        venueLabel: 'Convention Center',
-        hallLabel: 'Hall 4',
-        targetReachLabel: '84%',
-        scannedCountLabel: '142',
-        targetsLeftLabel: '12',
-        pendingFollowUpsLabel: '08',
-        priorityTargets: [
-          EventFloorPriorityTarget(
-            rank: 1,
-            name: 'Sarah Jenkins',
-            subtitle: 'VP Growth, NeoStream',
-            booth: 'Booth 402',
-          ),
-          EventFloorPriorityTarget(
-            rank: 2,
-            name: 'Marcus Thorne',
-            subtitle: 'CTO, CloudScale Systems',
-            booth: 'Booth 12B',
-          ),
-          EventFloorPriorityTarget(
-            rank: 3,
-            name: 'Elena Rodriguez',
-            subtitle: 'Managing Director, Futura',
-            booth: 'Booth 219',
-          ),
-        ],
-      ),
-      prepData: PreEventPrepData(
-        shortTitle: 'Global Tech Summit',
-        title: 'Global Tech Summit 2024',
-        countdownLabel: 'In 12 Days',
-        location: 'San Francisco, CA',
-        dateRange: 'Oct 14 — Oct 18',
-        researchedTargets: 24,
-        totalTargets: 40,
-        progress: 0.60,
-        targets: [
-          PrepTargetCompany(
-            initials: 'NV',
-            name: 'Novatech Systems',
-            booth: '#402',
-            tags: ['Enterprise AI', 'Germany'],
-            industry: 'Industrial Automation Specialists',
-            talkingPoints: [
-              "Released 'Titan-9' chipsets last month; mention integration with legacy ERP systems for immediate credibility.",
-              'CEO Marcus Vane emphasized "Sustainable Scale" in a recent earnings call; align the pitch with their carbon-neutral goals.',
-              'Currently expanding into EMEA markets; EXONO\'s logistics module addresses their Berlin bottleneck.',
-            ],
-            imageUrl:
-                'https://lh3.googleusercontent.com/aida-public/AB6AXuDidlz0O7qGyU5ovGeQchh-EXW8sxZeVP1z3XE75Ew9Ktf-B497_pTnusJ01EI0Pah5w98JJZ5v3HN2UNpd5sOBxnX_69P5V_KR8B4B-vhKCc5jd7BSwGTPhxAOeysoqhZK-3ll3CMK00FtXIttOj1WgIk8cayDdQUYwIWtpAD09byCUJ9lIudPdCWS96voeQZ7XWro3iq1ZAhsCZuPID4I3W4cU8b8V9C5MnyLkjLS-tt5z5O3Mlnc4x6sW0PDOZlEieqdhUT81mQ',
-          ),
-          PrepTargetCompany(
-            initials: 'LX',
-            name: 'Lumina X',
-            booth: '#118',
-            tags: ['Robotics', 'Japan'],
-            industry: 'Next-gen Robotics Platform',
-            talkingPoints: [
-              'Lead with field-orchestration efficiency for distributed robotic fleets.',
-              'They are evaluating North America expansion partners after the Osaka launch.',
-              'Keep examples tactile and operations-focused rather than speculative AI positioning.',
-            ],
-            imageUrl:
-                'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
-          ),
-          PrepTargetCompany(
-            initials: 'SD',
-            name: 'SkyData Corp',
-            booth: '#922',
-            tags: ['Cloud Infra', 'USA'],
-            industry: 'Cloud Infrastructure Operator',
-            talkingPoints: [
-              'Their current talking point is lowering latency across multi-region workloads.',
-              'Reference EXONO\'s edge-handshake architecture and deployment visibility.',
-              'Best entry point is through cost predictability and resilience metrics.',
-            ],
-            imageUrl:
-                'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80',
-          ),
-        ],
-      ),
-    ),
-    _UpcomingEventData(
-      category: 'SaaS & Enterprise',
-      title: 'Money20/20',
-      date: 'Oct 22 - 25, 2024',
-      location: 'Las Vegas, NV',
-      progress: 0.40,
-      prepData: PreEventPrepData(
-        shortTitle: 'Money20/20',
-        title: 'Money20/20 2024',
-        countdownLabel: 'In 18 Days',
-        location: 'Las Vegas, NV',
-        dateRange: 'Oct 22 — Oct 25',
-        researchedTargets: 11,
-        totalTargets: 32,
-        progress: 0.34,
-        targets: [
-          PrepTargetCompany(
-            initials: 'QF',
-            name: 'Quantum Finance',
-            booth: '#A12',
-            tags: ['FinTech', 'USA'],
-            industry: 'Payments Infrastructure',
-            talkingPoints: [
-              'They are prioritizing transaction monitoring modernization this quarter.',
-              'Lead with compliance observability instead of generic AI acceleration.',
-              'Reference how EXONO reduces operational drag for high-volume event pipelines.',
-            ],
-            imageUrl:
-                'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=300&q=80',
-          ),
-          PrepTargetCompany(
-            initials: 'AC',
-            name: 'Atlas Capital',
-            booth: '#B09',
-            tags: ['Investor', 'UK'],
-            industry: 'Growth Investment Firm',
-            talkingPoints: [
-              'They favor concise commercial traction narratives.',
-              'Bring customer expansion proof-points, not product taxonomy.',
-            ],
-            imageUrl:
-                'https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=300&q=80',
-          ),
-        ],
-      ),
-    ),
-    _UpcomingEventData(
-      category: 'AI & Research',
-      title: 'NeurIPS 2024',
-      date: 'Dec 10 - 15, 2024',
-      location: 'Vancouver, Canada',
-      progress: 0.12,
-      prepData: PreEventPrepData(
-        shortTitle: 'NeurIPS',
-        title: 'NeurIPS 2024',
-        countdownLabel: 'In 58 Days',
-        location: 'Vancouver, Canada',
-        dateRange: 'Dec 10 — Dec 15',
-        researchedTargets: 4,
-        totalTargets: 28,
-        progress: 0.12,
-        targets: [
-          PrepTargetCompany(
-            initials: 'OR',
-            name: 'Open Research Labs',
-            booth: '#N07',
-            tags: ['Research', 'Canada'],
-            industry: 'Applied ML Research Group',
-            talkingPoints: [
-              'Strong angle around reproducible deployment and experiment handoff.',
-              'They have publicly discussed inference governance in production settings.',
-            ],
-            imageUrl:
-                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80',
-          ),
-        ],
-      ),
-    ),
-  ];
+  Future<void> _loadEvents() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final events = await ApiService.getEvents();
+      setState(() {
+        _events = events;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
-  static const List<_PastEventData> _pastEvents = [
-    _PastEventData(
-      title: 'CES 2024',
-      dateLocation: 'Jan 9 - 12, 2024 • Las Vegas, NV',
-      contactsScanned: 89,
-      followUpCompletion: 0.65,
-    ),
-    _PastEventData(
-      title: 'Mobile World Congress',
-      dateLocation: 'Feb 26 - 29, 2024 • Barcelona, Spain',
-      contactsScanned: 54,
-      followUpCompletion: 0.48,
-    ),
-  ];
+  List<Event> get _upcomingEvents =>
+      _events.where((e) => e.status == 'upcoming' || e.status == 'ongoing').toList();
+
+  List<Event> get _pastEvents =>
+      _events.where((e) => e.status == 'completed').toList();
+
+  String _formatDateRange(DateTime start, DateTime? end) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final s = '${months[start.month - 1]} ${start.day}';
+    if (end == null) return '$s, ${start.year}';
+    if (start.month == end.month) return '$s - ${end.day}, ${start.year}';
+    return '$s - ${months[end.month - 1]} ${end.day}, ${end.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -240,44 +97,87 @@ class _EventsScreenState extends State<EventsScreen> {
         children: [
           AppHeader(
             onNotificationPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Notifications are UI-only for now.'), behavior: SnackBarBehavior.floating),
+              const SnackBar(
+                content: Text('Notifications are UI-only for now.'),
+                behavior: SnackBarBehavior.floating,
+              ),
             ),
             actionIcon: Icons.add_rounded,
             actionTooltip: 'Add Event',
             onActionPressed: _showNewEventForm,
           ),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 18),
-                  _buildNewEventButton(),
-                  const SizedBox(height: 26),
-                  _buildTabs(),
-                  const SizedBox(height: 18),
-                  if (_showUpcoming) ...[
-                    ..._upcomingEvents.map(
-                      (event) => Padding(
-                        padding: const EdgeInsets.only(bottom: 28),
-                        child: _buildUpcomingEventCard(event),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _buildErrorState()
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeader(),
+                            const SizedBox(height: 18),
+                            _buildNewEventButton(),
+                            const SizedBox(height: 26),
+                            _buildTabs(),
+                            const SizedBox(height: 18),
+                            if (_showUpcoming) ...[
+                              ..._upcomingEvents.map(
+                                (event) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 28),
+                                  child: _buildUpcomingEventCard(event),
+                                ),
+                              ),
+                              if (_upcomingEvents.isEmpty)
+                                _buildEmptyState('No upcoming events scheduled.'),
+                            ] else ...[
+                              ..._pastEvents.map(
+                                (event) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: _buildPastEventCard(event),
+                                ),
+                              ),
+                              if (_pastEvents.isEmpty)
+                                _buildEmptyState('No past events found.'),
+                            ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ] else ...[
-                    ..._pastEvents.map(
-                      (event) => Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: _buildPastEventCard(event),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Failed to load events.',
+            style: TextStyle(fontSize: 16, color: _c.textSecondary),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _loadEvents,
+            style: FilledButton.styleFrom(backgroundColor: _c.accent),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Center(
+        child: Text(
+          message,
+          style: TextStyle(fontSize: 14, color: _c.textMuted),
+        ),
       ),
     );
   }
@@ -301,7 +201,7 @@ class _EventsScreenState extends State<EventsScreen> {
         ),
         const SizedBox(height: 10),
         Text(
-          '12 TOTAL SCHEDULED EVENTS',
+          '${_events.length} TOTAL SCHEDULED EVENTS',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
@@ -379,7 +279,7 @@ class _EventsScreenState extends State<EventsScreen> {
                   BoxShadow(
                     color: _c.accentGlow.withValues(alpha: 0.07),
                     blurRadius: 14,
-                    offset: Offset(0, 6),
+                    offset: const Offset(0, 6),
                   ),
                 ]
               : null,
@@ -397,146 +297,146 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  Widget _buildUpcomingEventCard(_UpcomingEventData event) {
-    final progressPercent = (event.progress * 100).round();
+  Widget _buildUpcomingEventCard(Event event) {
+    final progress = event.prepProgress ?? 0.0;
+    final progressPercent = (progress * 100).round();
+    final isOngoing = event.status == 'ongoing';
 
-    return InkWell(
-      onTap: event.floorData == null ? null : () => _openEventFloor(event),
-      borderRadius: BorderRadius.circular(28),
-      child: AppCard(
-        padding: const EdgeInsets.all(24),
-        radius: 28,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AppChip(event.category),
-                    if (event.floorData != null) ...[
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: _c.destructive,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'LIVE FLOOR AVAILABLE',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.4,
-                              color: _c.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-                const Spacer(),
-                InkWell(
-                  onTap: () => _showEventActionsSheet(event),
-                  child: Icon(
-                    Icons.more_vert,
-                    color: _c.textSecondary,
-                    size: 22,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Text(
-              event.title,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.2,
-                color: _c.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildUpcomingMetaRow(Icons.calendar_today_outlined, event.date),
-            const SizedBox(height: 10),
-            _buildUpcomingMetaRow(Icons.location_on_outlined, event.location),
-            const SizedBox(height: 28),
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      radius: 28,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isOngoing) ...[
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    'PREPARATION STATUS',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.2,
-                      color: _c.textSecondary,
-                    ),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _c.destructive,
+                    shape: BoxShape.circle,
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
-                  '$progressPercent%',
+                  'LIVE FLOOR AVAILABLE',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: 1.4,
                     color: _c.textPrimary,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Container(
-              height: 2,
-              color: _c.surfaceElevated,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: FractionallySizedBox(
-                  widthFactor: event.progress,
-                  child: Container(color: _c.textPrimary),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: FilledButton(
-                onPressed: () => _openPrepScreen(event),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _c.accent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  'PREPARE',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2.4,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
+            const SizedBox(height: 12),
           ],
-        ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  event.name,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                    color: _c.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => _showEventActionsSheet(event),
+                child: Icon(
+                  Icons.more_vert,
+                  color: _c.textSecondary,
+                  size: 22,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildUpcomingMetaRow(
+            Icons.calendar_today_outlined,
+            _formatDateRange(event.startDate, event.endDate),
+          ),
+          const SizedBox(height: 8),
+          _buildUpcomingMetaRow(
+            Icons.location_on_outlined,
+            event.location ?? 'Location TBD',
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'PREPARATION STATUS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.2,
+                    color: _c.textSecondary,
+                  ),
+                ),
+              ),
+              Text(
+                '$progressPercent%',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _c.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            height: 2,
+            color: _c.surfaceElevated,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: progress.clamp(0.0, 1.0),
+                child: Container(color: _c.textPrimary),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: FilledButton(
+              onPressed: () => isOngoing ? _openEventFloor(event) : _openPrepScreen(event),
+              style: FilledButton.styleFrom(
+                backgroundColor: _c.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                isOngoing ? 'ENTER LIVE FLOOR' : 'PREPARE',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 2.4,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildPastEventCard(_PastEventData event) {
-    final completionPercent = (event.followUpCompletion * 100).round();
+  Widget _buildPastEventCard(Event event) {
+    final dateLocation =
+        '${_formatDateRange(event.startDate, event.endDate)}${event.location != null ? ' • ${event.location}' : ''}';
 
     return AppCard(
       padding: const EdgeInsets.all(24),
@@ -552,7 +452,7 @@ class _EventsScreenState extends State<EventsScreen> {
                   children: [
                     Flexible(
                       child: Text(
-                        event.title,
+                        event.name,
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -570,7 +470,7 @@ class _EventsScreenState extends State<EventsScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            event.dateLocation,
+            dateLocation,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w400,
@@ -595,7 +495,7 @@ class _EventsScreenState extends State<EventsScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${event.contactsScanned}',
+                    '0',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
@@ -623,7 +523,7 @@ class _EventsScreenState extends State<EventsScreen> {
                           ),
                         ),
                         Text(
-                          '$completionPercent%',
+                          '0%',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
@@ -636,11 +536,10 @@ class _EventsScreenState extends State<EventsScreen> {
                     Container(
                       height: 4,
                       color: _c.border,
-                      child: Align(
+                      child: const Align(
                         alignment: Alignment.centerLeft,
                         child: FractionallySizedBox(
-                          widthFactor: event.followUpCompletion,
-                          child: Container(color: _c.textPrimary),
+                          widthFactor: 0.0,
                         ),
                       ),
                     ),
@@ -655,7 +554,7 @@ class _EventsScreenState extends State<EventsScreen> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () =>
-                      _showUiOnlyMessage('View contacts for ${event.title}'),
+                      _showUiOnlyMessage('View contacts for ${event.name}'),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: _c.border),
                     backgroundColor: _c.surface,
@@ -678,7 +577,7 @@ class _EventsScreenState extends State<EventsScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => _openFollowUpQueue(),
+                  onPressed: () => _openFollowUpQueue(event.id),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: _c.accent),
                     backgroundColor: _c.surface,
@@ -724,34 +623,33 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  void _openFollowUpQueue() {
+  void _openFollowUpQueue(String eventId) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => FollowUpsScreen(
           onNavigateTab: widget.onNavigateTab,
+          eventId: eventId,
         ),
       ),
     );
   }
 
-  void _openPrepScreen(_UpcomingEventData event) {
+  void _openPrepScreen(Event event) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => PreEventPrepScreen(
-          data: event.prepData,
+          event: event,
           onNavigateTab: widget.onNavigateTab,
         ),
       ),
     );
   }
 
-  void _openEventFloor(_UpcomingEventData event) {
-    if (event.floorData == null) return;
-
+  void _openEventFloor(Event event) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => EventFloorHomeScreen(
-          data: event.floorData!,
+          event: event,
           onNavigateTab: widget.onNavigateTab,
         ),
       ),
@@ -759,9 +657,22 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   void _showNewEventSheet() {
+    _eventNameController.clear();
+    _locationController.clear();
+    _startDateController.clear();
+    _endDateController.clear();
+
     showModalBottomSheet(
       context: context,
-      builder: (context) => _buildNewEventSheet(),
+      builder: (sheetContext) => _NewEventSheet(
+        nameController: _eventNameController,
+        locationController: _locationController,
+        startDateController: _startDateController,
+        endDateController: _endDateController,
+        colors: _c,
+        onSave: (isOneDay) => _saveEvent(sheetContext, isOneDay),
+        onCancel: () => Navigator.of(sheetContext).pop(),
+      ),
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -770,370 +681,133 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  Widget _buildNewEventSheet() {
-    const List<String> categories = [
-      'SaaS',
-      'Fintech',
-      'AI',
-      'Healthcare',
-      'Energy',
-      'Manufacturing',
-      'Other',
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _c.background,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(top: BorderSide(color: _c.border)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _c.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'New Event',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.48,
-                      color: _c.textPrimary,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Fill in the details to schedule a new industry gathering.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: _c.textSecondary,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildFormField(
-                    label: 'Event Name',
-                    controller: _eventNameController,
-                    placeholder: 'e.g. AI Innovation Summit 2024',
-                  ),
-                  const SizedBox(height: 18),
-                  _buildFormField(
-                    label: 'Location',
-                    controller: _locationController,
-                    placeholder: 'Search for a venue or city',
-                    icon: Icons.location_on_outlined,
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildDateField(
-                          label: 'Start Date',
-                          controller: _startDateController,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildDateField(
-                          label: 'End Date',
-                          controller: _endDateController,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  _buildCategoryDropdown(categories),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _showUiOnlyMessage('Event created');
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _c.textPrimary,
-                        foregroundColor: _c.background,
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        textStyle: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2.0,
-                        ),
-                      ),
-                      child: const Text('SAVE EVENT'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _c.textSecondary,
-                        side: BorderSide(color: _c.border),
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        textStyle: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 1.6,
-                        ),
-                      ),
-                      child: const Text('CANCEL'),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-          ],
+  Future<void> _saveEvent(BuildContext sheetContext, bool isOneDay) async {
+    final name = _eventNameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(sheetContext).showSnackBar(
+        const SnackBar(
+          content: Text('Event name is required.'),
+          behavior: SnackBarBehavior.floating,
         ),
-      ),
-    );
+      );
+      return;
+    }
+
+    final startText = _startDateController.text;
+    final startDate = startText.isNotEmpty
+        ? '${startText}T00:00:00.000Z'
+        : DateTime.now().toIso8601String();
+    final endDate = isOneDay
+        ? null
+        : (_endDateController.text.isNotEmpty
+            ? '${_endDateController.text}T00:00:00.000Z'
+            : null);
+
+    try {
+      await ApiService.createEvent({
+        'name': name,
+        'location': _locationController.text.trim().isEmpty
+            ? null
+            : _locationController.text.trim(),
+        'start_date': startDate,
+        'end_date': endDate,
+      });
+
+      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+      await _loadEvents();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Event created successfully.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (sheetContext.mounted) {
+        ScaffoldMessenger.of(sheetContext).showSnackBar(
+          const SnackBar(
+            content: Text('Server error — please try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
-  Widget _buildFormField({
-    required String label,
-    required TextEditingController controller,
-    required String placeholder,
-    IconData? icon,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 2.4,
-            color: _c.textSecondary,
-            height: 1.33,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: _c.textPrimary,
-          ),
-          cursorColor: _c.accent,
-          decoration: InputDecoration(
-            hintText: placeholder,
-            hintStyle: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: _c.border,
-            ),
-            prefixIcon: icon != null
-                ? Padding(
-                    padding: const EdgeInsets.only(left: 12, right: 8),
-                    child: Icon(icon, size: 20, color: _c.textSecondary),
-                  )
-                : null,
-            prefixIconConstraints:
-                icon != null ? const BoxConstraints(minWidth: 0) : null,
-            isDense: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.accent),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            filled: true,
-            fillColor: _c.surface,
-          ),
-        ),
-      ],
-    );
-  }
+  void _showEditEventSheet(Event event) {
+    _eventNameController.text = event.name;
+    _locationController.text = event.location ?? '';
+    _startDateController.text =
+        '${event.startDate.year}-${event.startDate.month.toString().padLeft(2, '0')}-${event.startDate.day.toString().padLeft(2, '0')}';
+    _endDateController.text = event.endDate != null
+        ? '${event.endDate!.year}-${event.endDate!.month.toString().padLeft(2, '0')}-${event.endDate!.day.toString().padLeft(2, '0')}'
+        : '';
 
-  Widget _buildDateField({
-    required String label,
-    required TextEditingController controller,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 2.4,
-            color: _c.textSecondary,
-            height: 1.33,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          readOnly: true,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: _c.textPrimary,
-          ),
-          onTap: () async {
-            final date = await showDatePicker(
-              context: context,
-              initialDate: DateTime.now(),
-              firstDate: DateTime(2024),
-              lastDate: DateTime(2026),
-              builder: (context, child) {
-                return Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: ColorScheme.dark(
-                      primary: _c.accent,
-                      surface: _c.surface,
-                      onSurface: _c.textPrimary,
-                    ),
-                  ),
-                  child: child!,
-                );
-              },
-            );
-            if (date != null) {
-              controller.text = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-            }
-          },
-          decoration: InputDecoration(
-            hintText: 'YYYY-MM-DD',
-            hintStyle: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: _c.border,
-            ),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(
-                Icons.calendar_today_outlined,
-                size: 18,
-                color: _c.textSecondary,
-              ),
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 0),
-            isDense: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.accent),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            filled: true,
-            fillColor: _c.surface,
-          ),
-          cursorColor: _c.accent,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCategoryDropdown(List<String> categories) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Category',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 2.4,
-            color: _c.textSecondary,
-            height: 1.33,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: _c.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _c.border),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: DropdownButton<String>(
-            value: _selectedCategory,
-            items: categories
-                .map(
-                  (cat) => DropdownMenuItem(
-                    value: cat,
-                    child: Text(
-                      cat,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: _c.textPrimary,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _selectedCategory = value);
-              }
-            },
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: _c.textPrimary,
-            ),
-            dropdownColor: _c.surface,
-            icon: Icon(Icons.expand_more, color: _c.textSecondary),
-            isExpanded: true,
-            underline: const SizedBox(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showEventActionsSheet(_UpcomingEventData event) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => _buildEventActionsSheet(),
+      builder: (sheetContext) => _NewEventSheet(
+        nameController: _eventNameController,
+        locationController: _locationController,
+        startDateController: _startDateController,
+        endDateController: _endDateController,
+        colors: _c,
+        title: 'Edit Event',
+        saveLabel: 'SAVE CHANGES',
+        initialIsOneDay: event.endDate == null,
+        onSave: (isOneDay) => _updateEvent(sheetContext, event.id, isOneDay),
+        onCancel: () => Navigator.of(sheetContext).pop(),
+      ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+    );
+  }
+
+  Future<void> _updateEvent(BuildContext sheetContext, String eventId, bool isOneDay) async {
+    final name = _eventNameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(sheetContext).showSnackBar(
+        const SnackBar(content: Text('Event name is required.'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    final startText = _startDateController.text;
+    final startDate = startText.isNotEmpty ? '${startText}T00:00:00.000Z' : null;
+    final endDate = isOneDay
+        ? null
+        : (_endDateController.text.isNotEmpty ? '${_endDateController.text}T00:00:00.000Z' : null);
+
+    try {
+      await ApiService.updateEvent(eventId, {
+        'name': name,
+        'location': _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
+        'start_date': startDate,
+        'end_date': endDate,
+      });
+      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+      await _loadEvents();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Event updated.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (_) {
+      if (sheetContext.mounted) {
+        ScaffoldMessenger.of(sheetContext).showSnackBar(
+          const SnackBar(content: Text('Server error — please try again.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  void _showEventActionsSheet(Event event) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => _buildEventActionsSheet(event),
       backgroundColor: Colors.transparent,
       isScrollControlled: false,
       shape: const RoundedRectangleBorder(
@@ -1142,7 +816,7 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  Widget _buildEventActionsSheet() {
+  Widget _buildEventActionsSheet(Event event) {
     return Container(
       decoration: BoxDecoration(
         color: _c.surface,
@@ -1172,7 +846,7 @@ class _EventsScreenState extends State<EventsScreen> {
                   label: 'Edit Event',
                   onTap: () {
                     Navigator.of(context).pop();
-                    _showUiOnlyMessage('Edit event');
+                    _showEditEventSheet(event);
                   },
                 ),
                 const SizedBox(height: 4),
@@ -1181,20 +855,52 @@ class _EventsScreenState extends State<EventsScreen> {
                   label: 'Share Event',
                   onTap: () {
                     Navigator.of(context).pop();
-                    _showUiOnlyMessage('Share event');
+                    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    final start = event.startDate;
+                    final dateStr = event.endDate == null
+                        ? '${months[start.month - 1]} ${start.day}, ${start.year}'
+                        : '${months[start.month - 1]} ${start.day} - ${months[event.endDate!.month - 1]} ${event.endDate!.day}, ${start.year}';
+                    final text = '${event.name}\n$dateStr${event.location != null ? '\n${event.location}' : ''}';
+                    Clipboard.setData(ClipboardData(text: text));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Event details copied to clipboard.'), behavior: SnackBarBehavior.floating),
+                    );
                   },
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Divider(color: _c.border.withValues(alpha: 0.5), height: 1),
+                  child: Divider(
+                    color: _c.border.withValues(alpha: 0.5),
+                    height: 1,
+                  ),
                 ),
                 _buildActionButton(
                   icon: Icons.delete_outlined,
                   label: 'Delete Event',
                   isDestructive: true,
-                  onTap: () {
+                  onTap: () async {
                     Navigator.of(context).pop();
-                    _showUiOnlyMessage('Delete event');
+                    try {
+                      await ApiService.deleteEvent(event.id);
+                      await _loadEvents();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Event deleted.'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to delete event: $e'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    }
                   },
                 ),
               ],
@@ -1246,36 +952,270 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 }
 
-class _UpcomingEventData {
-  final String category;
+class _NewEventSheet extends StatefulWidget {
+  final TextEditingController nameController;
+  final TextEditingController locationController;
+  final TextEditingController startDateController;
+  final TextEditingController endDateController;
+  final ExonoColors colors;
+  final void Function(bool isOneDay) onSave;
+  final VoidCallback onCancel;
   final String title;
-  final String date;
-  final String location;
-  final double progress;
-  final EventFloorHomeData? floorData;
-  final PreEventPrepData prepData;
+  final String saveLabel;
+  final bool initialIsOneDay;
 
-  const _UpcomingEventData({
-    required this.category,
-    required this.title,
-    required this.date,
-    required this.location,
-    required this.progress,
-    this.floorData,
-    required this.prepData,
+  const _NewEventSheet({
+    required this.nameController,
+    required this.locationController,
+    required this.startDateController,
+    required this.endDateController,
+    required this.colors,
+    required this.onSave,
+    required this.onCancel,
+    this.title = 'New Event',
+    this.saveLabel = 'SAVE EVENT',
+    this.initialIsOneDay = false,
   });
+
+  @override
+  State<_NewEventSheet> createState() => _NewEventSheetState();
 }
 
-class _PastEventData {
-  final String title;
-  final String dateLocation;
-  final int contactsScanned;
-  final double followUpCompletion;
+class _NewEventSheetState extends State<_NewEventSheet> {
+  ExonoColors get _c => widget.colors;
+  bool _isOneDay = false;
 
-  const _PastEventData({
-    required this.title,
-    required this.dateLocation,
-    required this.contactsScanned,
-    required this.followUpCompletion,
-  });
+  @override
+  void initState() {
+    super.initState();
+    _isOneDay = widget.initialIsOneDay;
+  }
+
+  Widget _buildFormField({
+    required String label,
+    required TextEditingController controller,
+    required String placeholder,
+    IconData? icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 2.4,
+            color: _c.textSecondary,
+            height: 1.33,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          style: TextStyle(fontSize: 14, color: _c.textPrimary),
+          cursorColor: _c.accent,
+          decoration: InputDecoration(
+            hintText: placeholder,
+            hintStyle: TextStyle(fontSize: 14, color: _c.border),
+            prefixIcon: icon != null
+                ? Padding(
+                    padding: const EdgeInsets.only(left: 12, right: 8),
+                    child: Icon(icon, size: 20, color: _c.textSecondary),
+                  )
+                : null,
+            prefixIconConstraints: icon != null ? const BoxConstraints(minWidth: 0) : null,
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            filled: true,
+            fillColor: _c.surface,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateField({required String label, required TextEditingController controller}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 2.4, color: _c.textSecondary, height: 1.33),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          readOnly: true,
+          style: TextStyle(fontSize: 14, color: _c.textPrimary),
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: DateTime.now(),
+              firstDate: DateTime(2024),
+              lastDate: DateTime(2030),
+              builder: (context, child) => Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: ColorScheme.dark(primary: _c.accent, surface: _c.surface, onSurface: _c.textPrimary),
+                ),
+                child: child!,
+              ),
+            );
+            if (date != null) {
+              controller.text = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+            }
+          },
+          decoration: InputDecoration(
+            hintText: 'YYYY-MM-DD',
+            hintStyle: TextStyle(fontSize: 14, color: _c.border),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 8),
+              child: Icon(Icons.calendar_today_outlined, size: 18, color: _c.textSecondary),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 0),
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            filled: true,
+            fillColor: _c.surface,
+          ),
+          cursorColor: _c.accent,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _c.background,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(top: BorderSide(color: _c.border)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.title,
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, letterSpacing: -0.48, color: _c.textPrimary, height: 1.2),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Fill in the details to schedule a new event.',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: _c.textSecondary, height: 1.5),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildFormField(
+                    label: 'Event Name',
+                    controller: widget.nameController,
+                    placeholder: 'e.g. AI Innovation Summit 2025',
+                  ),
+                  const SizedBox(height: 18),
+                  _buildFormField(
+                    label: 'Location',
+                    controller: widget.locationController,
+                    placeholder: 'Search for a venue or city',
+                    icon: Icons.location_on_outlined,
+                  ),
+                  const SizedBox(height: 18),
+                  _buildDateField(label: 'Start Date', controller: widget.startDateController),
+                  const SizedBox(height: 14),
+                  InkWell(
+                    onTap: () => setState(() {
+                      _isOneDay = !_isOneDay;
+                      if (_isOneDay) widget.endDateController.clear();
+                    }),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: _isOneDay ? _c.accent : Colors.transparent,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: _isOneDay ? _c.accent : _c.border, width: 1.5),
+                            ),
+                            child: _isOneDay
+                                ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                : null,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'One-day event',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: _c.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (!_isOneDay) ...[
+                    const SizedBox(height: 14),
+                    _buildDateField(label: 'End Date', controller: widget.endDateController),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => widget.onSave(_isOneDay),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _c.textPrimary,
+                        foregroundColor: _c.background,
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 2.0),
+                      ),
+                      child: Text(widget.saveLabel),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: widget.onCancel,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _c.textSecondary,
+                        side: BorderSide(color: _c.border),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 1.6),
+                      ),
+                      child: const Text('CANCEL'),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

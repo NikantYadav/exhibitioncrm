@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase';
+import { TavilyService } from '../services/tavily-service';
 
 const router = Router();
 
@@ -47,6 +48,48 @@ router.get('/', async (req, res, next) => {
     );
 
     res.json({ data: enrichedData });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/contacts/check-duplicate
+router.post('/check-duplicate', async (req, res, next) => {
+  try {
+    const { name, email, phone } = req.body as { name?: string; email?: string; phone?: string };
+
+    if (!name && !email && !phone) {
+      return res.status(400).json({ error: 'At least one of name, email, or phone is required' });
+    }
+
+    let query = supabase
+      .from('contacts')
+      .select('*, company:companies(*)')
+      .limit(5);
+
+    if (email && phone) {
+      query = query.or(`email.eq.${email},phone.eq.${phone}`);
+    } else if (email) {
+      query = query.eq('email', email);
+    } else if (phone) {
+      query = query.eq('phone', phone);
+    } else if (name) {
+      const nameParts = name.trim().split(/\s+/);
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ');
+      if (lastName) {
+        query = query.or(`first_name.ilike.%${firstName}%,last_name.ilike.%${lastName}%`);
+      } else {
+        query = query.or(`first_name.ilike.%${firstName}%,last_name.ilike.%${firstName}%`);
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const matches = data || [];
+    res.json({ data: matches, has_duplicates: matches.length > 0 });
   } catch (error) {
     next(error);
   }
@@ -167,11 +210,37 @@ router.post('/', async (req, res, next) => {
 });
 
 // PATCH /api/contacts/:id
+// Supports optional `company_name` field: finds or creates the company and
+// re-points company_id — never renames an existing company record.
 router.patch('/:id', async (req, res, next) => {
   try {
+    const { company_name, ...contactFields } = req.body;
+
+    if (company_name !== undefined) {
+      const normalizedName = (company_name as string).trim() || 'INDEPENDENT';
+
+      const { data: existingCompany } = await supabase
+        .from('companies')
+        .select('id')
+        .ilike('name', normalizedName)
+        .maybeSingle();
+
+      if (existingCompany) {
+        contactFields.company_id = existingCompany.id;
+      } else {
+        const { data: newCompany, error: createErr } = await supabase
+          .from('companies')
+          .insert({ name: normalizedName })
+          .select('id')
+          .single();
+        if (createErr) throw createErr;
+        contactFields.company_id = newCompany.id;
+      }
+    }
+
     const { data, error } = await supabase
       .from('contacts')
-      .update(req.body)
+      .update(contactFields)
       .eq('id', req.params.id)
       .select()
       .single();
@@ -540,7 +609,7 @@ router.get('/:id/insights', async (req, res, next) => {
 - Products/Services: ${company.products_services || 'Unknown'}
 - Website: ${company.website || 'Not available'}`;
 
-    const prompt =
+    let prompt =
       `You are a CRM assistant helping a sales professional understand a contact.\n\n` +
       `Contact:\n` +
       `- Name: ${name}\n` +
@@ -553,8 +622,19 @@ router.get('/:id/insights', async (req, res, next) => {
       `Return ONLY a single-line minified JSON with exactly these keys. No literal newlines inside string values:\n` +
       `{"briefing_items":["up to 3 short bullets"],"buying_authority":"Decision Maker|Influencer|Evaluator|Gatekeeper|Unknown","current_sentiment":"Hot Lead|Warm Opportunity|Evaluating|Cold|Unknown","primary_pain_point":"one sentence","ai_insights":["up to 3 insights"],"strategic_context":"one sentence","key_markets":["up to 3 markets"],"decision_structure":"one sentence"}`;
 
+    // ── Tavily web search for real-time grounding ────────────────────────────
+    console.log(`[insights] → running Tavily web search for "${name}"`);
+    const webContext = await TavilyService.searchContact({
+      name,
+      company: isIndependent ? undefined : company?.name,
+      jobTitle: contact.job_title,
+    });
+    if (webContext) {
+      prompt += `\n\n## Live Web Research (Tavily)\n${webContext}`;
+    }
+
     const promptChars = prompt.length;
-    console.log(`[insights] → calling Gemini AI for insights (prompt: ~${promptChars.toLocaleString()} chars / ~${Math.round(promptChars / CHARS_PER_TOKEN).toLocaleString()} tokens)`);
+    console.log(`[insights] → calling Gemini AI (prompt: ~${promptChars.toLocaleString()} chars / ~${Math.round(promptChars / CHARS_PER_TOKEN).toLocaleString()} tokens)`);
     const t0 = Date.now();
 
     const { AIService, litellm } = await import('../config/ai');
@@ -573,6 +653,86 @@ router.get('/:id/insights', async (req, res, next) => {
 
     console.log(`[insights] insights saved to DB — next open will be a cache hit`);
     return res.json({ data: insights, cached: false });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/contacts/:id/events
+// Returns distinct events this contact has been linked to (via interactions).
+router.get('/:id/events', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('interactions')
+      .select('event:events(*)')
+      .eq('contact_id', req.params.id)
+      .not('event_id', 'is', null);
+
+    if (error) throw error;
+
+    // Deduplicate by event id
+    const seen = new Set<string>();
+    const events = (data || [])
+      .map((row: any) => row.event)
+      .filter((e: any) => e && !seen.has(e.id) && seen.add(e.id));
+
+    res.json({ data: events });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/contacts/:id/events
+// Links contact to an event by creating an event_link interaction.
+// Body: { event_id: string }
+router.post('/:id/events', async (req, res, next) => {
+  try {
+    const { event_id } = req.body;
+    if (!event_id) return res.status(400).json({ error: 'event_id required' });
+
+    // Upsert: if already linked via event_link interaction, skip.
+    const { data: existing } = await supabase
+      .from('interactions')
+      .select('id')
+      .eq('contact_id', req.params.id)
+      .eq('event_id', event_id)
+      .eq('interaction_type', 'event_link')
+      .maybeSingle();
+
+    if (existing) return res.json({ data: existing, already_linked: true });
+
+    const { data, error } = await supabase
+      .from('interactions')
+      .insert({
+        contact_id: req.params.id,
+        event_id,
+        interaction_type: 'event_link',
+        interaction_date: new Date().toISOString(),
+        summary: 'Contact linked to event',
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/contacts/:id/events/:event_id
+// Unlinks a contact from an event (removes event_link interaction).
+router.delete('/:id/events/:event_id', async (req, res, next) => {
+  try {
+    const { error } = await supabase
+      .from('interactions')
+      .delete()
+      .eq('contact_id', req.params.id)
+      .eq('event_id', req.params.event_id)
+      .eq('interaction_type', 'event_link');
+
+    if (error) throw error;
+    res.json({ message: 'Unlinked successfully' });
   } catch (error) {
     next(error);
   }

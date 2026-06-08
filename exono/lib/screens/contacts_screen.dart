@@ -6,10 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/app_theme.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
-import '../widgets/app_filter_row.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../models/contact.dart';
+import '../models/event.dart';
 import '../services/api_service.dart';
 import 'add_contact_dialog.dart';
 import 'capture_screen.dart';
@@ -31,17 +31,21 @@ class _ContactsScreenState extends State<ContactsScreen> {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   final TextEditingController _searchController = TextEditingController();
-  final List<String> _filters = const [
-    'All',
-    'This Event',
-    'By Product',
-    'By Country',
-    'By Company',
-  ];
+  final ScrollController _scrollController = ScrollController();
+
+  static const int _pageSize = 20;
+  int _displayedCount = _pageSize;
+  bool _isLoadingMore = false;
+
+  // Active filters
+  String? _filterCompany;
+  String? _filterLocation;
+  String? _filterStatus;
+  String? _filterEventId;   // event id
+  String? _filterEventName; // display name
 
   List<_ContactProfileData> _allContacts = [];
   bool _isLoading = true;
-  bool _isEnriching = false;
   bool _isLoadingInsights = false;
   bool _isUploadingAvatar = false;
   Map<String, dynamic>? _contactInsights;
@@ -51,6 +55,28 @@ class _ContactsScreenState extends State<ContactsScreen> {
   void initState() {
     super.initState();
     _loadContacts();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_isLoadingMore) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent * 0.75) {
+      _loadMoreVisible();
+    }
+  }
+
+  void _loadMoreVisible() {
+    final totalFiltered = _filteredContacts.length;
+    if (_displayedCount >= totalFiltered) return;
+    setState(() {
+      _isLoadingMore = true;
+      _displayedCount = (_displayedCount + _pageSize).clamp(0, totalFiltered);
+    });
+    // Small delay for smooth feel, then clear loading flag
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() => _isLoadingMore = false);
+    });
   }
 
   Future<void> _loadContacts() async {
@@ -64,6 +90,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       if (mounted) {
         setState(() {
           _allContacts = contacts.map(_mapContactToProfileData).toList();
+          _displayedCount = _pageSize * 2; // preload 2 pages
           _isLoading = false;
         });
       }
@@ -103,6 +130,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       name: contact.fullName,
       title: _clean(contact.jobTitle),
       company: isIndependent ? '' : companyName,
+      companyId: isIndependent ? '' : (contact.companyId ?? ''),
       followUpDue: contact.followUpStatus == 'urgent' || contact.followUpStatus == 'contacted',
       followUpStatus: contact.followUpStatus,
       location: isIndependent ? '' : _clean(contact.company?.location),
@@ -138,21 +166,22 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Future<void> _fetchContactDetails(_ContactProfileData profile) async {
     _fetchInsights(profile.id);
     try {
-      // Fetch timeline
-      final timelineData = await ApiService.getContactTimeline(profile.id);
-      
-      final timelineItems = timelineData.map((item) {
+      final results = await Future.wait([
+        ApiService.getContactTimeline(profile.id),
+        ApiService.getContactEvents(profile.id),
+      ]);
+
+      final timelineData = results[0] as List<Map<String, dynamic>>;
+      final eventsData  = results[1] as List<Map<String, dynamic>>;
+
+      final timelineItems = timelineData
+          .where((item) => (item['interaction_type'] ?? '') != 'event_link')
+          .map((item) {
         final date = DateTime.parse(item['date']);
         final type = item['type'] as String;
         String title = item['title'] ?? (type == 'note' ? 'Note Added' : 'Interaction');
-        
-        // Refine title based on type
-        if (type == 'meeting') {
-          title = 'Meeting: ${item['subject'] ?? 'Strategy Session'}';
-        } else if (type == 'interaction' && item['interaction_type'] == 'capture') {
-          title = 'Scanner Capture';
-        }
-
+        if (type == 'meeting') title = 'Meeting: ${item['subject'] ?? 'Strategy Session'}';
+        else if (type == 'interaction' && item['interaction_type'] == 'capture') title = 'Scanner Capture';
         return _TimelineItem(
           dateLabel: '${_formatDate(date)} • ${_formatTime(date)}',
           title: title,
@@ -161,10 +190,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
         );
       }).toList();
 
+      final linkedEvents = eventsData.map((e) => Event.fromJson(e)).toList();
+
       if (mounted && _selectedContact?.id == profile.id) {
         setState(() {
           _selectedContact = _selectedContact!.copyWith(
             timelineItems: timelineItems,
+            linkedEvents: linkedEvents,
           );
         });
       }
@@ -209,6 +241,26 @@ class _ContactsScreenState extends State<ContactsScreen> {
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
         _showErrorMessage('Failed to upload photo: $e');
+      }
+    }
+  }
+
+  Future<void> _showEditContactSheet(_ContactProfileData contact) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _EditContactSheet(contact: contact),
+    );
+    if (result == true && mounted) {
+      await _loadContacts();
+      if (mounted) {
+        final updated = _allContacts.firstWhere((c) => c.id == contact.id, orElse: () => contact);
+        setState(() {
+          _selectedContact = updated;
+          _contactInsights = null; // refresh insights since contact data changed
+        });
+        _fetchContactDetails(updated);
       }
     }
   }
@@ -283,37 +335,36 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   String _searchQuery = '';
-  String _selectedFilter = 'All';
   _ContactProfileData? _selectedContact;
+
+  bool get _hasActiveFilters =>
+      _filterCompany != null || _filterLocation != null ||
+      _filterStatus != null || _filterEventId != null;
 
   List<_ContactProfileData> get _filteredContacts {
     final query = _searchQuery.trim().toLowerCase();
-
-    return _allContacts.where((contact) {
-      final matchesQuery =
-          query.isEmpty ||
-          contact.listName.toLowerCase().contains(query) ||
-          contact.listSubtitle.toLowerCase().contains(query) ||
-          contact.eventTag.toLowerCase().contains(query) ||
-          contact.productTag.toLowerCase().contains(query) ||
-          contact.location.toLowerCase().contains(query);
-
-      final matchesFilter = switch (_selectedFilter) {
-        'All' => true,
-        'This Event' => contact.eventTag == 'Summit 2024',
-        'By Product' => contact.productTag != 'Strategic Solution' && contact.productTag.isNotEmpty,
-        'By Country' => contact.location != 'Global' && contact.location.isNotEmpty,
-        'By Company' => true,
-        _ => true,
-      };
-
-      return matchesQuery && matchesFilter;
+    return _allContacts.where((c) {
+      if (query.isNotEmpty &&
+          !c.listName.toLowerCase().contains(query) &&
+          !c.listSubtitle.toLowerCase().contains(query) &&
+          !c.location.toLowerCase().contains(query)) return false;
+      if (_filterCompany != null && c.company != _filterCompany) return false;
+      if (_filterLocation != null && c.location != _filterLocation) return false;
+      if (_filterStatus != null && c.followUpStatus != _filterStatus) return false;
+      if (_filterEventId != null && !c.linkedEvents.any((e) => e.id == _filterEventId)) return false;
+      return true;
     }).toList();
+  }
+
+  List<_ContactProfileData> get _pagedContacts {
+    final filtered = _filteredContacts;
+    return filtered.take(_displayedCount).toList();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -333,25 +384,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 onActionPressed: _showAddContactSheet,
               )
             else
-              AppHeader(
-                onNotificationPressed: () => _showUiOnlyMessage('Notifications'),
-                actionWidget: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      onPressed: () => _deleteContact(_selectedContact!),
-                      icon: Icon(Icons.delete_outline_rounded, color: _c.destructive),
-                      splashRadius: 20,
-                      tooltip: 'Delete contact',
-                    ),
-                    IconButton(
-                      onPressed: () => setState(() { _selectedContact = null; _contactInsights = null; }),
-                      icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary),
-                      splashRadius: 20,
-                    ),
-                  ],
-                ),
-              ),
+              _buildDetailHeader(_selectedContact!),
             Expanded(
               child: _selectedContact == null
                   ? _buildListBody()
@@ -359,6 +392,51 @@ class _ContactsScreenState extends State<ContactsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDetailHeader(_ContactProfileData contact) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: _c.background,
+        border: Border(bottom: BorderSide(color: _c.border)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => setState(() { _selectedContact = null; _contactInsights = null; }),
+            icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 22),
+            splashRadius: 20,
+            tooltip: 'Back',
+          ),
+          Expanded(
+            child: Text(
+              contact.listName,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: _c.textPrimary,
+                letterSpacing: -0.3,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            onPressed: () => _showEditContactSheet(contact),
+            icon: Icon(Icons.edit_outlined, color: _c.textPrimary, size: 20),
+            splashRadius: 20,
+            tooltip: 'Edit contact',
+          ),
+          IconButton(
+            onPressed: () => _deleteContact(contact),
+            icon: Icon(Icons.delete_outline_rounded, color: _c.destructive, size: 20),
+            splashRadius: 20,
+            tooltip: 'Delete contact',
+          ),
+        ],
       ),
     );
   }
@@ -385,8 +463,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
 
     final filtered = _filteredContacts;
+    final paged = _pagedContacts;
 
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,13 +474,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
           _buildListHeader(filtered.length),
           const SizedBox(height: 28),
           _buildSearchField(),
-          const SizedBox(height: 24),
-          _buildFilterRow(),
-          const SizedBox(height: 12),
-          _buildLegend(),
+          const SizedBox(height: 16),
+          _buildFilterButton(),
           const SizedBox(height: 26),
           Container(height: 1, color: _c.border),
-          if (filtered.isEmpty)
+          if (paged.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Center(
@@ -411,9 +489,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
               ),
             )
           else
-            ...filtered.map(_buildContactRow),
+            ...paged.map(_buildContactRow),
+          if (_isLoadingMore)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
           const SizedBox(height: 28),
-          Center(child: _buildLoadMoreButton()),
         ],
       ),
     );
@@ -487,62 +569,114 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Widget _buildFilterRow() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildFilterButton() {
+    final activeCount = [_filterCompany, _filterLocation, _filterStatus, _filterEventId]
+        .where((f) => f != null)
+        .length;
+    return Row(
       children: [
-        AppFilterRow(
-          filters: _filters,
-          selected: _selectedFilter,
-          onSelect: (f) => setState(() => _selectedFilter = f),
-          style: AppFilterRowStyle.filled,
-        ),
-        const SizedBox(height: 18),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: _c.border),
-            color: _c.surface,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          padding: const EdgeInsets.all(5),
+        GestureDetector(
+          onTap: _showFilterSheet,
           child: Container(
-            width: 40,
-            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: _c.accentSoft,
-              borderRadius: BorderRadius.circular(14),
+              color: _hasActiveFilters ? _c.accent : _c.surface,
+              border: Border.all(color: _hasActiveFilters ? _c.accent : _c.border),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(Icons.list, color: _c.textPrimary, size: 18),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.tune_rounded,
+                    size: 16,
+                    color: _hasActiveFilters ? _c.background : _c.textSecondary),
+                const SizedBox(width: 6),
+                Text(
+                  activeCount > 0 ? 'Filters ($activeCount)' : 'Filter',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _hasActiveFilters ? _c.background : _c.textSecondary,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
+        if (_hasActiveFilters) ...[
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => setState(() {
+              _filterCompany = null;
+              _filterLocation = null;
+              _filterStatus = null;
+              _filterEventId = null;
+              _filterEventName = null;
+              _displayedCount = _pageSize * 2;
+            }),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: _c.surface,
+                border: Border.all(color: _c.border),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'Clear',
+                style: TextStyle(fontSize: 13, color: _c.textSecondary),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildLegend() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: _c.textPrimary,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            'FOLLOW-UP DUE',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 2.0,
-              color: _c.textSecondary,
-            ),
-          ),
-        ],
+  void _showFilterSheet() {
+    final allCompanies = _allContacts
+        .map((c) => c.company).where((c) => c.isNotEmpty).toSet().toList()..sort();
+    final allLocations = _allContacts
+        .map((c) => c.location).where((l) => l.isNotEmpty).toSet().toList()..sort();
+    // Collect all linked events across all loaded contacts for suggestions
+    final eventMap = <String, Event>{};
+    for (final c in _allContacts) {
+      for (final e in c.linkedEvents) { eventMap[e.id] = e; }
+    }
+    final allEvents = eventMap.values.toList()..sort((a, b) => a.name.compareTo(b.name));
+
+    const statuses = [
+      ('not_contacted', 'Not Contacted'),
+      ('contacted', 'Contacted'),
+      ('urgent', 'Urgent'),
+      ('converted', 'Converted'),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _FilterSheet(
+        initialCompany: _filterCompany,
+        initialLocation: _filterLocation,
+        initialStatus: _filterStatus,
+        initialEventId: _filterEventId,
+        initialEventName: _filterEventName,
+        allCompanies: allCompanies,
+        allLocations: allLocations,
+        allEvents: allEvents,
+        statuses: statuses,
+        colors: _c,
+        onApply: (company, location, status, eventId, eventName) {
+          setState(() {
+            _filterCompany = company;
+            _filterLocation = location;
+            _filterStatus = status;
+            _filterEventId = eventId;
+            _filterEventName = eventName;
+            _displayedCount = _pageSize * 2;
+          });
+        },
       ),
     );
   }
@@ -631,29 +765,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Widget _buildLoadMoreButton() {
-    return OutlinedButton(
-      onPressed: () => _showUiOnlyMessage('Load more records'),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 16),
-        side: BorderSide(color: _c.border),
-        backgroundColor: _c.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      ),
-      child: Text(
-        'LOAD MORE\nRECORDS',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 3.0,
-          color: _c.textPrimary,
-          height: 1.25,
-        ),
-      ),
-    );
-  }
-
   Widget _buildDetailBody(_ContactProfileData contact) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -669,6 +780,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ],
           const SizedBox(height: 12),
           _buildLinksCard(contact),
+          const SizedBox(height: 12),
+          _buildEventsCard(contact),
         ],
       ),
     );
@@ -1280,8 +1393,133 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
+  // ─── Events Card ─────────────────────────────────────────────────────────
 
+  Widget _buildEventsCard(_ContactProfileData contact) {
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      radius: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              AppSectionLabel('Events', letterSpacing: 1.4),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => _showLinkEventSheet(contact),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _c.accentSoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, size: 14, color: _c.accent),
+                      const SizedBox(width: 4),
+                      Text('Link Event',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _c.accent)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (contact.linkedEvents.isEmpty)
+            Text('No events linked yet.',
+                style: TextStyle(fontSize: 13, color: _c.textMuted))
+          else
+            ...contact.linkedEvents.map((event) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: _c.accentSoft,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.event_outlined, size: 18, color: _c.accent),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(event.name,
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+                        if (event.location != null && event.location!.isNotEmpty)
+                          Text(event.location!,
+                              style: TextStyle(fontSize: 11, color: _c.textMuted)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.link_off_rounded, size: 16, color: _c.textMuted),
+                    splashRadius: 18,
+                    tooltip: 'Unlink',
+                    onPressed: () => _unlinkEvent(contact, event),
+                  ),
+                ],
+              ),
+            )),
+        ],
+      ),
+    );
+  }
 
+  Future<void> _showLinkEventSheet(_ContactProfileData contact) async {
+    List<Event> allEvents = [];
+    try {
+      allEvents = await ApiService.getEvents();
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EventPickerSheet(
+        allEvents: allEvents,
+        linkedEventIds: contact.linkedEvents.map((e) => e.id).toSet(),
+        colors: _c,
+        onLink: (event) async {
+          await ApiService.linkContactToEvent(contact.id, event.id);
+          if (mounted && _selectedContact?.id == contact.id) {
+            final updated = contact.linkedEvents.any((e) => e.id == event.id)
+                ? contact.linkedEvents
+                : [...contact.linkedEvents, event];
+            setState(() {
+              _selectedContact = _selectedContact!.copyWith(linkedEvents: updated);
+            });
+            // Also update the list card
+            final idx = _allContacts.indexWhere((c) => c.id == contact.id);
+            if (idx != -1) _allContacts[idx] = _allContacts[idx].copyWith(linkedEvents: updated);
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _unlinkEvent(_ContactProfileData contact, Event event) async {
+    try {
+      await ApiService.unlinkContactFromEvent(contact.id, event.id);
+      if (mounted && _selectedContact?.id == contact.id) {
+        final updated = contact.linkedEvents.where((e) => e.id != event.id).toList();
+        setState(() {
+          _selectedContact = _selectedContact!.copyWith(linkedEvents: updated);
+        });
+        final idx = _allContacts.indexWhere((c) => c.id == contact.id);
+        if (idx != -1) _allContacts[idx] = _allContacts[idx].copyWith(linkedEvents: updated);
+      }
+    } catch (e) {
+      if (mounted) _showErrorMessage('Failed to unlink event');
+    }
+  }
 
   Widget _buildTimelineItem(_TimelineItem item) {
     return Padding(
@@ -1359,85 +1597,43 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Future<void> _sendPriorityBrief(_ContactProfileData contact) async {
-    setState(() => _isEnriching = true);
+  Future<void> _generateEmailDraft(_ContactProfileData contact) async {
     try {
       final result = await ApiService.generateEmailDraft(
         contactId: contact.id,
-        emailType: 'briefing',
-        customContext: 'High priority event follow-up requested by user.',
+        emailType: 'general',
       );
-      
+
       if (mounted) {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Priority Brief Drafted'),
+            backgroundColor: _c.surface,
+            title: Text('Email Draft', style: TextStyle(color: _c.textPrimary, fontWeight: FontWeight.w700)),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Subject: ${result['data']['subject']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Subject: ${result['data']['subject']}',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: _c.textPrimary)),
                   const SizedBox(height: 12),
-                  Text(result['data']['body']),
+                  Text(result['data']['body'], style: TextStyle(color: _c.textSecondary)),
                 ],
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('DISMISS')),
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('SEND NOW')),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('DISMISS', style: TextStyle(color: _c.textMuted)),
+              ),
             ],
           ),
         );
       }
     } catch (e) {
-      _showErrorMessage('Failed to generate brief: $e');
-    } finally {
-      if (mounted) setState(() => _isEnriching = false);
+      _showErrorMessage('Failed to generate email draft: $e');
     }
-  }
-
-  Widget _buildDetailActionBar(_ContactProfileData contact) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      decoration: BoxDecoration(
-        color: _c.background,
-        border: Border(top: BorderSide(color: _c.border)),
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 50,
-        child: FilledButton.icon(
-          onPressed: _isEnriching ? null : () => _sendPriorityBrief(contact),
-          icon: _isEnriching
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation(_c.background),
-                  ),
-                )
-              : const Icon(Icons.mail_outline, size: 18),
-          label: Text(
-            _isEnriching ? 'GENERATING...' : 'SEND EMAIL DRAFT',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
-            ),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: _c.accent,
-            foregroundColor: _c.background,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
 
@@ -1517,6 +1713,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     required String linkedin,
     required String sector,
     required String productTag,
+    String companyId = '',
     String companyDescription = '',
     String employeeRange = '',
     String avatarUrl = '',
@@ -1530,6 +1727,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       listName: name,
       title: title,
       company: companyDisplay,
+      companyId: companyId,
       listSubtitle: title.isNotEmpty ? '$title${companyDisplay.isNotEmpty ? ' • $companyDisplay' : ''}' : companyDisplay,
       eventTag: '',
       followUpDue: followUpDue,
@@ -1732,6 +1930,7 @@ class _ContactProfileData {
   final String listName;
   final String title;
   final String company;
+  final String companyId;
   final String listSubtitle;
   final String eventTag;
   final bool followUpDue;
@@ -1758,6 +1957,7 @@ class _ContactProfileData {
   final List<String> aiInsights;
   final String strategicContext;
   final List<_TimelineItem> timelineItems;
+  final List<Event> linkedEvents;
 
   const _ContactProfileData({
     required this.id,
@@ -1766,6 +1966,7 @@ class _ContactProfileData {
     required this.listName,
     required this.title,
     required this.company,
+    this.companyId = '',
     required this.listSubtitle,
     required this.eventTag,
     required this.followUpDue,
@@ -1792,6 +1993,7 @@ class _ContactProfileData {
     required this.aiInsights,
     required this.strategicContext,
     required this.timelineItems,
+    this.linkedEvents = const [],
   });
 
   _ContactProfileData copyWith({
@@ -1801,6 +2003,7 @@ class _ContactProfileData {
     String? listName,
     String? title,
     String? company,
+    String? companyId,
     String? listSubtitle,
     String? eventTag,
     bool? followUpDue,
@@ -1827,6 +2030,7 @@ class _ContactProfileData {
     List<String>? aiInsights,
     String? strategicContext,
     List<_TimelineItem>? timelineItems,
+    List<Event>? linkedEvents,
   }) {
     return _ContactProfileData(
       id: id ?? this.id,
@@ -1835,6 +2039,7 @@ class _ContactProfileData {
       listName: listName ?? this.listName,
       title: title ?? this.title,
       company: company ?? this.company,
+      companyId: companyId ?? this.companyId,
       listSubtitle: listSubtitle ?? this.listSubtitle,
       eventTag: eventTag ?? this.eventTag,
       followUpDue: followUpDue ?? this.followUpDue,
@@ -1861,6 +2066,209 @@ class _ContactProfileData {
       aiInsights: aiInsights ?? this.aiInsights,
       strategicContext: strategicContext ?? this.strategicContext,
       timelineItems: timelineItems ?? this.timelineItems,
+      linkedEvents: linkedEvents ?? this.linkedEvents,
+    );
+  }
+}
+
+// ─── Edit Contact Sheet ───────────────────────────────────────────────────────
+
+class _EditContactSheet extends StatefulWidget {
+  final _ContactProfileData contact;
+  const _EditContactSheet({required this.contact});
+
+  @override
+  State<_EditContactSheet> createState() => _EditContactSheetState();
+}
+
+class _EditContactSheetState extends State<_EditContactSheet> {
+  ExonoColors get _c => AppTheme.colorsOf(context);
+
+  late final _firstNameCtrl  = TextEditingController(text: _splitName(widget.contact.listName).first);
+  late final _lastNameCtrl   = TextEditingController(text: _splitName(widget.contact.listName).last);
+  late final _emailCtrl      = TextEditingController(text: widget.contact.email);
+  late final _phoneCtrl      = TextEditingController(text: widget.contact.phone);
+  late final _jobTitleCtrl   = TextEditingController(text: widget.contact.title);
+  late final _linkedinCtrl   = TextEditingController(text: widget.contact.linkedin);
+  late final _companyCtrl    = TextEditingController(text: widget.contact.company);
+
+  bool _isSaving = false;
+
+  List<String> _splitName(String fullName) {
+    final parts = fullName.trim().split(' ');
+    if (parts.length == 1) return [parts[0], ''];
+    return [parts.first, parts.sublist(1).join(' ')];
+  }
+
+  @override
+  void dispose() {
+    _firstNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _jobTitleCtrl.dispose();
+    _linkedinCtrl.dispose();
+    _companyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final firstName = _firstNameCtrl.text.trim();
+    if (firstName.isEmpty) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final payload = <String, dynamic>{
+        'first_name': firstName,
+        'last_name': _lastNameCtrl.text.trim(),
+        'email': _emailCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
+        'job_title': _jobTitleCtrl.text.trim(),
+        'linkedin_url': _linkedinCtrl.text.trim(),
+      };
+
+      // Only send company_name if it actually changed — backend does find-or-create.
+      final newCompany = _companyCtrl.text.trim();
+      final originalCompany = widget.contact.company;
+      if (newCompany.toUpperCase() != originalCompany.toUpperCase()) {
+        payload['company_name'] = newCompany.isEmpty ? 'INDEPENDENT' : newCompany;
+      }
+
+      await ApiService.updateContact(widget.contact.id, payload);
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e'), behavior: SnackBarBehavior.floating),
+        );
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _c.background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          border: Border(top: BorderSide(color: _c.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 48,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _c.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Row(
+                  children: [
+                    Text(
+                      'Edit Contact',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _c.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('CANCEL', style: TextStyle(color: _c.textMuted, fontSize: 12, letterSpacing: 1.2)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: _field('First Name', _firstNameCtrl, required: true)),
+                          const SizedBox(width: 12),
+                          Expanded(child: _field('Last Name', _lastNameCtrl)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _field('Email', _emailCtrl, keyboard: TextInputType.emailAddress),
+                      const SizedBox(height: 12),
+                      _field('Phone', _phoneCtrl, keyboard: TextInputType.phone),
+                      const SizedBox(height: 12),
+                      _field('Job Title', _jobTitleCtrl),
+                      const SizedBox(height: 12),
+                      _field('Company', _companyCtrl),
+                      const SizedBox(height: 12),
+                      _field('LinkedIn URL', _linkedinCtrl, keyboard: TextInputType.url),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: FilledButton(
+                          onPressed: _isSaving ? null : _save,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _c.accent,
+                            foregroundColor: _c.background,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _isSaving
+                              ? SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation(_c.background),
+                                  ),
+                                )
+                              : const Text('SAVE CHANGES',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _field(String label, TextEditingController ctrl, {
+    bool required = false,
+    TextInputType? keyboard,
+  }) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: keyboard,
+      style: TextStyle(color: _c.textPrimary, fontSize: 14),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: _c.textMuted, fontSize: 13),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: _c.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: _c.accent, width: 1.6),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
     );
   }
 }
@@ -1883,4 +2291,495 @@ class _TimelineItem {
     required this.description,
     this.isCurrent = false,
   });
+}
+
+// ─── Filter Sheet ─────────────────────────────────────────────────────────────
+
+class _FilterSheet extends StatefulWidget {
+  final String? initialCompany;
+  final String? initialLocation;
+  final String? initialStatus;
+  final String? initialEventId;
+  final String? initialEventName;
+  final List<String> allCompanies;
+  final List<String> allLocations;
+  final List<Event> allEvents;
+  final List<(String, String)> statuses;
+  final ExonoColors colors;
+  final void Function(String? company, String? location, String? status, String? eventId, String? eventName) onApply;
+
+  const _FilterSheet({
+    required this.initialCompany,
+    required this.initialLocation,
+    required this.initialStatus,
+    this.initialEventId,
+    this.initialEventName,
+    required this.allCompanies,
+    required this.allLocations,
+    required this.allEvents,
+    required this.statuses,
+    required this.colors,
+    required this.onApply,
+  });
+
+  @override
+  State<_FilterSheet> createState() => _FilterSheetState();
+}
+
+class _FilterSheetState extends State<_FilterSheet> {
+  ExonoColors get _c => widget.colors;
+
+  late final _companyCtrl = TextEditingController(text: widget.initialCompany ?? '');
+  late final _locationCtrl = TextEditingController(text: widget.initialLocation ?? '');
+  late final _eventCtrl = TextEditingController(text: widget.initialEventName ?? '');
+  String? _tempStatus;
+  String? _tempEventId;
+  List<String> _companySuggestions = [];
+  List<String> _locationSuggestions = [];
+  List<Event> _eventSuggestions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _tempStatus = widget.initialStatus;
+    _tempEventId = widget.initialEventId;
+    _companyCtrl.addListener(_updateCompanySuggestions);
+    _locationCtrl.addListener(_updateLocationSuggestions);
+    _eventCtrl.addListener(_updateEventSuggestions);
+  }
+
+  void _updateCompanySuggestions() {
+    final q = _companyCtrl.text.trim().toLowerCase();
+    setState(() {
+      _companySuggestions = q.isEmpty
+          ? widget.allCompanies
+          : widget.allCompanies.where((c) => c.toLowerCase().contains(q)).toList();
+    });
+  }
+
+  void _updateLocationSuggestions() {
+    final q = _locationCtrl.text.trim().toLowerCase();
+    setState(() {
+      _locationSuggestions = q.isEmpty
+          ? widget.allLocations
+          : widget.allLocations.where((l) => l.toLowerCase().contains(q)).toList();
+    });
+  }
+
+  void _updateEventSuggestions() {
+    final q = _eventCtrl.text.trim().toLowerCase();
+    if (q.isEmpty && _tempEventId != null) return; // don't open dropdown if selection already made
+    setState(() {
+      _eventSuggestions = q.isEmpty
+          ? widget.allEvents
+          : widget.allEvents.where((e) => e.name.toLowerCase().contains(q)).toList();
+    });
+  }
+
+  @override
+  void dispose() {
+    _companyCtrl.dispose();
+    _locationCtrl.dispose();
+    _eventCtrl.dispose();
+    super.dispose();
+  }
+
+  void _reset() => setState(() {
+    _companyCtrl.clear();
+    _locationCtrl.clear();
+    _eventCtrl.clear();
+    _tempStatus = null;
+    _tempEventId = null;
+    _companySuggestions = [];
+    _locationSuggestions = [];
+    _eventSuggestions = [];
+  });
+
+  void _apply() {
+    final company = _companyCtrl.text.trim().isEmpty ? null : _companyCtrl.text.trim();
+    final location = _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim();
+    final eventName = _eventCtrl.text.trim().isEmpty ? null : _eventCtrl.text.trim();
+    widget.onApply(company, location, _tempStatus, _tempEventId, eventName);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _c.background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          border: Border(top: BorderSide(color: _c.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 48, height: 4,
+                decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Row(
+                  children: [
+                    Text('Filter Contacts',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _c.textPrimary)),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: _reset,
+                      child: Text('Reset', style: TextStyle(color: _c.textMuted, fontSize: 13)),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionLabel('Company'),
+                      _searchField(_companyCtrl, 'Search company...'),
+                      if (_companySuggestions.isNotEmpty)
+                        _suggestionList(_companySuggestions, (v) {
+                          _companyCtrl.text = v;
+                          setState(() => _companySuggestions = []);
+                        }),
+                      const SizedBox(height: 20),
+                      _sectionLabel('Location / Country'),
+                      _searchField(_locationCtrl, 'Search location...'),
+                      if (_locationSuggestions.isNotEmpty)
+                        _suggestionList(_locationSuggestions, (v) {
+                          _locationCtrl.text = v;
+                          setState(() => _locationSuggestions = []);
+                        }),
+                      const SizedBox(height: 20),
+                      _sectionLabel('Event'),
+                      _searchField(_eventCtrl, 'Search event...'),
+                      if (_tempEventId != null) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.event_available_outlined, size: 14, color: _c.accent),
+                            const SizedBox(width: 6),
+                            Text(_eventCtrl.text, style: TextStyle(fontSize: 13, color: _c.accent, fontWeight: FontWeight.w500)),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () => setState(() { _tempEventId = null; _eventCtrl.clear(); }),
+                              child: Icon(Icons.close, size: 14, color: _c.textMuted),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (_eventSuggestions.isNotEmpty && _tempEventId == null)
+                        _eventSuggestionList(_eventSuggestions, (event) {
+                          setState(() {
+                            _tempEventId = event.id;
+                            _eventCtrl.text = event.name;
+                            _eventSuggestions = [];
+                          });
+                        }),
+                      const SizedBox(height: 20),
+                      _sectionLabel('Communication Status'),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: widget.statuses.map((s) {
+                          final isSelected = _tempStatus == s.$1;
+                          return GestureDetector(
+                            onTap: () => setState(() => _tempStatus = isSelected ? null : s.$1),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isSelected ? _c.accent : _c.surface,
+                                border: Border.all(color: isSelected ? _c.accent : _c.border),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                s.$2,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                  color: isSelected ? _c.background : _c.textPrimary,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: FilledButton(
+                          onPressed: _apply,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _c.accent,
+                            foregroundColor: _c.background,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('APPLY FILTERS',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String label) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(
+      label.toUpperCase(),
+      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.4, color: _c.textMuted),
+    ),
+  );
+
+  Widget _searchField(TextEditingController ctrl, String hint) => TextField(
+    controller: ctrl,
+    style: TextStyle(color: _c.textPrimary, fontSize: 14),
+    decoration: InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: _c.textMuted, fontSize: 14),
+      prefixIcon: Icon(Icons.search, color: _c.textMuted, size: 18),
+      suffixIcon: ctrl.text.isNotEmpty
+          ? IconButton(
+              icon: Icon(Icons.clear, size: 16, color: _c.textMuted),
+              onPressed: () => ctrl.clear(),
+            )
+          : null,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: _c.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: _c.accent, width: 1.6),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    ),
+  );
+
+  Widget _suggestionList(List<String> items, ValueChanged<String> onTap) => Container(
+    margin: const EdgeInsets.only(top: 4),
+    decoration: BoxDecoration(
+      color: _c.surface,
+      border: Border.all(color: _c.border),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Column(
+      children: items.take(5).map((item) => InkWell(
+        onTap: () => onTap(item),
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              Icon(Icons.business_outlined, size: 14, color: _c.textMuted),
+              const SizedBox(width: 8),
+              Text(item, style: TextStyle(fontSize: 14, color: _c.textPrimary)),
+            ],
+          ),
+        ),
+      )).toList(),
+    ),
+  );
+
+  Widget _eventSuggestionList(List<Event> events, ValueChanged<Event> onTap) => Container(
+    margin: const EdgeInsets.only(top: 4),
+    decoration: BoxDecoration(
+      color: _c.surface,
+      border: Border.all(color: _c.border),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Column(
+      children: events.take(6).map((event) => InkWell(
+        onTap: () => onTap(event),
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              Icon(Icons.event_outlined, size: 14, color: _c.textMuted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(event.name, style: TextStyle(fontSize: 13, color: _c.textPrimary)),
+                    if (event.location != null && event.location!.isNotEmpty)
+                      Text(event.location!, style: TextStyle(fontSize: 11, color: _c.textMuted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      )).toList(),
+    ),
+  );
+}
+
+// ─── Event Picker Sheet ───────────────────────────────────────────────────────
+
+class _EventPickerSheet extends StatefulWidget {
+  final List<Event> allEvents;
+  final Set<String> linkedEventIds;
+  final ExonoColors colors;
+  final Future<void> Function(Event event) onLink;
+
+  const _EventPickerSheet({
+    required this.allEvents,
+    required this.linkedEventIds,
+    required this.colors,
+    required this.onLink,
+  });
+
+  @override
+  State<_EventPickerSheet> createState() => _EventPickerSheetState();
+}
+
+class _EventPickerSheetState extends State<_EventPickerSheet> {
+  ExonoColors get _c => widget.colors;
+  final _searchCtrl = TextEditingController();
+  List<Event> _filtered = [];
+  bool _linking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _filtered = widget.allEvents;
+    _searchCtrl.addListener(_onSearch);
+  }
+
+  void _onSearch() {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? widget.allEvents
+          : widget.allEvents.where((e) => e.name.toLowerCase().contains(q) ||
+              (e.location ?? '').toLowerCase().contains(q)).toList();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: BoxDecoration(
+          color: _c.background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          border: Border(top: BorderSide(color: _c.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(width: 48, height: 4,
+                  decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Row(
+                  children: [
+                    Text('Link to Event',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _c.textPrimary)),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.close, color: _c.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: TextField(
+                  controller: _searchCtrl,
+                  autofocus: true,
+                  style: TextStyle(color: _c.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Search events...',
+                    hintStyle: TextStyle(color: _c.textMuted, fontSize: 14),
+                    prefixIcon: Icon(Icons.search, color: _c.textMuted, size: 18),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: _c.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: _c.accent, width: 1.6),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: _filtered.isEmpty
+                    ? Center(child: Text('No events found.', style: TextStyle(color: _c.textMuted)))
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: _filtered.length,
+                        itemBuilder: (_, i) {
+                          final event = _filtered[i];
+                          final isLinked = widget.linkedEventIds.contains(event.id);
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+                            leading: Container(
+                              width: 40, height: 40,
+                              decoration: BoxDecoration(
+                                color: _c.accentSoft,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(Icons.event_outlined, size: 18, color: _c.accent),
+                            ),
+                            title: Text(event.name,
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+                            subtitle: event.location != null && event.location!.isNotEmpty
+                                ? Text(event.location!, style: TextStyle(fontSize: 11, color: _c.textMuted))
+                                : null,
+                            trailing: isLinked
+                                ? Icon(Icons.check_circle_rounded, color: _c.accent, size: 20)
+                                : (_linking
+                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : Icon(Icons.add_circle_outline, color: _c.textSecondary, size: 20)),
+                            onTap: isLinked ? null : () async {
+                              setState(() => _linking = true);
+                              try {
+                                await widget.onLink(event);
+                              } finally {
+                                if (mounted) setState(() => _linking = false);
+                              }
+                              if (mounted) Navigator.pop(context);
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

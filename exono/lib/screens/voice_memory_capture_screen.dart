@@ -1,9 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../config/app_theme.dart';
+import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
@@ -26,11 +32,15 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
 
   bool _isRecording = false;
   bool _showAiPreview = false;
+  bool _isTranscribing = false;
   Duration _elapsed = Duration.zero;
   Timer? _timer;
 
-  final List<String> _topics = const ['Expansion', 'Q3 Roadmap'];
-  final List<String> _actions = const ['Sync with HR', 'Draft PRD'];
+  String _transcript = '';
+  final List<String> _topics = const [];
+  final List<String> _actions = const [];
+
+  final AudioRecorder _audioRecorder = AudioRecorder();
 
   @override
   void initState() {
@@ -50,6 +60,7 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
     _timer?.cancel();
     _ringController.dispose();
     _waveController.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -78,7 +89,20 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                   ),
                   child: Column(
                     children: [
-                      if (!_showAiPreview) ...[
+                      if (_isTranscribing) ...[
+                        const SizedBox(height: 80),
+                        CircularProgressIndicator(color: _c.textPrimary),
+                        const SizedBox(height: 20),
+                        Text(
+                          'TRANSCRIBING...',
+                          style: TextStyle(
+                            fontSize: 12,
+                            letterSpacing: 2,
+                            color: _c.textMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ] else if (!_showAiPreview) ...[
                         const SizedBox(height: 28),
                         AnimatedOpacity(
                           opacity: _isRecording ? 0.4 : 1,
@@ -388,9 +412,11 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
         const SizedBox(height: 24),
         _buildPreviewCard(
           icon: Icons.psychology_outlined,
-          title: 'MEMORIES',
+          title: 'TRANSCRIPT',
           child: Text(
-            'Discussed the strategic expansion into the Southeast Asian market during the Q3 planning session.',
+            _transcript.isNotEmpty
+                ? _transcript
+                : 'No transcript available.',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w400,
@@ -451,6 +477,7 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
                     _showAiPreview = false;
                     _isRecording = false;
                     _elapsed = Duration.zero;
+                    _transcript = '';
                   });
                 },
                 icon: const Icon(Icons.refresh_outlined, size: 18),
@@ -546,18 +573,44 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
     );
   }
 
-  void _toggleRecording() {
+  Future<void> _toggleRecording() async {
     if (_showAiPreview) return;
 
     if (_isRecording) {
+      // Stop recording
       _timer?.cancel();
       _ringController.stop();
+      final path = await _audioRecorder.stop();
       setState(() {
         _isRecording = false;
-        _showAiPreview = true;
       });
+      if (path != null) {
+        await _transcribeAudio(path);
+      }
       return;
     }
+
+    // Request microphone permission
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Microphone permission is required.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final dir = await getTemporaryDirectory();
+    final filePath = '${dir.path}/voice_memory_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    await _audioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc),
+      path: filePath,
+    );
 
     setState(() {
       _showAiPreview = false;
@@ -573,6 +626,29 @@ class _VoiceMemoryCaptureScreenState extends State<VoiceMemoryCaptureScreen>
         _elapsed += const Duration(seconds: 1);
       });
     });
+  }
+
+  Future<void> _transcribeAudio(String path) async {
+    setState(() => _isTranscribing = true);
+    try {
+      final file = File(path);
+      final bytes = await file.readAsBytes();
+      final base64Audio = base64Encode(bytes);
+      final transcript = await ApiService.transcribeAudio(base64Audio);
+      if (!mounted) return;
+      setState(() {
+        _isTranscribing = false;
+        _transcript = transcript;
+        _showAiPreview = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTranscribing = false;
+        _transcript = '';
+        _showAiPreview = true;
+      });
+    }
   }
 
   String _formatDuration(Duration duration) {
