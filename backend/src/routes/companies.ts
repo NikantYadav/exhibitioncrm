@@ -138,6 +138,7 @@ Return only valid JSON, no markdown.`;
 router.post('/:id/briefing', async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { notes } = req.body as { notes?: string };
     const { data: company, error } = await supabase
       .from('companies')
       .select('*')
@@ -167,6 +168,9 @@ router.post('/:id/briefing', async (req, res, next) => {
     let prompt = `Generate 4 concise, specific talking points for a business networking conversation with someone from ${companyContext}.`;
     if (webContext) {
       prompt += `\n\nUse the following real-time web research to make the talking points current and specific:\n\n${webContext}`;
+    }
+    if (notes && notes.trim().length > 0) {
+      prompt += `\n\nAlso take into account the following personal notes about this company when crafting the talking points:\n\n${notes.trim()}`;
     }
     prompt += `\n\nFormat: one talking point per line, no bullet points or numbering, plain text only.`;
 

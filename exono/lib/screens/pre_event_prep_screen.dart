@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
-import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
@@ -50,63 +49,113 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     final labelCtrl = TextEditingController();
     final totalCtrl = TextEditingController(text: '1');
     final c = _c;
+    bool isCheckbox = false;
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: c.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Add Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
-          const SizedBox(height: 20),
-          TextField(
-            controller: labelCtrl, autofocus: true,
-            style: TextStyle(color: c.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'e.g. Meet 5 VCs',
-              hintStyle: TextStyle(color: c.textMuted),
-              filled: true, fillColor: c.surfaceAlt,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: totalCtrl, keyboardType: TextInputType.number,
-            style: TextStyle(color: c.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'Target count',
-              hintStyle: TextStyle(color: c.textMuted),
-              filled: true, fillColor: c.surfaceAlt,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () async {
-                final label = labelCtrl.text.trim();
-                final total = int.tryParse(totalCtrl.text.trim()) ?? 1;
-                if (label.isEmpty) return;
-                Navigator.pop(ctx);
-                try {
-                  final newGoal = await ApiService.createEventGoal(widget.event.id, label, total);
-                  if (mounted) setState(() => _goals.add(newGoal));
-                } catch (_) {}
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: c.accent,
-                foregroundColor: c.isDark ? c.textPrimary : c.background,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Add Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
+            const SizedBox(height: 20),
+            TextField(
+              controller: labelCtrl, autofocus: true,
+              style: TextStyle(color: c.textPrimary),
+              decoration: InputDecoration(
+                hintText: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
+                hintStyle: TextStyle(color: c.textMuted),
+                filled: true, fillColor: c.surfaceAlt,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
               ),
-              child: const Text('ADD GOAL', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             ),
-          ),
-        ]),
+            const SizedBox(height: 16),
+            // Type toggle
+            Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: c.surfaceAlt,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: c.border),
+              ),
+              child: Stack(children: [
+                AnimatedAlign(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeInOut,
+                  alignment: isCheckbox ? Alignment.centerLeft : Alignment.centerRight,
+                  child: FractionallySizedBox(
+                    widthFactor: 0.5,
+                    child: Container(
+                      margin: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(999)),
+                    ),
+                  ),
+                ),
+                Row(children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setModalState(() => isCheckbox = true),
+                      behavior: HitTestBehavior.opaque,
+                      child: Center(child: Text('Checkbox',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                              color: isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setModalState(() => isCheckbox = false),
+                      behavior: HitTestBehavior.opaque,
+                      child: Center(child: Text('Counted',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                              color: !isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
+                    ),
+                  ),
+                ]),
+              ]),
+            ),
+            if (!isCheckbox) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: totalCtrl, keyboardType: TextInputType.number,
+                style: TextStyle(color: c.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Target count',
+                  hintStyle: TextStyle(color: c.textMuted),
+                  filled: true, fillColor: c.surfaceAlt,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () async {
+                  final label = labelCtrl.text.trim();
+                  if (label.isEmpty) return;
+                  final total = isCheckbox ? 0 : (int.tryParse(totalCtrl.text.trim()) ?? 1);
+                  Navigator.pop(ctx);
+                  try {
+                    final newGoal = await ApiService.createEventGoal(widget.event.id, label, total);
+                    if (mounted) setState(() => _goals.add(newGoal));
+                  } catch (_) {}
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: c.accent,
+                  foregroundColor: c.isDark ? c.textPrimary : c.background,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('ADD GOAL', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
@@ -133,9 +182,13 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
   }
 
   String _daysUntil(DateTime date) {
-    final diff = date.difference(DateTime.now()).inDays;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final eventDay = DateTime(date.year, date.month, date.day);
+    final diff = eventDay.difference(today).inDays;
     if (diff < 0) return 'Past';
     if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
     return 'In $diff Days';
   }
 
@@ -149,14 +202,16 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
   }
 
   Future<void> _openTargetDetail(Map<String, dynamic> target, int index) async {
-    final updated = await Navigator.of(context).push<Map<String, dynamic>>(
+    await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => EventTargetScreen(event: widget.event, target: target),
+        builder: (context) => EventTargetScreen(event: widget.event, targetId: target['id'] as String),
       ),
     );
-    if (updated != null) {
-      setState(() => _targets[index] = updated);
-    }
+    // Reload this target's data since it may have been edited
+    try {
+      final data = await ApiService.getEventTarget(widget.event.id, target['id'] as String);
+      if (mounted) setState(() => _targets[index] = data);
+    } catch (_) {}
   }
 
   Future<void> _importTargets() async {
@@ -219,13 +274,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _c.background,
-      bottomNavigationBar: AppBottomNav(
-        selectedIndex: 4,
-        onNavigate: (i) {
-          Navigator.of(context).pop();
-          widget.onNavigateTab?.call(i);
-        },
-      ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -396,8 +444,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
   Widget _buildPrepGoalRow(Map<String, dynamic> goal) {
     final current = goal['current'] as int? ?? 0;
     final total = goal['total'] as int? ?? 1;
-    final progress = total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0;
-    final isComplete = progress >= 1.0;
+    final isCheckbox = total == 0;
+    final isComplete = isCheckbox ? current == 1 : (total > 0 && current >= total);
+    final progress = (!isCheckbox && total > 0) ? (current / total).clamp(0.0, 1.0) : 0.0;
 
     return GestureDetector(
       onLongPress: () {
@@ -436,19 +485,22 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                 decoration: isComplete ? TextDecoration.lineThrough : null,
                 decorationColor: _c.success))),
             const SizedBox(width: 8),
-            Text('$current / $total', style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w700,
-                color: isComplete ? _c.success : _c.textMuted)),
+            if (!isCheckbox)
+              Text('$current / $total', style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700,
+                  color: isComplete ? _c.success : _c.textMuted)),
           ]),
-          const SizedBox(height: 7),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: progress, minHeight: 3,
-              backgroundColor: _c.surfaceElevated,
-              valueColor: AlwaysStoppedAnimation<Color>(isComplete ? _c.success : _c.accent),
+          if (!isCheckbox) ...[
+            const SizedBox(height: 7),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: progress, minHeight: 3,
+                backgroundColor: _c.surfaceElevated,
+                valueColor: AlwaysStoppedAnimation<Color>(isComplete ? _c.success : _c.accent),
+              ),
             ),
-          ),
+          ],
         ]),
       ),
     );
@@ -617,7 +669,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
   Future<void> _showAddTargetDialog() async {
     String searchQuery = '';
     List<Map<String, dynamic>> companies = [];
-    bool isSearching = false;
+    bool isSearching = true;
+    bool _initialLoaded = false;
 
     await showModalBottomSheet(
       context: context,
@@ -626,6 +679,13 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
+            if (!_initialLoaded) {
+              _initialLoaded = true;
+              ApiService.getCompanies(query: '').then((results) {
+                results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
+                setModalState(() { companies = results; isSearching = false; });
+              }).catchError((_) { setModalState(() => isSearching = false); });
+            }
             return Container(
               height: MediaQuery.of(context).size.height * 0.7,
               decoration: BoxDecoration(
@@ -667,6 +727,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                             setModalState(() { searchQuery = val; isSearching = true; });
                             try {
                               final results = await ApiService.getCompanies(query: val);
+                              results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
                               setModalState(() { companies = results; isSearching = false; });
                             } catch (_) {
                               setModalState(() => isSearching = false);
@@ -679,8 +740,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                   Expanded(
                     child: isSearching
                               ? _buildSearchingState()
-                              : (companies.isEmpty && searchQuery.isEmpty)
-                            ? Center(child: Text('Type to search companies', style: TextStyle(color: _c.textMuted)))
+                              : companies.isEmpty
+                            ? Center(child: Text('No companies found', style: TextStyle(color: _c.textMuted)))
                             : ListView.builder(
                                 padding: const EdgeInsets.symmetric(horizontal: 16),
                                 itemCount: companies.length + (searchQuery.isNotEmpty ? 1 : 0),

@@ -343,6 +343,17 @@ class ApiService {
     throw Exception('Failed to load event stats');
   }
 
+  static Future<Map<String, dynamic>> getEventTarget(String eventId, String targetId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['data'] as Map<String, dynamic>;
+    }
+    throw Exception('Failed to load event target');
+  }
+
   static Future<List<Map<String, dynamic>>> getEventTargets(String eventId) async {
     final response = await http.get(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets'),
@@ -497,10 +508,11 @@ class ApiService {
     throw Exception(json.decode(response.body)['error'] ?? 'Failed to enrich company');
   }
 
-  static Future<List<String>> generateCompanyBriefing(String id) async {
+  static Future<List<String>> generateCompanyBriefing(String id, {String? notes}) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.companies}/$id/briefing'),
       headers: await _headers(),
+      body: notes != null && notes.trim().isNotEmpty ? json.encode({'notes': notes.trim()}) : null,
     );
     if (response.statusCode == 200) {
       final data = json.decode(response.body)['data'];

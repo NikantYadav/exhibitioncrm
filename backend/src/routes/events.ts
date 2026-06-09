@@ -39,6 +39,8 @@ router.get('/', async (req, res, next) => {
       .eq('user_id', userId)
       .order('start_date', { ascending: false });
 
+    console.log(`[GET /api/events] raw supabase result: data=${JSON.stringify(data)?.slice(0, 200)} error=${JSON.stringify(error)}`);
+
     if (error) throw error;
 
     const updatedData = (data || []).map(event => ({
@@ -268,6 +270,24 @@ router.get('/:id/targets', async (req, res, next) => {
   }
 });
 
+// GET /api/events/:id/targets/:targetId
+router.get('/:id/targets/:targetId', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('target_companies')
+      .select('*, company:companies(*)')
+      .eq('id', req.params.targetId)
+      .eq('event_id', req.params.id)
+      .single();
+
+    if (error) throw error;
+
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/events/:id/live
 router.get('/:id/live', async (req, res, next) => {
   try {
@@ -290,7 +310,7 @@ router.get('/:id/live', async (req, res, next) => {
       supabase
         .from('target_companies')
         .select(`
-          id, priority, booth_location, status, company_id, talking_points, notes,
+          id, priority, booth_location, status, company_id, talking_points, notes, use_notes_for_briefing,
           company:companies(id, name)
         `)
         .eq('event_id', eventId)
@@ -336,12 +356,14 @@ router.get('/:id/live', async (req, res, next) => {
         contact_id: contact?.id ?? null,
         name: contact ? `${contact.first_name} ${contact.last_name ?? ''}`.trim() : (target.company?.name ?? 'Unknown'),
         job_title: contact?.job_title ?? '',
+        company_id: target.company_id ?? null,
         company_name: target.company?.name ?? '',
         booth: target.booth_location || '',
         status: target.status || 'not_contacted',
         priority: target.priority || 'medium',
         talking_points: target.talking_points || '',
         notes: target.notes || '',
+        use_notes_for_briefing: target.use_notes_for_briefing ?? false,
       };
     });
 
@@ -453,7 +475,7 @@ router.post('/:id/goals', async (req, res, next) => {
     if (!label) { res.status(400).json({ error: 'label required' }); return; }
     const { data, error } = await supabase
       .from('event_goals')
-      .insert({ event_id: req.params.id, label, total: total || 1, current: 0 })
+      .insert({ event_id: req.params.id, label, total: total ?? 1, current: 0 })
       .select().single();
     if (error) throw error;
     res.json({ data });

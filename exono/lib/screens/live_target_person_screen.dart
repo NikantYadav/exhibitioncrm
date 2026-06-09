@@ -390,16 +390,13 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => EventTargetScreen(
-              event: widget.event,
-              target: {
-                ..._target,
-                if (_target['company'] == null)
-                  'company': {'name': _target['company_name'] ?? ''},
-              },
-            ),
-            )),
+            onPressed: () {
+              final targetId = _target['id'] as String? ?? '';
+              if (targetId.isEmpty) return;
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => EventTargetScreen(event: widget.event, targetId: targetId),
+              ));
+            },
             icon: Icon(Icons.business_outlined, size: 16, color: _c.accent),
             label: const Text('COMPANY'),
             style: OutlinedButton.styleFrom(

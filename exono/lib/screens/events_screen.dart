@@ -299,8 +299,6 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   Widget _buildUpcomingEventCard(Event event) {
-    final progress = event.prepProgress ?? 0.0;
-    final progressPercent = (progress * 100).round();
     final isOngoing = event.status == 'ongoing';
 
     return AppCard(
@@ -370,42 +368,6 @@ class _EventsScreenState extends State<EventsScreen> {
             event.location ?? 'Location TBD',
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'PREPARATION STATUS',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 1.2,
-                    color: _c.textSecondary,
-                  ),
-                ),
-              ),
-              Text(
-                '$progressPercent%',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: _c.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            height: 2,
-            color: _c.surfaceElevated,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                widthFactor: progress.clamp(0.0, 1.0),
-                child: Container(color: _c.textPrimary),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             height: 56,
