@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase';
 import { litellm } from '../services/litellm-service';
+import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
 
@@ -44,9 +45,10 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireAuth, async (req, res, next) => {
   try {
     const { image, capture_type, event_id, extracted_data, raw_text } = req.body;
+    const userId = req.user!.id;
 
     const type = capture_type || 'card_scan';
 
@@ -132,11 +134,13 @@ router.post('/', async (req, res, next) => {
       const { data: contact, error: contactError } = await supabase
         .from('contacts')
         .insert({
+          user_id: userId,
           first_name: firstName,
           last_name: lastName,
           email: extracted_data.email || null,
           phone: extracted_data.phone || null,
           job_title: extracted_data.job_title || extracted_data.title || null,
+          linkedin_url: extracted_data.linkedin_url || null,
           company_id: companyId,
           notes: `${raw_text}\n\n[System Note: Captured at ${eventName}]`,
           follow_up_status: 'not_contacted',
@@ -161,16 +165,19 @@ router.post('/', async (req, res, next) => {
           .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
           .join(' ');
 
+        const captureDate = new Date().toISOString();
+
         await supabase
           .from('interactions')
           .insert({
             contact_id: contact.id,
             event_id: event_id || null,
             interaction_type: 'capture',
+            interaction_date: captureDate,
             summary: `Captured via ${humanCaptureType} at ${eventName}`,
             details: {
               source: capture_type,
-              raw_text: raw_text,
+              note: raw_text?.trim() || null,
               event_name: eventName,
               image_url: image
             }

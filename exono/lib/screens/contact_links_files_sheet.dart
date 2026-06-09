@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_theme.dart';
+import '../models/contact_asset.dart';
 import '../widgets/app_card.dart';
 
 Future<List<ContactAsset>?> showContactLinksFilesSheet(
@@ -418,24 +419,3 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
   }
 }
 
-enum ContactAssetType { link, file }
-
-class ContactAsset {
-  final ContactAssetType type;
-  final String title;
-  final String url;
-
-  const ContactAsset({
-    required this.type,
-    required this.title,
-    required this.url,
-  });
-
-  factory ContactAsset.fromJson(Map<String, dynamic> j) => ContactAsset(
-        type: j['type'] == 'file' ? ContactAssetType.file : ContactAssetType.link,
-        title: j['title'] ?? '',
-        url: j['url'] ?? '',
-      );
-
-  Map<String, dynamic> toJson() => {'type': type.name, 'title': title, 'url': url};
-}

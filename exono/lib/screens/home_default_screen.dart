@@ -6,6 +6,7 @@ import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import 'app_shell.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
@@ -13,7 +14,6 @@ import '../widgets/app_section_label.dart';
 import '../widgets/app_filter_row.dart';
 import 'live_target_person_screen.dart';
 import 'log_interaction_screen.dart';
-import 'contacts_screen.dart';
 
 class HomeDefaultScreen extends StatefulWidget {
   const HomeDefaultScreen({super.key});
@@ -43,6 +43,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   final Set<String> _expandedTargetIds = {};
   final Set<String> _expandedScannedIds = {};
   final Map<String, bool> _targetMetOverrides = {};
+  bool _showingTargets = true; // true = Targets, false = Scanned
 
   // Quick AI state
   final List<Map<String, String>> _aiMessages = [];
@@ -264,7 +265,20 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    captureReturnSignal.addListener(_onCaptureReturn);
+  }
+
+  void _onCaptureReturn() {
+    if (_isLiveEvent && _liveEvent != null) {
+      _refreshLiveData();
+    }
+  }
+
+  @override
   void dispose() {
+    captureReturnSignal.removeListener(_onCaptureReturn);
     _targetSearchCtrl.dispose();
     _aiQueryCtrl.dispose();
     super.dispose();
@@ -297,7 +311,12 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
         _ => true,
       };
       return matchesSearch && matchesFilter;
-    }).toList();
+    }).toList()
+      ..sort((a, b) {
+        final aName = (a['name'] as String? ?? a['company_name'] as String? ?? '').toLowerCase();
+        final bName = (b['name'] as String? ?? b['company_name'] as String? ?? '').toLowerCase();
+        return aName.compareTo(bName);
+      });
     return filtered;
   }
 
@@ -623,6 +642,8 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
               'LOG INTERACTION',
               style: TextStyle(
                   fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6),
+              overflow: TextOverflow.fade,
+              softWrap: false,
             ),
             style: FilledButton.styleFrom(
               backgroundColor: _c.accent,
@@ -830,9 +851,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
             const SizedBox(height: 24),
             _buildQuickAiSection(),
             const SizedBox(height: 24),
-            _buildLiveTargetsSection(),
-            const SizedBox(height: 24),
-            _buildScannedSection(),
+            _buildTargetsScannedToggleSection(),
           ],
         ),
       ),
@@ -875,15 +894,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   Widget _buildLiveStatGrid(int reach, int scanned, int targetsLeft, int followUps) {
     return Column(children: [
       Row(children: [
-        Expanded(child: _buildLiveStatTile(Icons.show_chart_rounded, _c.accent, '$reach%', 'TARGET REACH')),
+        Expanded(child: _buildLiveStatTile(Icons.qr_code_scanner_rounded, _c.accent, '$scanned', 'SCANNED')),
         const SizedBox(width: 10),
-        Expanded(child: _buildLiveStatTile(Icons.qr_code_scanner_rounded, _c.success, '$scanned', 'SCANNED')),
-      ]),
-      const SizedBox(height: 10),
-      Row(children: [
-        Expanded(child: _buildLiveStatTile(Icons.people_outline_rounded, _c.textSecondary, '$targetsLeft', 'TARGETS LEFT')),
-        const SizedBox(width: 10),
-        Expanded(child: _buildLiveStatTile(Icons.mark_email_unread_outlined, _c.destructive, '$followUps', 'FOLLOW-UPS')),
+        Expanded(child: _buildLiveStatTile(Icons.people_outline_rounded, _c.accent, '$targetsLeft', 'TARGETS LEFT')),
       ]),
     ]);
   }
@@ -972,42 +985,165 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     );
   }
 
+  Widget _buildTargetsScannedToggleSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Toggle pill
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _c.surfaceAlt,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: _c.border),
+                ),
+                child: Stack(
+                  children: [
+                    AnimatedAlign(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      alignment: _showingTargets ? Alignment.centerLeft : Alignment.centerRight,
+                      child: FractionallySizedBox(
+                        widthFactor: 0.5,
+                        child: Container(
+                          margin: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: _c.accent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _showingTargets = true),
+                            behavior: HitTestBehavior.opaque,
+                            child: Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Targets',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: _showingTargets
+                                          ? (_c.isDark ? _c.textPrimary : Colors.white)
+                                          : _c.textMuted,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: _showingTargets
+                                          ? Colors.white.withValues(alpha: 0.25)
+                                          : _c.accentSoft,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      '${_liveTargets.length}',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: _showingTargets
+                                            ? (_c.isDark ? _c.textPrimary : Colors.white)
+                                            : _c.accent,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _showingTargets = false),
+                            behavior: HitTestBehavior.opaque,
+                            child: Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Scanned',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: !_showingTargets
+                                          ? (_c.isDark ? _c.textPrimary : Colors.white)
+                                          : _c.textMuted,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: !_showingTargets
+                                          ? Colors.white.withValues(alpha: 0.25)
+                                          : _c.accentSoft,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      '${_scannedContacts.length}',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: !_showingTargets
+                                            ? (_c.isDark ? _c.textPrimary : Colors.white)
+                                            : _c.accent,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_showingTargets) ...[
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: _addContactAsTarget,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: _c.accentSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.person_add_outlined, size: 13, color: _c.accent),
+                    const SizedBox(width: 5),
+                    Text('ADD', style: TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8, color: _c.accent)),
+                  ]),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (_showingTargets) _buildLiveTargetsSection() else _buildScannedSection(),
+      ],
+    );
+  }
+
   Widget _buildLiveTargetsSection() {
     final visible = _filteredTargets;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          AppSectionLabel('Targets'),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: _c.accentSoft,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text('${_liveTargets.length}', style: TextStyle(
-                fontSize: 10, fontWeight: FontWeight.w700, color: _c.accent)),
-          ),
-          const Spacer(),
-          GestureDetector(
-            onTap: _addContactAsTarget,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: _c.accentSoft,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.person_add_outlined, size: 13, color: _c.accent),
-                const SizedBox(width: 5),
-                Text('ADD CONTACT', style: TextStyle(
-                    fontSize: 10, fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8, color: _c.accent)),
-              ]),
-            ),
-          ),
-        ]),
         const SizedBox(height: 12),
         // Search
         TextField(
@@ -1411,14 +1547,16 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                       try { await _fetchLiveData(_liveEvent!); } catch (_) {}
                     },
                   ),
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
-                  label: const Text('LOG INTERACTION'),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
+                  label: const Text('LOG INTERACTION', maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false),
                   style: FilledButton.styleFrom(
                     backgroundColor: _c.accent,
                     foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
                     minimumSize: const Size.fromHeight(42),
+                    iconSize: 14,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5),
                   ),
                 ),
               ),
@@ -1427,9 +1565,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _liveEvent == null ? null : () {
                     if (contactId != null && contactId.isNotEmpty) {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ContactsScreen(initialContactId: contactId),
-                      ));
+                      context.push('/contacts/$contactId');
                     } else {
                       Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => LiveTargetPersonScreen(
@@ -1523,76 +1659,70 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
       final lastName = (contact['last_name'] as String? ?? '').toLowerCase();
       final company = (contact['company_name'] as String? ?? '').toLowerCase();
       return firstName.contains(query) || lastName.contains(query) || company.contains(query);
-    }).toList();
+    }).toList()
+      ..sort((a, b) {
+        final ac = a['contact'] as Map<String, dynamic>? ?? {};
+        final bc = b['contact'] as Map<String, dynamic>? ?? {};
+        final aName = '${ac['first_name'] ?? ''} ${ac['last_name'] ?? ''}'.trim().toLowerCase();
+        final bName = '${bc['first_name'] ?? ''} ${bc['last_name'] ?? ''}'.trim().toLowerCase();
+        return aName.compareTo(bName);
+      });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          AppSectionLabel('Scanned'),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: _c.accentSoft,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text('${_scannedContacts.length}', style: TextStyle(
-                fontSize: 10, fontWeight: FontWeight.w700, color: _c.accent)),
-          ),
-        ]),
         const SizedBox(height: 12),
-        // Search
-        TextField(
-          style: TextStyle(fontSize: 13, color: _c.textPrimary),
-          cursorColor: _c.accent,
-          onChanged: (v) => setState(() => _scannedSearch = v),
-          decoration: InputDecoration(
-            hintText: 'Search scanned contacts…',
-            hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(Icons.search_rounded, size: 18, color: _c.accent),
+          // Search
+          TextField(
+            style: TextStyle(fontSize: 13, color: _c.textPrimary),
+            cursorColor: _c.accent,
+            onChanged: (v) => setState(() => _scannedSearch = v),
+            decoration: InputDecoration(
+              hintText: 'Search scanned contacts…',
+              hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
+              prefixIcon: Padding(
+                padding: const EdgeInsets.only(left: 12, right: 8),
+                child: Icon(Icons.search_rounded, size: 18, color: _c.accent),
+              ),
+              prefixIconConstraints: const BoxConstraints(minWidth: 0),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              filled: true,
+              fillColor: _c.surface,
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: _c.border)),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: _c.border)),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: _c.accent)),
             ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 0),
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            filled: true,
-            fillColor: _c.surface,
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _c.border)),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _c.border)),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _c.accent)),
           ),
-        ),
-        const SizedBox(height: 14),
-        // Scanned list
-        if (_scannedContacts.isEmpty)
-          AppCard(
-            padding: const EdgeInsets.all(20),
-            child: Center(child: Column(children: [
-              Icon(Icons.qr_code_scanner_rounded, color: _c.accent, size: 32),
-              const SizedBox(height: 10),
-              Text('No contacts scanned yet.',
-                  style: TextStyle(color: _c.textMuted, fontSize: 13)),
-            ])),
-          )
-        else if (filtered.isEmpty)
-          AppCard(
-            padding: const EdgeInsets.all(16),
-            child: Row(children: [
-              Icon(Icons.search_off_rounded, color: _c.accent, size: 20),
-              const SizedBox(width: 12),
-              Text('No scanned contacts match.', style: TextStyle(fontSize: 13, color: _c.textMuted)),
-            ]),
-          )
-        else
-          ...filtered.map((capture) => _buildScannedContactCard(capture)),
+          const SizedBox(height: 14),
+          // Scanned list
+          if (_scannedContacts.isEmpty)
+            AppCard(
+              padding: const EdgeInsets.all(20),
+              child: Center(child: Column(children: [
+                Icon(Icons.qr_code_scanner_rounded, color: _c.accent, size: 32),
+                const SizedBox(height: 10),
+                Text('No contacts scanned yet.',
+                    style: TextStyle(color: _c.textMuted, fontSize: 13)),
+              ])),
+            )
+          else if (filtered.isEmpty)
+            AppCard(
+              padding: const EdgeInsets.all(16),
+              child: Row(children: [
+                Icon(Icons.search_off_rounded, color: _c.accent, size: 20),
+                const SizedBox(width: 12),
+                Text('No scanned contacts match.', style: TextStyle(fontSize: 13, color: _c.textMuted)),
+              ]),
+            )
+          else
+            ...filtered.map((capture) => _buildScannedContactCard(capture)),
       ],
     );
   }
@@ -1761,28 +1891,26 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                     Row(
                       children: [
                         Expanded(
+                          flex: 3,
                           child: FilledButton.icon(
                             onPressed: () => showLogInteractionSheet(context, contactId: contactId),
                             icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
-                            label: const Text('LOG'),
+                            label: const Text('LOG INTERACTION'),
                             style: FilledButton.styleFrom(
                               backgroundColor: _c.accent,
                               foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
                               minimumSize: const Size.fromHeight(42),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6),
                             ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
+                          flex: 2,
                           child: OutlinedButton.icon(
                             onPressed: contactId.isEmpty ? null : () {
-                              Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) => ContactsScreen(
-                                  initialContactId: contactId,
-                                ),
-                              ));
+                              context.push('/contacts/$contactId');
                             },
                             icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
                             label: const Text('PROFILE'),
@@ -1791,7 +1919,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                               side: BorderSide(color: _c.border),
                               minimumSize: const Size.fromHeight(42),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6),
                             ),
                           ),
                         ),

@@ -7,6 +7,7 @@ import 'screens/auth_screen.dart';
 import 'screens/capture_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/company_detail_screen.dart';
+import 'screens/contact_detail_screen.dart';
 import 'screens/contacts_screen.dart';
 import 'screens/events_screen.dart';
 import 'screens/follow_ups_screen.dart';
@@ -56,6 +57,15 @@ GoRouter buildRouter(AuthProvider auth) {
         },
       ),
 
+      // ── Contact detail — full-screen (no nav shell needed) ────────────────
+      GoRoute(
+        path: '/contacts/:id',
+        builder: (_, state) {
+          final contactId = state.pathParameters['id']!;
+          return ContactDetailScreen(contactId: contactId);
+        },
+      ),
+
       // ── App shell — all tab routes render inside AppShell ─────────────────
       ShellRoute(
         builder: (context, state, child) => AppShell(
@@ -73,17 +83,7 @@ GoRouter buildRouter(AuthProvider auth) {
           ),
           GoRoute(
             path: '/contacts',
-            builder: (_, state) {
-              final contactId = state.uri.queryParameters['id'];
-              return ContactsScreen(initialContactId: contactId);
-            },
-          ),
-          GoRoute(
-            path: '/contacts/:id',
-            redirect: (_, state) {
-              final contactId = state.pathParameters['id']!;
-              return '/contacts?id=$contactId';
-            },
+            builder: (_, __) => const ContactsScreen(),
           ),
           GoRoute(
             path: '/follow-ups',

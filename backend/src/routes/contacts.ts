@@ -453,7 +453,7 @@ router.get('/:id/insights', async (req, res, next) => {
     // ── Fetch full timeline (no artificial limit) ────────────────────────────
     const [interactionsRes, notesRes, meetingsRes] = await Promise.all([
       supabase.from('interactions')
-        .select('interaction_type, summary, interaction_date')
+        .select('interaction_type, summary, details, interaction_date')
         .eq('contact_id', id)
         .order('interaction_date', { ascending: true }),
       supabase.from('notes')
@@ -469,10 +469,13 @@ router.get('/:id/insights', async (req, res, next) => {
     type TimelineEntry = { text: string; date: string };
 
     const allTimeline: TimelineEntry[] = [
-      ...(interactionsRes.data || []).map((i: any) => ({
-        text: `[${i.interaction_type}] ${(i.summary || '').slice(0, 1000)} (${i.interaction_date?.slice(0, 10)})`,
-        date: i.interaction_date || '',
-      })),
+      ...(interactionsRes.data || []).map((i: any) => {
+        const note = i.details?.note ? ` Note: ${i.details.note}` : '';
+        return {
+          text: `[${i.interaction_type}] ${(i.summary || '').slice(0, 1000)}${note} (${i.interaction_date?.slice(0, 10)})`,
+          date: i.interaction_date || '',
+        };
+      }),
       ...(notesRes.data || []).map((n: any) => ({
         text: `[note] ${(n.content || '').slice(0, 1000)} (${n.created_at?.slice(0, 10)})`,
         date: n.created_at || '',

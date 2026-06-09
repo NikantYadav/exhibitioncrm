@@ -391,40 +391,56 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
         const SizedBox(height: 20),
         AppSectionLabel('Mode of Interaction'),
         const SizedBox(height: 8),
-        AppCard(
-          padding: EdgeInsets.zero,
-          radius: 12,
-          elevated: true,
-          child: TextField(
-            controller: _modeController,
-            style: TextStyle(fontSize: 14, color: _c.textSecondary),
-            cursorColor: _c.accent,
-            decoration: InputDecoration(
-              hintText: 'e.g. Coffee chat, WhatsApp, Call...',
-              hintStyle: TextStyle(fontSize: 14, color: _c.textMuted.withValues(alpha: 0.6)),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        TextField(
+          controller: _modeController,
+          style: TextStyle(fontSize: 14, color: _c.textSecondary),
+          cursorColor: _c.accent,
+          decoration: InputDecoration(
+            hintText: 'e.g. Coffee chat, WhatsApp, Call...',
+            hintStyle: TextStyle(fontSize: 14, color: _c.textMuted.withValues(alpha: 0.6)),
+            filled: true,
+            fillColor: _c.surfaceElevated,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.accent, width: 1.5),
             ),
           ),
         ),
         const SizedBox(height: 20),
         AppSectionLabel('What happened?'),
         const SizedBox(height: 8),
-        AppCard(
-          padding: EdgeInsets.zero,
-          radius: 12,
-          elevated: true,
-          child: TextField(
-            controller: _notesController,
-            minLines: 5,
-            maxLines: 8,
-            style: TextStyle(fontSize: 14, color: _c.textSecondary, height: 1.5),
-            cursorColor: _c.accent,
-            decoration: InputDecoration(
-              hintText: 'Key discussion points, decisions, next steps...',
-              hintStyle: TextStyle(fontSize: 14, color: _c.textMuted.withValues(alpha: 0.6)),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.all(16),
+        TextField(
+          controller: _notesController,
+          minLines: 5,
+          maxLines: 8,
+          style: TextStyle(fontSize: 14, color: _c.textSecondary, height: 1.5),
+          cursorColor: _c.accent,
+          decoration: InputDecoration(
+            hintText: 'Key discussion points, decisions, next steps...',
+            hintStyle: TextStyle(fontSize: 14, color: _c.textMuted.withValues(alpha: 0.6)),
+            filled: true,
+            fillColor: _c.surfaceElevated,
+            contentPadding: const EdgeInsets.all(16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.accent, width: 1.5),
             ),
           ),
         ),

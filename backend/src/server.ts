@@ -5,6 +5,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { requestLogger, logInfo } from './middleware/logger';
 import routes from './routes';
 import { AI_PROVIDER } from './config/ai';
+import { supabase } from './config/supabase';
 
 dotenv.config();
 
@@ -30,7 +31,7 @@ app.use('/api', routes);
 // Error handling
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log('\n' + '='.repeat(60));
   console.log('🚀 Server Started Successfully');
   console.log('='.repeat(60));
@@ -40,6 +41,15 @@ app.listen(PORT, () => {
   console.log(`📡 API Base:    http://localhost:${PORT}/api`);
   console.log(`💚 Health:      http://localhost:${PORT}/health`);
   console.log('='.repeat(60) + '\n');
-  
+
   logInfo('Server is ready to accept requests');
+
+  // Reload PostgREST schema cache so FK-based embeds (e.g. company:companies(*))
+  // are always up to date, even if schema changed while the server was down.
+  const { error: schemaError } = await supabase.rpc('pgrst_reload_schema');
+  if (schemaError) {
+    console.warn('⚠️  PostgREST schema reload failed:', schemaError.message);
+  } else {
+    console.log('🔄 PostgREST schema cache reloaded');
+  }
 });

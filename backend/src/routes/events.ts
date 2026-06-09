@@ -31,6 +31,8 @@ const getEventStatus = (event: any): string => {
 router.get('/', async (req, res, next) => {
   try {
     const userId = req.user!.id;
+    console.log(`[GET /api/events] userId: ${userId}`);
+
     const { data, error } = await supabase
       .from('events')
       .select('*')
@@ -44,8 +46,10 @@ router.get('/', async (req, res, next) => {
       status: getEventStatus(event),
     }));
 
+    console.log(`[GET /api/events] Returning ${updatedData.length} events`);
     res.json({ data: updatedData });
   } catch (error) {
+    console.error(`[GET /api/events] Error:`, error);
     next(error);
   }
 });
@@ -268,6 +272,7 @@ router.get('/:id/targets', async (req, res, next) => {
 router.get('/:id/live', async (req, res, next) => {
   try {
     const eventId = req.params.id;
+    console.log(`[GET /events/:id/live] eventId: ${eventId}`);
 
     const [
       { data: event, error: eventError },
@@ -292,8 +297,14 @@ router.get('/:id/live', async (req, res, next) => {
         .limit(50),
     ]);
 
-    if (eventError || !event) { res.status(404).json({ error: 'Event not found' }); return; }
+    if (eventError || !event) {
+      console.log(`[GET /events/:id/live] Event not found: ${eventId}`);
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
     if (targetsError) throw targetsError;
+
+    console.log(`[GET /events/:id/live] Event: ${event.name}, Stats - Scanned: ${capturesCount}, Targets: ${targetsCount}, Contacts: ${contactEventsCount}`);
 
     // Fetch all contacts linked to this event with their company_id for matching
     const { data: eventContactRows } = await supabase
@@ -348,6 +359,8 @@ router.get('/:id/live', async (req, res, next) => {
     const cc = contactEventsCount || 0;
     const targetReach = tc > 0 ? Math.round((cc / tc) * 100) : 0;
 
+    console.log(`[GET /events/:id/live] Returning ${priorityTargets.length} targets`);
+
     res.json({
       data: {
         event: {
@@ -373,6 +386,7 @@ router.get('/:id/live', async (req, res, next) => {
       },
     });
   } catch (error) {
+    console.error(`[GET /events/:id/live] Error:`, error);
     next(error);
   }
 });

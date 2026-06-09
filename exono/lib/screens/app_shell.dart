@@ -32,6 +32,9 @@ const _navBarPaths = {'/', '/events', '/contacts', '/profile'};
 /// allowed route) temporarily hide the shell's bottom nav bar.
 final ValueNotifier<bool> appNavBarHidden = ValueNotifier<bool>(false);
 
+/// Incremented each time the capture screen is popped — listeners can refresh.
+final ValueNotifier<int> captureReturnSignal = ValueNotifier<int>(0);
+
 class AppShell extends StatefulWidget {
   final Widget child;
   final String location;
@@ -50,7 +53,9 @@ class _AppShellState extends State<AppShell> {
 
   void _onNav(int index) {
     if (index == 2) {
-      context.push('/capture');
+      context.push('/capture').then((_) {
+        captureReturnSignal.value++;
+      });
       return;
     }
     final path = _tabPaths[index] ?? '/';
