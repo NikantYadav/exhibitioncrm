@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase';
 import { TavilyService } from '../services/tavily-service';
+import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
+
+// Apply auth middleware to all routes in this file
+router.use(requireAuth);
 
 // GET /api/contacts
 router.get('/', async (req, res, next) => {
@@ -11,7 +15,8 @@ router.get('/', async (req, res, next) => {
 
     let query = supabase
       .from('contacts')
-      .select('*');
+      .select('*, company:companies(*)')
+      .eq('user_id', req.user!.id);
 
     if (company_id) {
       query = query.eq('company_id', company_id);
@@ -24,30 +29,7 @@ router.get('/', async (req, res, next) => {
       throw error;
     }
 
-    // Fetch company details separately for each contact
-    const enrichedData = await Promise.all(
-      (data || []).map(async (contact: any) => {
-        if (contact.company_id) {
-          const { data: company, error: companyError } = await supabase
-            .from('companies')
-            .select('*')
-            .eq('id', contact.company_id)
-            .single();
-
-          if (companyError) {
-            console.error('Company fetch error:', companyError);
-          }
-
-          return {
-            ...contact,
-            company: company || null
-          };
-        }
-        return { ...contact, company: null };
-      })
-    );
-
-    res.json({ data: enrichedData });
+    res.json({ data: data || [] });
   } catch (error) {
     next(error);
   }
@@ -102,6 +84,7 @@ router.get('/:id', async (req, res, next) => {
       .from('contacts')
       .select('*, company:companies(*)')
       .eq('id', req.params.id)
+      .eq('user_id', req.user!.id)
       .single();
 
     if (error) throw error;
@@ -156,6 +139,7 @@ router.post('/', async (req, res, next) => {
         linkedin_url: body.linkedin_url,
         company_id,
         notes: body.notes,
+        user_id: req.user!.id,
       })
       .select()
       .single();
@@ -437,17 +421,15 @@ router.get('/:id/insights', async (req, res, next) => {
         .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
 
-    const insightsTs      = contact.ai_insights_generated_at ? new Date(contact.ai_insights_generated_at).getTime() : 0;
-    const contactTs       = new Date(contact.updated_at).getTime();
-    const companyTs       = contact.company ? new Date(contact.company.updated_at).getTime() : 0;
-    const interactionTs   = latestInteraction.data ? new Date(latestInteraction.data.updated_at).getTime() : 0;
-    const noteTs          = latestNote.data ? new Date(latestNote.data.updated_at).getTime() : 0;
-    const meetingTs       = latestMeeting.data ? new Date(latestMeeting.data.updated_at).getTime() : 0;
-    const latestActivityTime = Math.max(contactTs, companyTs, interactionTs, noteTs, meetingTs);
+    const insightsTs = contact.ai_insights_generated_at ? new Date(contact.ai_insights_generated_at).getTime() : 0;
+    const contactTs = new Date(contact.updated_at).getTime();
+    const interactionTs = latestInteraction.data ? new Date(latestInteraction.data.updated_at).getTime() : 0;
+    const noteTs = latestNote.data ? new Date(latestNote.data.updated_at).getTime() : 0;
+    const meetingTs = latestMeeting.data ? new Date(latestMeeting.data.updated_at).getTime() : 0;
+    const latestActivityTime = Math.max(contactTs, interactionTs, noteTs, meetingTs);
 
     console.log(`[insights]   ai_insights_generated_at : ${contact.ai_insights_generated_at ?? 'none'}`);
     console.log(`[insights]   contact.updated_at       : ${contact.updated_at}${contactTs > insightsTs ? '  ← NEWER' : ''}`);
-    console.log(`[insights]   company.updated_at       : ${contact.company?.updated_at ?? 'n/a'}${companyTs > insightsTs ? '  ← NEWER' : ''}`);
     console.log(`[insights]   latest interaction       : ${latestInteraction.data?.updated_at ?? 'none'}${interactionTs > insightsTs ? '  ← NEWER' : ''}`);
     console.log(`[insights]   latest note              : ${latestNote.data?.updated_at ?? 'none'}${noteTs > insightsTs ? '  ← NEWER' : ''}`);
     console.log(`[insights]   latest meeting           : ${latestMeeting.data?.updated_at ?? 'none'}${meetingTs > insightsTs ? '  ← NEWER' : ''}`);
@@ -464,8 +446,8 @@ router.get('/:id/insights', async (req, res, next) => {
     const reason = !contact.ai_insights
       ? 'no insights stored yet'
       : !contact.ai_insights_generated_at
-      ? 'generated_at timestamp missing'
-      : `data changed after last generation (delta: +${Math.round((latestActivityTime - insightsTs) / 1000)}s)`;
+        ? 'generated_at timestamp missing'
+        : `data changed after last generation (delta: +${Math.round((latestActivityTime - insightsTs) / 1000)}s)`;
     console.log(`[insights] ✗ CACHE MISS — calling AI (reason: ${reason})`);
 
     // ── Fetch full timeline (no artificial limit) ────────────────────────────
@@ -534,13 +516,13 @@ router.get('/:id/insights', async (req, res, next) => {
       }
 
       const recentItems = allTimeline.slice(recentStartIdx);
-      const oldItems    = allTimeline.slice(0, recentStartIdx);
+      const oldItems = allTimeline.slice(0, recentStartIdx);
 
-      const existingSummary      = contact.ai_context_summary as string | null;
-      const summarizedThrough    = contact.ai_context_summarized_through as string | null;
-      const lastOldDate          = oldItems.length > 0 ? oldItems[oldItems.length - 1].date : null;
-      const summaryCoversAll     = existingSummary && summarizedThrough && lastOldDate
-                                    && summarizedThrough >= lastOldDate;
+      const existingSummary = contact.ai_context_summary as string | null;
+      const summarizedThrough = contact.ai_context_summarized_through as string | null;
+      const lastOldDate = oldItems.length > 0 ? oldItems[oldItems.length - 1].date : null;
+      const summaryCoversAll = existingSummary && summarizedThrough && lastOldDate
+        && summarizedThrough >= lastOldDate;
 
       let historySummary: string;
 
@@ -654,27 +636,39 @@ router.get('/:id/insights', async (req, res, next) => {
     console.log(`[insights] insights saved to DB — next open will be a cache hit`);
     return res.json({ data: insights, cached: false });
   } catch (error) {
-    next(error);
+    // AI call failed — fall back to stale cached insights if available, otherwise return null
+    console.error('AI completion error:', error);
+    try {
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('ai_insights')
+        .eq('id', req.params.id)
+        .single();
+      if (contact?.ai_insights) {
+        console.log(`[insights] AI failed — returning stale cached insights`);
+        return res.json({ data: contact.ai_insights, cached: true, stale: true });
+      }
+    } catch (_) {}
+    return res.json({ data: null });
   }
 });
 
 // GET /api/contacts/:id/events
-// Returns distinct events this contact has been linked to (via interactions).
+// Returns distinct events this contact has been linked to (via interactions OR contact_events).
 router.get('/:id/events', async (req, res, next) => {
   try {
-    const { data, error } = await supabase
-      .from('interactions')
-      .select('event:events(*)')
-      .eq('contact_id', req.params.id)
-      .not('event_id', 'is', null);
+    const [interactionsRes, contactEventsRes] = await Promise.all([
+      supabase.from('interactions').select('event:events(*)').eq('contact_id', req.params.id).not('event_id', 'is', null),
+      supabase.from('contact_events').select('event:events(*)').eq('contact_id', req.params.id),
+    ]);
 
-    if (error) throw error;
+    if (interactionsRes.error) throw interactionsRes.error;
 
-    // Deduplicate by event id
     const seen = new Set<string>();
-    const events = (data || [])
-      .map((row: any) => row.event)
-      .filter((e: any) => e && !seen.has(e.id) && seen.add(e.id));
+    const events = [
+      ...(interactionsRes.data || []).map((r: any) => r.event),
+      ...(contactEventsRes.data || []).map((r: any) => r.event),
+    ].filter((e: any) => e && !seen.has(e.id) && seen.add(e.id));
 
     res.json({ data: events });
   } catch (error) {

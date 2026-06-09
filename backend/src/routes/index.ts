@@ -20,6 +20,7 @@ import uploadRouter from './upload';
 import attachmentsRouter from './attachments';
 import conversationsRouter from './conversations';
 import assistantRouter from './assistant';
+import interactionsRouter from './interactions';
 
 const router = Router();
 
@@ -44,5 +45,6 @@ router.use('/upload', uploadRouter);
 router.use('/attachments', attachmentsRouter);
 router.use('/conversations', conversationsRouter);
 router.use('/assistant', assistantRouter);
+router.use('/interactions', interactionsRouter);
 
 export default router;

@@ -1,5 +1,6 @@
 class Contact {
   final String id;
+  final String? userId;
   final String? companyId;
   final String firstName;
   final String? lastName;
@@ -20,6 +21,7 @@ class Contact {
 
   Contact({
     required this.id,
+    this.userId,
     this.companyId,
     required this.firstName,
     this.lastName,
@@ -42,6 +44,7 @@ class Contact {
   factory Contact.fromJson(Map<String, dynamic> json) {
     return Contact(
       id: json['id'],
+      userId: json['user_id'],
       companyId: json['company_id'],
       firstName: json['first_name'] ?? '',
       lastName: json['last_name'],
@@ -69,6 +72,7 @@ class Contact {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'user_id': userId,
       'company_id': companyId,
       'first_name': firstName,
       'last_name': lastName,

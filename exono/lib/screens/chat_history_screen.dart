@@ -4,6 +4,7 @@ import '../config/app_theme.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/skeleton_loader.dart';
 import 'chat_screen.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
@@ -26,9 +27,9 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     final auth = context.read<AuthProvider>();
     final chatProvider = context.read<ChatProvider>();
     context.read<ConversationProvider>().setActive(convo);
-    
+
     await chatProvider.loadConversation(convo.id, accessToken: auth.accessToken);
-    
+
     if (mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -98,7 +99,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: colors.textPrimary, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: colors.accent, size: 20),
         ),
         title: Text(
           'Assistant History',
@@ -112,7 +113,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
         actions: [
           IconButton(
             onPressed: () => convProvider.loadConversations(),
-            icon: Icon(Icons.refresh_rounded, color: colors.textMuted),
+            icon: Icon(Icons.refresh_rounded, color: colors.accent),
           ),
         ],
       ),
@@ -121,7 +122,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
           _buildNewChatButton(colors),
           Expanded(
             child: convProvider.isLoading && conversations.isEmpty
-                ? const Center(child: CircularProgressIndicator())
+                ? _buildHistorySkeleton(colors)
                 : conversations.isEmpty
                     ? _buildEmptyState(colors)
                     : _buildHistoryList(conversations, colors),
@@ -295,7 +296,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
               ),
               IconButton(
                 icon: Icon(Icons.delete_outline_rounded,
-                    color: colors.textMuted.withValues(alpha: 0.5), size: 20),
+                    color: colors.destructive.withValues(alpha: 0.6), size: 20),
                 onPressed: () => _deleteConversation(convo),
                 visualDensity: VisualDensity.compact,
                 tooltip: 'Delete',
@@ -310,7 +311,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
   String _formatDate(DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
-    
+
     if (diff.inDays == 0) {
       return 'Today, ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
     } else if (diff.inDays == 1) {
@@ -320,5 +321,57 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     } else {
       return '${dt.day}/${dt.month}/${dt.year}';
     }
+  }
+
+  Widget _buildHistorySkeleton(ExonoColors colors) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+      itemCount: 8,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            children: [
+              SkeletonLoader(
+                width: 44,
+                height: 44,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonLoader(
+                      width: double.infinity,
+                      height: 15,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    const SizedBox(height: 8),
+                    SkeletonLoader(
+                      width: 100,
+                      height: 12,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              SkeletonLoader(
+                width: 20,
+                height: 20,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

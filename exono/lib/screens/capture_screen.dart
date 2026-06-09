@@ -649,7 +649,7 @@ class _CaptureScreenState extends State<CaptureScreen>
             children: [
               IconButton(
                 onPressed: () => setState(() => _stage = _Stage.scan),
-                icon: Icon(Icons.arrow_back_ios_new_rounded, color: _c.textPrimary, size: 18),
+                icon: Icon(Icons.arrow_back_ios_new_rounded, color: _c.accent, size: 18),
               ),
               const Spacer(),
               Column(
@@ -678,7 +678,7 @@ class _CaptureScreenState extends State<CaptureScreen>
               const Spacer(),
               IconButton(
                 onPressed: _close,
-                icon: Icon(Icons.close_rounded, color: _c.textMuted, size: 20),
+                icon: Icon(Icons.close_rounded, color: _c.accent, size: 20),
               ),
             ],
           ),
@@ -790,7 +790,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       height: 50,
       child: Row(
         children: [
-          Icon(icon, size: 15, color: _c.textMuted),
+          Icon(icon, size: 15, color: _c.accent),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
@@ -817,7 +817,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          Icon(Icons.event_outlined, size: 15, color: _c.textMuted),
+          Icon(Icons.event_outlined, size: 15, color: _c.accent),
           const SizedBox(width: 12),
           Expanded(
             child: DropdownButtonHideUnderline(
@@ -825,7 +825,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                 value: _eventId,
                 isExpanded: true,
                 dropdownColor: _c.surfaceAlt,
-                icon: Icon(Icons.expand_more, color: _c.textMuted, size: 18),
+                icon: Icon(Icons.expand_more, color: _c.accent, size: 18),
                 style: TextStyle(fontSize: 14, color: _c.textPrimary),
                 hint: Text('Select event', style: TextStyle(color: _c.textMuted, fontSize: 14)),
                 items: _events
@@ -1041,7 +1041,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         padding: const EdgeInsets.symmetric(vertical: 44),
         child: Column(
           children: [
-            Icon(Icons.upload_file_rounded, size: 36, color: _c.textMuted),
+            Icon(Icons.upload_file_rounded, size: 36, color: _c.accent),
             const SizedBox(height: 12),
             Text(
               'TAP TO BROWSE',

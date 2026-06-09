@@ -39,6 +39,17 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> getContact(String id) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$id'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    }
+    throw Exception('Failed to load contact');
+  }
+
   static Future<Contact> createContact(Map<String, dynamic> contactData) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}'),
@@ -417,6 +428,7 @@ class ApiService {
     String? eventId,
     required String type,
     required String summary,
+    String? interactionDate,
     Map<String, dynamic>? details,
   }) async {
     final response = await http.post(
@@ -424,10 +436,11 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({
         'contact_id': contactId,
-        'event_id': eventId,
+        if (eventId != null) 'event_id': eventId,
         'interaction_type': type,
         'summary': summary,
-        'details': details,
+        if (interactionDate != null) 'interaction_date': interactionDate,
+        if (details != null) 'details': details,
       }),
     );
 
@@ -435,6 +448,17 @@ class ApiService {
       return json.decode(response.body) as Map<String, dynamic>;
     }
     throw Exception('Failed to log interaction');
+  }
+
+  static Future<void> updateInteraction(String id, Map<String, dynamic> updates) async {
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}/interactions/$id'),
+      headers: await _headers(),
+      body: json.encode(updates),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update interaction');
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getCompanies({String? query}) async {
@@ -447,6 +471,71 @@ class ApiService {
       return (data['data'] as List).cast<Map<String, dynamic>>();
     }
     throw Exception('Failed to load companies');
+  }
+
+  static Future<Map<String, dynamic>> getCompany(String companyId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.companies}/$companyId'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return data['data'] as Map<String, dynamic>;
+    }
+    throw Exception('Failed to load company');
+  }
+
+  static Future<Map<String, dynamic>> enrichCompany(String id, {bool force = false}) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.companies}/$id/enrich'),
+      headers: await _headers(),
+      body: json.encode({'force': force}),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['data'] as Map<String, dynamic>;
+    }
+    throw Exception(json.decode(response.body)['error'] ?? 'Failed to enrich company');
+  }
+
+  static Future<List<String>> generateCompanyBriefing(String id) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.companies}/$id/briefing'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body)['data'];
+      return (data['talking_points'] as List).cast<String>();
+    }
+    throw Exception('Failed to generate company AI briefing');
+  }
+
+  static Future<List<Map<String, dynamic>>> getCompanyContacts(String companyId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}?company_id=${Uri.encodeComponent(companyId)}'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return (data['data'] as List).cast<Map<String, dynamic>>();
+    }
+    throw Exception('Failed to load company contacts');
+  }
+
+  static Future<void> removeContactFromEvent(String eventId, String contactId) async {
+    final response = await http.delete(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/contacts/$contactId'),
+      headers: await _headers(),
+    );
+    if (response.statusCode != 200) throw Exception('Failed to remove contact from event');
+  }
+
+  static Future<void> addContactToEvent(String eventId, String contactId) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/contacts'),
+      headers: await _headers(),
+      body: json.encode({'contact_id': contactId}),
+    );
+    if (response.statusCode != 200) throw Exception('Failed to link contact to event');
   }
 
   static Future<Map<String, dynamic>> addEventTarget(String eventId, String companyId, {String priority = 'medium', String? boothLocation}) async {

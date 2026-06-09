@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_theme.dart';
+import '../widgets/skeleton_loader.dart';
 
 class IntegrationsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -12,6 +13,8 @@ class IntegrationsScreen extends StatefulWidget {
 }
 
 class _IntegrationsScreenState extends State<IntegrationsScreen> {
+  bool _isLoading = true;
+
   late final List<_IntegrationItem> _integrations = [
     const _IntegrationItem(
       id: 'calendar',
@@ -75,6 +78,17 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
   bool _pushMeetingOutcomes = true;
   bool _syncOnlyOnWifi = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Simulate loading
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    });
+  }
+
   _IntegrationItem get _selectedIntegration => _integrations[_selectedIndex];
 
   void _showUiOnlyMessage(String message) {
@@ -103,7 +117,9 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
                 const SizedBox(height: 20),
                 _buildMetricRow(isMobile),
                 const SizedBox(height: 20),
-                if (isMobile)
+                if (_isLoading)
+                  _buildLoadingGrid(isMobile: isMobile)
+                else if (isMobile)
                   Column(
                     children: [
                       _buildIntegrationGrid(singleColumn: true),
@@ -280,7 +296,7 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: AppTheme.stone800),
+            Icon(icon, size: 18, color: AppTheme.colorsOf(context).accent),
             const SizedBox(width: 8),
             Text(
               label,
@@ -431,7 +447,7 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
                               size: 20,
                               color: isSelected
                                   ? Colors.white
-                                  : AppTheme.stone800,
+                                  : AppTheme.colorsOf(context).accent,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -655,7 +671,7 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
                 onPressed: () => _showUiOnlyMessage(
                   '${integration.title} sync triggered. This is a UI-only preview.',
                 ),
-                icon: const Icon(Icons.sync_rounded, size: 18),
+                icon: Icon(Icons.sync_rounded, size: 18, color: Colors.white),
                 label: const Text('RUN SYNC'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppTheme.stone900,
@@ -673,7 +689,7 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
                 onPressed: () => _showUiOnlyMessage(
                   '${integration.title} configuration opened. Editing is UI-only for now.',
                 ),
-                icon: const Icon(Icons.settings_outlined, size: 18),
+                icon: Icon(Icons.settings_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
                 label: const Text('CONFIGURE'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppTheme.stone800,
@@ -861,7 +877,9 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
                     child: Icon(
                       activity.icon,
                       size: 18,
-                      color: AppTheme.stone800,
+                      color: activity.icon == Icons.warning_amber_rounded
+                          ? AppTheme.stone800
+                          : AppTheme.colorsOf(context).accent,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -976,12 +994,155 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
             color: AppTheme.stone700,
           ),
         ),
-      ],
-    );
-  }
-}
+      );
+    }
 
-enum _IntegrationStatus { connected, warning, disconnected }
+    Widget _buildLoadingGrid({required bool isMobile}) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final singleColumn = isMobile;
+          final width = singleColumn
+              ? constraints.maxWidth
+              : (constraints.maxWidth - 12) / 2;
+
+          return Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: List.generate(4, (index) {
+              return SizedBox(
+                width: width,
+                child: _buildIntegrationSkeleton(),
+              );
+            }),
+          );
+        },
+      );
+    }
+
+    Widget _buildIntegrationSkeleton() {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.stone200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonLoader(
+                  width: 44,
+                  height: 44,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonLoader(
+                        width: double.infinity,
+                        height: 16,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      const SizedBox(height: 8),
+                      SkeletonLoader(
+                        width: 120,
+                        height: 12,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ],
+                  ),
+                ),
+                SkeletonLoader(
+                  width: 80,
+                  height: 24,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SkeletonLoader(
+              width: double.infinity,
+              height: 13,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 6),
+            SkeletonLoader(
+              width: double.infinity,
+              height: 13,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 6),
+            SkeletonLoader(
+              width: 180,
+              height: 13,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                SkeletonLoader(
+                  width: 6,
+                  height: 6,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SkeletonLoader(
+                    width: double.infinity,
+                    height: 12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                SkeletonLoader(
+                  width: 6,
+                  height: 6,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SkeletonLoader(
+                    width: double.infinity,
+                    height: 12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: SkeletonLoader(
+                    width: double.infinity,
+                    height: 12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SkeletonLoader(
+                  width: 51,
+                  height: 31,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  enum _IntegrationStatus { connected, warning, disconnected }
 
 class _IntegrationItem {
   final String id;

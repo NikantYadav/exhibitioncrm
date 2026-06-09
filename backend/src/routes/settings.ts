@@ -14,7 +14,7 @@ router.get('/', async (req, res, next) => {
       return res.json({
         data: {
           ai_provider: 'gemini',
-          ai_model: 'gemini-3.5-flash',
+          ai_model: 'gemini-3.1-flash-lite',
           ai_api_key: '',
           enrichment_enabled: true,
           smtp_host: '',

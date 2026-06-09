@@ -152,7 +152,7 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off, color: _c.textSecondary, size: 16),
+              Icon(Icons.cloud_off, color: _c.accent, size: 16),
               const SizedBox(width: 8),
               Text(
                 'Offline',
@@ -203,7 +203,7 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
                 borderRadius: BorderRadius.circular(999),
                 child: Padding(
                   padding: const EdgeInsets.all(2),
-                  child: Icon(Icons.refresh, color: _c.textSecondary, size: 18),
+                  child: Icon(Icons.refresh, color: _c.accent, size: 18),
                 ),
               ),
             ],
@@ -223,7 +223,7 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.menu, color: _c.textPrimary, size: 22),
+          Icon(Icons.menu, color: _c.accent, size: 22),
           const SizedBox(width: 14),
           Text(
             'EXONO',
@@ -236,7 +236,7 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
             ),
           ),
           const Spacer(),
-          Icon(Icons.notifications, color: _c.textPrimary, size: 22),
+          Icon(Icons.notifications, color: _c.accent, size: 22),
         ],
       ),
     );

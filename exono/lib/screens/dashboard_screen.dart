@@ -4,6 +4,7 @@ import '../config/app_theme.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/skeleton_loader.dart';
 import 'offline_mode_screen.dart';
 import 'log_interaction_screen.dart';
 
@@ -17,7 +18,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-
+  bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 
   late final List<_TargetItem> _targets = [
@@ -124,6 +125,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String _selectedFilter = 'All';
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTargets();
+  }
+
+  Future<void> _loadTargets() async {
+    // Simulate loading targets from API
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   List<_TargetItem> get _visibleTargets {
     final query = _searchQuery.trim().toLowerCase();
@@ -279,15 +294,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const Spacer(),
         IconButton(
           onPressed: () => _showUiOnlyMessage('Search'),
-          icon: Icon(Icons.search, color: colors.textSecondary),
+          icon: Icon(Icons.search, color: colors.accent),
         ),
         IconButton(
           onPressed: _openTargetListFullView,
-          icon: Icon(Icons.view_agenda_outlined, color: colors.textSecondary),
+          icon: Icon(Icons.view_agenda_outlined, color: colors.accent),
         ),
         IconButton(
           onPressed: _openOfflineMode,
-          icon: Icon(Icons.hub_outlined, color: colors.textSecondary),
+          icon: Icon(Icons.hub_outlined, color: colors.accent),
         ),
       ],
     );
@@ -325,17 +340,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const Spacer(),
           IconButton(
             onPressed: () => _showUiOnlyMessage('Search'),
-            icon: Icon(Icons.search, color: colors.textSecondary, size: 22),
+            icon: Icon(Icons.search, color: colors.accent, size: 22),
             splashRadius: 20,
           ),
           IconButton(
             onPressed: _openTargetListFullView,
-            icon: Icon(Icons.view_agenda_outlined, color: colors.textSecondary, size: 22),
+            icon: Icon(Icons.view_agenda_outlined, color: colors.accent, size: 22),
             splashRadius: 20,
           ),
           IconButton(
             onPressed: _openOfflineMode,
-            icon: Icon(Icons.hub_outlined, color: colors.textSecondary, size: 22),
+            icon: Icon(Icons.hub_outlined, color: colors.accent, size: 22),
             splashRadius: 20,
           ),
         ],
@@ -447,7 +462,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         decoration: InputDecoration(
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          prefixIcon: Icon(Icons.search, size: 18, color: colors.textMuted),
+          prefixIcon: Icon(Icons.search, size: 18, color: colors.accent),
           hintText: 'Search companies, people, booths...',
           hintStyle: TextStyle(
             fontSize: 13,
@@ -460,6 +475,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<Widget> _buildTargetCards(ExonoColors colors) {
+    if (_isLoading) {
+      return [
+        for (int i = 0; i < 3; i++) ...[
+          _buildSkeletonTargetCard(colors),
+          if (i < 2) const SizedBox(height: 8),
+        ],
+      ];
+    }
+
     if (_visibleTargets.isEmpty) {
       return [
         AppCard(
@@ -638,7 +662,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               children: [
                                 Padding(
                                   padding: const EdgeInsets.only(top: 6),
-                                  child: Icon(Icons.circle, size: 5, color: colors.textSecondary),
+                                  child: Icon(Icons.circle, size: 5, color: colors.accent),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -684,7 +708,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         color: colors.surfaceElevated,
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Icon(Icons.person, size: 16, color: colors.textMuted),
+                      child: Icon(Icons.person, size: 16, color: colors.accent),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -875,6 +899,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 fontWeight: FontWeight.w600,
                 color: isPrimary ? colors.accentStrong : colors.textPrimary,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonTargetCard(ExonoColors colors) {
+    return AppCard(
+      radius: 24,
+      borderColor: colors.border.withValues(alpha: 0.6),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonLoader(
+                        width: 180,
+                        height: 16,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      const SizedBox(height: 8),
+                      SkeletonLoader(
+                        width: 120,
+                        height: 12,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SkeletonLoader(
+                      width: 24,
+                      height: 24,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    const SizedBox(width: 10),
+                    SkeletonLoader(
+                      width: 20,
+                      height: 20,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
         ),

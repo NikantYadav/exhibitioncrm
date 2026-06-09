@@ -9,6 +9,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/skeleton_loader.dart';
 import 'event_target_screen.dart';
 
 class PreEventPrepScreen extends StatefulWidget {
@@ -233,13 +234,13 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
               onNotificationPressed: () {},
               actionWidget: IconButton(
                 onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 22),
+                icon: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
                 splashRadius: 20,
               ),
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? _buildLoadingState()
                   : SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
                       child: Center(
@@ -311,7 +312,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.location_on_outlined, size: 16, color: _c.textMuted),
+                Icon(Icons.location_on_outlined, size: 16, color: _c.accent),
                 const SizedBox(width: 8),
                 Text(
                   (widget.event.location ?? 'Location TBD').toUpperCase(),
@@ -327,7 +328,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.calendar_month_outlined, size: 16, color: _c.textMuted),
+                Icon(Icons.calendar_month_outlined, size: 16, color: _c.accent),
                 const SizedBox(width: 8),
                 Text(
                   _formatDateRange(widget.event.startDate, widget.event.endDate).toUpperCase(),
@@ -374,7 +375,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
           const SizedBox(height: 16),
           if (_goals.isEmpty)
             Row(children: [
-              Icon(Icons.flag_outlined, size: 18, color: _c.textMuted),
+              Icon(Icons.flag_outlined, size: 18, color: _c.accent),
               const SizedBox(width: 10),
               Expanded(child: Text('No goals yet. Set targets to stay focused during the event.',
                   style: TextStyle(fontSize: 13, color: _c.textMuted, height: 1.4))),
@@ -527,7 +528,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 16, color: filled ? Colors.white : _c.textMuted),
+            Icon(icon, size: 16, color: filled ? Colors.white : _c.accent),
             const SizedBox(width: 8),
             Text(
               label.toUpperCase(),
@@ -592,7 +593,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.open_in_new_rounded, size: 14, color: _c.textSecondary),
+                    Icon(Icons.open_in_new_rounded, size: 14, color: _c.accent),
                     const SizedBox(width: 4),
                     Text('MANAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: _c.textSecondary)),
                   ],
@@ -654,7 +655,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                           decoration: InputDecoration(
                             hintText: 'Search companies...',
                             hintStyle: TextStyle(color: _c.textMuted),
-                            prefixIcon: Icon(Icons.search, color: _c.textMuted),
+                            prefixIcon: Icon(Icons.search, color: _c.accent),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
                             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
                             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
@@ -677,8 +678,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                   ),
                   Expanded(
                     child: isSearching
-                        ? const Center(child: CircularProgressIndicator())
-                        : (companies.isEmpty && searchQuery.isEmpty)
+                              ? _buildSearchingState()
+                              : (companies.isEmpty && searchQuery.isEmpty)
                             ? Center(child: Text('Type to search companies', style: TextStyle(color: _c.textMuted)))
                             : ListView.builder(
                                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -780,7 +781,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                   hintText: 'e.g. A-12, Hall 3 B04',
                   labelStyle: TextStyle(color: _c.textMuted),
                   hintStyle: TextStyle(color: _c.textMuted),
-                  prefixIcon: Icon(Icons.location_on_outlined, color: _c.textMuted),
+                  prefixIcon: Icon(Icons.location_on_outlined, color: _c.accent),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
@@ -970,6 +971,208 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
       padding: padding,
       radius: 16,
       child: child,
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1280),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header skeleton
+              SkeletonLoader(
+                width: 100,
+                height: 28,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              const SizedBox(height: 16),
+              SkeletonLoader(
+                width: double.infinity,
+                height: 40,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  SkeletonLoader(
+                    width: 120,
+                    height: 16,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  const SizedBox(width: 20),
+                  SkeletonLoader(
+                    width: 100,
+                    height: 16,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              // Goals panel skeleton
+              AppCard(
+                padding: const EdgeInsets.all(20),
+                radius: AppTheme.radiusCard,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SkeletonLoader(
+                            width: 120,
+                            height: 20,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        SkeletonLoader(
+                          width: 60,
+                          height: 24,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SkeletonLoader(
+                      width: double.infinity,
+                      height: 16,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    const SizedBox(height: 8),
+                    SkeletonLoader(
+                      width: double.infinity,
+                      height: 3,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Target list panel skeleton
+              AppCard(
+                padding: const EdgeInsets.all(24),
+                radius: 16,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SkeletonLoader(
+                            width: 150,
+                            height: 24,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        SkeletonLoader(
+                          width: 80,
+                          height: 36,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        const SizedBox(width: 8),
+                        SkeletonLoader(
+                          width: 80,
+                          height: 36,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Container(height: 1, color: _c.border),
+                    const SizedBox(height: 16),
+                    for (int i = 0; i < 3; i++) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SkeletonLoader(
+                                  width: 180,
+                                  height: 18,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                const SizedBox(height: 8),
+                                SkeletonLoader(
+                                  width: 100,
+                                  height: 24,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SkeletonLoader(
+                            width: 80,
+                            height: 32,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          const SizedBox(width: 8),
+                          SkeletonLoader(
+                            width: 36,
+                            height: 36,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ],
+                      ),
+                      if (i < 2)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          child: Container(height: 1, color: _c.border),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchingState() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          for (int i = 0; i < 5; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  SkeletonLoader(
+                    width: 40,
+                    height: 40,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SkeletonLoader(
+                          width: double.infinity,
+                          height: 16,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        const SizedBox(height: 6),
+                        SkeletonLoader(
+                          width: 120,
+                          height: 14,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

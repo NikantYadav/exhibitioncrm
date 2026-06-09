@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_theme.dart';
+import '../widgets/skeleton_loader.dart';
 
 class MeetingsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -78,6 +79,16 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
 
   int _selectedIndex = 0;
   bool _showCompleted = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Simulate loading delay
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _isLoading = false);
+    });
+  }
 
   _MeetingItem get _selectedMeeting => _meetings[_selectedIndex];
 
@@ -93,6 +104,7 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
     return Container(
       color: AppTheme.background,
       child: LayoutBuilder(
@@ -108,23 +120,42 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
                 const SizedBox(height: 20),
                 _buildMetricRow(isMobile),
                 const SizedBox(height: 20),
-                if (isMobile)
-                  Column(
-                    children: [
-                      _buildMeetingQueue(),
-                      const SizedBox(height: 16),
-                      _buildMeetingDetail(),
-                    ],
-                  )
+                if (_isLoading)
+                  if (isMobile)
+                    Column(
+                      children: [
+                        _buildSkeletonMeetingQueue(),
+                        const SizedBox(height: 16),
+                        _buildSkeletonMeetingDetail(),
+                      ],
+                    )
+                  else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(width: 360, child: _buildSkeletonMeetingQueue()),
+                        const SizedBox(width: 16),
+                        Expanded(child: _buildSkeletonMeetingDetail()),
+                      ],
+                    )
                 else
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(width: 360, child: _buildMeetingQueue()),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildMeetingDetail()),
-                    ],
-                  ),
+                  if (isMobile)
+                    Column(
+                      children: [
+                        _buildMeetingQueue(),
+                        const SizedBox(height: 16),
+                        _buildMeetingDetail(),
+                      ],
+                    )
+                  else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(width: 360, child: _buildMeetingQueue()),
+                        const SizedBox(width: 16),
+                        Expanded(child: _buildMeetingDetail()),
+                      ],
+                    ),
               ],
             ),
           );
@@ -253,6 +284,7 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
     required IconData icon,
     required VoidCallback onTap,
   }) {
+    final colors = AppTheme.colorsOf(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -266,7 +298,7 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: AppTheme.stone800),
+            Icon(icon, size: 18, color: colors.accent),
             const SizedBox(width: 8),
             Text(
               label,
@@ -670,38 +702,16 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
                   ),
                 ),
               ),
-              OutlinedButton.icon(
+              _buildOutlinedButtonWithAccent(
                 onPressed: () => widget.onNavigateTab?.call(4),
-                icon: const Icon(Icons.mark_email_unread_outlined, size: 18),
-                label: const Text('OPEN FOLLOW-UPS'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.stone800,
-                  side: BorderSide(color: AppTheme.stone300),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                icon: Icons.mark_email_unread_outlined,
+                label: 'OPEN FOLLOW-UPS',
               ),
-              OutlinedButton.icon(
+              _buildOutlinedButtonWithAccent(
                 onPressed: () =>
                     _showUiOnlyMessage('Meeting logging is UI-only for now.'),
-                icon: const Icon(Icons.note_add_outlined, size: 18),
-                label: const Text('LOG OUTCOME'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.stone800,
-                  side: BorderSide(color: AppTheme.stone300),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                icon: Icons.note_add_outlined,
+                label: 'LOG OUTCOME',
               ),
             ],
           ),
@@ -794,6 +804,96 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
               color: AppTheme.stone800,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutlinedButtonWithAccent({
+    required VoidCallback onPressed,
+    required IconData icon,
+    required String label,
+  }) {
+    final colors = AppTheme.colorsOf(context);
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: colors.accent,
+        side: BorderSide(color: AppTheme.stone300),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 14,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonMeetingQueue() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppTheme.stone200.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Meeting Queue',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.stone900,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Loading...',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.stone500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...List.generate(4, (index) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: index == 3 ? 0 : 12),
+              child: const SkeletonCard(),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonMeetingDetail() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppTheme.stone200.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...List.generate(5, (index) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: index == 4 ? 0 : 16),
+              child: const SkeletonCard(),
+            );
+          }),
         ],
       ),
     );

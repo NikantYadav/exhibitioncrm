@@ -9,6 +9,7 @@ import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/conversation_provider.dart';
+import '../widgets/skeleton_loader.dart';
 
 class ChatScreen extends StatefulWidget {
   final String? initialMessage;
@@ -221,7 +222,7 @@ class _ChatScreenState extends State<ChatScreen>
           IconButton(
             onPressed: () => Navigator.pop(context),
             icon: Icon(Icons.arrow_back_ios_new_rounded,
-                color: _c.textSecondary, size: 19),
+                color: _c.accent, size: 19),
             tooltip: 'Back',
           ),
           // AI avatar
@@ -304,7 +305,7 @@ class _ChatScreenState extends State<ChatScreen>
           // New chat
           IconButton(
             onPressed: _startNewChat,
-            icon: Icon(Icons.edit_rounded, color: _c.textSecondary, size: 20),
+            icon: Icon(Icons.edit_rounded, color: _c.accent, size: 20),
             tooltip: 'New Chat',
           ),
         ],
@@ -319,9 +320,7 @@ class _ChatScreenState extends State<ChatScreen>
       builder: (context, chat, _) {
         // Full-screen loader only when loading EMPTY history for the first time
         if (chat.isLoadingHistory && chat.messages.isEmpty) {
-          return Center(
-            child: CircularProgressIndicator(strokeWidth: 2, color: _c.accent),
-          );
+          return _buildChatSkeleton();
         }
 
         // Error with no messages
@@ -746,6 +745,66 @@ class _ChatScreenState extends State<ChatScreen>
           ],
         ),
       ),
+    );
+  }
+
+  // ── Input section ─────────────────────────────────────────────────────────
+
+  // ── Skeleton loading ──────────────────────────────────────────────────────
+
+  Widget _buildChatSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        final isUser = index % 2 == 0;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Align(
+            alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                // Sender label skeleton
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
+                  child: SkeletonLoader(
+                    width: 60,
+                    height: 11,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                // Message bubble skeleton
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.82,
+                  ),
+                  child: SkeletonLoader(
+                    width: MediaQuery.of(context).size.width * (isUser ? 0.6 : 0.75),
+                    height: isUser ? 48 : (index % 3 == 0 ? 80 : 64),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isUser ? 16 : 4),
+                      bottomRight: Radius.circular(isUser ? 4 : 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Timestamp skeleton
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: SkeletonLoader(
+                    width: 50,
+                    height: 10,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

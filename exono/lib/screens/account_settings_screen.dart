@@ -8,6 +8,7 @@ import '../providers/theme_provider.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/skeleton_loader.dart';
 import 'profile_screen.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
@@ -48,6 +49,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final isMobile = MediaQuery.of(context).size.width < 768;
+
+    // Check if profile data is loading
+    final isLoading = auth.profile == null || auth.user == null;
+
     final email = auth.user?['email'] as String? ?? 'No email available';
     final profileType = (auth.profile?['profile_type'] as String? ?? 'team')
         .replaceAll('_', ' ')
@@ -67,59 +72,260 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         decoration: AppTheme.appBackground(context),
         child: SafeArea(
           bottom: false,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 980),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTopBar(),
-                    const SizedBox(height: 20),
-                    _buildHeroCard(
-                      name: auth.displayName,
-                      designation: auth.designation,
-                      email: email,
-                      profileType: profileType,
-                      aiTone: aiTone,
-                      initials: auth.initials,
-                    ),
-                    const SizedBox(height: 16),
-                    if (isMobile)
-                      Column(
-                        children: [
-                          _buildPreferencesPanel(),
-                          const SizedBox(height: 16),
-                          _buildAccountPanel(auth),
-                          const SizedBox(height: 16),
-                          _buildDangerPanel(),
-                        ],
-                      )
-                    else
-                      Row(
+          child: isLoading
+              ? _buildSkeletonLoading(isMobile)
+              : SingleChildScrollView(
+                  padding: EdgeInsets.all(isMobile ? 16 : 24),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 980),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            flex: 11,
-                            child: Column(
+                          _buildTopBar(),
+                          const SizedBox(height: 20),
+                          _buildHeroCard(
+                            name: auth.displayName,
+                            designation: auth.designation,
+                            email: email,
+                            profileType: profileType,
+                            aiTone: aiTone,
+                            initials: auth.initials,
+                          ),
+                          const SizedBox(height: 16),
+                          if (isMobile)
+                            Column(
                               children: [
                                 _buildPreferencesPanel(),
                                 const SizedBox(height: 16),
+                                _buildAccountPanel(auth),
+                                const SizedBox(height: 16),
                                 _buildDangerPanel(),
                               ],
+                            )
+                          else
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 11,
+                                  child: Column(
+                                    children: [
+                                      _buildPreferencesPanel(),
+                                      const SizedBox(height: 16),
+                                      _buildDangerPanel(),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(flex: 8, child: _buildAccountPanel(auth)),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(flex: 8, child: _buildAccountPanel(auth)),
                         ],
                       ),
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonLoading(bool isMobile) {
+    final colors = AppTheme.colorsOf(context);
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 980),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top bar skeleton
+              Row(
+                children: [
+                  SkeletonLoader(
+                    width: 48,
+                    height: 48,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonLoader(
+                        width: 180,
+                        height: 18,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      const SizedBox(height: 6),
+                      SkeletonLoader(
+                        width: 300,
+                        height: 13,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // Hero card skeleton
+              AppCard(
+                padding: const EdgeInsets.all(22),
+                radius: 28,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SkeletonLoader(
+                          width: 64,
+                          height: 64,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SkeletonLoader(
+                                width: 200,
+                                height: 28,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              const SizedBox(height: 6),
+                              SkeletonLoader(
+                                width: 150,
+                                height: 13,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              const SizedBox(height: 8),
+                              SkeletonLoader(
+                                width: 180,
+                                height: 13,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        SkeletonLoader(
+                          width: 120,
+                          height: 31,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        const SizedBox(width: 8),
+                        SkeletonLoader(
+                          width: 140,
+                          height: 31,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        const SizedBox(width: 8),
+                        SkeletonLoader(
+                          width: 130,
+                          height: 31,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (isMobile)
+                Column(
+                  children: [
+                    _buildPanelSkeleton(),
+                    const SizedBox(height: 16),
+                    _buildPanelSkeleton(),
+                    const SizedBox(height: 16),
+                    _buildPanelSkeleton(),
+                  ],
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 11,
+                      child: Column(
+                        children: [
+                          _buildPanelSkeleton(),
+                          const SizedBox(height: 16),
+                          _buildPanelSkeleton(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 8, child: _buildPanelSkeleton()),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPanelSkeleton() {
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      radius: 28,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SkeletonLoader(
+            width: 160,
+            height: 14,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          const SizedBox(height: 14),
+          ...List.generate(
+            4,
+            (index) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: AppCard(
+                padding: const EdgeInsets.all(16),
+                radius: 20,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonLoader(
+                      width: 40,
+                      height: 40,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SkeletonLoader(
+                            width: 150,
+                            height: 14,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          const SizedBox(height: 6),
+                          SkeletonLoader(
+                            width: double.infinity,
+                            height: 13,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -134,7 +340,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
           style: IconButton.styleFrom(
             backgroundColor: colors.surface,
-            foregroundColor: colors.textPrimary,
+            foregroundColor: colors.accent,
             side: BorderSide(color: colors.border),
             padding: const EdgeInsets.all(12),
           ),
@@ -261,7 +467,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: colors.textPrimary),
+          Icon(icon, size: 15, color: colors.accent),
           const SizedBox(width: 8),
           Text(
             label,
@@ -507,7 +713,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: colors.border.withValues(alpha: 0.7)),
               ),
-              child: Icon(icon, size: 18, color: colors.textPrimary),
+              child: Icon(icon, size: 18, color: colors.accent),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -535,7 +741,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            Icon(Icons.chevron_right_rounded, color: colors.textMuted),
+            Icon(Icons.chevron_right_rounded, color: colors.accent),
           ],
         ),
       ),

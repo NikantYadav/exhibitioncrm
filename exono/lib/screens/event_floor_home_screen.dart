@@ -7,7 +7,7 @@ import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
-import 'log_interaction_screen.dart';
+import '../widgets/skeleton_loader.dart';
 
 class EventFloorHomeScreen extends StatefulWidget {
   final Event event;
@@ -100,251 +100,145 @@ class _EventFloorHomeScreenState extends State<EventFloorHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _c.background,
-      bottomNavigationBar: AppBottomNav(
-        selectedIndex: 4,
-        onNavigate: (i) {
-          Navigator.of(context).pop();
-          widget.onNavigateTab?.call(i);
-        },
-      ),
       body: SafeArea(
         bottom: false,
-        child: Column(
+        child: Stack(
           children: [
-            _buildTopBar(context),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 180),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1280),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildHeroCard(context),
-                              const SizedBox(height: 24),
-                              _buildPriorityTargetsSection(context),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 64),
-        child: SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: () => showLogInteractionSheet(context),
-            style: FilledButton.styleFrom(
-              backgroundColor: _c.accent,
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(56),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            icon: const Icon(Icons.chat_bubble_outline, size: 20),
-            label: Text(
-              'LOG INTERACTION',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.8,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopBar(BuildContext context) {
-    return Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: _c.surface.withValues(alpha: 0.85),
-        border: Border(
-          bottom: BorderSide(color: _c.border.withValues(alpha: 0.30)),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            splashRadius: 20,
-            icon: Icon(Icons.menu, color: _c.textPrimary),
-          ),
-          Expanded(
-            child: Center(
-              child: Text(
-                'EXONO',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.2,
-                  color: _c.textPrimary,
+            if (_isLoading)
+              SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildSkeletonLoading(),
+              )
+            else
+              SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildHeroCard(context),
+                    const SizedBox(height: 32),
+                    _buildPriorityTargetsSection(context),
+                    const SizedBox(height: 64),
+                  ],
                 ),
               ),
-            ),
-          ),
-          IconButton(
-            onPressed: () => _showUiOnlyMessage(context, 'Notifications'),
-            splashRadius: 20,
-            icon: Icon(Icons.notifications, color: _c.textPrimary),
-          ),
-        ],
+            _buildTopBar(context),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHeroCard(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _c.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _c.border.withValues(alpha: 0.20)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
+    return AppCard(
+      padding: const EdgeInsets.all(24),
+      radius: 28,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.04),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.65),
-                  ],
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _c.destructive.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: -10,
-            top: -10,
-            child: Icon(
-              Icons.apartment_rounded,
-              size: 180,
-              color: Colors.white.withValues(alpha: 0.05),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 120),
-                Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 8,
-                      height: 8,
+                      width: 6,
+                      height: 6,
                       decoration: BoxDecoration(
                         color: _c.destructive,
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Text(
                       'LIVE NOW',
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 1.3,
-                        color: _c.textPrimary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: _c.destructive,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  widget.event.name.toUpperCase(),
+              ),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            widget.event.name,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: _c.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(Icons.location_on_outlined, size: 16, color: _c.accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  widget.event.location ?? 'Location TBD',
                   style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.6,
-                    color: _c.textPrimary,
-                    height: 1.05,
+                    fontSize: 14,
+                    color: _c.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on_outlined,
-                      size: 18,
-                      color: _c.textMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${widget.event.venue ?? widget.event.location ?? 'Venue'} • ${widget.event.hall ?? 'Main Hall'}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: _c.textMuted,
-                        ),
-                      ),
-                    ),
-                  ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.only(top: 20),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: _c.border.withValues(alpha: 0.20),
                 ),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.only(top: 20),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(
-                        color: _c.border.withValues(alpha: 0.20),
-                      ),
-                    ),
-                  ),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final wide = constraints.maxWidth >= 560;
-                      final children = [
-                        _buildStatTile('Target Reach', _targetReachLabel),
-                        _buildStatTile('Scanned', _scannedLabel),
-                        _buildStatTile('Targets Left', _targetsLeftLabel),
-                        _buildStatTile('Pending Follow-Ups', _pendingFollowUpsLabel),
-                      ];
+              ),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 560;
+                final children = [
+                  _buildStatTile('Target Reach', _targetReachLabel),
+                  _buildStatTile('Scanned', _scannedLabel),
+                  _buildStatTile('Targets Left', _targetsLeftLabel),
+                  _buildStatTile('Pending Follow-Ups', _pendingFollowUpsLabel),
+                ];
 
-                      if (wide) {
-                        return Row(
-                          children: [
-                            for (int i = 0; i < children.length; i++) ...[
-                              Expanded(child: children[i]),
-                              if (i < children.length - 1)
-                                const SizedBox(width: 16),
-                            ],
-                          ],
-                        );
-                      }
+                if (wide) {
+                  return Row(
+                    children: [
+                      for (int i = 0; i < children.length; i++) ...
+                        [
+                          Expanded(child: children[i]),
+                          if (i < children.length - 1) const SizedBox(width: 16),
+                        ],
+                    ],
+                  );
+                }
 
-                      return GridView.count(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        childAspectRatio: 2.2,
-                        children: children,
-                      );
-                    },
-                  ),
-                ),
-              ],
+                return GridView.count(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 2.2,
+                  children: children,
+                );
+              },
             ),
           ),
         ],
@@ -353,17 +247,58 @@ class _EventFloorHomeScreenState extends State<EventFloorHomeScreen> {
   }
 
   Widget _buildStatTile(String label, String value) {
+    // Map labels to appropriate icons
+    IconData iconData;
+    switch (label) {
+      case 'Target Reach':
+        iconData = Icons.percent_rounded;
+        break;
+      case 'Scanned':
+        iconData = Icons.check_circle_outline_rounded;
+        break;
+      case 'Targets Left':
+        iconData = Icons.people_outline_rounded;
+        break;
+      case 'Pending Follow-Ups':
+        iconData = Icons.mail_outline_rounded;
+        break;
+      default:
+        iconData = Icons.circle_outlined;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppSectionLabel(label, letterSpacing: 1.0),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: _c.textPrimary,
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: _c.accentSoft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                iconData,
+                size: 16,
+                color: _c.accent,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: AppSectionLabel(label, letterSpacing: 1.0),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(left: 30),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: _c.textPrimary,
+            ),
           ),
         ),
       ],
@@ -398,8 +333,9 @@ class _EventFloorHomeScreenState extends State<EventFloorHomeScreen> {
                 'VIEW LIST',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1.6,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                  color: _c.accent,
                 ),
               ),
             ),
@@ -409,98 +345,279 @@ class _EventFloorHomeScreenState extends State<EventFloorHomeScreen> {
         ..._priorityTargets.asMap().entries.map((entry) {
           final index = entry.key;
           final target = entry.value;
+          final booth = target['booth'] as String? ?? '';
+
           return Padding(
-            padding: EdgeInsets.only(
-              bottom: index == _priorityTargets.length - 1 ? 0 : 12,
-            ),
-            child: _buildPriorityRow(context, index + 1, target),
-          );
-        }),
-        if (_priorityTargets.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(
-              'No priority targets for this event.',
-              style: TextStyle(fontSize: 14, color: _c.textMuted),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildPriorityRow(
-    BuildContext context,
-    int rank,
-    Map<String, dynamic> target,
-  ) {
-    final company = target['company'] as Map<String, dynamic>? ?? {};
-    final companyName = company['name'] as String? ?? 'Unknown';
-    final industry = company['industry'] as String? ?? '';
-    final booth = target['booth_location'] as String? ?? 'TBD';
-
-    return InkWell(
-      onTap: () => _showUiOnlyMessage(context, 'Target profile'),
-      borderRadius: BorderRadius.circular(12),
-      child: AppCard(
-        padding: const EdgeInsets.all(16),
-        radius: 12,
-        elevated: true,
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
+            padding: EdgeInsets.only(bottom: index < _priorityTargets.length - 1 ? 12 : 0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: _c.surfaceElevated,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: _c.border),
+                color: _c.surface.withValues(alpha: 0.5),
+                border: Border.all(color: _c.border.withValues(alpha: 0.2)),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                '$rank',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: _c.textPrimary,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Text(
-                    companyName,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: _c.textPrimary,
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _c.accent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    industry,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: _c.textMuted,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          target['company_name'] as String? ?? 'Unknown',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _c.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        AppChip(booth),
+                        const SizedBox(height: 6),
+                        Icon(Icons.chevron_right, color: _c.textMuted, size: 20),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                AppChip(booth),
-                const SizedBox(height: 6),
-                Icon(Icons.chevron_right, color: _c.textMuted, size: 20),
-              ],
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildTopBar(BuildContext context) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: _c.surface.withValues(alpha: 0.85),
+        border: Border(
+          bottom: BorderSide(
+            color: _c.border.withValues(alpha: 0.15),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            splashRadius: 20,
+            icon: Icon(Icons.menu, color: _c.textPrimary),
+          ),
+          Expanded(
+            child: Text(
+              'EXONO',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: _c.textPrimary,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => _showUiOnlyMessage(context, 'Notifications'),
+            splashRadius: 20,
+            icon: Icon(Icons.notifications, color: _c.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonLoading() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        AppCard(
+          padding: const EdgeInsets.all(24),
+          radius: 28,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SkeletonLoader(
+                width: 80,
+                height: 24,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              const SizedBox(height: 16),
+              SkeletonLoader(
+                width: 200,
+                height: 28,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              const SizedBox(height: 12),
+              SkeletonLoader(
+                width: 250,
+                height: 16,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.only(top: 20),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: _c.border.withValues(alpha: 0.20)),
+                  ),
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 560;
+                    final children = [
+                      _buildSkeletonStatTile(),
+                      _buildSkeletonStatTile(),
+                      _buildSkeletonStatTile(),
+                      _buildSkeletonStatTile(),
+                    ];
+
+                    if (wide) {
+                      return Row(
+                        children: [
+                          for (int i = 0; i < children.length; i++) ...
+                            [
+                              Expanded(child: children[i]),
+                              if (i < children.length - 1)
+                                const SizedBox(width: 16),
+                            ],
+                        ],
+                      );
+                    }
+
+                    return GridView.count(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      childAspectRatio: 2.2,
+                      children: children,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+        Text(
+          'Priority Targets',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: _c.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 16),
+        for (int i = 0; i < 3; i++) ...
+          [
+            _buildSkeletonPriorityRow(),
+            if (i < 2) const SizedBox(height: 12),
+          ],
+      ],
+    );
+  }
+
+  Widget _buildSkeletonStatTile() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: _c.accentSoft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.circle,
+                size: 16,
+                color: _c.accent,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SkeletonLoader(
+                width: 100,
+                height: 12,
+                borderRadius: BorderRadius.circular(4),
+              ),
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(left: 30),
+          child: SkeletonLoader(
+            width: 60,
+            height: 24,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSkeletonPriorityRow() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: _c.surface.withValues(alpha: 0.5),
+        border: Border.all(color: _c.border.withValues(alpha: 0.2)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          SkeletonLoader(
+            width: 40,
+            height: 40,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonLoader(
+                  width: 150,
+                  height: 14,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                const SizedBox(height: 8),
+                SkeletonLoader(
+                  width: 80,
+                  height: 20,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ],
+            ),
+          ),
+          SkeletonLoader(
+            width: 20,
+            height: 20,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ],
       ),
     );
   }

@@ -30,7 +30,7 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat();
-    
+
     _animation = Tween<double>(begin: -1.0, end: 2.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
@@ -44,6 +44,7 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
@@ -56,9 +57,9 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                AppTheme.stone200,
-                AppTheme.stone100,
-                AppTheme.stone200,
+                colors.surfaceElevated,
+                colors.surfaceAlt,
+                colors.surfaceElevated,
               ],
               stops: [
                 _animation.value - 0.3,
@@ -79,13 +80,18 @@ class SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.cardBackground,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [colors.surface, colors.surfaceAlt],
+        ),
         borderRadius: BorderRadius.circular(AppTheme.radiusCard),
         border: Border.all(
-          color: AppTheme.stone200.withValues(alpha: 0.4),
+          color: colors.border,
         ),
       ),
       child: Row(

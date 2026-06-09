@@ -98,9 +98,9 @@ export class LiteLLMService {
     private getDefaultModel(provider: string): string {
         const models: Record<string, string> = {
             openai: 'gpt-4o-mini',
-            gemini: 'gemini-3.5-flash',
+            gemini: 'gemini-3.1-flash-lite',
         };
-        return models[provider] || 'gemini-3.5-flash';
+        return models[provider] || 'gemini-3.1-flash-lite';
     }
 
     private getApiKey(provider: string): string {
@@ -385,7 +385,7 @@ export class LiteLLMService {
         if (this.config.provider === 'gemini') {
             return this.withGemini(async (apiKey) => {
                 const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
+                const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
 
                 const base64Data = base64Audio.split(',')[1] || base64Audio;
                 const mimeType = base64Audio.match(/^data:([^;]+);base64,/)?.[1] || 'audio/webm';

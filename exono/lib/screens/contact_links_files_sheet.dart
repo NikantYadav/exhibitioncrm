@@ -99,7 +99,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(_assets),
                         splashRadius: 20,
-                        icon: Icon(Icons.close, color: _c.textMuted),
+                        icon: Icon(Icons.close, color: _c.accent),
                       ),
                   ],
                 ),
@@ -180,7 +180,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
               ),
-              child: Icon(Icons.attachment_outlined, color: _c.textMuted, size: 32),
+              child: Icon(Icons.attachment_outlined, color: _c.accent, size: 32),
             ),
             const SizedBox(height: 20),
             Text(
@@ -257,7 +257,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                 IconButton(
                   onPressed: () => setState(() => _assets.removeAt(index)),
                   splashRadius: 18,
-                  icon: Icon(Icons.delete_outline, color: _c.textMuted, size: 20),
+                  icon: Icon(Icons.delete_outline, color: _c.accent, size: 20),
                 ),
               ],
             ),

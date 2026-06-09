@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/skeleton_loader.dart';
 import 'account_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -131,6 +132,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = auth.user;
     final userMetadata = user?['user_metadata'] as Map<String, dynamic>?;
 
+    // Check if profile data is loading (can be extended when AuthProvider adds loading state)
+    final isLoading = profile == null || user == null;
+
     final displayName = _resolvedValue(_draftDisplayName, auth.displayName);
     final designation = _resolvedValue(_draftDesignation, auth.designation);
     final email = _readString(user, ['email']);
@@ -175,14 +179,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 960),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+              child: isLoading
+                  ? _buildSkeletonLoading()
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 960),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                   _buildHeroCard(
                     auth: auth,
                     displayName: displayName,
@@ -357,17 +363,205 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget _buildSkeletonLoading() {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 960),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Hero card skeleton
+                AppCard(
+                  padding: const EdgeInsets.all(20),
+                  radius: 28,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SkeletonLoader(
+                            width: 64,
+                            height: 64,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SkeletonLoader(
+                                  width: 80,
+                                  height: 12,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                const SizedBox(height: 8),
+                                SkeletonLoader(
+                                  width: 200,
+                                  height: 28,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                const SizedBox(height: 6),
+                                SkeletonLoader(
+                                  width: 150,
+                                  height: 13,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                const SizedBox(height: 8),
+                                SkeletonLoader(
+                                  width: 180,
+                                  height: 13,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          SkeletonLoader(
+                            width: 120,
+                            height: 31,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          const SizedBox(width: 8),
+                          SkeletonLoader(
+                            width: 90,
+                            height: 31,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          const SizedBox(width: 8),
+                          SkeletonLoader(
+                            width: 100,
+                            height: 31,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ],
+                      ),
                     ],
-                    ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 16),
+                // Quick actions skeleton
+                AppCard(
+                  padding: const EdgeInsets.all(18),
+                  radius: 24,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonLoader(
+                        width: 120,
+                        height: 14,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          SkeletonLoader(
+                            width: 100,
+                            height: 42,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          const SizedBox(width: 10),
+                          SkeletonLoader(
+                            width: 90,
+                            height: 42,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          const SizedBox(width: 10),
+                          SkeletonLoader(
+                            width: 110,
+                            height: 42,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Section label skeleton
+                SkeletonLoader(
+                  width: 150,
+                  height: 14,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                const SizedBox(height: 10),
+                // Info grid skeleton
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final useTwoColumns = constraints.maxWidth >= 720;
+                    final tileWidth = useTwoColumns
+                        ? (constraints.maxWidth - 12) / 2
+                        : constraints.maxWidth;
+
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: List.generate(
+                        6,
+                        (index) => SizedBox(
+                          width: tileWidth,
+                          child: AppCard(
+                            padding: const EdgeInsets.all(18),
+                            radius: 24,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SkeletonLoader(
+                                  width: 42,
+                                  height: 42,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      SkeletonLoader(
+                                        width: 100,
+                                        height: 11,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      SkeletonLoader(
+                                        width: double.infinity,
+                                        height: 14,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
   Widget _buildHeroCard({
     required AuthProvider auth,
@@ -480,7 +674,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: _c.textPrimary),
+          Icon(icon, size: 15, color: _c.accent),
           const SizedBox(width: 8),
           Text(
             label,
@@ -553,7 +747,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: _c.textPrimary),
+            Icon(icon, size: 18, color: _c.accent),
             const SizedBox(width: 8),
             Text(
               label,
@@ -602,7 +796,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: _c.textPrimary),
+              Icon(icon, size: 18, color: _c.accent),
               const SizedBox(width: 10),
               Text(
                 title,
@@ -1109,7 +1303,7 @@ class _InfoTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: _c.border),
             ),
-            child: Icon(icon, size: 18, color: _c.textPrimary),
+            child: Icon(icon, size: 18, color: _c.accent),
           ),
           const SizedBox(width: 12),
           Expanded(

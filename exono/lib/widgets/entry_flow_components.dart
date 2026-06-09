@@ -99,7 +99,7 @@ class EntryFlowTopBar extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.auto_awesome_rounded, size: 16, color: colors.textSecondary),
+                Icon(Icons.auto_awesome_rounded, size: 16, color: colors.accent),
                 const SizedBox(width: 8),
                 Text(
                   badgeLabel,
@@ -424,9 +424,9 @@ class EntryTextField extends StatelessWidget {
             prefixIcon: isMultiline
                 ? Padding(
                     padding: const EdgeInsets.only(left: 14, right: 10, top: 14),
-                    child: Icon(prefixIcon, color: colors.textSecondary, size: 20),
+                    child: Icon(prefixIcon, color: colors.accent, size: 20),
                   )
-                : Icon(prefixIcon, color: colors.textSecondary, size: 20),
+                : Icon(prefixIcon, color: colors.accent, size: 20),
             prefixIconConstraints: const BoxConstraints(minWidth: 44),
             suffixIcon: suffix,
             fillColor: colors.surfaceAlt,

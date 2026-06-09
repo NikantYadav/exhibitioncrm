@@ -47,13 +47,13 @@ class AppHeader extends StatelessWidget {
             IconButton(
               onPressed: onActionPressed,
               tooltip: actionTooltip,
-              icon: Icon(actionIcon, color: colors.textPrimary, size: 22),
+              icon: Icon(actionIcon, color: colors.accent, size: 22),
               splashRadius: 20,
             ),
           IconButton(
             onPressed: onNotificationPressed,
             tooltip: 'Notifications',
-            icon: Icon(Icons.notifications_none_rounded, color: colors.textPrimary, size: 22),
+            icon: Icon(Icons.notifications_none_rounded, color: colors.accent, size: 22),
             splashRadius: 20,
           ),
         ],

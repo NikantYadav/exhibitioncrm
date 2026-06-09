@@ -6,6 +6,7 @@ import '../providers/conversation_provider.dart';
 import '../providers/chat_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/message_link_chips.dart';
+import '../widgets/skeleton_loader.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -50,6 +52,10 @@ class _HomeScreenState extends State<HomeScreen> {
               backgroundColor: AppTheme.destructive),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -73,9 +79,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
     _messageController.clear();
-    context.read<ChatProvider>().sendMessage(text).then((_) {
+    final provider = context.read<ChatProvider>();
+    provider.sendMessage(text).then((_) {
       _scrollToBottom();
-      final err = context.read<ChatProvider>().error;
+      final err = provider.error;
       if (err != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $err'),
@@ -124,6 +131,45 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
+    final colors = AppTheme.colorsOf(context);
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: colors.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildChatHeader(isMobile),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 16 : 24,
+                        ),
+                        child: Column(
+                          children: [
+                            _buildSkeletonMessage(isMobile, isUser: false),
+                            const SizedBox(height: 16),
+                            _buildSkeletonMessage(isMobile, isUser: true),
+                            const SizedBox(height: 16),
+                            _buildSkeletonMessage(isMobile, isUser: false),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              _buildInputArea(isMobile),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
@@ -144,6 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildChatHeader(bool isMobile) {
     final convProvider = context.watch<ConversationProvider>();
     final active = convProvider.activeConversation;
+    final colors = AppTheme.colorsOf(context);
     return Container(
       padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 12 : 16, vertical: 8),
@@ -176,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       size: 14,
                       color: _showThreadPicker
                           ? Colors.white
-                          : AppTheme.stone600),
+                          : colors.accent),
                   const SizedBox(width: 6),
                   Text(
                     active?.displayTitle() ?? 'Global Assistant',
@@ -208,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(
               _showSearch ? Icons.search_off_rounded : Icons.search_rounded,
               size: 20,
-              color: AppTheme.stone500,
+              color: colors.accent,
             ),
             onPressed: () {
               setState(() {
@@ -284,6 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildThreadItem(ConversationModel convo, bool isActive) {
+    final colors = AppTheme.colorsOf(context);
     IconData icon;
     switch (convo.kind) {
       case 'contact':
@@ -310,7 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Icon(icon,
                 size: 16,
-                color: isActive ? AppTheme.stone900 : AppTheme.stone400),
+                color: isActive ? colors.accent : AppTheme.stone400),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -325,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             if (isActive)
-              Icon(Icons.check_rounded, size: 14, color: AppTheme.stone900),
+              Icon(Icons.check_rounded, size: 14, color: colors.accent),
           ],
         ),
       ),
@@ -370,6 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSearchResults(bool isMobile) {
+    final colors = AppTheme.colorsOf(context);
     return Container(
       constraints: const BoxConstraints(maxHeight: 200),
       color: Colors.white,
@@ -385,7 +434,7 @@ class _HomeScreenState extends State<HomeScreen> {
             leading: Icon(
               isUser ? Icons.person_rounded : Icons.smart_toy_rounded,
               size: 16,
-              color: AppTheme.stone400,
+              color: colors.accent,
             ),
             title: Text(
               (m['content'] ?? '') as String,
@@ -744,5 +793,70 @@ class _HomeScreenState extends State<HomeScreen> {
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
     if (diff.inDays < 1) return '${diff.inHours}h ago';
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildSkeletonMessage(bool isMobile, {required bool isUser}) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isMobile ? 12 : 16),
+      child: Row(
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!isUser) ...[
+            SkeletonLoader(
+              width: isMobile ? 32 : 36,
+              height: isMobile ? 32 : 36,
+              borderRadius: BorderRadius.circular((isMobile ? 32 : 36) * 0.28),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 12 : 16,
+                vertical: isMobile ? 10 : 12,
+              ),
+              decoration: BoxDecoration(
+                color: isUser ? AppTheme.stone900 : Colors.white,
+                borderRadius: BorderRadius.circular(isMobile ? 16 : 18),
+                border: isUser
+                    ? null
+                    : Border.all(
+                        color: AppTheme.stone200.withValues(alpha: 0.4),
+                        width: 1),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonLoader(
+                    width: isUser ? 120 : 200,
+                    height: 14,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  if (!isUser) ...[
+                    const SizedBox(height: 8),
+                    SkeletonLoader(
+                      width: 160,
+                      height: 14,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          if (isUser) ...[
+            const SizedBox(width: 8),
+            SkeletonLoader(
+              width: isMobile ? 32 : 36,
+              height: isMobile ? 32 : 36,
+              borderRadius: BorderRadius.circular((isMobile ? 32 : 36) * 0.28),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
+import '../widgets/skeleton_loader.dart';
 import 'event_floor_home_screen.dart';
 import 'follow_ups_screen.dart';
 import 'pre_event_prep_screen.dart';
@@ -108,7 +109,7 @@ class _EventsScreenState extends State<EventsScreen> {
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? _buildSkeletonLoader()
                 : _error != null
                     ? _buildErrorState()
                     : SingleChildScrollView(
@@ -352,7 +353,7 @@ class _EventsScreenState extends State<EventsScreen> {
                 onTap: () => _showEventActionsSheet(event),
                 child: Icon(
                   Icons.more_vert,
-                  color: _c.textSecondary,
+                  color: _c.accent,
                   size: 22,
                 ),
               ),
@@ -607,7 +608,7 @@ class _EventsScreenState extends State<EventsScreen> {
   Widget _buildUpcomingMetaRow(IconData icon, String value) {
     return Row(
       children: [
-        Icon(icon, color: _c.textSecondary, size: 18),
+        Icon(icon, color: _c.accent, size: 18),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
@@ -950,6 +951,47 @@ class _EventsScreenState extends State<EventsScreen> {
       ),
     );
   }
+
+  Widget _buildSkeletonLoader() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+      children: [
+        // Header skeleton
+        SkeletonLoader(
+          width: 200,
+          height: 28,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        const SizedBox(height: 10),
+        SkeletonLoader(
+          width: 250,
+          height: 12,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        const SizedBox(height: 18),
+        // New Event Button skeleton
+        SkeletonLoader(
+          width: double.infinity,
+          height: 58,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        const SizedBox(height: 26),
+        // Tabs skeleton
+        SkeletonLoader(
+          width: double.infinity,
+          height: 48,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        const SizedBox(height: 18),
+        // Event cards
+        const SkeletonCard(),
+        const SizedBox(height: 28),
+        const SkeletonCard(),
+        const SizedBox(height: 28),
+        const SkeletonCard(),
+      ],
+    );
+  }
 }
 
 class _NewEventSheet extends StatefulWidget {
@@ -1021,7 +1063,7 @@ class _NewEventSheetState extends State<_NewEventSheet> {
             prefixIcon: icon != null
                 ? Padding(
                     padding: const EdgeInsets.only(left: 12, right: 8),
-                    child: Icon(icon, size: 20, color: _c.textSecondary),
+                    child: Icon(icon, size: 20, color: _c.accent),
                   )
                 : null,
             prefixIconConstraints: icon != null ? const BoxConstraints(minWidth: 0) : null,
@@ -1073,7 +1115,7 @@ class _NewEventSheetState extends State<_NewEventSheet> {
             hintStyle: TextStyle(fontSize: 14, color: _c.border),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(Icons.calendar_today_outlined, size: 18, color: _c.textSecondary),
+              child: Icon(Icons.calendar_today_outlined, size: 18, color: _c.accent),
             ),
             prefixIconConstraints: const BoxConstraints(minWidth: 0),
             isDense: true,

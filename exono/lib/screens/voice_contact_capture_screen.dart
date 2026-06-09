@@ -222,7 +222,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
               const Spacer(),
               IconButton(
                 onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(Icons.close_rounded, color: _c.textMuted, size: 20),
+                icon: Icon(Icons.close_rounded, color: _c.accent, size: 20),
                 tooltip: 'Close',
               ),
             ] else ...[
@@ -764,7 +764,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.refresh_rounded, size: 11, color: _c.textMuted),
+                                Icon(Icons.refresh_rounded, size: 11, color: _c.accent),
                                 const SizedBox(width: 4),
                                 Text(
                                   'RETAKE',
@@ -838,7 +838,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       height: 50,
       child: Row(
         children: [
-          Icon(icon, size: 15, color: _c.textMuted),
+          Icon(icon, size: 15, color: _c.accent),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
@@ -865,7 +865,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          Icon(Icons.event_outlined, size: 15, color: _c.textMuted),
+          Icon(Icons.event_outlined, size: 15, color: _c.accent),
           const SizedBox(width: 12),
           Expanded(
             child: DropdownButtonHideUnderline(
@@ -873,7 +873,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                 value: _eventId,
                 isExpanded: true,
                 dropdownColor: _c.surfaceAlt,
-                icon: Icon(Icons.expand_more, color: _c.textMuted, size: 18),
+                icon: Icon(Icons.expand_more, color: _c.accent, size: 18),
                 style: TextStyle(fontSize: 14, color: _c.textPrimary),
                 hint: Text(
                   'Select event',

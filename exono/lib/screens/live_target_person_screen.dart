@@ -162,7 +162,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
                   const SizedBox(width: 4),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 22),
+                    icon: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
                     splashRadius: 20,
                   ),
                 ],
@@ -303,7 +303,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
             if (!_editingNotes)
               GestureDetector(
                 onTap: () => setState(() => _editingNotes = true),
-                child: Icon(Icons.edit_outlined, size: 16, color: _c.textMuted),
+                child: Icon(Icons.edit_outlined, size: 16, color: _c.accent),
               ),
           ]),
           const SizedBox(height: 12),
@@ -375,7 +375,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
       Row(children: [
         Expanded(
           child: FilledButton.icon(
-            onPressed: () => showLogInteractionSheet(context),
+            onPressed: () => showLogInteractionSheet(context, contactId: _target['contact_id'] as String?),
             icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
             label: const Text('LOG INTERACTION'),
             style: FilledButton.styleFrom(
@@ -400,7 +400,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
               },
             ),
             )),
-            icon: Icon(Icons.business_outlined, size: 16, color: _c.textSecondary),
+            icon: Icon(Icons.business_outlined, size: 16, color: _c.accent),
             label: const Text('COMPANY'),
             style: OutlinedButton.styleFrom(
               foregroundColor: _c.textSecondary,

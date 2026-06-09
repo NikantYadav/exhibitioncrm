@@ -283,6 +283,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _bottomSection() {
+    final isProfileActive = widget.location.startsWith('/profile');
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -296,7 +297,7 @@ class _AppShellState extends State<AppShell> {
             child: Row(
               mainAxisAlignment: _sidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
               children: [
-                Icon(Icons.settings_outlined, size: 18, color: _c.textMuted),
+                Icon(Icons.settings_outlined, size: 18, color: isProfileActive ? _c.accent : _c.textMuted),
                 if (!_sidebarCollapsed) ...[
                   const SizedBox(width: 10),
                   Text('Settings', style: TextStyle(fontSize: 13, color: _c.textMuted)),

@@ -13,6 +13,7 @@ import '../widgets/app_section_label.dart';
 import '../widgets/app_filter_row.dart';
 import 'live_target_person_screen.dart';
 import 'log_interaction_screen.dart';
+import 'contacts_screen.dart';
 
 class HomeDefaultScreen extends StatefulWidget {
   const HomeDefaultScreen({super.key});
@@ -32,12 +33,15 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   Map<String, dynamic>? _liveStats;
   List<Map<String, dynamic>> _liveGoals = [];
   List<Map<String, dynamic>> _liveTargets = [];
+  List<Map<String, dynamic>> _scannedContacts = [];
 
   // Target list state
   String _targetSearch = '';
   String _targetFilter = 'All';
+  String _scannedSearch = '';
   final TextEditingController _targetSearchCtrl = TextEditingController();
   final Set<String> _expandedTargetIds = {};
+  final Set<String> _expandedScannedIds = {};
   final Map<String, bool> _targetMetOverrides = {};
 
   // Quick AI state
@@ -69,12 +73,14 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
 
   Future<void> _fetchLiveData(Event event) async {
     final data = await ApiService.getLiveEventData(event.id);
+    final captures = await ApiService.getEventCaptures(event.id);
     if (!mounted) return;
     setState(() {
       _liveEvent = event;
       _liveStats = data['stats'] as Map<String, dynamic>;
       _liveGoals = List<Map<String, dynamic>>.from(data['goals'] as List);
       _liveTargets = List<Map<String, dynamic>>.from(data['targets'] as List);
+      _scannedContacts = captures;
       // Reset local overrides so fresh data is authoritative
       _targetMetOverrides.clear();
       _expandedTargetIds.clear();
@@ -211,7 +217,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
       final answer = await ApiService.askEventQuestion(eventId, question);
       if (mounted) setState(() { _aiMessages.add({'role': 'assistant', 'content': answer}); });
     } catch (_) {
-      if (mounted) setState(() { _aiMessages.add({'role': 'assistant', 'content': 'Sorry, I couldn\'t answer that right now.'}); });
+      if (mounted) setState(() { _aiMessages.add({'role': 'assistant', 'content': 'Something went wrong on our end. Please try again in a moment.', 'error': 'true'}); });
     } finally {
       if (mounted) setState(() => _aiLoading = false);
     }
@@ -285,12 +291,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
       final booth = (t['booth'] as String? ?? '').toLowerCase();
       final matchesSearch = q.isEmpty ||
           name.contains(q) || company.contains(q) || booth.contains(q);
-      final priority = t['priority'] as String? ?? 'low';
       final matchesFilter = switch (_targetFilter) {
         'Met' => _isTargetMet(t),
         'Not Met' => !_isTargetMet(t),
-        'High' => priority == 'high',
-        'Medium' => priority == 'medium',
         _ => true,
       };
       return matchesSearch && matchesFilter;
@@ -315,6 +318,70 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
         setState(() => _targetMetOverrides.remove(id));
         _toast('Failed to update target status');
       }
+    }
+  }
+
+  Future<void> _addContactAsTarget() async {
+    final eventId = _liveEvent?.id;
+    if (eventId == null) return;
+
+    final contacts = await ApiService.getContacts();
+    if (!mounted) return;
+
+    // Filter out contacts already targeted (by company_id)
+    final existingCompanyIds = _liveTargets
+        .map((t) => t['company_id'] as String?)
+        .whereType<String>()
+        .toSet();
+
+    final eligible = contacts
+        .where((c) => c.companyId != null && c.companyId!.isNotEmpty && !existingCompanyIds.contains(c.companyId))
+        .toList();
+
+    if (eligible.isEmpty) {
+      _toast('All your contacts are already in the target list.');
+      return;
+    }
+
+    final picked = await showModalBottomSheet<dynamic>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ContactPickerSheet(contacts: eligible, colors: _c),
+    );
+
+    if (picked == null || !mounted) return;
+    final companyId = picked['company_id'] as String;
+    final companyName = picked['company_name'] as String;
+    final contactId = picked['contact_id'] as String?;
+    final contactName = picked['contact_name'] as String?;
+
+    if (contactId == null) {
+      _toast('Contact has no ID — cannot add.');
+      return;
+    }
+
+    try {
+      await ApiService.addContactToEvent(eventId, contactId);
+
+      // Build a local entry for the targets list
+      final mapped = <String, dynamic>{
+        'id': contactId,
+        'name': contactName ?? companyName,
+        'job_title': picked['job_title'] ?? '',
+        'company_name': companyName,
+        'company_id': companyId,
+        'contact_id': contactId,
+        'booth': '',
+        'status': 'not_contacted',
+        'priority': 'medium',
+        'talking_points': '',
+        'notes': '',
+      };
+      setState(() => _liveTargets.add(mapped));
+      _toast('${contactName ?? companyName} added to targets.');
+    } catch (_) {
+      _toast('Failed to add target.');
     }
   }
 
@@ -496,7 +563,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                   child: Row(
                     children: [
                       const SizedBox(width: 14),
-                      Icon(Icons.search_rounded, color: _c.textMuted, size: 18),
+                      Icon(Icons.search_rounded, color: _c.accent, size: 18),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -583,7 +650,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
               color: _c.textPrimary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: _c.textPrimary, size: 20),
+            child: Icon(icon, color: _c.accent, size: 20),
           ),
           const SizedBox(width: 12),
           Column(
@@ -621,7 +688,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                 ),
                 alignment: Alignment.center,
                 child: item.useIconAvatar
-                    ? Icon(item.icon, color: _c.textMuted, size: 22)
+                    ? Icon(item.icon, color: _c.accent, size: 22)
                     : Text(
                         item.avatarLabel,
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _c.textPrimary),
@@ -765,21 +832,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
             const SizedBox(height: 24),
             _buildLiveTargetsSection(),
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => showLogInteractionSheet(context),
-                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-                label: const Text('LOG INTERACTION',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _c.accent,
-                  foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
+            _buildScannedSection(),
           ],
         ),
       ),
@@ -807,7 +860,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           if (location.isNotEmpty) ...[
             const SizedBox(height: 8),
             Row(children: [
-              Icon(Icons.location_on_outlined, size: 14, color: _c.textMuted),
+              Icon(Icons.location_on_outlined, size: 14, color: _c.accent),
               const SizedBox(width: 6),
               Expanded(child: Text(location,
                   style: TextStyle(fontSize: 13, color: _c.textMuted),
@@ -895,7 +948,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             child: Row(children: [
-              Icon(Icons.flag_outlined, size: 20, color: _c.textMuted),
+              Icon(Icons.flag_outlined, size: 20, color: _c.accent),
               const SizedBox(width: 12),
               Expanded(child: Text(
                   'No goals yet — tap ADD GOAL to create one.',
@@ -936,6 +989,24 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
             child: Text('${_liveTargets.length}', style: TextStyle(
                 fontSize: 10, fontWeight: FontWeight.w700, color: _c.accent)),
           ),
+          const Spacer(),
+          GestureDetector(
+            onTap: _addContactAsTarget,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: _c.accentSoft,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.person_add_outlined, size: 13, color: _c.accent),
+                const SizedBox(width: 5),
+                Text('ADD CONTACT', style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8, color: _c.accent)),
+              ]),
+            ),
+          ),
         ]),
         const SizedBox(height: 12),
         // Search
@@ -949,7 +1020,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
             hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(Icons.search_rounded, size: 18, color: _c.textMuted),
+              child: Icon(Icons.search_rounded, size: 18, color: _c.accent),
             ),
             prefixIconConstraints: const BoxConstraints(minWidth: 0),
             isDense: true,
@@ -970,7 +1041,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
         const SizedBox(height: 10),
         // Filters
         AppFilterRow(
-          filters: const ['All', 'Not Met', 'Met', 'High', 'Medium'],
+          filters: const ['All', 'Not Met', 'Met'],
           selected: _targetFilter,
           onSelect: (f) => setState(() => _targetFilter = f),
           style: AppFilterRowStyle.filled,
@@ -981,7 +1052,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           AppCard(
             padding: const EdgeInsets.all(20),
             child: Center(child: Column(children: [
-              Icon(Icons.people_outline_rounded, color: _c.textMuted, size: 32),
+              Icon(Icons.people_outline_rounded, color: _c.accent, size: 32),
               const SizedBox(height: 10),
               Text('No targets yet for this event.',
                   style: TextStyle(color: _c.textMuted, fontSize: 13)),
@@ -991,7 +1062,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           AppCard(
             padding: const EdgeInsets.all(16),
             child: Row(children: [
-              Icon(Icons.search_off_rounded, color: _c.textMuted, size: 20),
+              Icon(Icons.search_off_rounded, color: _c.accent, size: 20),
               const SizedBox(width: 12),
               Text('No targets match.', style: TextStyle(fontSize: 13, color: _c.textMuted)),
             ]),
@@ -1080,6 +1151,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
 
   Widget _buildAiMessage(Map<String, String> msg) {
     final isUser = msg['role'] == 'user';
+    final isError = !isUser && (msg['error'] == 'true');
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -1090,10 +1162,14 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
             Container(
               width: 24, height: 24,
               decoration: BoxDecoration(
-                color: _c.accentSoft,
+                color: isError ? _c.destructive.withValues(alpha: 0.12) : _c.accentSoft,
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: Icon(Icons.auto_awesome_rounded, size: 12, color: _c.accent),
+              child: Icon(
+                isError ? Icons.error_outline_rounded : Icons.auto_awesome_rounded,
+                size: 12,
+                color: isError ? _c.destructive : _c.accent,
+              ),
             ),
             const SizedBox(width: 8),
           ],
@@ -1111,7 +1187,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
               ),
               child: Text(msg['content'] ?? '', style: TextStyle(
                   fontSize: 13,
-                  color: isUser ? _c.accent : _c.textSecondary,
+                  color: isUser ? _c.accent : (isError ? _c.textMuted : _c.textSecondary),
                   height: 1.45)),
             ),
           ),
@@ -1218,19 +1294,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     final companyName = target['company_name'] as String? ?? '';
     final booth = target['booth'] as String? ?? '';
     final priority = target['priority'] as String? ?? 'low';
+    final contactId = target['contact_id'] as String?;
     final isMet = _isTargetMet(target);
     final isExpanded = _expandedTargetIds.contains(id);
-    final priorityColor = switch (priority) {
-      'high' => _c.destructive,
-      'medium' => _c.accent,
-      _ => _c.textMuted,
-    };
-    final priorityLabel = switch (priority) {
-      'high' => 'HIGH',
-      'medium' => 'MED',
-      _ => 'LOW',
-    };
-
     return AppCard(
       radius: AppTheme.radiusCard,
       elevated: isExpanded,
@@ -1253,25 +1319,15 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Priority badge + rank
-              Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: priorityColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(priorityLabel, style: TextStyle(
-                      fontSize: 8, fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7, color: priorityColor)),
-                ),
-                const SizedBox(height: 5),
-                Text(rank.toString().padLeft(2, '0'), style: TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w700,
+              // Rank
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(rank.toString().padLeft(2, '0'), style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700,
                     color: _c.textMuted)),
-              ]),
+              ),
               const SizedBox(width: 12),
-              // Name + subtitle + tags
+              // Name + subtitle + expand chevron
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(
@@ -1280,38 +1336,33 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                         letterSpacing: -0.2,
                         color: isMet ? _c.textMuted : _c.textPrimary),
                   ),
-                  if (jobTitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(jobTitle, style: TextStyle(fontSize: 12, color: _c.textMuted),
-                        overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 3),
+                  Text(
+                    [if (jobTitle.isNotEmpty) jobTitle, if (companyName.isNotEmpty) companyName]
+                        .join(', '),
+                    style: TextStyle(fontSize: 12, color: _c.textMuted),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (booth.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    AppChip.label('BOOTH $booth'),
                   ],
-                  const SizedBox(height: 8),
-                  Row(children: [
-                    if (companyName.isNotEmpty) ...[
-                      AppChip.label(companyName),
-                      const SizedBox(width: 6),
-                    ],
-                    if (booth.isNotEmpty) ...[
-                      AppChip.label('BOOTH $booth'),
-                      const SizedBox(width: 6),
-                    ],
-                    const Spacer(),
-                    Icon(
-                      isExpanded
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.keyboard_arrow_down_rounded,
-                      size: 18, color: _c.textMuted),
-                  ]),
                 ]),
               ),
+              const SizedBox(width: 8),
+              Icon(
+                isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                size: 18, color: _c.textMuted),
+              const SizedBox(width: 6),
               const SizedBox(width: 10),
               // Met toggle
               GestureDetector(
                 onTap: () => _toggleTargetMet(target),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                   decoration: BoxDecoration(
-                    color: isMet ? _c.success.withValues(alpha: 0.12) : Colors.transparent,
+                    color: isMet ? _c.success.withValues(alpha: 0.12) : _c.surfaceAlt,
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
                       color: isMet ? _c.success : _c.border,
@@ -1319,18 +1370,18 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                     ),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    if (isMet) ...[
-                      Icon(Icons.check_rounded, size: 12, color: _c.success),
-                      const SizedBox(width: 4),
-                    ],
+                    Icon(
+                      isMet ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                      size: 13,
+                      color: isMet ? _c.success : _c.textMuted,
+                    ),
+                    const SizedBox(width: 5),
                     Text(
-                      isMet ? 'MET' : 'MARK\nMET',
-                      textAlign: TextAlign.center,
+                      isMet ? 'MET' : 'MARK MET',
                       style: TextStyle(
                           fontSize: 9, fontWeight: FontWeight.w800,
                           letterSpacing: 0.6,
-                          color: isMet ? _c.success : _c.textMuted,
-                          height: 1.2),
+                          color: isMet ? _c.success : _c.textMuted),
                     ),
                   ]),
                 ),
@@ -1352,9 +1403,16 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
             child: Row(children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => showLogInteractionSheet(context),
+                  onPressed: () => showLogInteractionSheet(
+                    context,
+                    contactId: contactId,
+                    initialMode: _liveEvent?.name,
+                    onSaved: () async {
+                      try { await _fetchLiveData(_liveEvent!); } catch (_) {}
+                    },
+                  ),
                   icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
-                  label: const Text('LOG'),
+                  label: const Text('LOG INTERACTION'),
                   style: FilledButton.styleFrom(
                     backgroundColor: _c.accent,
                     foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
@@ -1368,12 +1426,18 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _liveEvent == null ? null : () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => LiveTargetPersonScreen(
-                          event: _liveEvent!, target: target),
-                    ));
+                    if (contactId != null && contactId.isNotEmpty) {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ContactsScreen(initialContactId: contactId),
+                      ));
+                    } else {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => LiveTargetPersonScreen(
+                            event: _liveEvent!, target: target),
+                      ));
+                    }
                   },
-                  icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.textPrimary),
+                  icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
                   label: const Text('PROFILE'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _c.textPrimary,
@@ -1384,9 +1448,361 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: () => _deleteTarget(target),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _c.destructive,
+                  side: BorderSide(color: _c.destructive.withValues(alpha: 0.4)),
+                  minimumSize: const Size(42, 42),
+                  maximumSize: const Size(42, 42),
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: Icon(Icons.delete_outline_rounded, size: 18, color: _c.destructive),
+              ),
             ]),
           ),
       ]),
+    );
+  }
+
+  Future<void> _deleteTarget(Map<String, dynamic> target) async {
+    final eventId = _liveEvent?.id;
+    if (eventId == null) return;
+    final id = target['id'] as String? ?? '';
+    final contactId = target['contact_id'] as String?;
+    final name = target['name'] as String? ?? 'Target';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _c.surface,
+        title: Text('Remove Target', style: TextStyle(color: _c.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text('Remove $name from targets?', style: TextStyle(color: _c.textSecondary, fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: TextStyle(color: _c.textMuted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Remove', style: TextStyle(color: _c.destructive, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      // Contact-linked targets use contact_events; company targets use target_companies
+      if (contactId != null && contactId == id) {
+        await ApiService.removeContactFromEvent(eventId, contactId);
+      } else {
+        await ApiService.deleteEventTarget(eventId, id);
+        if (contactId != null) {
+          try { await ApiService.removeContactFromEvent(eventId, contactId); } catch (_) {}
+        }
+      }
+      setState(() {
+        _liveTargets.removeWhere((t) => t['id'] == id);
+        _expandedTargetIds.remove(id);
+      });
+    } catch (_) {
+      _toast('Failed to remove target.');
+    }
+  }
+
+  Widget _buildScannedSection() {
+    final filtered = _scannedContacts.where((c) {
+      if (_scannedSearch.isEmpty) return true;
+      final contact = c['contact'] as Map<String, dynamic>?;
+      if (contact == null) return false;
+      final query = _scannedSearch.toLowerCase();
+      final firstName = (contact['first_name'] as String? ?? '').toLowerCase();
+      final lastName = (contact['last_name'] as String? ?? '').toLowerCase();
+      final company = (contact['company_name'] as String? ?? '').toLowerCase();
+      return firstName.contains(query) || lastName.contains(query) || company.contains(query);
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          AppSectionLabel('Scanned'),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: _c.accentSoft,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text('${_scannedContacts.length}', style: TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w700, color: _c.accent)),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        // Search
+        TextField(
+          style: TextStyle(fontSize: 13, color: _c.textPrimary),
+          cursorColor: _c.accent,
+          onChanged: (v) => setState(() => _scannedSearch = v),
+          decoration: InputDecoration(
+            hintText: 'Search scanned contacts…',
+            hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 8),
+              child: Icon(Icons.search_rounded, size: 18, color: _c.accent),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 0),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            filled: true,
+            fillColor: _c.surface,
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: _c.border)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: _c.border)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: _c.accent)),
+          ),
+        ),
+        const SizedBox(height: 14),
+        // Scanned list
+        if (_scannedContacts.isEmpty)
+          AppCard(
+            padding: const EdgeInsets.all(20),
+            child: Center(child: Column(children: [
+              Icon(Icons.qr_code_scanner_rounded, color: _c.accent, size: 32),
+              const SizedBox(height: 10),
+              Text('No contacts scanned yet.',
+                  style: TextStyle(color: _c.textMuted, fontSize: 13)),
+            ])),
+          )
+        else if (filtered.isEmpty)
+          AppCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              Icon(Icons.search_off_rounded, color: _c.accent, size: 20),
+              const SizedBox(width: 12),
+              Text('No scanned contacts match.', style: TextStyle(fontSize: 13, color: _c.textMuted)),
+            ]),
+          )
+        else
+          ...filtered.map((capture) => _buildScannedContactCard(capture)),
+      ],
+    );
+  }
+
+  Widget _buildScannedContactCard(Map<String, dynamic> capture) {
+    final contact = capture['contact'] as Map<String, dynamic>? ?? {};
+    final contactId = contact['id'] as String? ?? '';
+    final firstName = contact['first_name'] as String? ?? '';
+    final lastName = contact['last_name'] as String? ?? '';
+    final fullName = '$firstName $lastName'.trim();
+    final company = contact['company_name'] as String? ?? '';
+    final jobTitle = contact['job_title'] as String? ?? '';
+    final email = contact['email'] as String? ?? '';
+    final phone = contact['phone'] as String? ?? '';
+    final createdAt = capture['created_at'] as String?;
+    final initials = (firstName.isNotEmpty ? firstName[0] : '') + (lastName.isNotEmpty ? lastName[0] : '');
+    final isExpanded = _expandedScannedIds.contains(contactId);
+
+    String timeAgo = '';
+    if (createdAt != null) {
+      try {
+        final date = DateTime.parse(createdAt);
+        final now = DateTime.now();
+        final diff = now.difference(date);
+        if (diff.inMinutes < 60) {
+          timeAgo = '${diff.inMinutes}m ago';
+        } else if (diff.inHours < 24) {
+          timeAgo = '${diff.inHours}h ago';
+        } else {
+          timeAgo = '${diff.inDays}d ago';
+        }
+      } catch (_) {}
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppCard(
+        radius: AppTheme.radiusCard,
+        elevated: isExpanded,
+        child: Column(
+          children: [
+            // ── Header ──
+            InkWell(
+              onTap: contactId.isEmpty ? null : () => setState(() {
+                if (isExpanded) {
+                  _expandedScannedIds.remove(contactId);
+                } else {
+                  _expandedScannedIds.add(contactId);
+                }
+              }),
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(AppTheme.radiusCard),
+                bottom: isExpanded ? Radius.zero : Radius.circular(AppTheme.radiusCard),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _c.accentSoft,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _c.accent),
+              ),
+              child: Text(
+                initials.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: _c.accent,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fullName.isNotEmpty ? fullName : 'Unknown',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: _c.textPrimary,
+                    ),
+                  ),
+                  if (jobTitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      jobTitle,
+                      style: TextStyle(fontSize: 13, color: _c.textSecondary),
+                    ),
+                  ],
+                  if (company.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      company,
+                      style: TextStyle(fontSize: 12, color: _c.textMuted),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (timeAgo.isNotEmpty)
+              Text(
+                timeAgo,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: _c.textMuted,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+                  ],
+                ),
+              ),
+            ),
+            // ── Expanded details ──
+            if (isExpanded)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                decoration: BoxDecoration(
+                  color: _c.surfaceAlt,
+                  border: Border(top: BorderSide(color: _c.border)),
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(AppTheme.radiusCard),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (email.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          Icon(Icons.email_outlined, size: 16, color: _c.accent),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              email,
+                              style: TextStyle(fontSize: 13, color: _c.textSecondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (phone.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          Icon(Icons.phone_outlined, size: 16, color: _c.accent),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              phone,
+                              style: TextStyle(fontSize: 13, color: _c.textSecondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => showLogInteractionSheet(context, contactId: contactId),
+                            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
+                            label: const Text('LOG'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _c.accent,
+                              foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
+                              minimumSize: const Size.fromHeight(42),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: contactId.isEmpty ? null : () {
+                              Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => ContactsScreen(
+                                  initialContactId: contactId,
+                                ),
+                              ));
+                            },
+                            icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
+                            label: const Text('PROFILE'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _c.textPrimary,
+                              side: BorderSide(color: _c.border),
+                              minimumSize: const Size.fromHeight(42),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1461,3 +1877,105 @@ class _EventCardData {
   const _EventCardData(this.month, this.day, this.title, this.subtitle);
 }
 
+class _ContactPickerSheet extends StatefulWidget {
+  final List<dynamic> contacts;
+  final ExonoColors colors;
+  const _ContactPickerSheet({required this.contacts, required this.colors});
+
+  @override
+  State<_ContactPickerSheet> createState() => _ContactPickerSheetState();
+}
+
+class _ContactPickerSheetState extends State<_ContactPickerSheet> {
+  String _search = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.colors;
+    final filtered = widget.contacts.where((contact) {
+      final name = '${contact.firstName} ${contact.lastName ?? ''}'.toLowerCase();
+      final company = (contact.company?.name ?? '').toLowerCase();
+      final q = _search.toLowerCase();
+      return q.isEmpty || name.contains(q) || company.contains(q);
+    }).toList();
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.65,
+      decoration: BoxDecoration(
+        color: c.background,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border(top: BorderSide(color: c.border)),
+      ),
+      child: Column(children: [
+        Container(
+          margin: const EdgeInsets.only(top: 10, bottom: 4),
+          width: 36, height: 4,
+          decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Add Contact as Target',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.textPrimary)),
+            const SizedBox(height: 12),
+            TextField(
+              autofocus: true,
+              onChanged: (v) => setState(() => _search = v),
+              style: TextStyle(fontSize: 13, color: c.textPrimary),
+              cursorColor: c.accent,
+              decoration: InputDecoration(
+                hintText: 'Search contacts…',
+                hintStyle: TextStyle(fontSize: 13, color: c.textMuted),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: Icon(Icons.search_rounded, size: 18, color: c.accent),
+                ),
+                prefixIconConstraints: const BoxConstraints(minWidth: 0),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                filled: true, fillColor: c.surfaceAlt,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.accent)),
+              ),
+            ),
+          ]),
+        ),
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(child: Text('No contacts found.', style: TextStyle(color: c.textMuted, fontSize: 13)))
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => Divider(color: c.border.withValues(alpha: 0.5), height: 1),
+                  itemBuilder: (_, i) {
+                    final contact = filtered[i];
+                    final name = '${contact.firstName} ${contact.lastName ?? ''}'.trim();
+                    final company = contact.company?.name ?? '';
+                    final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+                      leading: Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(color: c.accentSoft, borderRadius: BorderRadius.circular(8)),
+                        child: Center(child: Text(initials, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.accent))),
+                      ),
+                      title: Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textPrimary)),
+                      subtitle: company.isNotEmpty
+                          ? Text(company, style: TextStyle(fontSize: 11, color: c.textMuted))
+                          : null,
+                      onTap: () => Navigator.of(context).pop({
+                        'company_id': contact.companyId,
+                        'company_name': company,
+                        'contact_id': contact.id,
+                        'contact_name': name,
+                        'job_title': contact.jobTitle ?? '',
+                      }),
+                    );
+                  },
+                ),
+        ),
+      ]),
+    );
+  }
+}

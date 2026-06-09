@@ -122,7 +122,7 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
                         splashRadius: 20,
-                        icon: Icon(Icons.close, color: _c.textMuted),
+                        icon: Icon(Icons.close, color: _c.accent),
                       ),
                     ],
                   ),

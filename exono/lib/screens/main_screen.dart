@@ -626,7 +626,7 @@ class _MainScreenState extends State<MainScreen> {
               ? MainAxisAlignment.center
               : MainAxisAlignment.start,
           children: [
-            Icon(Icons.settings_rounded, size: 20, color: colors.textMuted),
+            Icon(Icons.settings_rounded, size: 20, color: colors.accent),
             if (!_isSidebarCollapsed) ...[
               const SizedBox(width: 12),
               Text(
@@ -863,7 +863,7 @@ class _MainScreenState extends State<MainScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              Icon(Icons.menu, color: colors.textSecondary, size: 22),
+              Icon(Icons.menu, color: colors.accent, size: 22),
               const SizedBox(width: 14),
               Text(
                 'EXONO',

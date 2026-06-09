@@ -6,6 +6,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/skeleton_loader.dart';
 
 class EventTargetScreen extends StatefulWidget {
   final Event event;
@@ -144,7 +145,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                   const SizedBox(width: 4),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(_target),
-                    icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 22),
+                    icon: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
                     splashRadius: 20,
                   ),
                 ],
@@ -197,7 +198,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                           // Booth row
                           Row(
                             children: [
-                              Icon(Icons.location_on_outlined, size: 18, color: _c.textMuted),
+                              Icon(Icons.location_on_outlined, size: 18, color: _c.accent),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: _editingBooth
@@ -230,7 +231,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                               ] else
                                 IconButton(
                                   onPressed: () => setState(() => _editingBooth = true),
-                                  icon: Icon(Icons.edit_outlined, size: 18, color: _c.textMuted),
+                                  icon: Icon(Icons.edit_outlined, size: 18, color: _c.accent),
                                   splashRadius: 16,
                                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                   padding: EdgeInsets.zero,
@@ -244,7 +245,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.notes_outlined, size: 18, color: _c.textMuted),
+                              Icon(Icons.notes_outlined, size: 18, color: _c.accent),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: _editingNotes
@@ -282,7 +283,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                               ] else
                                 IconButton(
                                   onPressed: () => setState(() => _editingNotes = true),
-                                  icon: Icon(Icons.edit_outlined, size: 18, color: _c.textMuted),
+                                  icon: Icon(Icons.edit_outlined, size: 18, color: _c.accent),
                                   splashRadius: 16,
                                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                   padding: EdgeInsets.zero,
@@ -307,14 +308,22 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                               Expanded(child: AppSectionLabel('Contacts')),
                               if (!_isLoadingContacts)
                                 Text(
-                                  '${_contacts.where((c) => c['linked_to_event'] == true).length} LINKED',
+                                  '${_contacts.where((c) => (c['linked_to_event'] as bool?) == true).length} LINKED',
                                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: _c.accent),
                                 ),
                             ],
                           ),
                           const SizedBox(height: 12),
                           if (_isLoadingContacts)
-                            const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+                            Column(
+                              children: [
+                                _buildContactSkeleton(),
+                                const SizedBox(height: 12),
+                                _buildContactSkeleton(),
+                                const SizedBox(height: 12),
+                                _buildContactSkeleton(),
+                              ],
+                            )
                           else if (_contacts.isEmpty)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -453,6 +462,43 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildContactSkeleton() {
+    return Row(
+      children: [
+        SkeletonLoader(
+          width: 36,
+          height: 36,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SkeletonLoader(
+                width: double.infinity,
+                height: 14,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              const SizedBox(height: 6),
+              SkeletonLoader(
+                width: 120,
+                height: 12,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        SkeletonLoader(
+          width: 60,
+          height: 28,
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ],
     );
   }
 }

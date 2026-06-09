@@ -1,4 +1,7 @@
+import 'dart:math' as Math;
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,6 +11,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/skeleton_loader.dart';
 import '../models/contact.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
@@ -16,13 +20,13 @@ import 'app_shell.dart' show appNavBarHidden;
 import 'capture_screen.dart';
 import 'voice_contact_capture_screen.dart';
 import 'contact_links_files_sheet.dart';
-import 'edit_sectors_sheet.dart';
 import 'log_interaction_screen.dart';
 
 class ContactsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
+  final String? initialContactId;
 
-  const ContactsScreen({super.key, this.onNavigateTab});
+  const ContactsScreen({super.key, this.onNavigateTab, this.initialContactId});
 
   @override
   State<ContactsScreen> createState() => _ContactsScreenState();
@@ -47,6 +51,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   List<_ContactProfileData> _allContacts = [];
   bool _isLoading = true;
+  bool _isLoadingDetails = false;
   bool _isLoadingInsights = false;
   bool _isUploadingAvatar = false;
   Map<String, dynamic>? _contactInsights;
@@ -94,6 +99,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
           _displayedCount = _pageSize * 2; // preload 2 pages
           _isLoading = false;
         });
+        // If an initial contact ID was provided, select it after contacts are loaded
+        if (widget.initialContactId != null) {
+          _selectContactById(widget.initialContactId!);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -127,6 +136,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
     return _buildGenericProfile(
       id: contact.id,
+      userId: contact.userId,
       initials: initials.toUpperCase(),
       name: contact.fullName,
       title: _clean(contact.jobTitle),
@@ -165,6 +175,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<void> _fetchContactDetails(_ContactProfileData profile) async {
+    if (mounted) setState(() => _isLoadingDetails = true);
     _fetchInsights(profile.id);
     try {
       final results = await Future.wait([
@@ -176,13 +187,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
       final eventsData  = results[1] as List<Map<String, dynamic>>;
 
       final timelineItems = timelineData
-          .where((item) => (item['interaction_type'] ?? '') != 'event_link')
+          .where((item) => (item['interaction_type'] ?? '') != 'event_link' && item['date'] != null)
           .map((item) {
-        final date = DateTime.parse(item['date']);
-        final type = item['type'] as String;
+        final date = DateTime.tryParse(item['date'] as String) ?? DateTime.now();
+        final type = item['type'] as String? ?? 'interaction';
+        final details = item['details'] as Map<String, dynamic>?;
+        final mode = details?['mode'] as String?;
         String title = item['title'] ?? (type == 'note' ? 'Note Added' : 'Interaction');
         if (type == 'meeting') title = 'Meeting: ${item['subject'] ?? 'Strategy Session'}';
         else if (type == 'interaction' && item['interaction_type'] == 'capture') title = 'Scanner Capture';
+        else if (type == 'interaction' && mode != null && mode.isNotEmpty) title = mode;
+        else if (type == 'interaction' && item['interaction_type'] == 'voice_note') title = '🎙 Voice Note';
         return _TimelineItem(
           dateLabel: '${_formatDate(date)} • ${_formatTime(date)}',
           title: title,
@@ -195,6 +210,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
       if (mounted && _selectedContact?.id == profile.id) {
         setState(() {
+          _isLoadingDetails = false;
           _selectedContact = _selectedContact!.copyWith(
             timelineItems: timelineItems,
             linkedEvents: linkedEvents,
@@ -203,6 +219,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       }
     } catch (e) {
       debugPrint('Error fetching contact details: $e');
+      if (mounted) setState(() => _isLoadingDetails = false);
     }
   }
 
@@ -211,6 +228,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
     if (uri == null) return;
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) _showErrorMessage('Could not open $url');
+    }
+  }
+
+  void _navigateToCompanyDetail(_ContactProfileData contact) {
+    if (contact.companyId.isNotEmpty) {
+      context.push('/companies/${contact.companyId}');
+    } else {
+      _showUiOnlyMessage('No company linked to this contact');
     }
   }
 
@@ -339,6 +364,59 @@ class _ContactsScreenState extends State<ContactsScreen> {
   String _searchQuery = '';
   _ContactProfileData? _selectedContact;
 
+  void _selectContactById(String contactId) {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final contact = _allContacts.firstWhere(
+      (c) => c.id == contactId,
+      orElse: () => _allContacts.first,
+    );
+    
+    // Validate ownership before selecting
+    if (contact.id == contactId) {
+      if (contact.userId != null && currentUserId != null && contact.userId != currentUserId) {
+        if (mounted) _showErrorMessage("You do not have permission to view this contact.");
+        return;
+      }
+      setState(() {
+        _selectedContact = contact;
+        _contactInsights = null;
+        _isLoadingInsights = true;
+      });
+      appNavBarHidden.value = true;
+      _fetchContactDetails(contact);
+    } else {
+      // It's possible the contact hasn't loaded yet or belongs to someone else.
+      // If we attempt an API fetch directly:
+      _fetchSingleContactAndSelect(contactId, currentUserId);
+    }
+  }
+
+  Future<void> _fetchSingleContactAndSelect(String contactId, String? currentUserId) async {
+    try {
+      final res = await ApiService.getContact(contactId);
+      if (res['data'] != null) {
+        final c = Contact.fromJson(res['data']);
+        if (c.userId != null && currentUserId != null && c.userId != currentUserId) {
+          if (mounted) _showErrorMessage("You do not have permission to view this contact.");
+          return;
+        }
+        if (mounted) {
+          final profile = _mapContactToProfileData(c);
+          setState(() {
+            _selectedContact = profile;
+            _contactInsights = null;
+            _isLoadingInsights = true;
+          });
+          appNavBarHidden.value = true;
+          _fetchContactDetails(profile);
+        }
+      }
+    } catch (e) {
+      // Likely 404 or row not found due to RLS/backend filters
+      if (mounted) _showErrorMessage("Contact not found or access denied.");
+    }
+  }
+
   bool get _hasActiveFilters =>
       _filterCompany != null || _filterLocation != null ||
       _filterStatus != null || _filterEventId != null;
@@ -414,7 +492,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               setState(() { _selectedContact = null; _contactInsights = null; });
               appNavBarHidden.value = false;
             },
-            icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 22),
+            icon: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
             splashRadius: 20,
             tooltip: 'Back',
           ),
@@ -432,7 +510,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
           IconButton(
             onPressed: () => _showEditContactSheet(contact),
-            icon: Icon(Icons.edit_outlined, color: _c.textPrimary, size: 20),
+            icon: Icon(Icons.edit_outlined, color: _c.accent, size: 20),
             splashRadius: 20,
             tooltip: 'Edit contact',
           ),
@@ -449,7 +527,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildListBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+        itemCount: 6,
+        itemBuilder: (context, index) => Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: const SkeletonCard(),
+        ),
+      );
     }
 
     if (_error != null) {
@@ -569,7 +654,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             color: _c.textSecondary,
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 16),
-          prefixIcon: Icon(Icons.search, color: _c.textSecondary, size: 22),
+          prefixIcon: Icon(Icons.search, color: _c.accent, size: 22),
         ),
       ),
     );
@@ -694,6 +779,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
         onTap: () {
           setState(() {
             _selectedContact = contact;
+            _contactInsights = null;
+            _isLoadingInsights = true;
           });
           appNavBarHidden.value = true;
           _fetchContactDetails(contact);
@@ -773,6 +860,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Widget _buildDetailBody(_ContactProfileData contact) {
+    if (_isLoadingDetails) return _buildDetailSkeleton();
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       child: Column(
@@ -781,16 +869,146 @@ class _ContactsScreenState extends State<ContactsScreen> {
           _buildProfileHeroCard(contact),
           const SizedBox(height: 12),
           _buildAIIntelligenceCard(contact),
-          if (contact.timelineItems.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildTimelineCard(contact),
-          ],
+          const SizedBox(height: 12),
+          _buildTimelineCard(contact),
           const SizedBox(height: 12),
           _buildLinksCard(contact),
           const SizedBox(height: 12),
           _buildEventsCard(contact),
         ],
       ),
+    );
+  }
+
+  Widget _buildDetailSkeleton() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Profile hero card skeleton
+          _skeletonCard(
+            radius: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonLoader(width: 72, height: 72, borderRadius: BorderRadius.circular(20)),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SkeletonLoader(width: double.infinity, height: 18, borderRadius: BorderRadius.circular(5)),
+                          const SizedBox(height: 8),
+                          SkeletonLoader(width: 160, height: 13, borderRadius: BorderRadius.circular(4)),
+                          const SizedBox(height: 6),
+                          SkeletonLoader(width: 120, height: 13, borderRadius: BorderRadius.circular(4)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Contact chip row
+                Row(
+                  children: [
+                    SkeletonLoader(width: 90, height: 32, borderRadius: BorderRadius.circular(10)),
+                    const SizedBox(width: 8),
+                    SkeletonLoader(width: 110, height: 32, borderRadius: BorderRadius.circular(10)),
+                    const SizedBox(width: 8),
+                    SkeletonLoader(width: 80, height: 32, borderRadius: BorderRadius.circular(10)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // Company description block
+                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                const SizedBox(height: 6),
+                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                const SizedBox(height: 6),
+                SkeletonLoader(width: 200, height: 13, borderRadius: BorderRadius.circular(4)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // AI intelligence card skeleton
+          _skeletonCard(
+            accent: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    SkeletonLoader(width: 15, height: 15, borderRadius: BorderRadius.circular(4)),
+                    const SizedBox(width: 8),
+                    SkeletonLoader(width: 110, height: 13, borderRadius: BorderRadius.circular(4)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                const SizedBox(height: 6),
+                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                const SizedBox(height: 6),
+                SkeletonLoader(width: 220, height: 13, borderRadius: BorderRadius.circular(4)),
+                const SizedBox(height: 12),
+                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                const SizedBox(height: 6),
+                SkeletonLoader(width: 180, height: 13, borderRadius: BorderRadius.circular(4)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Timeline card skeleton
+          _skeletonCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonLoader(width: 140, height: 13, borderRadius: BorderRadius.circular(4)),
+                const SizedBox(height: 16),
+                ...List.generate(3, (i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonLoader(width: 10, height: 10, borderRadius: BorderRadius.circular(5)),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonLoader(width: 100, height: 11, borderRadius: BorderRadius.circular(3)),
+                            const SizedBox(height: 5),
+                            SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                            const SizedBox(height: 4),
+                            SkeletonLoader(width: 200, height: 13, borderRadius: BorderRadius.circular(4)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _skeletonCard({required Widget child, double radius = 16, bool accent = false}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _c.surface,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: accent ? _c.accent.withValues(alpha: 0.3) : _c.border,
+        ),
+      ),
+      child: child,
     );
   }
 
@@ -861,7 +1079,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         child: Icon(
                           Icons.camera_alt_outlined,
                           size: 12,
-                          color: _c.textMuted,
+                          color: _c.accent,
                         ),
                       ),
                     ),
@@ -906,18 +1124,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       ),
                     ],
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        _followUpChip(contact.followUpStatus),
-                        if (contact.sector.isNotEmpty)
-                          GestureDetector(
-                            onTap: _openEditSectors,
-                            child: AppChip(contact.sector),
-                          ),
-                      ],
-                    ),
+                    _followUpChip(contact.followUpStatus),
                   ],
                 ),
               ),
@@ -925,9 +1132,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
 
           // Contact info rows
-          if (contact.email.isNotEmpty || contact.phone.isNotEmpty || contact.linkedin.isNotEmpty) ...[
+          if (contact.email.isNotEmpty || contact.phone.isNotEmpty || contact.linkedin.isNotEmpty || contact.company.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(height: 1, color: _c.border.withValues(alpha: 0.4)),
+            if (contact.company.isNotEmpty)
+              _heroInfoRow(Icons.business_outlined, contact.company,
+                  () => _navigateToCompanyDetail(contact)),
             if (contact.email.isNotEmpty)
               _heroInfoRow(Icons.mail_outline, contact.email,
                   () => _launchUrl('mailto:${contact.email}')),
@@ -953,6 +1163,37 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   () => _showUiOnlyMessage('Schedule Meeting')),
             ],
           ),
+
+          // Log Interaction button
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => showLogInteractionSheet(
+                context,
+                contactId: contact.id,
+                onSaved: () => _fetchContactDetails(contact),
+              ),
+              icon: Icon(Icons.chat_bubble_outline_rounded, size: 16, color: _c.accent),
+              label: Text(
+                'LOG INTERACTION',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                  color: _c.accent,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _c.accent,
+                side: BorderSide(color: _c.accent),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -965,7 +1206,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 11),
         child: Row(
           children: [
-            Icon(icon, size: 17, color: _c.textMuted),
+            Icon(icon, size: 17, color: _c.accent),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -978,7 +1219,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Icon(Icons.chevron_right, size: 16, color: _c.textMuted),
+            Icon(Icons.chevron_right, size: 16, color: _c.accent),
           ],
         ),
       ),
@@ -1016,7 +1257,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: enabled ? _c.textSecondary : _c.textMuted.withValues(alpha: 0.4), size: 18),
+                Icon(icon, color: enabled ? _c.accent : _c.textMuted.withValues(alpha: 0.4), size: 18),
                 const SizedBox(height: 4),
                 Text(
                   label,
@@ -1038,19 +1279,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   // ─── AI Intelligence Card ─────────────────────────────────────────────────
 
-  bool _hasEnoughDataForAI(_ContactProfileData contact) {
-    final hasCompany = contact.company.isNotEmpty;
-    final hasLinkedin = contact.linkedin.isNotEmpty;
-    final hasTitle = contact.title.isNotEmpty;
-    final hasTimeline = contact.timelineItems.isNotEmpty;
-    final hasDescription = contact.companyDescription.isNotEmpty;
-    // Need at least 2 meaningful signals for useful insights
-    final score = [hasCompany, hasLinkedin, hasTitle, hasTimeline, hasDescription]
-        .where((v) => v)
-        .length;
-    return score >= 2;
-  }
-
   Widget _buildAIIntelligenceCard(_ContactProfileData contact) {
     return AppCard(
       padding: const EdgeInsets.all(16),
@@ -1065,53 +1293,50 @@ class _ContactsScreenState extends State<ContactsScreen> {
               const SizedBox(width: 8),
               AppSectionLabel('AI Intelligence', letterSpacing: 1.4, color: _c.accent),
               const Spacer(),
-              if (!_isLoadingInsights && _contactInsights != null)
+              if (_contactInsights != null)
                 GestureDetector(
                   onTap: () => _fetchInsights(contact.id),
-                  child: Icon(Icons.refresh, size: 15, color: _c.textMuted),
+                  child: Icon(Icons.refresh, size: 15, color: _c.accent),
                 ),
             ],
           ),
           const SizedBox(height: 14),
-          if (_isLoadingInsights)
-            _buildInsightsShimmer()
-          else if (_contactInsights != null)
+          if (_contactInsights != null)
             _buildInsightsContent(_contactInsights!)
-          else if (!_hasEnoughDataForAI(contact))
-            _buildInsightsNeedMoreData(contact)
           else
-            _buildInsightsReady(contact),
+            _buildInsightsNeedMoreData(contact),
         ],
       ),
     );
   }
 
-  Widget _buildInsightsShimmer() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(
-        4,
-        (i) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Container(
-            height: 14,
-            width: i == 3 ? 120 : double.infinity,
-            decoration: BoxDecoration(
-              color: _c.surfaceElevated,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildInsightsNeedMoreData(_ContactProfileData contact) {
+    final hasTitle = contact.title.isNotEmpty;
+    final hasCompany = contact.company.isNotEmpty;
+    final hasLinkedin = contact.linkedin.isNotEmpty;
+    final hasTimeline = contact.timelineItems.isNotEmpty;
+    final signalCount = [hasTitle, hasCompany, hasLinkedin, hasTimeline].where((v) => v).length;
+    final hasEnoughData = signalCount >= 2;
+
+    if (hasEnoughData) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'AI insights are being generated and will appear here shortly.',
+            style: TextStyle(fontSize: 13, color: _c.textMuted, fontStyle: FontStyle.italic, height: 1.5),
+          ),
+          const SizedBox(height: 16),
+          const _AiThinkingDots(),
+        ],
+      );
+    }
+
     final missing = <_MissingDetail>[];
-    if (contact.title.isEmpty) missing.add(_MissingDetail(Icons.work_outline, 'Job title'));
-    if (contact.company.isEmpty) missing.add(_MissingDetail(Icons.domain_outlined, 'Company'));
-    if (contact.linkedin.isEmpty) missing.add(_MissingDetail(Icons.link, 'LinkedIn profile'));
-    if (contact.timelineItems.isEmpty) missing.add(_MissingDetail(Icons.history, 'Log an interaction'));
+    if (!hasTitle) missing.add(_MissingDetail(Icons.work_outline, 'Job title'));
+    if (!hasCompany) missing.add(_MissingDetail(Icons.domain_outlined, 'Company'));
+    if (!hasLinkedin) missing.add(_MissingDetail(Icons.link, 'LinkedIn profile'));
+    if (!hasTimeline) missing.add(_MissingDetail(Icons.history, 'Log an interaction'));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1129,7 +1354,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
-                  Icon(m.icon, size: 14, color: _c.textMuted),
+                  Icon(m.icon, size: 14, color: _c.accent),
                   const SizedBox(width: 8),
                   Text(
                     m.label,
@@ -1143,8 +1368,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
             )),
         const SizedBox(height: 4),
         OutlinedButton.icon(
-          onPressed: () => showLogInteractionSheet(context),
-          icon: Icon(Icons.add, size: 14, color: _c.textMuted),
+          onPressed: () => showLogInteractionSheet(
+            context,
+            contactId: contact.id,
+            onSaved: () => _fetchContactDetails(contact),
+          ),
+          icon: Icon(Icons.add, size: 14, color: _c.accent),
           label: Text(
             'LOG INTERACTION',
             style: TextStyle(
@@ -1157,42 +1386,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             side: BorderSide(color: _c.border),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInsightsReady(_ContactProfileData contact) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'AI intelligence will be generated based on contact info and engagement history.',
-          style: TextStyle(
-            fontSize: 13,
-            color: _c.textMuted,
-            fontStyle: FontStyle.italic,
-            height: 1.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () => _fetchInsights(contact.id),
-          icon: Icon(Icons.auto_awesome_outlined, size: 14, color: _c.accent),
-          label: Text(
-            'GENERATE NOW',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: _c.accent,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            side: BorderSide(color: _c.accent.withValues(alpha: 0.4)),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
@@ -1238,7 +1431,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.warning_amber_outlined, size: 14, color: _c.textMuted),
+              Icon(Icons.warning_amber_outlined, size: 14, color: _c.accent),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -1338,24 +1531,27 @@ class _ContactsScreenState extends State<ContactsScreen> {
         children: [
           AppSectionLabel('Engagement Timeline', letterSpacing: 1.4),
           const SizedBox(height: 16),
-          Stack(
-            children: [
-              Positioned(
-                left: 10,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: 1,
-                  color: _c.border.withValues(alpha: 0.4),
+          if (contact.timelineItems.isEmpty)
+            Text('No interactions logged yet.', style: TextStyle(fontSize: 13, color: _c.textMuted))
+          else
+            Stack(
+              children: [
+                Positioned(
+                  left: 10,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 1,
+                    color: _c.border.withValues(alpha: 0.4),
+                  ),
                 ),
-              ),
-              Column(
-                children: contact.timelineItems
-                    .map((item) => _buildTimelineItem(item))
-                    .toList(),
-              ),
-            ],
-          ),
+                Column(
+                  children: contact.timelineItems
+                      .map((item) => _buildTimelineItem(item))
+                      .toList(),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -1373,7 +1569,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         borderRadius: BorderRadius.circular(8),
         child: Row(
           children: [
-            Icon(Icons.attachment_outlined, size: 18, color: _c.textMuted),
+            Icon(Icons.attachment_outlined, size: 18, color: _c.accent),
             const SizedBox(width: 12),
             Text(
               'Links & Files',
@@ -1392,7 +1588,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             Icon(
               hasAssets ? Icons.chevron_right : Icons.add,
               size: 18,
-              color: _c.textMuted,
+              color: _c.accent,
             ),
           ],
         ),
@@ -1465,7 +1661,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.link_off_rounded, size: 16, color: _c.textMuted),
+                    icon: Icon(Icons.link_off_rounded, size: 16, color: _c.accent),
                     splashRadius: 18,
                     tooltip: 'Unlink',
                     onPressed: () => _unlinkEvent(contact, event),
@@ -1671,42 +1867,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
     });
   }
 
-  Future<void> _openEditSectors() async {
-    final contact = _selectedContact;
-    if (contact == null) return;
-
-    final currentSectors = contact.sectors.isEmpty
-        ? [contact.sector]
-        : contact.sectors;
-
-    final updatedSectors = await showEditSectorsSheet(
-      context,
-      initialSelection: currentSectors,
-    );
-
-    if (!mounted || updatedSectors == null || updatedSectors.isEmpty) return;
-
-    final updatedContact = contact.copyWith(
-      sector: updatedSectors.first,
-      sectors: updatedSectors,
-    );
-
-    final index = _allContacts.indexWhere(
-      (item) => item.email == contact.email && item.name == contact.name,
-    );
-
-    setState(() {
-      _selectedContact = updatedContact;
-      if (index != -1) {
-        _allContacts[index] = updatedContact;
-      }
-    });
-  }
 
 
 
   _ContactProfileData _buildGenericProfile({
     required String id,
+    String? userId,
     required String initials,
     required String name,
     required String title,
@@ -1729,6 +1895,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final companyDisplay = company.toUpperCase();
     return _ContactProfileData(
       id: id,
+      userId: userId,
       initials: initials,
       name: name.toUpperCase(),
       listName: name,
@@ -1911,7 +2078,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
           child: Row(
             children: [
-              Icon(icon, color: _c.textPrimary, size: 20),
+              Icon(icon, color: _c.accent, size: 20),
               const SizedBox(width: 16),
               Text(
                 label,
@@ -1932,6 +2099,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
 class _ContactProfileData {
   final String id;
+  final String? userId;
   final String initials;
   final String name;
   final String listName;
@@ -1968,6 +2136,7 @@ class _ContactProfileData {
 
   const _ContactProfileData({
     required this.id,
+    this.userId,
     required this.initials,
     required this.name,
     required this.listName,
@@ -2005,6 +2174,7 @@ class _ContactProfileData {
 
   _ContactProfileData copyWith({
     String? id,
+    String? userId,
     String? initials,
     String? name,
     String? listName,
@@ -2041,6 +2211,7 @@ class _ContactProfileData {
   }) {
     return _ContactProfileData(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       initials: initials ?? this.initials,
       name: name ?? this.name,
       listName: listName ?? this.listName,
@@ -2280,6 +2451,60 @@ class _EditContactSheetState extends State<_EditContactSheet> {
   }
 }
 
+class _AiThinkingDots extends StatefulWidget {
+  const _AiThinkingDots();
+  @override
+  State<_AiThinkingDots> createState() => _AiThinkingDotsState();
+}
+
+class _AiThinkingDotsState extends State<_AiThinkingDots> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppTheme.colorsOf(context);
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            // Each dot peaks at a different phase
+            final phase = (i / 3.0);
+            final t = ((_ctrl.value - phase) % 1.0);
+            // Sine curve: bright in the middle of its cycle
+            final brightness = (Math.sin(t * Math.pi)).clamp(0.0, 1.0);
+            final size = 6.0 + brightness * 3.0;
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: c.accent.withValues(alpha: 0.3 + brightness * 0.7),
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
 class _MissingDetail {
   final IconData icon;
   final String label;
@@ -2478,7 +2703,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                             const Spacer(),
                             GestureDetector(
                               onTap: () => setState(() { _tempEventId = null; _eventCtrl.clear(); }),
-                              child: Icon(Icons.close, size: 14, color: _c.textMuted),
+                              child: Icon(Icons.close, size: 14, color: _c.accent),
                             ),
                           ],
                         ),
@@ -2559,10 +2784,10 @@ class _FilterSheetState extends State<_FilterSheet> {
     decoration: InputDecoration(
       hintText: hint,
       hintStyle: TextStyle(color: _c.textMuted, fontSize: 14),
-      prefixIcon: Icon(Icons.search, color: _c.textMuted, size: 18),
+      prefixIcon: Icon(Icons.search, color: _c.accent, size: 18),
       suffixIcon: ctrl.text.isNotEmpty
           ? IconButton(
-              icon: Icon(Icons.clear, size: 16, color: _c.textMuted),
+              icon: Icon(Icons.clear, size: 16, color: _c.accent),
               onPressed: () => ctrl.clear(),
             )
           : null,
@@ -2593,7 +2818,7 @@ class _FilterSheetState extends State<_FilterSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           child: Row(
             children: [
-              Icon(Icons.business_outlined, size: 14, color: _c.textMuted),
+              Icon(Icons.business_outlined, size: 14, color: _c.accent),
               const SizedBox(width: 8),
               Text(item, style: TextStyle(fontSize: 14, color: _c.textPrimary)),
             ],
@@ -2618,7 +2843,7 @@ class _FilterSheetState extends State<_FilterSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           child: Row(
             children: [
-              Icon(Icons.event_outlined, size: 14, color: _c.textMuted),
+              Icon(Icons.event_outlined, size: 14, color: _c.accent),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -2713,7 +2938,7 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
                     const Spacer(),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close, color: _c.textMuted),
+                      icon: Icon(Icons.close, color: _c.accent),
                     ),
                   ],
                 ),
@@ -2727,7 +2952,7 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
                   decoration: InputDecoration(
                     hintText: 'Search events...',
                     hintStyle: TextStyle(color: _c.textMuted, fontSize: 14),
-                    prefixIcon: Icon(Icons.search, color: _c.textMuted, size: 18),
+                    prefixIcon: Icon(Icons.search, color: _c.accent, size: 18),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide(color: _c.border),
@@ -2769,7 +2994,7 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
                                 ? Icon(Icons.check_circle_rounded, color: _c.accent, size: 20)
                                 : (_linking
                                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                    : Icon(Icons.add_circle_outline, color: _c.textSecondary, size: 20)),
+                                    : Icon(Icons.add_circle_outline, color: _c.accent, size: 20)),
                             onTap: isLinked ? null : () async {
                               setState(() => _linking = true);
                               try {

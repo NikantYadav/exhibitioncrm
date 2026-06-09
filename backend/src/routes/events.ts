@@ -2,10 +2,13 @@ import { Router } from 'express';
 import { supabase } from '../config/supabase';
 import { LiteLLMService } from '../services/litellm-service';
 import { TavilyService } from '../services/tavily-service';
+import { requireAuth } from '../middleware/requireAuth';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 
 const router = Router();
+
+router.use(requireAuth);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -27,9 +30,11 @@ const getEventStatus = (event: any): string => {
 
 router.get('/', async (req, res, next) => {
   try {
+    const userId = req.user!.id;
     const { data, error } = await supabase
       .from('events')
       .select('*')
+      .eq('user_id', userId)
       .order('start_date', { ascending: false });
 
     if (error) throw error;
@@ -49,9 +54,11 @@ router.get('/', async (req, res, next) => {
 // Returns the current ongoing event if any
 router.get('/ongoing/current', async (req, res, next) => {
   try {
+    const userId = req.user!.id;
     const { data: events, error } = await supabase
       .from('events')
       .select('*')
+      .eq('user_id', userId)
       .order('start_date', { ascending: false });
 
     if (error) throw error;
@@ -95,6 +102,7 @@ router.post('/', async (req, res, next) => {
     const { data, error } = await supabase
       .from('events')
       .insert({
+        user_id: req.user!.id,
         name: req.body.name,
         description: req.body.description,
         location: req.body.location,
@@ -278,15 +286,29 @@ router.get('/:id/live', async (req, res, next) => {
         .from('target_companies')
         .select(`
           id, priority, booth_location, status, company_id, talking_points, notes,
-          company:companies(id, name),
-          contacts:companies!inner(contacts(id, first_name, last_name, job_title))
+          company:companies(id, name)
         `)
         .eq('event_id', eventId)
-        .limit(10),
+        .limit(50),
     ]);
 
     if (eventError || !event) { res.status(404).json({ error: 'Event not found' }); return; }
     if (targetsError) throw targetsError;
+
+    // Fetch all contacts linked to this event with their company_id for matching
+    const { data: eventContactRows } = await supabase
+      .from('contact_events')
+      .select('contact_id, contact:contacts(id, first_name, last_name, job_title, company_id)')
+      .eq('event_id', eventId);
+
+    // Build a map: company_id → first linked contact
+    const contactByCompany = new Map<string, any>();
+    for (const row of (eventContactRows || [])) {
+      const c = (row as any).contact;
+      if (c?.company_id && !contactByCompany.has(c.company_id)) {
+        contactByCompany.set(c.company_id, c);
+      }
+    }
 
     // Sort targets: high > medium > low, then by created_at
     const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -294,13 +316,14 @@ router.get('/:id/live', async (req, res, next) => {
       (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3)
     );
 
-    // Build priority target list — pick first contact from company if any
+    // Build target list — match contact via company_id
     const priorityTargets = sortedTargets.map((target: any, index: number) => {
-      const contact = target.contacts?.contacts?.[0] ?? null;
+      const contact = contactByCompany.get(target.company_id) ?? null;
       return {
         id: target.id,
         rank: index + 1,
-        name: contact ? `${contact.first_name} ${contact.last_name}`.trim() : (target.company?.name ?? 'Unknown'),
+        contact_id: contact?.id ?? null,
+        name: contact ? `${contact.first_name} ${contact.last_name ?? ''}`.trim() : (target.company?.name ?? 'Unknown'),
         job_title: contact?.job_title ?? '',
         company_name: target.company?.name ?? '',
         booth: target.booth_location || '',
@@ -312,9 +335,7 @@ router.get('/:id/live', async (req, res, next) => {
     });
 
     // Pending follow-ups: contacts linked to this event who need follow-up
-    const { data: contactEventRows } = await supabase
-      .from('contact_events').select('contact_id').eq('event_id', eventId);
-    const contactIds = [...new Set((contactEventRows || []).map((c: any) => c.contact_id))];
+    const contactIds = [...new Set((eventContactRows || []).map((c: any) => c.contact_id))];
     let followUpsCount = 0;
     if (contactIds.length > 0) {
       const { count } = await supabase
@@ -373,17 +394,39 @@ router.post('/:id/ask', async (req, res, next) => {
     const { question } = req.body;
     if (!question) { res.status(400).json({ error: 'question required' }); return; }
     const [{ data: event }, { data: targets }] = await Promise.all([
-      supabase.from('events').select('name, venue, location').eq('id', req.params.id).single(),
+      supabase.from('events').select('name, venue, location, description, start_date, end_date').eq('id', req.params.id).single(),
       supabase.from('target_companies').select('company:companies(name, industry), booth_location, status, priority').eq('event_id', req.params.id).limit(20),
     ]);
     if (!event) { res.status(404).json({ error: 'Event not found' }); return; }
+
+    const eventName = event.name as string;
+    const eventLocation = event.venue || event.location || '';
+    const eventDates = event.start_date
+      ? `${event.start_date.slice(0, 10)}${event.end_date ? ` to ${event.end_date.slice(0, 10)}` : ''}`
+      : '';
     const targetSummary = (targets || []).map((t: any) =>
       `${t.company?.name} (${t.company?.industry || 'unknown'}, booth: ${t.booth_location || 'TBD'}, status: ${t.status})`
     ).join('\n');
+
+    // Tavily search — include event name, location, schedule and the question
+    let webContext = '';
+    try {
+      const searchQuery = [eventName, eventLocation, eventDates, question].filter(Boolean).join(' ');
+      const results = await TavilyService.search(searchQuery, { maxResults: 4, searchDepth: 'basic' });
+      webContext = TavilyService.formatForPrompt(results);
+    } catch (_) { /* Tavily failure is non-fatal */ }
+
+    const eventContext = [
+      `Event: "${eventName}"`,
+      eventLocation ? `Location: ${eventLocation}` : '',
+      eventDates ? `Dates: ${eventDates}` : '',
+      event.description ? `Description: ${event.description}` : '',
+    ].filter(Boolean).join('\n');
+
     const llm = new LiteLLMService();
     const answer = await llm.generateCompletion([{
       role: 'user',
-      content: `You are a smart assistant helping someone at a live event called "${event.name}" at ${event.venue || event.location || 'unknown venue'}.\n\nTarget companies:\n${targetSummary || 'None listed'}\n\nQuestion: ${question}\n\nAnswer in 2-3 sentences. Be specific and actionable.`
+      content: `You are a smart assistant helping someone attending a live event.\n\n${eventContext}\n\nTarget companies:\n${targetSummary || 'None listed'}${webContext ? `\n\nReal-time web context:\n${webContext}` : ''}\n\nQuestion: ${question}\n\nAnswer in 2-3 sentences. Be specific and actionable.`
     }]);
     res.json({ answer });
   } catch (error) { next(error); }
@@ -755,6 +798,35 @@ router.delete('/:id/targets/:targetId/contacts/:contactId', async (req, res, nex
 
     if (error) throw error;
     res.json({ message: 'Contact unlinked from event' });
+  } catch (error) { next(error); }
+});
+
+// DELETE /api/events/:id/contacts/:contactId — unlink a contact from an event
+router.delete('/:id/contacts/:contactId', async (req, res, next) => {
+  try {
+    const { error } = await supabase
+      .from('contact_events')
+      .delete()
+      .eq('contact_id', req.params.contactId)
+      .eq('event_id', req.params.id);
+    if (error) throw error;
+    res.json({ message: 'Contact removed from event' });
+  } catch (error) { next(error); }
+});
+
+// POST /api/events/:id/contacts — link a contact directly to an event
+router.post('/:id/contacts', async (req, res, next) => {
+  try {
+    const { contact_id } = req.body;
+    if (!contact_id) { res.status(400).json({ error: 'contact_id required' }); return; }
+
+    const { error } = await supabase
+      .from('contact_events')
+      .insert({ contact_id, event_id: req.params.id });
+
+    if (error && error.code !== '23505') throw error; // ignore duplicate
+
+    res.json({ message: 'Contact linked to event' });
   } catch (error) { next(error); }
 });
 

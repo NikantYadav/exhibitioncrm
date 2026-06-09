@@ -99,6 +99,66 @@ All shared UI lives in `lib/widgets/`. Use these everywhere — never rebuild th
 
 ---
 
+### SkeletonLoader (`lib/widgets/skeleton_loader.dart`)
+
+Animated shimmer block for loading states. Use it to mirror the **exact structure** of the real content — never use a single large opaque rectangle as a page placeholder.
+
+```dart
+// Single shimmer block
+SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4))
+SkeletonLoader(width: 160, height: 13, borderRadius: BorderRadius.circular(4))
+
+// Avatar circle
+SkeletonLoader(width: 56, height: 56, borderRadius: BorderRadius.circular(14))
+
+// Contact list row — pre-built composite
+const SkeletonCard()
+```
+
+#### How to build a detail skeleton
+
+Wrap skeleton blocks in a `_skeletonCard` helper that mirrors `AppCard` (same padding, radius, border). Never use raw `Container + BoxDecoration` for skeleton cards.
+
+```dart
+Widget _skeletonCard({required Widget child, double radius = 20, bool accent = false}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(20),   // match the real card's padding
+    decoration: BoxDecoration(
+      color: _c.surface,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: accent ? _c.accent.withValues(alpha: 0.3) : _c.border),
+    ),
+    child: child,
+  );
+}
+```
+
+#### Skeleton line sizing
+
+| Element | Height | Border radius | Notes |
+|---|---|---|---|
+| Section label | `11` | `3` | Matches 10–11px uppercase label |
+| Body text line | `13` | `4` | Full width or tapered (last line ~60%) |
+| Heading | `18–20` | `5` | Title / name fields |
+| Avatar (round) | `38–72` | `999` | Matches avatar container size |
+| Avatar (rounded rect) | `56` | `14` | Company logo tile |
+| Chip / badge | `22–32` | `4–10` | Matches chip height |
+| Action button | `48` | `999` | Full-width pill button |
+| Timeline dot | `10` | `5` | Timeline connector |
+
+#### Rules
+
+- **Structure matches content**: a hero card skeleton has an avatar block + name lines + description lines — not a single tall rectangle
+- **Card gap**: `12` between skeleton cards (same as real detail page)
+- **Padding**: same as the real card (`all(16)` compact, `all(20)` standard)
+- **Accent border**: use `accent: true` on the AI Intelligence card skeleton to match its real border
+- **Text lines taper**: use full-width for all but the last line of a paragraph, which should be `~60%` wide
+- **Never** animate skeleton cards with slide-in transitions — the shimmer gradient is the only motion
+- **Import**: `import '../widgets/skeleton_loader.dart';`
+
+---
+
 ### AppCard (`lib/widgets/app_card.dart`)
 
 Single source of truth for all card and panel surfaces. Never write `Container(decoration: BoxDecoration(...))` for a card.

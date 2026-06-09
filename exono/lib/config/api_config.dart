@@ -1,5 +1,5 @@
 class ApiConfig {
-  static const String baseUrl = 'http://192.168.1.43:3001/api';
+  static const String baseUrl = 'http://localhost:3001/api';
   
   // Endpoints
   static const String contacts = '/contacts';

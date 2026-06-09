@@ -8,6 +8,7 @@ import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/skeleton_loader.dart';
 
 class FollowUpsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -221,10 +222,125 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
             _buildTopBar(),
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? _buildSkeletonLoading()
                   : _followUps.isEmpty
                       ? _buildEmptyState()
                       : _buildScrollableBody(bottomPadding: 24),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonLoading() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Queue Status Skeleton
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [_c.surface, _c.surfaceAlt],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: _c.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonLoader(
+                    width: 120,
+                    height: 12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  const SizedBox(height: 8),
+                  SkeletonLoader(
+                    width: 180,
+                    height: 20,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  const SizedBox(height: 12),
+                  SkeletonLoader(
+                    width: double.infinity,
+                    height: 6,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Priority Card Skeleton
+            const SkeletonCard(),
+            const SizedBox(height: 24),
+            // Smart Draft Skeleton
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [_c.surface, _c.surfaceAlt],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: _c.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonLoader(
+                    width: 100,
+                    height: 12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  const SizedBox(height: 12),
+                  SkeletonLoader(
+                    width: double.infinity,
+                    height: 16,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  const SizedBox(height: 16),
+                  SkeletonLoader(
+                    width: double.infinity,
+                    height: 120,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Action Buttons Skeleton
+            SkeletonLoader(
+              width: double.infinity,
+              height: 56,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: SkeletonLoader(
+                    width: double.infinity,
+                    height: 52,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SkeletonLoader(
+                    width: double.infinity,
+                    height: 52,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -237,7 +353,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.inbox_outlined, size: 48, color: _c.textMuted),
+          Icon(Icons.inbox_outlined, size: 48, color: _c.accent),
           const SizedBox(height: 16),
           Text(
             'No follow-ups pending for this event.',
@@ -275,7 +391,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
             children: [
               IconButton(
                 onPressed: () => _showUiOnlyMessage('Menu is UI-only for now.'),
-                icon: Icon(Icons.menu, color: _c.textPrimary, size: 22),
+                icon: Icon(Icons.menu, color: _c.accent, size: 22),
                 splashRadius: 20,
               ),
               Expanded(
@@ -300,14 +416,14 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                     _showUiOnlyMessage('Notifications are UI-only for now.'),
                 icon: Icon(
                   Icons.notifications_none_rounded,
-                  color: _c.textPrimary,
+                  color: _c.accent,
                   size: 22,
                 ),
                 splashRadius: 20,
               ),
               IconButton(
                 onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(Icons.close, color: _c.textMuted, size: 22),
+                icon: Icon(Icons.close, color: _c.accent, size: 22),
                 splashRadius: 20,
               ),
             ],
@@ -500,7 +616,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                               Icon(
                                 Icons.event_outlined,
                                 size: 14,
-                                color: _c.borderStrong,
+                                color: _c.accent,
                               ),
                               const SizedBox(width: 4),
                               Expanded(
@@ -829,7 +945,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                     letterSpacing: 0.6,
                   ),
                 ),
-                icon: const Icon(Icons.save_outlined, size: 18),
+                icon: Icon(Icons.save_outlined, size: 18, color: _c.accent),
                 label: const Text('SAVE DRAFT'),
               ),
             ),
@@ -852,7 +968,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                     letterSpacing: 0.6,
                   ),
                 ),
-                icon: const Icon(Icons.skip_next, size: 18),
+                icon: Icon(Icons.skip_next, size: 18, color: _c.accent),
                 label: const Text('SKIP FOR NOW'),
               ),
             ),
