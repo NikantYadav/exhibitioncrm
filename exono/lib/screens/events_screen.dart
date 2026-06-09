@@ -6,6 +6,7 @@ import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_section_label.dart';
 import '../widgets/app_header.dart';
 import '../widgets/skeleton_loader.dart';
 import 'event_floor_home_screen.dart';
@@ -27,6 +28,7 @@ class _EventsScreenState extends State<EventsScreen> {
   bool _showUpcoming = true;
 
   List<Event> _events = [];
+  Map<String, Map<String, dynamic>> _eventStats = {};
   bool _isLoading = true;
   String? _error;
 
@@ -61,8 +63,18 @@ class _EventsScreenState extends State<EventsScreen> {
     });
     try {
       final events = await ApiService.getEvents();
+      final pastEvents = events.where((e) => e.status == 'completed').toList();
+      // Load stats for all past events in parallel
+      final statsResults = await Future.wait(
+        pastEvents.map((e) => ApiService.getEventStats(e.id).catchError((_) => <String, dynamic>{})),
+      );
+      final statsMap = <String, Map<String, dynamic>>{};
+      for (var i = 0; i < pastEvents.length; i++) {
+        statsMap[pastEvents[i].id] = statsResults[i];
+      }
       setState(() {
         _events = events;
+        _eventStats = statsMap;
         _isLoading = false;
       });
     } catch (e) {
@@ -398,172 +410,166 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   Widget _buildPastEventCard(Event event) {
+    final stats = _eventStats[event.id] ?? {};
+    final totalContacts = (stats['total_contacts'] as num?)?.toInt() ?? 0;
+    final pending = (stats['follow_ups_needed'] as num?)?.toInt() ?? 0;
+    final skipped = (stats['follow_ups_skipped'] as num?)?.toInt() ?? 0;
+    final done = (stats['follow_ups_done'] as num?)?.toInt() ?? 0;
+    final followUpPct = totalContacts > 0 ? (done / totalContacts).clamp(0.0, 1.0) : 0.0;
+
     final dateLocation =
         '${_formatDateRange(event.startDate, event.endDate)}${event.location != null ? ' • ${event.location}' : ''}';
 
     return AppCard(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       radius: 28,
       elevated: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        event.name,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
-                          color: _c.textPrimary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    AppChip('COMPLETED'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            dateLocation,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: _c.textMuted,
-            ),
-          ),
-          const SizedBox(height: 20),
+          // Header row
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'CONTACTS SCANNED',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.1,
-                      color: _c.textMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '0',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: _c.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 24),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'FOLLOW-UP COMPLETION',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 1.0,
-                              color: _c.textMuted,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '0%',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: _c.textPrimary,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      event.name,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                        color: _c.textPrimary,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 4,
-                      color: _c.border,
-                      child: const Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: 0.0,
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      dateLocation,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _c.textMuted,
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              AppChip.status('COMPLETED', color: _c.textSecondary),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          // Progress bar
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () =>
-                      _showUiOnlyMessage('View contacts for ${event.name}'),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: _c.border),
-                    backgroundColor: _c.surface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: Text(
-                    'VIEW CONTACTS',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.6,
-                      color: _c.textMuted,
-                    ),
-                  ),
-                ),
+                child: AppSectionLabel('Follow-Up Completion'),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _openFollowUpQueue(event.id),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: _c.accent),
-                    backgroundColor: _c.surface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: Text(
-                    'FOLLOW-UP QUEUE',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.4,
-                      color: _c.textPrimary,
-                    ),
-                  ),
+              Text(
+                '${(followUpPct * 100).round()}%',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: followUpPct >= 1.0 ? _c.success : _c.accent,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              height: 5,
+              color: _c.surfaceElevated,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: followUpPct,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: followUpPct >= 1.0 ? _c.success : _c.accent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Stats row
+          AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            radius: 16,
+            elevated: true,
+            child: Row(
+              children: [
+                _buildStatCell('Contacts', '$totalContacts', _c.textPrimary),
+                _buildStatDivider(),
+                _buildStatCell('Pending', '$pending', pending > 0 ? _c.accent : _c.textMuted),
+                _buildStatDivider(),
+                _buildStatCell('Skipped', '$skipped', skipped > 0 ? _c.destructive : _c.textMuted),
+                _buildStatDivider(),
+                _buildStatCell('Done', '$done', done > 0 ? _c.success : _c.textMuted),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => _openFollowUpQueue(event),
+              style: FilledButton.styleFrom(
+                backgroundColor: _c.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                elevation: 0,
+              ),
+              child: const Text(
+                'FOLLOW-UP QUEUE',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.6,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatCell(String label, String value, Color valueColor) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 2),
+          AppSectionLabel(label),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatDivider() {
+    return Container(
+      width: 1,
+      height: 28,
+      color: _c.border,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 
@@ -586,15 +592,20 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  void _openFollowUpQueue(String eventId) {
-    Navigator.of(context).push(
+  Future<void> _openFollowUpQueue(Event event) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => FollowUpsScreen(
           onNavigateTab: widget.onNavigateTab,
-          eventId: eventId,
+          event: event,
         ),
       ),
     );
+    // Refresh stats for this event when returning so completion % is up to date
+    if (!mounted) return;
+    final updated = await ApiService.getEventStats(event.id).catchError((_) => <String, dynamic>{});
+    if (!mounted) return;
+    setState(() => _eventStats[event.id] = updated);
   }
 
   void _openPrepScreen(Event event) {
@@ -901,15 +912,6 @@ class _EventsScreenState extends State<EventsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showUiOnlyMessage(String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label is UI-only for now.'),
-        behavior: SnackBarBehavior.floating,
       ),
     );
   }

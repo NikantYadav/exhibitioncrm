@@ -54,6 +54,13 @@ OPENAI_API_KEY=your_openai_api_key
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
+## Contributing
+
+Before touching backend Supabase code, read
+[backend/src/config/SUPABASE_CLIENTS.md](backend/src/config/SUPABASE_CLIENTS.md) —
+auth and data queries use **separate** Supabase clients on purpose, and mixing them
+silently breaks queries under RLS.
+
 ## License
 
 MIT

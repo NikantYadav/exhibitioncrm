@@ -390,6 +390,65 @@ class ApiService {
     throw Exception('Failed to load event follow-ups');
   }
 
+  static Future<void> markFollowUpSent(
+    String eventId,
+    String contactId, {
+    String? subject,
+    String? body,
+  }) async {
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/follow-ups/$contactId'),
+      headers: await _headers(),
+      body: json.encode({
+        'action': 'send',
+        if (subject != null) 'subject': subject,
+        if (body != null) 'body': body,
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to mark follow-up as sent');
+    }
+  }
+
+  static Future<void> unskipFollowUp(String eventId, String contactId) async {
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/follow-ups/$contactId'),
+      headers: await _headers(),
+      body: json.encode({'action': 'unskip'}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to unskip follow-up');
+    }
+  }
+
+  static Future<void> skipFollowUp(String eventId, String contactId) async {
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/follow-ups/$contactId'),
+      headers: await _headers(),
+      body: json.encode({'action': 'skip'}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to skip follow-up');
+    }
+  }
+
+  static Future<Map<String, String>> generateFollowUpDraft(
+      String eventId, String contactId) async {
+    final response = await http.post(
+      Uri.parse(
+          '${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/follow-ups/$contactId/draft'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      return {
+        'subject': data['subject'] as String? ?? '',
+        'body': data['body'] as String? ?? '',
+      };
+    }
+    throw Exception('Failed to generate draft');
+  }
+
   static Future<void> deleteEvent(String eventId) async {
     final response = await http.delete(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId'),

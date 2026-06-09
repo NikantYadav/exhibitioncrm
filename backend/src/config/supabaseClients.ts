@@ -1,3 +1,5 @@
+// IMPORTANT: Two separate clients on purpose. Never call .auth.* on supabaseAdmin,
+// and never run .from() queries on supabaseAuth. See ./SUPABASE_CLIENTS.md for why.
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
@@ -20,7 +22,25 @@ if (!supabaseServiceRoleKey) {
   throw new Error('Missing Supabase service role key');
 }
 
+if (!supabaseAnonKey) {
+  throw new Error('Missing Supabase anon key');
+}
+
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+});
+
+// Dedicated client for ALL auth operations (signInWithPassword, signUp, getUser,
+// refreshSession, signOut). These calls store a user session on the client instance,
+// which would otherwise make subsequent .from() queries run as that user (authenticated
+// role) instead of service_role — silently returning 0 rows under RLS. Keeping auth on a
+// separate instance ensures supabaseAdmin always queries as service_role. Uses the anon
+// key since auth operations don't need (and shouldn't carry) the service-role key.
+export const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,

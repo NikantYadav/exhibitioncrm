@@ -369,6 +369,8 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   List<Map<String, dynamic>> get _filteredTargets {
     final q = _targetSearch.toLowerCase();
     final filtered = _liveTargets.where((t) {
+      // Only show targets with a linked contact person
+      if ((t['contact_id'] as String?) == null) return false;
       final name = (t['name'] as String? ?? '').toLowerCase();
       final company = (t['company_name'] as String? ?? '').toLowerCase();
       final booth = (t['booth'] as String? ?? '').toLowerCase();
@@ -1171,7 +1173,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                       ),
                     ),
                     Row(children: [
-                      _buildTabItem('targets', 'Targets', '${_liveTargets.length}'),
+                      _buildTabItem('targets', 'Targets', '${_liveTargets.where((t) => (t['contact_id'] as String?) != null).length}'),
                       _buildTabItem('scanned', 'Scanned', '${_scannedContacts.length}'),
                       _buildTabItem('companies', 'Companies', '${_liveTargets.length}'),
                     ]),

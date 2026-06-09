@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../config/supabase';
+import { supabaseAuth } from '../config/supabaseClients';
 import { logInfo, logError, logSuccess, logWarning } from '../middleware/logger';
 
 const router = Router();
@@ -22,7 +23,7 @@ router.post('/signup', async (req: Request, res: Response) => {
     }
 
     // Create user in Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await supabaseAuth.auth.signUp({
       email,
       password,
       options: {
@@ -87,7 +88,7 @@ router.post('/complete-profile', async (req: Request, res: Response) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
 
     if (authError || !user) {
       logError(authError || new Error('No user found'), 'Auth Verification');
@@ -165,7 +166,7 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({
       email,
       password,
     });
@@ -211,7 +212,7 @@ router.post('/logout', async (req: Request, res: Response) => {
   try {
     logInfo('Logout attempt');
 
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabaseAuth.auth.signOut();
 
     if (error) {
       logError(new Error(error.message), 'Logout');
@@ -242,7 +243,7 @@ router.get('/session', async (req: Request, res: Response) => {
 
     const token = authHeader.replace('Bearer ', '');
     
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
 
     if (error || !user) {
       logWarning('Session check failed: Invalid token');
@@ -284,7 +285,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Refresh token required' });
     }
 
-    const { data, error } = await supabase.auth.refreshSession({
+    const { data, error } = await supabaseAuth.auth.refreshSession({
       refresh_token,
     });
 

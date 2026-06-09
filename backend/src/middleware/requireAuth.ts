@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { supabaseAdmin } from '../config/supabaseClients';
+import { supabaseAuth } from '../config/supabaseClients';
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
@@ -13,7 +13,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ error: 'Missing access token' });
     }
 
-    const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
+    const { data, error } = await supabaseAuth.auth.getUser(accessToken);
     if (error || !data.user) {
       return res.status(401).json({ error: 'Invalid session' });
     }

@@ -20,9 +20,10 @@ const parseTs = (s: string): Date =>
 const getEventStatus = (event: any): string => {
   const now = new Date();
   const start = parseTs(event.start_date);
-  const end = event.end_date ? parseTs(event.end_date) : new Date(start);
-  // Cover the full calendar day so a single-day event stays "ongoing" until midnight UTC
-  end.setUTCHours(23, 59, 59, 999);
+  // Single-day event ends 24h after start; multi-day ends at end of end_date day.
+  const end = event.end_date
+    ? (() => { const d = parseTs(event.end_date); d.setUTCHours(23, 59, 59, 999); return d; })()
+    : new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
   if (now >= start && now <= end) return 'ongoing';
   if (now > end) return 'completed';
   return 'upcoming';
@@ -31,15 +32,12 @@ const getEventStatus = (event: any): string => {
 router.get('/', async (req, res, next) => {
   try {
     const userId = req.user!.id;
-    console.log(`[GET /api/events] userId: ${userId}`);
 
     const { data, error } = await supabase
       .from('events')
       .select('*')
       .eq('user_id', userId)
       .order('start_date', { ascending: false });
-
-    console.log(`[GET /api/events] raw supabase result: data=${JSON.stringify(data)?.slice(0, 200)} error=${JSON.stringify(error)}`);
 
     if (error) throw error;
 
@@ -201,34 +199,49 @@ router.get('/:id/stats', async (req, res, next) => {
       .select('*', { count: 'exact', head: true })
       .eq('event_id', eventId);
 
-    // Get follow-ups needed
-    const { data: contactEventRows } = await supabase
-      .from('contact_events')
-      .select('contact_id')
-      .eq('event_id', eventId);
+    // Collect all unique contact IDs from both contact_events AND captures
+    const [{ data: contactEventRows }, { data: captureRows }] = await Promise.all([
+      supabase.from('contact_events').select('contact_id').eq('event_id', eventId),
+      supabase.from('captures').select('contact_id').eq('event_id', eventId).eq('status', 'completed').not('contact_id', 'is', null),
+    ]);
 
-    const contactIds = Array.from(new Set(contactEventRows?.map((c: any) => c.contact_id) || []));
+    const contactIds = Array.from(new Set([
+      ...(contactEventRows?.map((c: any) => c.contact_id) || []),
+      ...(captureRows?.map((c: any) => c.contact_id) || []),
+    ]));
 
     let followUpsCount = 0;
+    let skippedCount = 0;
+    let doneCount = 0;
     if (contactIds.length > 0) {
-      const { count } = await supabase
-        .from('contacts')
-        .select('*', { count: 'exact', head: true })
-        .in('id', contactIds)
-        .eq('follow_up_status', 'needs_follow_up');
-      followUpsCount = count || 0;
+      const [{ count: pending }, { count: skipped }, { count: done }] = await Promise.all([
+        supabase.from('contacts').select('*', { count: 'exact', head: true })
+          .in('id', contactIds).eq('follow_up_status', 'not_contacted'),
+        supabase.from('contacts').select('*', { count: 'exact', head: true })
+          .in('id', contactIds).eq('follow_up_status', 'needs_follow_up'),
+        supabase.from('contacts').select('*', { count: 'exact', head: true })
+          .in('id', contactIds).eq('follow_up_status', 'contacted'),
+      ]);
+      followUpsCount = pending || 0;
+      skippedCount = skipped || 0;
+      doneCount = done || 0;
     }
 
-    // Calculate target reach: (captured contacts / total targets) * 100
-    const targetReach = targetsCount && targetsCount > 0 ? Math.round((contactEventsCount || 0) / targetsCount * 100) : 0;
+    // total_contacts = all unique people reached (contact_events union captures)
+    const totalContacts = contactIds.length;
+
+    // Calculate target reach: (unique contacts reached / total targets) * 100
+    const targetReach = targetsCount && targetsCount > 0 ? Math.round(totalContacts / targetsCount * 100) : 0;
 
     res.json({
       data: {
         total_captures: capturesCount || 0,
-        total_contacts: contactEventsCount || 0,
+        total_contacts: totalContacts,
         total_targets: targetsCount || 0,
         target_reach: targetReach,
-        follow_ups_needed: followUpsCount
+        follow_ups_needed: followUpsCount,
+        follow_ups_skipped: skippedCount,
+        follow_ups_done: doneCount,
       }
     });
   } catch (error) {
@@ -347,14 +360,14 @@ router.get('/:id/live', async (req, res, next) => {
       (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3)
     );
 
-    // Build target list — match contact via company_id
+    // Build target list — all targets; contact_id present only when a person is linked
     const priorityTargets = sortedTargets.map((target: any, index: number) => {
       const contact = contactByCompany.get(target.company_id) ?? null;
       return {
         id: target.id,
         rank: index + 1,
         contact_id: contact?.id ?? null,
-        name: contact ? `${contact.first_name} ${contact.last_name ?? ''}`.trim() : (target.company?.name ?? 'Unknown'),
+        name: contact ? `${contact.first_name} ${contact.last_name ?? ''}`.trim() : '',
         job_title: contact?.job_title ?? '',
         company_id: target.company_id ?? null,
         company_name: target.company?.name ?? '',
@@ -367,13 +380,14 @@ router.get('/:id/live', async (req, res, next) => {
       };
     });
 
-    // Pending follow-ups: contacts linked to this event who need follow-up
+    // Pending follow-ups: contacts linked to this event who are not yet contacted
     const contactIds = [...new Set((eventContactRows || []).map((c: any) => c.contact_id))];
     let followUpsCount = 0;
     if (contactIds.length > 0) {
       const { count } = await supabase
         .from('contacts').select('*', { count: 'exact', head: true })
-        .in('id', contactIds).eq('follow_up_status', 'needs_follow_up');
+        .in('id', contactIds)
+        .in('follow_up_status', ['not_contacted', 'needs_follow_up']);
       followUpsCount = count || 0;
     }
 
@@ -704,38 +718,80 @@ router.delete('/:id/targets/:targetId', async (req, res, next) => {
 });
 
 // GET /api/events/:id/follow-ups
+// Returns a merged list of:
+//   1. Scanned contacts (contact_events) with their company + email draft
+//   2. Targeted companies that were never scanned — surfaced as unmet targets
 router.get('/:id/follow-ups', async (req, res, next) => {
   try {
     const eventId = req.params.id;
 
-    // Get contacts for this event with their company
-    const { data: contactEvents, error: ceError } = await supabase
-      .from('contact_events')
-      .select('contact:contacts(*, company:companies(id, name, industry))')
-      .eq('event_id', eventId);
+    // Fetch all four data sources in parallel
+    const [
+      { data: contactEvents, error: ceError },
+      { data: captures,      error: capturesError },
+      { data: drafts,        error: draftsError },
+      { data: targets,       error: targetsError },
+    ] = await Promise.all([
+      supabase
+        .from('contact_events')
+        .select('contact:contacts(*, company:companies(id, name, industry))')
+        .eq('event_id', eventId),
+      supabase
+        .from('captures')
+        .select('contact:contacts(*, company:companies(id, name, industry))')
+        .eq('event_id', eventId)
+        .eq('status', 'completed')
+        .not('contact_id', 'is', null),
+      supabase
+        .from('email_drafts')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('target_companies')
+        .select('id, status, booth_location, company:companies(id, name, industry)')
+        .eq('event_id', eventId),
+    ]);
 
     if (ceError) throw ceError;
-
-    // Get all draft emails for this event
-    const { data: drafts, error: draftsError } = await supabase
-      .from('email_drafts')
-      .select('*')
-      .eq('event_id', eventId)
-      .eq('status', 'draft');
-
+    if (capturesError) throw capturesError;
     if (draftsError) throw draftsError;
+    if (targetsError) throw targetsError;
 
+    // Index drafts by contact_id (latest first due to order above)
     const draftsMap = new Map<string, any>();
     for (const draft of drafts || []) {
-      draftsMap.set(draft.contact_id, draft);
+      if (!draftsMap.has(draft.contact_id)) draftsMap.set(draft.contact_id, draft);
     }
 
-    const result = (contactEvents || []).map((ce: any) => {
-      const contact = ce.contact;
+    // Merge contact_events + captures, deduplicating by contact id
+    const seenContactIds = new Set<string>();
+    const allContacts: { contact: any; source: string }[] = [];
+
+    for (const ce of (contactEvents || []) as any[]) {
+      if (!ce.contact?.id) continue;
+      if (seenContactIds.has(ce.contact.id)) continue;
+      seenContactIds.add(ce.contact.id);
+      allContacts.push({ contact: ce.contact, source: 'scanned' });
+    }
+    for (const cap of (captures || []) as any[]) {
+      if (!cap.contact?.id) continue;
+      if (seenContactIds.has(cap.contact.id)) continue;
+      seenContactIds.add(cap.contact.id);
+      allContacts.push({ contact: cap.contact, source: 'scanned' });
+    }
+
+    // Build scanned-contact entries; track which company IDs are covered
+    const coveredCompanyIds = new Set<string>();
+    const result: any[] = [];
+
+    for (const { contact, source } of allContacts) {
       const company = contact?.company || null;
+      if (company?.id) coveredCompanyIds.add(company.id);
       const draft = contact ? (draftsMap.get(contact.id) || null) : null;
 
-      return {
+      result.push({
+        source,
         contact: contact ? {
           id: contact.id,
           first_name: contact.first_name,
@@ -743,7 +799,6 @@ router.get('/:id/follow-ups', async (req, res, next) => {
           email: contact.email,
           job_title: contact.job_title,
           follow_up_status: contact.follow_up_status,
-          follow_up_urgency: contact.follow_up_urgency,
           ai_insights: contact.ai_insights,
         } : null,
         email_draft: draft ? {
@@ -758,10 +813,199 @@ router.get('/:id/follow-ups', async (req, res, next) => {
           name: company.name,
           industry: company.industry,
         } : null,
-      };
-    });
+      });
+    }
 
     res.json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/events/:id/follow-ups/:contactId
+// Marks a contact as contacted and upserts the email draft as sent.
+// Body: { subject?, body?, action: 'send' | 'skip' }
+router.patch('/:id/follow-ups/:contactId', async (req, res, next) => {
+  try {
+    const { id: eventId, contactId } = req.params;
+    const { subject, body, action } = req.body as {
+      subject?: string;
+      body?: string;
+      action: 'send' | 'skip' | 'unskip';
+    };
+
+    if (!action) {
+      res.status(400).json({ error: 'action is required (send | skip | unskip)' });
+      return;
+    }
+
+    if (action === 'send') {
+      // Mark contact as contacted
+      await supabase
+        .from('contacts')
+        .update({
+          follow_up_status: 'contacted',
+          last_contacted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contactId);
+
+      // Upsert the draft as sent — update if exists, insert if not
+      const { data: existing } = await supabase
+        .from('email_drafts')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('email_drafts')
+          .update({
+            subject: subject ?? undefined,
+            body: body ?? undefined,
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('email_drafts')
+          .insert({
+            event_id: eventId,
+            contact_id: contactId,
+            email_type: 'follow_up',
+            subject: subject || 'Following up from our meeting',
+            body: body || '',
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+          });
+      }
+    } else if (action === 'skip') {
+      // skip — mark as needs_follow_up so it stays visible but deprioritised
+      await supabase
+        .from('contacts')
+        .update({
+          follow_up_status: 'needs_follow_up',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contactId);
+    } else {
+      // unskip — revert to not_contacted so it appears in Pending again
+      await supabase
+        .from('contacts')
+        .update({
+          follow_up_status: 'not_contacted',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contactId);
+    }
+
+    const messages: Record<string, string> = { send: 'Follow-up sent.', skip: 'Contact skipped.', unskip: 'Contact moved back to pending.' };
+    res.json({ message: messages[action] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/events/:id/follow-ups/:contactId/draft
+// Returns existing draft if one exists, otherwise generates via AI, saves, and returns it.
+router.post('/:id/follow-ups/:contactId/draft', async (req, res, next) => {
+  try {
+    const { id: eventId, contactId } = req.params;
+
+    // Return existing draft immediately if one exists
+    const { data: existing } = await supabase
+      .from('email_drafts')
+      .select('subject, body')
+      .eq('event_id', eventId)
+      .eq('contact_id', contactId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (existing?.subject && existing?.body) {
+      res.json({ subject: existing.subject, body: existing.body });
+      return;
+    }
+
+    // No saved draft — generate via AI
+    const [{ data: eventData }, { data: contactData }] = await Promise.all([
+      supabase.from('events').select('name, location, start_date').eq('id', eventId).single(),
+      supabase.from('contacts')
+        .select('first_name, last_name, job_title, ai_insights, companies(name, industry, description)')
+        .eq('id', contactId)
+        .single(),
+    ]);
+
+    if (!contactData) { res.status(404).json({ error: 'Contact not found' }); return; }
+
+    const firstName = contactData.first_name || '';
+    const lastName = contactData.last_name || '';
+    const jobTitle = contactData.job_title || '';
+    const company = (contactData as any).companies as any;
+    const companyName = company?.name || '';
+    const companyIndustry = company?.industry || '';
+    const insights = contactData.ai_insights as any;
+    const eventName = eventData?.name || 'the event';
+
+    const insightLines: string[] = [];
+    if (insights?.strategic_context) insightLines.push(`Strategic context: ${insights.strategic_context}`);
+    if (insights?.primary_pain_point) insightLines.push(`Pain point: ${insights.primary_pain_point}`);
+    if (insights?.current_sentiment) insightLines.push(`Sentiment: ${insights.current_sentiment}`);
+    if (insights?.buying_authority) insightLines.push(`Buying authority: ${insights.buying_authority}`);
+    if (insights?.briefing_items?.length) insightLines.push(`Key notes: ${(insights.briefing_items as string[]).join('; ')}`);
+
+    const prompt = `You are a professional relationship manager writing a follow-up email after a business event.
+
+Contact details:
+- Name: ${firstName}${lastName ? ' ' + lastName : ''}
+- Title: ${jobTitle || 'Unknown'}
+- Company: ${companyName || 'Unknown'}${companyIndustry ? ` (${companyIndustry})` : ''}
+- Event met at: ${eventName}
+
+${insightLines.length > 0 ? `AI-captured context:\n${insightLines.join('\n')}` : ''}
+
+Write a short, warm, professional follow-up email. Rules:
+- Do NOT include the sender's name or signature — the recipient will add it
+- Address the contact by first name
+- Reference the event and one specific insight if available
+- Keep the body to 3-4 short paragraphs
+- End with a clear but soft call to action (e.g. a quick call)
+- Do NOT use generic filler phrases like "I hope this email finds you well"
+- Do NOT include any placeholder text like [Your Name] or [Signature]
+
+Respond in JSON with exactly two fields: "subject" (string) and "body" (string). Nothing else.`;
+
+    const llm = new LiteLLMService();
+    const raw = await llm.generateCompletion([{ role: 'user', content: prompt }]);
+
+    let subject = `Following up — ${companyName || firstName}`;
+    let body = raw;
+
+    try {
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.subject) subject = parsed.subject;
+        if (parsed.body) body = parsed.body;
+      }
+    } catch (_) { /* use raw body */ }
+
+    // Save the generated draft so future calls skip AI entirely
+    await supabase.from('email_drafts').insert({
+      event_id: eventId,
+      contact_id: contactId,
+      email_type: 'follow_up',
+      subject,
+      body,
+      status: 'draft',
+    });
+
+    res.json({ subject, body });
   } catch (error) {
     next(error);
   }

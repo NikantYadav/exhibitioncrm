@@ -41,9 +41,36 @@ DEFINES=(
   "--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
 )
 
-# First arg can be a flutter subcommand (run, build, test, etc.)
-SUBCMD="${1:-run}"
-shift || true
+# Use a native (non-Flatpak) Chromium/Chrome for web. A Flatpak-sandboxed
+# browser brokers the file dialog through the XDG portal, which never returns
+# the selection to the page, so the image-upload picker silently does nothing.
+# Force a native binary unless CHROME_EXECUTABLE already points to one.
+if [[ -z "${CHROME_EXECUTABLE:-}" || "$CHROME_EXECUTABLE" == *flatpak* ]]; then
+  unset CHROME_EXECUTABLE
+  for candidate in \
+    /usr/bin/chromium \
+    /usr/bin/chromium-browser \
+    /usr/bin/google-chrome-stable \
+    /usr/bin/google-chrome; do
+    if [[ -x "$candidate" ]]; then
+      export CHROME_EXECUTABLE="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -n "${CHROME_EXECUTABLE:-}" ]]; then
+  echo "→ CHROME_EXECUTABLE=$CHROME_EXECUTABLE"
+fi
+
+# First arg is a flutter subcommand only if it's not a flag (e.g. "build",
+# "test"). Bare "./run.sh" or "./run.sh -d chrome" both default to "run".
+if [[ $# -gt 0 && "$1" != -* ]]; then
+  SUBCMD="$1"
+  shift
+else
+  SUBCMD="run"
+fi
 
 echo "→ flutter $SUBCMD ${DEFINES[*]} $*"
 flutter "$SUBCMD" "${DEFINES[@]}" "$@"

@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show File;
 import 'dart:math' as math;
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +17,7 @@ import 'package:record/record.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../services/web_file_picker.dart' if (dart.library.io) '../services/web_file_picker_stub.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_section_label.dart';
@@ -47,7 +51,7 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   // ── Stage & mode ───────────────────────────────────────────
   _Stage _stage = _Stage.scan;
-  _ScanMode _scanMode = _ScanMode.qr;
+  _ScanMode _scanMode = _ScanMode.card;
   String _notesMode = 'Manual';
 
   // ── Loading states ─────────────────────────────────────────
@@ -436,7 +440,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                   const Spacer(),
                   _centerCaptureBtn(),
                   const Spacer(),
-                  _dockSideBtn(Icons.upload_file_outlined, 'UPLOAD', _onFiles),
+                  _buildUploadButton(),
                 ],
               ),
               const SizedBox(height: 14),
@@ -517,6 +521,26 @@ class _CaptureScreenState extends State<CaptureScreen>
             );
           },
         ),
+      ),
+    );
+  }
+
+  // UPLOAD button. On web, a transparent <input type="file"> is stacked on top
+  // so the user's tap lands on a real DOM element — the only reliable way to
+  // open a file dialog on Flutter web (the canvas glass pane swallows clicks
+  // routed through Dart, so file_picker/image_picker return null).
+  Widget _buildUploadButton() {
+    final btn = _dockSideBtn(Icons.upload_file_outlined, 'UPLOAD', _onFiles);
+    if (!kIsWeb) return btn;
+    return SizedBox(
+      width: 76,
+      child: Stack(
+        children: [
+          btn,
+          Positioned.fill(
+            child: WebImagePickerInput(onPicked: _onWebPicked),
+          ),
+        ],
       ),
     );
   }
@@ -1302,25 +1326,54 @@ class _CaptureScreenState extends State<CaptureScreen>
     }
   }
 
+  // Tap handler for the UPLOAD button. On web the click is handled by the
+  // embedded <input type="file"> (see _uploadButton), so this only runs on
+  // mobile, where FilePicker opens the native picker directly.
   Future<void> _onFiles() async {
-    // Trigger the file picker directly from the scan page; analyze then go to notes.
+    if (kIsWeb) return;
     setState(() => _isCapturing = true);
     try {
-      final picked = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
+      final picked =
+          await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
       if (picked == null || picked.files.isEmpty) {
         setState(() => _isCapturing = false);
         return;
       }
-      final bytes = picked.files.first.bytes ?? await File(picked.files.first.path!).readAsBytes();
-      final b64 = base64Encode(bytes);
-      final res = await ApiService.analyzeCard(b64);
-      _applyExtracted(res['data'] as Map<String, dynamic>? ?? {});
-      if (!mounted) return;
-      setState(() { _isCapturing = false; _stage = _Stage.notes; });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _isCapturing = false);
+      final file = picked.files.first;
+      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
+      await _analyzeBytes(bytes);
+    } catch (e) {
+      _onFilesError(e);
     }
+  }
+
+  // Called by the embedded web file input when the user picks (or cancels).
+  void _onWebPicked(Uint8List? bytes) {
+    if (bytes == null || !mounted) return;
+    setState(() => _isCapturing = true);
+    _analyzeBytes(bytes).catchError(_onFilesError);
+  }
+
+  Future<void> _analyzeBytes(Uint8List bytes) async {
+    final b64 = base64Encode(bytes);
+    final res = await ApiService.analyzeCard(b64);
+    _applyExtracted(res['data'] as Map<String, dynamic>? ?? {});
+    if (!mounted) return;
+    setState(() {
+      _isCapturing = false;
+      _stage = _Stage.notes;
+    });
+  }
+
+  void _onFilesError(Object e) {
+    if (!mounted) return;
+    setState(() => _isCapturing = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to analyze image: $e'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _onManual() async {
