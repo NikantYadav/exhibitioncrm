@@ -80,7 +80,15 @@ class _AuthScreenState extends State<AuthScreen> {
 
           context.go('/onboarding');
         } else {
-          _showError(result['error'] as String? ?? 'Signup failed');
+          final error = result['error'] as String? ?? 'Signup failed';
+          final alreadyExists = error.toLowerCase().contains('already registered') ||
+              error.toLowerCase().contains('already exists') ||
+              error.toLowerCase().contains('email address is already');
+          if (alreadyExists) {
+            _showAccountExistsDialog();
+          } else {
+            _showError(error);
+          }
         }
       }
     } catch (e) {
@@ -88,6 +96,34 @@ class _AuthScreenState extends State<AuthScreen> {
       setState(() => _isLoading = false);
       _showError('An error occurred: $e');
     }
+  }
+
+  void _showAccountExistsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.cardBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Account already exists'),
+        content: Text(
+          'An account with this email already exists. Please log in instead.',
+          style: TextStyle(color: AppTheme.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() => _isLogin = true);
+            },
+            child: const Text('Go to Login'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showError(String message) {

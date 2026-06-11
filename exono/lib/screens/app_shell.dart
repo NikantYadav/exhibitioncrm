@@ -89,7 +89,7 @@ class _AppShellState extends State<AppShell> {
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!isHome)
+                    if (!isHome && !widget.location.startsWith('/profile'))
                       LiveBar(
                         onTap: () => context.go('/live-event'),
                       ),

@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase';
 import { AIService } from '../config/ai';
+import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
+router.use(requireAuth);
 
 // POST /api/emails/draft
 router.post('/draft', async (req, res, next) => {
@@ -35,24 +37,35 @@ router.post('/draft', async (req, res, next) => {
       event = data;
     }
 
-    // Fetch notes for context
-    const { data: notes } = await supabase
-      .from('notes')
-      .select('*')
-      .eq('contact_id', contact_id)
-      .order('created_at', { ascending: false })
-      .limit(5);
+    // Fetch notes and user profile in parallel
+    const userId = (req as any).user?.id;
+    const [{ data: notes }, { data: userProfile }] = await Promise.all([
+      supabase.from('notes').select('content').eq('contact_id', contact_id).order('created_at', { ascending: false }).limit(5),
+      userId ? supabase.from('user_profiles').select('name, designation, products_services, value_proposition, additional_context, ai_tone').eq('user_id', userId).maybeSingle() : Promise.resolve({ data: null }),
+    ]);
 
-    // Generate email using AI
-    const prompt = `Generate a professional ${email_type} email for:
-Contact: ${contact.first_name} ${contact.last_name || ''}
-Company: ${contact.company?.name || 'Unknown'}
-Job Title: ${contact.job_title || 'Unknown'}
-${event ? `Event: ${event.name}` : ''}
-${custom_context ? `Additional Context: ${custom_context}` : ''}
-${notes && notes.length > 0 ? `Notes: ${notes.map(n => n.content).join('; ')}` : ''}
+    const tone = userProfile?.ai_tone ?? 'professional';
+    const senderLines = [
+      userProfile?.name        && `Sender name: ${userProfile.name}`,
+      userProfile?.designation && `Sender role: ${userProfile.designation}`,
+      userProfile?.products_services  && `Products/Services: ${userProfile.products_services}`,
+      userProfile?.value_proposition  && `Value proposition: ${userProfile.value_proposition}`,
+      userProfile?.additional_context && `Additional context: ${userProfile.additional_context}`,
+    ].filter(Boolean).join('\n');
 
-Return JSON with "subject" and "body" fields.`;
+    const prompt = `Generate a ${tone} ${email_type} email.
+
+Recipient:
+- Name: ${contact.first_name} ${contact.last_name || ''}
+- Company: ${contact.company?.name || 'Unknown'}
+- Job Title: ${contact.job_title || 'Unknown'}
+${event ? `- Met at event: ${event.name}` : ''}
+${custom_context ? `- Extra context: ${custom_context}` : ''}
+${notes && notes.length > 0 ? `- Notes: ${notes.map((n: any) => n.content).join('; ')}` : ''}
+
+${senderLines ? `About the sender (you are writing on their behalf):\n${senderLines}` : ''}
+
+Write a natural, personalised email that reflects the sender's voice and offering. Return JSON with "subject" and "body" fields.`;
 
     const emailDraft = await AIService.extractStructuredData<{ subject: string; body: string }>(
       prompt,
@@ -104,8 +117,14 @@ ${instructions ? `Instructions: ${instructions}` : 'Make it more professional an
 
 Return the improved version.`;
 
+    const improveUserId = (req as any).user?.id;
+    const { data: improveProfile } = improveUserId
+      ? await supabase.from('user_profiles').select('ai_tone, name, designation').eq('user_id', improveUserId).maybeSingle()
+      : { data: null };
+    const improveTone = improveProfile?.ai_tone ?? 'professional';
+
     const result = await AIService.generateCompletion([
-      { role: 'system', content: 'You are an expert email writer.' },
+      { role: 'system', content: `You are an expert email writer. Write in a ${improveTone} tone${improveProfile?.name ? ` on behalf of ${improveProfile.name}${improveProfile.designation ? `, ${improveProfile.designation}` : ''}` : ''}.` },
       { role: 'user', content: prompt }
     ]);
 

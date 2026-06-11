@@ -9,7 +9,7 @@ import 'contacts_screen.dart';
 import 'capture_screen.dart';
 import 'dashboard_screen.dart';
 import 'follow_ups_screen.dart';
-import 'profile_screen.dart';
+import 'account_settings_screen.dart';
 import 'meetings_screen.dart';
 import 'integrations_screen.dart';
 import 'account_settings_screen.dart';
@@ -133,9 +133,8 @@ class _MainScreenState extends State<MainScreen> {
           onNavigateTab: _navigateTo,
         );
       case 5:
-        return ProfileScreen(
-          key: _tabKey(5),
-          onNavigateTab: _navigateTo,
+        return const AccountSettingsScreen(
+          key: ValueKey(5),
         );
       case 6:
         return MeetingsScreen(

@@ -48,13 +48,13 @@ router.post('/signup', async (req: Request, res: Response) => {
     // Create basic user profile (will be completed in onboarding)
     const { error: profileError } = await supabase
       .from('user_profiles')
-      .insert({
+      .upsert({
         user_id: authData.user.id,
         name,
         email,
         profile_type: 'individual',
         ai_tone: 'professional',
-      });
+      }, { onConflict: 'user_id', ignoreDuplicates: false });
 
     if (profileError) {
       logError(new Error(profileError.message), 'Profile Creation');
@@ -122,6 +122,7 @@ router.post('/complete-profile', async (req: Request, res: Response) => {
         linkedin_url,
         ai_tone,
         additional_context,
+        onboarding_completed: true,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', user.id)

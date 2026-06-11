@@ -568,8 +568,42 @@ async function executeTool(
 
 // ─── System prompt builder ────────────────────────────────────────────────────
 
-function buildSystemPrompt(entityContext: string): string {
-  return `You are an AI CRM assistant for exhibitions and trade shows.
+interface UserProfile {
+  name?: string;
+  designation?: string;
+  profile_type?: string;
+  products_services?: string;
+  value_proposition?: string;
+  additional_context?: string;
+  ai_tone?: string;
+  website?: string;
+  linkedin_url?: string;
+}
+
+function buildSystemPrompt(entityContext: string, userProfile?: UserProfile): string {
+  const tone = userProfile?.ai_tone ?? 'professional';
+
+  const toneInstruction =
+    tone === 'casual'     ? 'Use a relaxed, conversational tone — friendly and approachable.' :
+    tone === 'formal'     ? 'Use a formal, precise tone — polished and business-appropriate.' :
+    tone === 'friendly'   ? 'Use a warm, encouraging tone — supportive and personable.' :
+                            'Use a professional tone — clear, confident, and concise.';
+
+  const profileLines: string[] = [];
+  if (userProfile?.name)               profileLines.push(`Name: ${userProfile.name}`);
+  if (userProfile?.designation)        profileLines.push(`Role: ${userProfile.designation}`);
+  if (userProfile?.profile_type)       profileLines.push(`Profile type: ${userProfile.profile_type}`);
+  if (userProfile?.products_services)  profileLines.push(`Products & Services: ${userProfile.products_services}`);
+  if (userProfile?.value_proposition)  profileLines.push(`Value proposition: ${userProfile.value_proposition}`);
+  if (userProfile?.website)            profileLines.push(`Website: ${userProfile.website}`);
+  if (userProfile?.linkedin_url)       profileLines.push(`LinkedIn: ${userProfile.linkedin_url}`);
+  if (userProfile?.additional_context) profileLines.push(`Additional context: ${userProfile.additional_context}`);
+
+  const profileSection = profileLines.length > 0
+    ? `\n\nAbout the user you are assisting:\n${profileLines.join('\n')}`
+    : '';
+
+  return `You are an AI CRM assistant for exhibitions and trade shows. ${toneInstruction}
 
 You have access to tools to READ and WRITE CRM data.
 
@@ -589,7 +623,8 @@ Rules:
 - If required info is missing, ask 1-2 focused questions.
 - Dates must be ISO 8601 (e.g. 2026-06-01T10:00:00Z).
 - You may call multiple tools in sequence — each result is fed back to you.
-- NEVER include UUIDs or any database IDs in your text reply. Entity cards are shown separately — just refer to things by name.${entityContext}`;
+- NEVER include UUIDs or any database IDs in your text reply. Entity cards are shown separately — just refer to things by name.
+- When drafting emails, follow-up messages, or any outbound communication, incorporate the user's products, value proposition, and tone naturally.${profileSection}${entityContext}`;
 }
 
 // ─── Entity context loader ────────────────────────────────────────────────────
@@ -668,8 +703,11 @@ router.post('/respond', async (req, res) => {
       .select('id, kind, contact_id, event_id')
       .eq('id', conversation_id).single();
 
-    const entityContext = convo ? await loadEntityContext(convo) : '';
-    const systemPrompt = buildSystemPrompt(entityContext);
+    const [entityContext, { data: userProfile }] = await Promise.all([
+      convo ? loadEntityContext(convo) : Promise.resolve(''),
+      supabaseAdmin.from('user_profiles').select('name, designation, profile_type, products_services, value_proposition, additional_context, ai_tone, website, linkedin_url').eq('user_id', userId).maybeSingle(),
+    ]);
+    const systemPrompt = buildSystemPrompt(entityContext, userProfile ?? undefined);
 
     // 4. Build conversation history (last 20 messages)
     const { data: recentMessages } = await supabaseUser

@@ -34,12 +34,17 @@ const ALLOWED_MODELS = [
 
 type AllowedModel = typeof ALLOWED_MODELS[number];
 
-// Tables that carry owner_user_id and need the per-user ownership filter.
-const OWNER_SCOPED_TABLES = new Set<string>([
-  'contacts', 'notes', 'captures', 'reminders', 'email_drafts',
+// Tables that carry owner_user_id
+const OWNER_USER_ID_TABLES = new Set<string>([
+  'notes', 'captures', 'reminders', 'email_drafts',
   'meeting_briefs', 'conversations', 'messages', 'assistant_runs',
   'tool_calls', 'documents', 'attachments', 'contact_documents',
   'enrichment_queue',
+]);
+
+// Tables that carry user_id (not owner_user_id)
+const USER_ID_TABLES = new Set<string>([
+  'contacts', 'events',
 ]);
 
 // ─── Zod schema for SlayerQuery ───────────────────────────────────────────────
@@ -87,11 +92,12 @@ function applyOwnership(query: SlayerQuery, userId: string): SlayerQuery {
     (f) => !/owner_user_id/i.test(f) && !/\buser_id\s*=/i.test(f)
   );
 
-  if (OWNER_SCOPED_TABLES.has(query.source_model as AllowedModel)) {
-    return {
-      ...query,
-      filters: [`owner_user_id = '${userId}'`, ...cleanFilters],
-    };
+  if (OWNER_USER_ID_TABLES.has(query.source_model as AllowedModel)) {
+    return { ...query, filters: [`owner_user_id = '${userId}'`, ...cleanFilters] };
+  }
+
+  if (USER_ID_TABLES.has(query.source_model as AllowedModel)) {
+    return { ...query, filters: [`user_id = '${userId}'`, ...cleanFilters] };
   }
 
   return { ...query, filters: cleanFilters };

@@ -14,6 +14,7 @@ class AuthProvider extends ChangeNotifier {
   String? get accessToken => _accessToken;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _accessToken != null && _user != null;
+  bool get onboardingCompleted => (_profile?['onboarding_completed'] as bool?) == true;
   bool get initialized => _initialized;
 
   /// Display name derived from profile or user metadata
@@ -155,6 +156,40 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>> updateProfile({
+    required String name,
+    String? designation,
+    String? website,
+    String? linkedinUrl,
+    String? productsServices,
+    String? valueProposition,
+    String? additionalContext,
+    String? aiTone,
+  }) async {
+    if (_accessToken == null) return {'success': false, 'error': 'Not authenticated'};
+    try {
+      final result = await AuthService.completeProfile(
+        token: _accessToken!,
+        name: name,
+        profileType: (_profile?['profile_type'] as String?) ?? 'individual',
+        designation: designation,
+        productsServices: productsServices,
+        valueProposition: valueProposition,
+        website: website,
+        linkedinUrl: linkedinUrl,
+        aiTone: aiTone ?? ((_profile?['ai_tone'] as String?) ?? 'professional'),
+        additionalContext: additionalContext,
+      );
+      if (result['success'] == true) {
+        _profile = result['profile'] as Map<String, dynamic>?;
+        notifyListeners();
+      }
+      return result;
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
   }
 
   Future<void> _clearSession(SharedPreferences prefs) async {

@@ -18,7 +18,7 @@ import 'screens/landing_screen.dart';
 import 'screens/live_home_screen.dart';
 import 'screens/meetings_screen.dart';
 import 'screens/onboarding_screen.dart';
-import 'screens/profile_screen.dart';
+import 'screens/account_settings_screen.dart';
 
 GoRouter buildRouter(AuthProvider auth) {
   return GoRouter(
@@ -26,11 +26,13 @@ GoRouter buildRouter(AuthProvider auth) {
     refreshListenable: auth,
     redirect: (context, state) {
       final loggedIn = auth.isAuthenticated;
+      final onboarded = auth.onboardingCompleted;
       final loc = state.matchedLocation;
       final onPublic = loc == '/auth' || loc == '/landing' || loc == '/onboarding';
 
       if (!loggedIn && !onPublic) return kIsWeb ? '/landing' : '/auth';
-      if (loggedIn && onPublic)  return '/';
+      if (loggedIn && !onboarded && loc != '/onboarding') return '/onboarding';
+      if (loggedIn && onboarded && onPublic) return '/';
       return null;
     },
     routes: [
@@ -97,7 +99,7 @@ GoRouter buildRouter(AuthProvider auth) {
           ),
           GoRoute(
             path: '/profile',
-            builder: (_, __) => const ProfileScreen(),
+            builder: (_, __) => const AccountSettingsScreen(),
           ),
           GoRoute(
             path: '/meetings',

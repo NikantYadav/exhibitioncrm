@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase';
+import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
+router.use(requireAuth);
 
 router.get('/', async (req, res, next) => {
   try {
     const { event_id, status } = req.query;
+    const userId = req.user!.id;
 
     let query;
 
@@ -20,6 +23,7 @@ router.get('/', async (req, res, next) => {
           notes(id, event_id, created_at),
           email_drafts(*)
         `)
+        .eq('user_id', userId)
         .eq('interactions.event_id', event_id);
     } else {
       query = supabase
@@ -30,7 +34,8 @@ router.get('/', async (req, res, next) => {
           interactions(id, interaction_type, event_id, interaction_date),
           notes(id, event_id, created_at),
           email_drafts(*)
-        `);
+        `)
+        .eq('user_id', userId);
     }
 
     const { data: contacts, error } = await query.order('created_at', { ascending: false });

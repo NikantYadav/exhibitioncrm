@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
+import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
 import '../widgets/entry_flow_components.dart';
 
@@ -30,25 +32,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String _aiTone = 'professional';
   String? _initialName;
   String? _initialEmail;
-  String? _accessToken;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      if (args == null) return;
-
-      final initialName = args['name'] as String?;
-      final initialEmail = args['email'] as String?;
-      final accessToken = args['token'] as String?;
-
+      final auth = context.read<AuthProvider>();
+      final name = auth.displayName;
       setState(() {
-        _initialName = initialName;
-        _initialEmail = initialEmail;
-        _accessToken = accessToken != null && accessToken.trim().isNotEmpty ? accessToken : null;
-        if (initialName != null && initialName.trim().isNotEmpty) {
-          _nameController.text = initialName.trim();
+        _initialName = name;
+        _initialEmail = auth.user?['email'] as String?;
+        if (name.isNotEmpty && name != 'User') {
+          _nameController.text = name;
         }
       });
     });
@@ -127,11 +122,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _completeOnboarding() async {
-    if (_accessToken == null || _accessToken!.trim().isEmpty) {
+    final token = context.read<AuthProvider>().accessToken;
+    if (token == null || token.trim().isEmpty) {
       _showError('Session expired. Please login again.');
-      if (mounted) {
-        context.go('/auth');
-      }
+      if (mounted) context.go('/auth');
       return;
     }
 
@@ -148,7 +142,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     try {
       final result = await AuthService.completeProfile(
-        token: _accessToken!,
+        token: token,
         name: effectiveName,
         profileType: _profileType,
         designation: _designationController.text.trim().isNotEmpty ? _designationController.text.trim() : null,
@@ -164,7 +158,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       setState(() => _isLoading = false);
       if (result['success'] == true) {
-        context.go('/');
+        await context.read<AuthProvider>().refreshProfile();
+        if (mounted) context.go('/');
       } else {
         _showError(result['error']?.toString() ?? 'Failed to complete profile');
       }
@@ -190,6 +185,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isMobile = MediaQuery.of(context).size.width < 768;
 
     return EntryFlowScaffold(
+      showGrid: false,
       child: Column(
         children: [
           Padding(

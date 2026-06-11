@@ -1,61 +1,75 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase';
+import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
+router.use(requireAuth);
 
 router.get('/summary', async (req, res, next) => {
   try {
+    const userId = req.user!.id;
+
     // Get Journey Stage Counts
     const { count: targetsCount } = await supabase
       .from('target_companies')
-      .select('*', { count: 'exact', head: true });
+      .select('*, event:events!inner(user_id)', { count: 'exact', head: true })
+      .eq('event.user_id', userId);
 
     const { count: capturesCount } = await supabase
       .from('captures')
-      .select('*', { count: 'exact', head: true });
+      .select('*, event:events!inner(user_id)', { count: 'exact', head: true })
+      .eq('event.user_id', userId);
 
     const { count: enrichedCount } = await supabase
-      .from('companies')
+      .from('contacts')
       .select('*', { count: 'exact', head: true })
-      .eq('is_enriched', true);
+      .eq('user_id', userId)
+      .eq('enrichment_status', 'completed');
 
     const { count: draftsCount } = await supabase
       .from('email_drafts')
-      .select('*', { count: 'exact', head: true })
+      .select('*, contact:contacts!inner(user_id)', { count: 'exact', head: true })
+      .eq('contact.user_id', userId)
       .eq('status', 'draft');
 
     const { count: sentCount } = await supabase
       .from('email_drafts')
-      .select('*', { count: 'exact', head: true })
+      .select('*, contact:contacts!inner(user_id)', { count: 'exact', head: true })
+      .eq('contact.user_id', userId)
       .eq('status', 'sent');
 
     // Get Stage-specific Leads
     const { data: targetLeads } = await supabase
       .from('target_companies')
-      .select('company:companies(id, name)')
+      .select('company:companies(id, name), event:events!inner(user_id)')
+      .eq('event.user_id', userId)
       .limit(3);
 
     const { data: capturedLeads } = await supabase
       .from('captures')
-      .select('contact:contacts(id, first_name, last_name, company:companies(name))')
+      .select('contact:contacts!inner(id, first_name, last_name, user_id, company:companies(name))')
+      .eq('contact.user_id', userId)
       .not('contact_id', 'is', null)
       .limit(3);
 
     const { data: enrichedLeads } = await supabase
-      .from('companies')
-      .select('id, name')
-      .eq('is_enriched', true)
+      .from('contacts')
+      .select('id, first_name, last_name')
+      .eq('user_id', userId)
+      .eq('enrichment_status', 'completed')
       .limit(3);
 
     const { data: draftLeads } = await supabase
       .from('email_drafts')
-      .select('id, contact:contacts(first_name, last_name, company:companies(name))')
+      .select('id, contact:contacts!inner(first_name, last_name, user_id, company:companies(name))')
+      .eq('contact.user_id', userId)
       .eq('status', 'draft')
       .limit(3);
 
     const { data: sentLeads } = await supabase
       .from('email_drafts')
-      .select('id, contact:contacts(first_name, last_name, company:companies(name))')
+      .select('id, contact:contacts!inner(first_name, last_name, user_id, company:companies(name))')
+      .eq('contact.user_id', userId)
       .eq('status', 'sent')
       .limit(3);
 
@@ -71,8 +85,9 @@ router.get('/summary', async (req, res, next) => {
         meeting_type,
         meeting_location,
         status,
-        contact:contacts(id, first_name, last_name, avatar_url, company:companies(name))
+        contact:contacts!inner(id, first_name, last_name, avatar_url, user_id, company:companies(name))
       `)
+      .eq('contact.user_id', userId)
       .gte('meeting_date', todayStart.toISOString())
       .order('meeting_date', { ascending: true })
       .limit(20);
@@ -85,8 +100,9 @@ router.get('/summary', async (req, res, next) => {
         interaction_type,
         interaction_date,
         summary,
-        contact:contacts(id, first_name, last_name, avatar_url, company:companies(name))
+        contact:contacts!inner(id, first_name, last_name, avatar_url, user_id, company:companies(name))
       `)
+      .eq('contact.user_id', userId)
       .order('interaction_date', { ascending: false })
       .limit(10);
 
@@ -94,13 +110,14 @@ router.get('/summary', async (req, res, next) => {
     const { data: activeContacts } = await supabase
       .from('contacts')
       .select(`
-        id, 
-        first_name, 
-        last_name, 
+        id,
+        first_name,
+        last_name,
         avatar_url,
         job_title,
         company:companies(name)
       `)
+      .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(5);
 
@@ -164,10 +181,13 @@ router.get('/summary', async (req, res, next) => {
 // Returns counts for the home screen "Today's Priorities" tiles
 router.get('/priorities', async (req, res, next) => {
   try {
+    const userId = req.user!.id;
+
     // Follow-ups due: contacts with needs_followup / needs_follow_up status
     const { count: followUpsDue } = await supabase
       .from('contacts')
       .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
       .in('follow_up_status', ['needs_followup', 'needs_follow_up']);
 
     res.json({

@@ -5,11 +5,10 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
-import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
-import 'profile_screen.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen({super.key});
@@ -19,309 +18,171 @@ class AccountSettingsScreen extends StatefulWidget {
 }
 
 class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
-  bool _pushNotifications = true;
-  bool _dailyDigest = true;
-  bool _offlineCaching = true;
-  bool _compactMeetingCards = false;
+  ExonoColors get _c => AppTheme.colorsOf(context);
+
+  // ── Edit mode ───────────────────────────────────────────────────────────────
+  bool _editing = false;
+
+  // ── Profile controllers (only used in edit mode) ────────────────────────────
+  late TextEditingController _nameCtrl;
+  late TextEditingController _designationCtrl;
+  late TextEditingController _websiteCtrl;
+  late TextEditingController _linkedinCtrl;
+  late TextEditingController _productsCtrl;
+  late TextEditingController _aboutCtrl;
+  late TextEditingController _contextCtrl;
+  String _aiTone = 'professional';
+  bool _isSavingProfile = false;
   bool _isLoggingOut = false;
 
-  void _showUiOnlyMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+  static const _toneOptions = ['professional', 'casual', 'formal', 'friendly'];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController();
+    _designationCtrl = TextEditingController();
+    _websiteCtrl = TextEditingController();
+    _linkedinCtrl = TextEditingController();
+    _productsCtrl = TextEditingController();
+    _aboutCtrl = TextEditingController();
+    _contextCtrl = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _designationCtrl.dispose();
+    _websiteCtrl.dispose();
+    _linkedinCtrl.dispose();
+    _productsCtrl.dispose();
+    _aboutCtrl.dispose();
+    _contextCtrl.dispose();
+    super.dispose();
+  }
+
+  void _loadProfile() {
+    final auth = context.read<AuthProvider>();
+    final p = auth.profile;
+    _nameCtrl.text = auth.displayName;
+    _designationCtrl.text = p?['designation'] as String? ?? '';
+    _websiteCtrl.text = p?['website'] as String? ?? '';
+    _linkedinCtrl.text = p?['linkedin_url'] as String? ?? '';
+    _productsCtrl.text = p?['products_services'] as String? ?? '';
+    _aboutCtrl.text = p?['value_proposition'] as String? ?? '';
+    _contextCtrl.text = p?['additional_context'] as String? ?? '';
+    setState(() => _aiTone = p?['ai_tone'] as String? ?? 'professional');
+  }
+
+  void _startEditing() {
+    _loadProfile();
+    setState(() => _editing = true);
+  }
+
+  void _cancelEditing() {
+    _loadProfile();
+    setState(() => _editing = false);
+  }
+
+  Future<void> _saveProfile() async {
+    if (_isSavingProfile) return;
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      _snack('Display name is required.', error: true);
+      return;
+    }
+    setState(() => _isSavingProfile = true);
+    try {
+      final result = await context.read<AuthProvider>().updateProfile(
+            name: name,
+            designation: _designationCtrl.text.trim(),
+            website: _websiteCtrl.text.trim(),
+            linkedinUrl: _linkedinCtrl.text.trim(),
+            productsServices: _productsCtrl.text.trim(),
+            valueProposition: _aboutCtrl.text.trim(),
+            additionalContext: _contextCtrl.text.trim(),
+            aiTone: _aiTone,
+          );
+      if (!mounted) return;
+      if (result['success'] == true) {
+        setState(() => _editing = false);
+        _snack('Profile saved.');
+      } else {
+        _snack(result['error'] as String? ?? 'Failed to save profile.', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingProfile = false);
+    }
   }
 
   Future<void> _logout() async {
     if (_isLoggingOut) return;
     setState(() => _isLoggingOut = true);
-
     await context.read<AuthProvider>().logout();
     if (!mounted) return;
-
     context.go('/auth');
   }
+
+  void _snack(String message, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: error ? _c.destructive : _c.success,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final isMobile = MediaQuery.of(context).size.width < 768;
-
-    // Check if profile data is loading
     final isLoading = auth.profile == null || auth.user == null;
 
-    final email = auth.user?['email'] as String? ?? 'No email available';
-    final profileType = (auth.profile?['profile_type'] as String? ?? 'team')
-        .replaceAll('_', ' ')
-        .toUpperCase();
-    final aiTone = (auth.profile?['ai_tone'] as String? ?? 'professional')
-        .toUpperCase();
-
-    final colors = AppTheme.colorsOf(context);
-
     return Scaffold(
-      backgroundColor: colors.background,
-      bottomNavigationBar: AppBottomNav(
-        selectedIndex: 4,
-        onNavigate: (i) => Navigator.of(context).pop(),
-      ),
+      backgroundColor: _c.background,
       body: DecoratedBox(
         decoration: AppTheme.appBackground(context),
         child: SafeArea(
           bottom: false,
-          child: isLoading
-              ? _buildSkeletonLoading(isMobile)
-              : SingleChildScrollView(
-                  padding: EdgeInsets.all(isMobile ? 16 : 24),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 980),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildTopBar(),
-                          const SizedBox(height: 20),
-                          _buildHeroCard(
-                            name: auth.displayName,
-                            designation: auth.designation,
-                            email: email,
-                            profileType: profileType,
-                            aiTone: aiTone,
-                            initials: auth.initials,
-                          ),
-                          const SizedBox(height: 16),
-                          if (isMobile)
-                            Column(
-                              children: [
-                                _buildPreferencesPanel(),
-                                const SizedBox(height: 16),
-                                _buildAccountPanel(auth),
-                                const SizedBox(height: 16),
-                                _buildDangerPanel(),
-                              ],
-                            )
-                          else
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 11,
-                                  child: Column(
-                                    children: [
-                                      _buildPreferencesPanel(),
-                                      const SizedBox(height: 16),
-                                      _buildDangerPanel(),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(flex: 8, child: _buildAccountPanel(auth)),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+          child: isLoading ? _buildSkeleton() : _buildBody(auth),
         ),
       ),
     );
   }
 
-  Widget _buildSkeletonLoading(bool isMobile) {
-    final colors = AppTheme.colorsOf(context);
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 980),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top bar skeleton
-              Row(
-                children: [
-                  SkeletonLoader(
-                    width: 48,
-                    height: 48,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SkeletonLoader(
-                        width: 180,
-                        height: 18,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      const SizedBox(height: 6),
-                      SkeletonLoader(
-                        width: 300,
-                        height: 13,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Hero card skeleton
-              AppCard(
-                padding: const EdgeInsets.all(22),
-                radius: 28,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SkeletonLoader(
-                          width: 64,
-                          height: 64,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SkeletonLoader(
-                                width: 200,
-                                height: 28,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              const SizedBox(height: 6),
-                              SkeletonLoader(
-                                width: 150,
-                                height: 13,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              const SizedBox(height: 8),
-                              SkeletonLoader(
-                                width: 180,
-                                height: 13,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        SkeletonLoader(
-                          width: 120,
-                          height: 31,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        const SizedBox(width: 8),
-                        SkeletonLoader(
-                          width: 140,
-                          height: 31,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        const SizedBox(width: 8),
-                        SkeletonLoader(
-                          width: 130,
-                          height: 31,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (isMobile)
-                Column(
-                  children: [
-                    _buildPanelSkeleton(),
-                    const SizedBox(height: 16),
-                    _buildPanelSkeleton(),
-                    const SizedBox(height: 16),
-                    _buildPanelSkeleton(),
-                  ],
-                )
-              else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 11,
-                      child: Column(
-                        children: [
-                          _buildPanelSkeleton(),
-                          const SizedBox(height: 16),
-                          _buildPanelSkeleton(),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(flex: 8, child: _buildPanelSkeleton()),
-                  ],
-                ),
-            ],
-          ),
-        ),
+  Widget _buildHeader() {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: _c.navBackground,
+        border: Border(bottom: BorderSide(color: _c.border)),
       ),
-    );
-  }
-
-  Widget _buildPanelSkeleton() {
-    return AppCard(
-      padding: const EdgeInsets.all(20),
-      radius: 28,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          SkeletonLoader(
-            width: 160,
-            height: 14,
-            borderRadius: BorderRadius.circular(4),
+          IconButton(
+            onPressed: () => context.go('/'),
+            icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 20),
+            style: IconButton.styleFrom(
+              backgroundColor: _c.surface,
+              side: BorderSide(color: _c.border),
+              padding: const EdgeInsets.all(10),
+              minimumSize: const Size(40, 40),
+            ),
           ),
-          const SizedBox(height: 14),
-          ...List.generate(
-            4,
-            (index) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: AppCard(
-                padding: const EdgeInsets.all(16),
-                radius: 20,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SkeletonLoader(
-                      width: 40,
-                      height: 40,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SkeletonLoader(
-                            width: 150,
-                            height: 14,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          const SizedBox(height: 6),
-                          SkeletonLoader(
-                            width: double.infinity,
-                            height: 13,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Settings',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+                color: _c.textPrimary,
               ),
             ),
           ),
@@ -330,484 +191,710 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     );
   }
 
-  Widget _buildTopBar() {
-    final colors = AppTheme.colorsOf(context);
-
-    return Row(
+  Widget _buildBody(AuthProvider auth) {
+    return Column(
       children: [
-        IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded),
-          style: IconButton.styleFrom(
-            backgroundColor: colors.surface,
-            foregroundColor: colors.accent,
-            side: BorderSide(color: colors.border),
-            padding: const EdgeInsets.all(12),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Account Settings',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.6,
-                color: colors.textPrimary,
+        _buildHeader(),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 48),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildIdentityCard(auth),
+                    const SizedBox(height: 24),
+                    AppSectionLabel('Profile'),
+                    const SizedBox(height: 10),
+                    _editing ? _buildEditPanel(auth) : _buildViewPanel(auth),
+                    const SizedBox(height: 24),
+                    AppSectionLabel('Preferences'),
+                    const SizedBox(height: 10),
+                    _buildAppearancePanel(),
+                    const SizedBox(height: 24),
+                    AppSectionLabel('Session'),
+                    const SizedBox(height: 10),
+                    _buildSessionPanel(),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              'Control your workspace defaults and session preferences.',
-              style: TextStyle(fontSize: 13, color: colors.textSecondary),
-            ),
-          ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildHeroCard({
-    required String name,
-    required String designation,
-    required String email,
-    required String profileType,
-    required String aiTone,
-    required String initials,
-  }) {
-    final colors = AppTheme.colorsOf(context);
+  // ── Identity card ───────────────────────────────────────────────────────────
+
+  Widget _buildIdentityCard(AuthProvider auth) {
+    final email = auth.user?['email'] as String? ?? '';
+    final profileType = (auth.profile?['profile_type'] as String? ?? 'individual')
+        .replaceAll('_', ' ');
+    final tone = auth.profile?['ai_tone'] as String? ?? 'professional';
 
     return AppCard(
-      padding: const EdgeInsets.all(22),
       radius: 28,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: colors.accent,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  initials,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: colors.isDark ? colors.background : Colors.white,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1,
-                        color: AppTheme.stone900,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      designation,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                        color: AppTheme.stone600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      email,
-                      style: TextStyle(fontSize: 13, color: AppTheme.stone500),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildBadge(Icons.apartment_rounded, profileType),
-              _buildBadge(Icons.psychology_alt_rounded, 'AI TONE: $aiTone'),
-              _buildBadge(Icons.verified_rounded, 'SESSION ACTIVE'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBadge(IconData icon, String label) {
-    final colors = AppTheme.colorsOf(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.accentSoft,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: colors.border.withValues(alpha: 0.7)),
-      ),
+      padding: const EdgeInsets.all(20),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 15, color: colors.accent),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: _c.accent,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              auth.initials,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: _c.isDark ? _c.background : Colors.white,
+              ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPreferencesPanel() {
-    return AppCard(
-      padding: const EdgeInsets.all(20),
-      radius: 28,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppSectionLabel('Workspace Preferences'),
-          const SizedBox(height: 14),
-          _buildPreferenceTile(
-            title: 'Push notifications',
-            subtitle: 'Show event, follow-up, and sync-related alerts.',
-            value: _pushNotifications,
-            onChanged: (value) => setState(() => _pushNotifications = value),
-          ),
-          const SizedBox(height: 10),
-          _buildPreferenceTile(
-            title: 'Daily digest',
-            subtitle:
-                'Receive a concise morning summary of targets, meetings, and follow-ups.',
-            value: _dailyDigest,
-            onChanged: (value) => setState(() => _dailyDigest = value),
-          ),
-          const SizedBox(height: 10),
-          _buildPreferenceTile(
-            title: 'Offline caching',
-            subtitle:
-                'Keep priority records available for low-connectivity event spaces.',
-            value: _offlineCaching,
-            onChanged: (value) => setState(() => _offlineCaching = value),
-          ),
-          const SizedBox(height: 10),
-          _buildPreferenceTile(
-            title: 'Compact meeting cards',
-            subtitle: 'Use denser summaries in the meetings workspace.',
-            value: _compactMeetingCards,
-            onChanged: (value) => setState(() => _compactMeetingCards = value),
-          ),
-          const SizedBox(height: 10),
-          _buildThemeModeTile(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPreferenceTile({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    final colors = AppTheme.colorsOf(context);
-
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      radius: 20,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  auth.displayName,
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                    color: _c.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.5,
-                    color: colors.textSecondary,
+                if (auth.designation.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    auth.designation,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _c.textSecondary),
+                  ),
+                ],
+                if (email.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(email, style: TextStyle(fontSize: 12, color: _c.textMuted)),
+                ],
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    AppChip.status(profileType.toUpperCase(), color: _c.accent),
+                    AppChip.status('TONE: ${tone.toUpperCase()}', color: _c.accentStrong),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Profile VIEW mode ───────────────────────────────────────────────────────
+
+  Widget _buildViewPanel(AuthProvider auth) {
+    final p = auth.profile;
+    final name = auth.displayName;
+    final designation = p?['designation'] as String? ?? '';
+    final website = p?['website'] as String? ?? '';
+    final linkedin = p?['linkedin_url'] as String? ?? '';
+    final products = p?['products_services'] as String? ?? '';
+    final valueProposition = p?['value_proposition'] as String? ?? '';
+    final additionalContext = p?['additional_context'] as String? ?? '';
+    final tone = p?['ai_tone'] as String? ?? 'professional';
+
+    final hasContent = designation.isNotEmpty || website.isNotEmpty ||
+        linkedin.isNotEmpty || products.isNotEmpty ||
+        valueProposition.isNotEmpty || additionalContext.isNotEmpty;
+
+    return AppCard(
+      radius: 20,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // AI personalisation nudge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _c.accentSoft,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _c.accent.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.auto_awesome_rounded, size: 15, color: _c.accent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Completing your profile helps the AI generate personalised responses, emails, and follow-ups in your voice.',
+                    style: TextStyle(fontSize: 12, height: 1.5, color: _c.accent),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Switch.adaptive(
-            value: value,
-            activeThumbColor: colors.isDark ? colors.background : Colors.white,
-            activeTrackColor: colors.accent.withValues(alpha: 0.45),
-            inactiveThumbColor: colors.textMuted,
-            inactiveTrackColor: colors.border,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
+          const SizedBox(height: 16),
 
-  Widget _buildThemeModeTile() {
-    final colors = AppTheme.colorsOf(context);
-
-    return Consumer<ThemeProvider>(
-      builder: (context, theme, _) => AppCard(
-        padding: const EdgeInsets.all(16),
-        radius: 20,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Appearance mode',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    theme.isDarkMode
-                        ? 'Night mode is active with dark-blue surfaces and brighter accents.'
-                        : 'Day mode is active with soft white cards and blue glass highlights.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.5,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Switch.adaptive(
-              value: theme.isDarkMode,
-              activeThumbColor: colors.isDark
-                  ? colors.background
-                  : Colors.white,
-              activeTrackColor: colors.accent.withValues(alpha: 0.45),
-              inactiveThumbColor: colors.textMuted,
-              inactiveTrackColor: colors.border,
-              onChanged: (value) {
-                theme.setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
-              },
-            ),
+          if (!hasContent) ...[
+            _emptyProfileHint(),
+          ] else ...[
+            _viewRow('Name', name),
+            if (designation.isNotEmpty) _viewRow('Designation', designation),
+            if (website.isNotEmpty) _viewRow('Website', website, isLink: true),
+            if (linkedin.isNotEmpty) _viewRow('LinkedIn', linkedin, isLink: true),
+            if (products.isNotEmpty) _viewRow('Products & Services', products, multiLine: true),
+            if (valueProposition.isNotEmpty) _viewRow('Value Proposition', valueProposition, multiLine: true),
+            if (additionalContext.isNotEmpty) _viewRow('Additional AI Context', additionalContext, multiLine: true),
+            _viewRow('AI Tone', tone[0].toUpperCase() + tone.substring(1), isLast: true),
           ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildAccountPanel(AuthProvider auth) {
-    return AppCard(
-      padding: const EdgeInsets.all(20),
-      radius: 28,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppSectionLabel('Account Controls'),
-          const SizedBox(height: 14),
-          _buildActionTile(
-            title: 'Refresh profile snapshot',
-            subtitle: 'Pull the latest profile data into the app shell.',
-            icon: Icons.refresh_rounded,
-            onTap: () async {
-              await auth.refreshProfile();
-              if (!mounted) return;
-              _showUiOnlyMessage('Profile snapshot refreshed.');
-            },
-          ),
-          const SizedBox(height: 10),
-          _buildActionTile(
-            title: 'Switch experience mode',
-            subtitle:
-                'Return to mode selection and choose between AI Chat and CRM.',
-            icon: Icons.swap_horiz_rounded,
-            onTap: () {
-              context.go('/');
-            },
-          ),
-          const SizedBox(height: 10),
-          _buildActionTile(
-            title: 'Manage profile details',
-            subtitle:
-                'Open your full profile workspace and review live details.',
-            icon: Icons.edit_outlined,
-            onTap: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
-            },
-          ),
-          const SizedBox(height: 10),
-          _buildActionTile(
-            title: 'Open default home preview',
-            subtitle:
-                'Launch the standalone Stitch-style mobile home preview route.',
-            icon: Icons.space_dashboard_outlined,
-            onTap: () => context.go('/'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionTile({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    final colors = AppTheme.colorsOf(context);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: AppCard(
-        padding: const EdgeInsets.all(16),
-        radius: 20,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: colors.border.withValues(alpha: 0.7)),
-              ),
-              child: Icon(icon, size: 18, color: colors.accent),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.5,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Icon(Icons.chevron_right_rounded, color: colors.accent),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDangerPanel() {
-    final colors = AppTheme.colorsOf(context);
-
-    return AppCard(
-      padding: const EdgeInsets.all(20),
-      radius: 28,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppSectionLabel('Session'),
-          const SizedBox(height: 14),
-          Text(
-            'Need to switch account or reset your environment?',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Logging out will clear the local session and return you to the auth screen.',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _isLoggingOut ? null : _logout,
-              icon: _isLoggingOut
-                  ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          colors.isDark ? colors.background : Colors.white,
-                        ),
-                      ),
-                    )
-                  : const Icon(Icons.logout_rounded, size: 18),
-              label: Text(_isLoggingOut ? 'SIGNING OUT...' : 'LOG OUT'),
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.accent,
-                foregroundColor: colors.isDark
-                    ? colors.background
-                    : Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
+            child: OutlinedButton.icon(
+              onPressed: _startEditing,
+              icon: Icon(Icons.edit_rounded, size: 15, color: _c.accent),
+              label: Text(
+                hasContent ? 'EDIT PROFILE' : 'COMPLETE PROFILE',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _c.accent),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                side: BorderSide(color: _c.accent.withValues(alpha: 0.5)),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _emptyProfileHint() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'No profile info yet',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _c.textPrimary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Add your details to unlock personalised AI-generated emails, follow-ups, and conversation suggestions.',
+            style: TextStyle(fontSize: 13, height: 1.5, color: _c.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _viewRow(String label, String value, {bool isLink = false, bool multiLine = false, bool isLast = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            crossAxisAlignment: multiLine ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 130,
+                child: Text(
+                  label,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _c.textMuted),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: multiLine ? 1.5 : 1.0,
+                    color: isLink ? _c.accent : _c.textPrimary,
+                    decoration: isLink ? TextDecoration.underline : null,
+                    decorationColor: isLink ? _c.accent.withValues(alpha: 0.4) : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!isLast) Divider(height: 1, thickness: 1, color: _c.border),
+      ],
+    );
+  }
+
+  // ── Profile EDIT mode ───────────────────────────────────────────────────────
+
+  Widget _buildEditPanel(AuthProvider auth) {
+    return AppCard(
+      radius: 20,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // AI personalisation nudge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _c.accentSoft,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _c.accent.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.auto_awesome_rounded, size: 15, color: _c.accent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Completing your profile helps the AI generate personalised responses, emails, and follow-ups in your voice.',
+                    style: TextStyle(fontSize: 12, height: 1.5, color: _c.accent),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _field(label: 'Display Name', ctrl: _nameCtrl, hint: 'Your full name', required: true),
+          _gap(),
+          _field(label: 'Designation', ctrl: _designationCtrl, hint: 'e.g. Co-Founder & CEO'),
+          _gap(),
+          _field(label: 'Website', ctrl: _websiteCtrl, hint: 'https://yoursite.com', keyboard: TextInputType.url),
+          _gap(),
+          _field(label: 'LinkedIn URL', ctrl: _linkedinCtrl, hint: 'https://linkedin.com/in/...', keyboard: TextInputType.url),
+          _gap(),
+          _field(label: 'Products & Services', ctrl: _productsCtrl, hint: 'What you offer...', lines: 3),
+          _gap(),
+          _field(label: 'Value Proposition', ctrl: _aboutCtrl, hint: 'Your elevator pitch...', lines: 3),
+          _gap(),
+          _field(label: 'Additional Context for AI', ctrl: _contextCtrl, hint: 'Extra context for personalised AI responses...', lines: 3),
+          _gap(),
+          _tonePicker(),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSavingProfile ? null : _cancelEditing,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                    side: BorderSide(color: _c.border),
+                  ),
+                  child: Text(
+                    'CANCEL',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _c.textSecondary),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: _primaryButton(label: 'Save Profile', loading: _isSavingProfile, onPressed: _saveProfile),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tonePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'AI TONE',
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: _c.textMuted),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: _toneOptions.map((tone) {
+            final active = _aiTone == tone;
+            final isLast = tone == _toneOptions.last;
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: isLast ? 0 : 8),
+                child: GestureDetector(
+                  onTap: () => setState(() => _aiTone = tone),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: active ? _c.accent : _c.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: active ? _c.accent : _c.border,
+                        width: active ? 1.5 : 1,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      tone[0].toUpperCase() + tone.substring(1),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: active ? (_c.isDark ? _c.background : Colors.white) : _c.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // ── Appearance panel ────────────────────────────────────────────────────────
+
+  Widget _buildAppearancePanel() {
+    return AppCard(
+      radius: 20,
+      child: Consumer<ThemeProvider>(
+        builder: (context, theme, _) => _switchRow(
+          icon: Icons.dark_mode_rounded,
+          title: 'Dark Mode',
+          subtitle: theme.isDarkMode ? 'Using dark surfaces.' : 'Using light surfaces.',
+          value: theme.isDarkMode,
+          onChanged: (v) => theme.setThemeMode(v ? ThemeMode.dark : ThemeMode.light),
+          isLast: true,
+        ),
+      ),
+    );
+  }
+
+  // ── Session panel ───────────────────────────────────────────────────────────
+
+  Widget _buildSessionPanel() {
+    return AppCard(
+      radius: 20,
+      child: _actionRow(
+        icon: Icons.logout_rounded,
+        label: 'Log Out',
+        sublabel: 'Clear session and return to auth.',
+        destructive: true,
+        loading: _isLoggingOut,
+        onTap: _logout,
+        isLast: true,
+      ),
+    );
+  }
+
+  // ── Row components ──────────────────────────────────────────────────────────
+
+  Widget _switchRow({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    bool isLast = false,
+  }) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _c.accentSoft,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 18, color: _c.accent),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: TextStyle(fontSize: 12, color: _c.textMuted)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Switch.adaptive(
+                value: value,
+                activeThumbColor: _c.isDark ? _c.background : Colors.white,
+                activeTrackColor: _c.accent.withValues(alpha: 0.5),
+                inactiveThumbColor: _c.textMuted,
+                inactiveTrackColor: _c.border,
+                onChanged: onChanged,
+              ),
+            ],
+          ),
+        ),
+        if (!isLast) Divider(height: 1, thickness: 1, color: _c.border, indent: 16, endIndent: 16),
+      ],
+    );
+  }
+
+  Widget _actionRow({
+    required IconData icon,
+    required String label,
+    required String sublabel,
+    required VoidCallback onTap,
+    bool destructive = false,
+    bool loading = false,
+    bool isLast = false,
+  }) {
+    final color = destructive ? _c.destructive : _c.accent;
+    return Column(
+      children: [
+        InkWell(
+          onTap: loading ? null : onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: loading
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(color),
+                          ),
+                        )
+                      : Icon(icon, size: 18, color: color),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color)),
+                      const SizedBox(height: 2),
+                      Text(sublabel, style: TextStyle(fontSize: 12, color: _c.textMuted)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, size: 18, color: _c.textMuted),
+              ],
+            ),
+          ),
+        ),
+        if (!isLast) Divider(height: 1, thickness: 1, color: _c.border, indent: 16, endIndent: 16),
+      ],
+    );
+  }
+
+  // ── Form helpers ────────────────────────────────────────────────────────────
+
+  Widget _gap() => const SizedBox(height: 14);
+
+  Widget _field({
+    required String label,
+    required TextEditingController ctrl,
+    String? hint,
+    bool required = false,
+    int lines = 1,
+    TextInputType? keyboard,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          required ? '${label.toUpperCase()} *' : label.toUpperCase(),
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: _c.textMuted),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: ctrl,
+          maxLines: lines,
+          keyboardType: keyboard,
+          style: TextStyle(fontSize: 14, color: _c.textPrimary),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: _c.textMuted, fontSize: 13),
+            filled: true,
+            fillColor: _c.surfaceAlt,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _c.accent, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _primaryButton({
+    required String label,
+    required bool loading,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        onPressed: loading ? null : onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: _c.accent,
+          foregroundColor: _c.isDark ? _c.background : Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.6),
+        ),
+        child: loading
+            ? SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(_c.isDark ? _c.background : Colors.white),
+                ),
+              )
+            : Text(label.toUpperCase()),
+      ),
+    );
+  }
+
+  // ── Skeleton ────────────────────────────────────────────────────────────────
+
+  Widget _buildSkeleton() {
+    return Column(
+      children: [
+        Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: _c.navBackground,
+            border: Border(bottom: BorderSide(color: _c.border)),
+          ),
+          child: Row(
+            children: [
+              SkeletonLoader(width: 40, height: 40, borderRadius: BorderRadius.circular(10)),
+              const SizedBox(width: 12),
+              SkeletonLoader(width: 80, height: 16, borderRadius: BorderRadius.circular(4)),
+            ],
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 48),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _skeletonCard(
+                  radius: 28,
+                  child: Row(
+                    children: [
+                      SkeletonLoader(width: 56, height: 56, borderRadius: BorderRadius.circular(18)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonLoader(width: 160, height: 18, borderRadius: BorderRadius.circular(5)),
+                            const SizedBox(height: 6),
+                            SkeletonLoader(width: 110, height: 12, borderRadius: BorderRadius.circular(4)),
+                            const SizedBox(height: 6),
+                            SkeletonLoader(width: 140, height: 12, borderRadius: BorderRadius.circular(4)),
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              SkeletonLoader(width: 80, height: 22, borderRadius: BorderRadius.circular(4)),
+                              const SizedBox(width: 6),
+                              SkeletonLoader(width: 100, height: 22, borderRadius: BorderRadius.circular(4)),
+                            ]),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SkeletonLoader(width: 60, height: 11, borderRadius: BorderRadius.circular(3)),
+                const SizedBox(height: 10),
+                _skeletonCard(
+                  child: Column(
+                    children: [
+                      SkeletonLoader(width: double.infinity, height: 44, borderRadius: BorderRadius.circular(12)),
+                      const SizedBox(height: 12),
+                      ...List.generate(5, (_) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(children: [
+                          SkeletonLoader(width: 120, height: 13, borderRadius: BorderRadius.circular(4)),
+                          const SizedBox(width: 16),
+                          Expanded(child: SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4))),
+                        ]),
+                      )),
+                      const SizedBox(height: 8),
+                      SkeletonLoader(width: double.infinity, height: 44, borderRadius: BorderRadius.circular(999)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SkeletonLoader(width: 90, height: 11, borderRadius: BorderRadius.circular(3)),
+                const SizedBox(height: 10),
+                _skeletonCard(
+                  child: SkeletonLoader(width: double.infinity, height: 56, borderRadius: BorderRadius.circular(12)),
+                ),
+                const SizedBox(height: 24),
+                SkeletonLoader(width: 65, height: 11, borderRadius: BorderRadius.circular(3)),
+                const SizedBox(height: 10),
+                _skeletonCard(
+                  child: SkeletonLoader(width: double.infinity, height: 56, borderRadius: BorderRadius.circular(12)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _skeletonCard({required Widget child, double radius = 20}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _c.surface,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: _c.border),
+      ),
+      child: child,
     );
   }
 }
