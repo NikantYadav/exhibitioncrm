@@ -171,6 +171,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           children: [
             AppHeader(
+              showProfile: false,
               onNotificationPressed: () => _showUiOnlyMessage('Notifications'),
               actionIcon: Icons.settings_rounded,
               actionTooltip: 'Settings',

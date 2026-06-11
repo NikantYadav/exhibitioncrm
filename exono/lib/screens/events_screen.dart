@@ -9,8 +9,9 @@ import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/app_header.dart';
 import '../widgets/skeleton_loader.dart';
-import 'event_floor_home_screen.dart';
-import 'follow_ups_screen.dart';
+import 'package:go_router/go_router.dart';
+
+import 'event_follow_ups_screen.dart';
 import 'pre_event_prep_screen.dart';
 
 class EventsScreen extends StatefulWidget {
@@ -595,7 +596,7 @@ class _EventsScreenState extends State<EventsScreen> {
   Future<void> _openFollowUpQueue(Event event) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => FollowUpsScreen(
+        builder: (context) => EventFollowUpsScreen(
           onNavigateTab: widget.onNavigateTab,
           event: event,
         ),
@@ -620,14 +621,7 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   void _openEventFloor(Event event) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => EventFloorHomeScreen(
-          event: event,
-          onNavigateTab: widget.onNavigateTab,
-        ),
-      ),
-    );
+    context.go('/live-event');
   }
 
   void _showNewEventSheet() {
@@ -671,6 +665,18 @@ class _EventsScreenState extends State<EventsScreen> {
     final startDate = startText.isNotEmpty
         ? '${startText}T00:00:00.000Z'
         : DateTime.now().toIso8601String();
+
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    if (DateTime.parse(startDate).isBefore(today)) {
+      ScaffoldMessenger.of(sheetContext).showSnackBar(
+        const SnackBar(
+          content: Text('Event start date cannot be in the past.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final endDate = isOneDay
         ? null
         : (_endDateController.text.isNotEmpty
@@ -751,6 +757,18 @@ class _EventsScreenState extends State<EventsScreen> {
     }
     final startText = _startDateController.text;
     final startDate = startText.isNotEmpty ? '${startText}T00:00:00.000Z' : null;
+
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    if (startDate != null && DateTime.parse(startDate).isBefore(today)) {
+      ScaffoldMessenger.of(sheetContext).showSnackBar(
+        const SnackBar(
+          content: Text('Event start date cannot be in the past.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final endDate = isOneDay
         ? null
         : (_endDateController.text.isNotEmpty ? '${_endDateController.text}T00:00:00.000Z' : null);

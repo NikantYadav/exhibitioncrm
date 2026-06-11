@@ -34,7 +34,7 @@ class Contact {
     this.contactAssets = const [],
     this.enrichmentStatus = 'pending',
     this.followUpStatus = 'not_contacted',
-    this.followUpUrgency = 'medium',
+    this.followUpUrgency = '',
     this.lastContactedAt,
     required this.createdAt,
     required this.updatedAt,
@@ -59,7 +59,7 @@ class Contact {
           .toList() ?? const [],
       enrichmentStatus: json['enrichment_status'] ?? 'pending',
       followUpStatus: json['follow_up_status'] ?? 'not_contacted',
-      followUpUrgency: json['follow_up_urgency'] ?? 'medium',
+      followUpUrgency: json['follow_up_urgency'] ?? '',
       lastContactedAt: json['last_contacted_at'] != null 
           ? DateTime.parse(json['last_contacted_at']) 
           : null,

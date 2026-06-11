@@ -196,9 +196,25 @@ const WRITE_TOOLS = [
         end_date: { type: 'string', description: 'ISO 8601 datetime' },
         description: { type: 'string' },
         event_type: { type: 'string' },
-        status: { type: 'string' },
       },
       required: ['name', 'start_date'],
+    },
+  },
+  {
+    name: 'update_event',
+    description: 'Update fields on an existing event. Always query_crm first to get the event_id.',
+    parameters: {
+      type: 'object',
+      properties: {
+        event_id: { type: 'string', description: 'UUID of the event to update' },
+        name: { type: 'string' },
+        location: { type: 'string' },
+        start_date: { type: 'string', description: 'ISO 8601 datetime' },
+        end_date: { type: 'string', description: 'ISO 8601 datetime' },
+        description: { type: 'string' },
+        event_type: { type: 'string' },
+      },
+      required: ['event_id'],
     },
   },
   {
@@ -273,6 +289,12 @@ async function execCreateContact(args: Record<string, unknown>, userId: string) 
     event_id: z.string().uuid().optional(),
   }).parse(args);
 
+  // Verify the linked event belongs to this user
+  if (a.event_id) {
+    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).maybeSingle();
+    if (!ev) throw new Error('Event not found or access denied');
+  }
+
   let company_id = a.company_id;
   if (a.company_name && !company_id) {
     const { data: existing } = await supabaseAdmin.from('companies').select('id').ilike('name', a.company_name).maybeSingle();
@@ -287,7 +309,7 @@ async function execCreateContact(args: Record<string, unknown>, userId: string) 
 
   const { data: contact, error } = await supabaseAdmin
     .from('contacts')
-    .insert({ first_name: a.first_name, last_name: a.last_name, email: a.email, phone: a.phone, job_title: a.job_title, notes: a.notes, company_id })
+    .insert({ first_name: a.first_name, last_name: a.last_name, email: a.email, phone: a.phone, job_title: a.job_title, notes: a.notes, company_id, user_id: userId })
     .select('*').single();
   if (error) throw new Error(error.message);
 
@@ -299,7 +321,7 @@ async function execCreateContact(args: Record<string, unknown>, userId: string) 
   return contact;
 }
 
-async function execUpdateContact(args: Record<string, unknown>) {
+async function execUpdateContact(args: Record<string, unknown>, userId: string) {
   const a = z.object({
     contact_id: z.string().uuid(),
     first_name: z.string().trim().optional(),
@@ -327,12 +349,14 @@ async function execUpdateContact(args: Record<string, unknown>) {
   const update = stripImmutable(raw);
   if (Object.keys(update).length === 0) throw new Error('No valid fields to update');
 
-  const { data, error } = await supabaseAdmin.from('contacts').update(update).eq('id', a.contact_id).select('*').single();
+  // user_id filter ensures the LLM cannot update a contact belonging to another user
+  const { data, error } = await supabaseAdmin.from('contacts').update(update).eq('id', a.contact_id).eq('user_id', userId).select('*').maybeSingle();
   if (error) throw new Error(error.message);
+  if (!data) throw new Error('Contact not found or access denied');
   return data;
 }
 
-async function execCreateEvent(args: Record<string, unknown>) {
+async function execCreateEvent(args: Record<string, unknown>, userId: string) {
   const a = z.object({
     name: z.string().trim().min(1),
     location: z.string().trim().optional(),
@@ -340,26 +364,83 @@ async function execCreateEvent(args: Record<string, unknown>) {
     end_date: z.any().optional(),
     description: z.string().trim().optional(),
     event_type: z.string().trim().optional(),
-    status: z.string().trim().optional(),
   }).parse(args);
+
+  const startIso = toIso(a.start_date, 'start_date');
+
+  if (new Date(startIso) < new Date()) {
+    throw new Error('Event start date cannot be in the past.');
+  }
+
+  // Deduplicate: return existing event if same name + start_date already exists for this user
+  const { data: existing } = await supabaseAdmin
+    .from('events')
+    .select('*')
+    .eq('user_id', userId)
+    .ilike('name', a.name)
+    .eq('start_date', startIso)
+    .maybeSingle();
+  if (existing) return existing;
 
   const { data, error } = await supabaseAdmin.from('events').insert({
     name: a.name, location: a.location,
-    start_date: toIso(a.start_date, 'start_date'),
+    start_date: startIso,
     end_date: a.end_date ? toIso(a.end_date, 'end_date') : null,
-    description: a.description, event_type: a.event_type, status: a.status,
+    description: a.description, event_type: a.event_type,
+    user_id: userId,
   }).select('*').single();
   if (error) throw new Error(error.message);
   return data;
 }
 
-async function execCreateNote(args: Record<string, unknown>) {
+async function execUpdateEvent(args: Record<string, unknown>, userId: string) {
+  const a = z.object({
+    event_id: z.string().uuid(),
+    name: z.string().trim().optional(),
+    location: z.string().trim().optional(),
+    start_date: z.any().optional(),
+    end_date: z.any().optional(),
+    description: z.string().trim().optional(),
+    event_type: z.string().trim().optional(),
+  }).parse(args);
+
+  const raw: Record<string, unknown> = {};
+  if (a.name !== undefined) raw.name = a.name;
+  if (a.location !== undefined) raw.location = a.location;
+  if (a.start_date !== undefined) {
+    const startIso = toIso(a.start_date, 'start_date');
+    if (new Date(startIso) < new Date()) throw new Error('Event start date cannot be in the past.');
+    raw.start_date = startIso;
+  }
+  if (a.end_date !== undefined) raw.end_date = toIso(a.end_date, 'end_date');
+  if (a.description !== undefined) raw.description = a.description;
+  if (a.event_type !== undefined) raw.event_type = a.event_type;
+
+  const update = stripImmutable(raw);
+  if (Object.keys(update).length === 0) throw new Error('No valid fields to update');
+
+  const { data, error } = await supabaseAdmin.from('events').update(update).eq('id', a.event_id).eq('user_id', userId).select('*').maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('Event not found or access denied');
+  return data;
+}
+
+async function execCreateNote(args: Record<string, unknown>, userId: string) {
   const a = z.object({
     content: z.string().trim().min(1),
     contact_id: z.string().uuid().optional(),
     event_id: z.string().uuid().optional(),
     note_type: z.string().trim().optional(),
   }).parse(args);
+
+  if (a.contact_id) {
+    const { data: c } = await supabaseAdmin.from('contacts').select('id').eq('id', a.contact_id).eq('user_id', userId).maybeSingle();
+    if (!c) throw new Error('Contact not found or access denied');
+  }
+  if (a.event_id) {
+    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).maybeSingle();
+    if (!ev) throw new Error('Event not found or access denied');
+  }
 
   const { data, error } = await supabaseAdmin.from('notes').insert({
     content: a.content, contact_id: a.contact_id ?? null,
@@ -369,7 +450,7 @@ async function execCreateNote(args: Record<string, unknown>) {
   return data;
 }
 
-async function execCreateReminder(args: Record<string, unknown>) {
+async function execCreateReminder(args: Record<string, unknown>, userId: string) {
   const a = z.object({
     title: z.string().trim().min(1),
     reminder_date: z.any(),
@@ -380,6 +461,15 @@ async function execCreateReminder(args: Record<string, unknown>) {
     event_id: z.string().uuid().optional(),
   }).parse(args);
 
+  if (a.contact_id) {
+    const { data: c } = await supabaseAdmin.from('contacts').select('id').eq('id', a.contact_id).eq('user_id', userId).maybeSingle();
+    if (!c) throw new Error('Contact not found or access denied');
+  }
+  if (a.event_id) {
+    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).maybeSingle();
+    if (!ev) throw new Error('Event not found or access denied');
+  }
+
   const { data, error } = await supabaseAdmin.from('reminders').insert({
     title: a.title, reminder_date: toIso(a.reminder_date, 'reminder_date'),
     reminder_type: a.reminder_type, message: a.message ?? null,
@@ -389,7 +479,7 @@ async function execCreateReminder(args: Record<string, unknown>) {
   return data;
 }
 
-async function execDraftEmail(args: Record<string, unknown>) {
+async function execDraftEmail(args: Record<string, unknown>, userId: string) {
   const a = z.object({
     contact_id: z.string().uuid(),
     subject: z.string().trim().min(1).max(300),
@@ -397,6 +487,14 @@ async function execDraftEmail(args: Record<string, unknown>) {
     email_type: z.string().trim().optional(),
     event_id: z.string().uuid().optional(),
   }).parse(args);
+
+  const { data: c } = await supabaseAdmin.from('contacts').select('id').eq('id', a.contact_id).eq('user_id', userId).maybeSingle();
+  if (!c) throw new Error('Contact not found or access denied');
+
+  if (a.event_id) {
+    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).maybeSingle();
+    if (!ev) throw new Error('Event not found or access denied');
+  }
 
   const { data, error } = await supabaseAdmin.from('email_drafts').insert({
     contact_id: a.contact_id, subject: a.subject, body: a.body,
@@ -448,11 +546,12 @@ async function executeTool(
       // ── WRITE: execute directly against Supabase ────────────────────────────
       switch (call.name) {
         case 'create_contact': result = await execCreateContact(call.args, userId); break;
-        case 'update_contact': result = await execUpdateContact(call.args); break;
-        case 'create_event': result = await execCreateEvent(call.args); break;
-        case 'create_note': result = await execCreateNote(call.args); break;
-        case 'create_reminder': result = await execCreateReminder(call.args); break;
-        case 'draft_email': result = await execDraftEmail(call.args); break;
+        case 'update_contact': result = await execUpdateContact(call.args, userId); break;
+        case 'create_event': result = await execCreateEvent(call.args, userId); break;
+        case 'update_event': result = await execUpdateEvent(call.args, userId); break;
+        case 'create_note': result = await execCreateNote(call.args, userId); break;
+        case 'create_reminder': result = await execCreateReminder(call.args, userId); break;
+        case 'draft_email': result = await execDraftEmail(call.args, userId); break;
         default:
           throw new Error(`Unknown tool: ${call.name}`);
       }
@@ -479,15 +578,18 @@ reminders, email drafts, captures, companies, meetings, or searching messages.
 The semantic layer handles SQL — just describe what you want with source_model,
 dimensions, filters, and optional measures.
 
-WRITE: Use create_contact, update_contact, create_event, create_note,
-create_reminder, draft_email for mutations.
+WRITE: Use create_contact, update_contact, create_event, update_event,
+create_note, create_reminder, draft_email for mutations.
 
 Rules:
-- Always use query_crm before writing if you need to look up an ID.
+- ALWAYS call query_crm FIRST before any write operation to look up the record's ID. Never assume you know an ID.
+- If the user says "update", "change", "reschedule", "rename", "edit", or anything that implies modifying an existing record: query_crm first by name, get the ID, then call the update tool. NEVER call create_* for an update request.
+- Only call create_* when the user explicitly wants a brand-new record that does not yet exist.
 - Be concise and action-oriented in your final reply.
 - If required info is missing, ask 1-2 focused questions.
 - Dates must be ISO 8601 (e.g. 2026-06-01T10:00:00Z).
-- You may call multiple tools in sequence — each result is fed back to you.${entityContext}`;
+- You may call multiple tools in sequence — each result is fed back to you.
+- NEVER include UUIDs or any database IDs in your text reply. Entity cards are shown separately — just refer to things by name.${entityContext}`;
 }
 
 // ─── Entity context loader ────────────────────────────────────────────────────
@@ -621,8 +723,9 @@ router.post('/respond', async (req, res) => {
         }
       }
 
-      // Append tool calls + results to history for next iteration
-      history.push({ role: 'tool_calls', calls: llmResult.calls });
+      // Append tool calls + results to history for next iteration.
+      // _geminiParts carries thought_signature fields required by Gemini thinking models.
+      history.push({ role: 'tool_calls', calls: llmResult.calls, _geminiParts: (llmResult as any)._geminiParts });
       history.push({ role: 'tool_results', results: iterResults });
     }
 
@@ -633,17 +736,6 @@ router.post('/respond', async (req, res) => {
         { role: 'user', content: 'Summarise what was done in one or two sentences.' },
       ], []);
       assistantText = summaryResult.type === 'text' ? summaryResult.content : 'Done.';
-    }
-
-    // Append action summary to assistant message
-    if (allToolResults.length > 0) {
-      const lines = ['\n\nActions:'];
-      for (const r of allToolResults) {
-        if (r.name === 'query_crm') continue; // don't clutter with read ops
-        const id = r.ok && r.result && typeof r.result === 'object' ? (r.result as any).id : undefined;
-        lines.push(r.ok ? `- ${r.name} ✅${id ? ` (id: ${id})` : ''}` : `- ${r.name} ❌ (${r.error})`);
-      }
-      if (lines.length > 1) assistantText = `${assistantText}${lines.join('\n')}`.trim();
     }
 
     // 6. Persist assistant message
@@ -673,7 +765,26 @@ router.post('/respond', async (req, res) => {
       .update({ status: errCount > 0 ? 'failed' : 'succeeded', finished_at: new Date().toISOString() })
       .eq('id', run.id).select('*').single();
 
-    // 9. Await titling (only happens on first message) and fetch updated conversation
+    // 9. Build linked entities directly from tool results — last write wins per entity ID.
+    const linkedEntitiesMap = new Map<string, any>();
+    for (const tr of allToolResults) {
+      if (!tr.ok || !tr.result || typeof tr.result !== 'object') continue;
+      const r = tr.result as Record<string, unknown>;
+      if (!r.id) continue;
+      const id = r.id as string;
+      if (tr.name === 'create_contact' || tr.name === 'update_contact') {
+        linkedEntitiesMap.set(id, { type: 'contact', id, first_name: r.first_name, last_name: r.last_name });
+      } else if (tr.name === 'create_event' || tr.name === 'update_event') {
+        linkedEntitiesMap.set(id, { type: 'event', id, name: r.name, start_date: r.start_date, location: r.location });
+      } else if (tr.name === 'create_reminder') {
+        linkedEntitiesMap.set(id, { type: 'reminder', id, title: r.title, reminder_date: r.reminder_date });
+      } else if (tr.name === 'draft_email') {
+        linkedEntitiesMap.set(id, { type: 'email_draft', id, subject: r.subject });
+      }
+    }
+    const linkedEntities = Array.from(linkedEntitiesMap.values());
+
+    // 10. Await titling (only happens on first message) and fetch updated conversation
     await autoTitleConversation(supabaseUser, conversation_id, text);
     const { data: conversation } = await supabaseUser.from('conversations').select('*').eq('id', conversation_id).single();
 
@@ -681,7 +792,8 @@ router.post('/respond', async (req, res) => {
       user_message: userMessage,
       assistant_message: assistantMessage,
       run: updatedRun ?? run,
-      conversation: conversation
+      conversation: conversation,
+      linked_entities: linkedEntities,
     });
 
   } catch (err: any) {

@@ -3,13 +3,16 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
+import '../models/linked_entity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/conversation_provider.dart';
 import '../widgets/skeleton_loader.dart';
+import 'app_shell.dart' show appNavBarHidden;
 
 class ChatScreen extends StatefulWidget {
   final String? initialMessage;
@@ -40,8 +43,19 @@ class _ChatScreenState extends State<ChatScreen>
   @override
   void initState() {
     super.initState();
+    appNavBarHidden.value = true;
     _messageController.addListener(_onTextChanged);
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initConversation());
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    // With reverse:true, scrolling toward older messages means approaching maxScrollExtent
+    final nearTop = _scrollController.position.extentAfter < 300;
+    if (nearTop) {
+      context.read<ChatProvider>().loadMore();
+    }
   }
 
   void _onTextChanged() {
@@ -103,6 +117,7 @@ class _ChatScreenState extends State<ChatScreen>
 
   @override
   void dispose() {
+    appNavBarHidden.value = false;
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
     _scrollController.dispose();
@@ -113,7 +128,7 @@ class _ChatScreenState extends State<ChatScreen>
   void _jumpToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      _scrollController.jumpTo(0);
     });
   }
 
@@ -121,7 +136,7 @@ class _ChatScreenState extends State<ChatScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
+        0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
       );
@@ -276,17 +291,7 @@ class _ChatScreenState extends State<ChatScreen>
                     Consumer<ChatProvider>(
                       builder: (context, chat, child) => AnimatedSwitcher(
                         duration: const Duration(milliseconds: 200),
-                        child: chat.isTyping
-                            ? Text(
-                                'typing…',
-                                key: const ValueKey('typing'),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: _c.accent,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              )
-                            : Text(
+                        child: Text(
                                 'AI Assistant',
                                 key: const ValueKey('idle'),
                                 style: TextStyle(
@@ -336,12 +341,12 @@ class _ChatScreenState extends State<ChatScreen>
         // Scroll after every rebuild
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_scrollController.hasClients) {
-            final max = _scrollController.position.maxScrollExtent;
             final current = _scrollController.offset;
-            // Auto-scroll only if user is near bottom (within 200px)
-            if (max - current < 200) {
+            // Auto-scroll only if user is near bottom (within 200px); with
+            // reverse:true "bottom" is offset 0.
+            if (current < 200) {
               _scrollController.animateTo(
-                max,
+                0,
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOut,
               );
@@ -349,20 +354,43 @@ class _ChatScreenState extends State<ChatScreen>
           }
         });
 
+        // itemCount: typing indicator + messages + optional load-more spinner
         final itemCount =
-            chat.messages.length + (chat.isTyping ? 1 : 0);
+            (chat.isTyping ? 1 : 0) +
+            chat.messages.length +
+            (chat.hasMore ? 1 : 0);
 
         return ListView.builder(
           controller: _scrollController,
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
+          reverse: true,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
           itemCount: itemCount,
           itemBuilder: (context, index) {
-            if (index == chat.messages.length) {
+            // index 0 = newest (bottom), last index = oldest (top)
+            if (chat.isTyping && index == 0) {
               return _buildTypingIndicator();
             }
+            final msgOffset = chat.isTyping ? 1 : 0;
+            final msgIndex = index - msgOffset;
+            // Last slot: load-more spinner
+            if (msgIndex == chat.messages.length) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _c.accent,
+                    ),
+                  ),
+                ),
+              );
+            }
+            final msg = chat.messages[chat.messages.length - 1 - msgIndex];
             return Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: _buildMessageBubble(chat.messages[index]),
+              child: _buildMessageBubble(msg),
             );
           },
         );
@@ -436,42 +464,7 @@ class _ChatScreenState extends State<ChatScreen>
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 36),
-            // Suggestion chips
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                _buildSuggestion('📋  Summarise contacts'),
-                _buildSuggestion('📅  Upcoming events'),
-                _buildSuggestion('✉️  Draft follow-up email'),
-                _buildSuggestion('📊  Recent activity'),
-              ],
-            ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSuggestion(String label) {
-    return GestureDetector(
-      onTap: _isSending ? null : () => _sendMessage(label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: _c.surfaceAlt,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: _c.border),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: _c.textSecondary,
-            fontWeight: FontWeight.w500,
-          ),
         ),
       ),
     );
@@ -676,8 +669,30 @@ class _ChatScreenState extends State<ChatScreen>
                 ],
               ),
             ),
+            if (!isUser && message.linkedEntities.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildLinkedEntityCards(message.linkedEntities),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLinkedEntityCards(List<LinkedEntity> entities) {
+    if (entities.length == 1) {
+      return _LinkedEntityCard(entity: entities[0], colors: _c);
+    }
+    return SizedBox(
+      height: 72,
+      width: double.infinity,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        itemCount: entities.length,
+        separatorBuilder: (context, i) => const SizedBox(width: 8),
+        itemBuilder: (context, index) =>
+            _LinkedEntityCard(entity: entities[index], colors: _c),
       ),
     );
   }
@@ -874,16 +889,16 @@ class _ChatScreenState extends State<ChatScreen>
                   children: [
                     const SizedBox(width: 16),
                     Expanded(
-                      child: TextField(
+                      child: CallbackShortcuts(
+                        bindings: {
+                          const SingleActivator(LogicalKeyboardKey.enter): _sendMessage,
+                        },
+                        child: TextField(
                         controller: _messageController,
                         focusNode: _inputFocusNode,
                         maxLines: null,
                         keyboardType: TextInputType.multiline,
                         textInputAction: TextInputAction.newline,
-                        onSubmitted: (_) {
-                          if (HardwareKeyboard.instance.isShiftPressed) return;
-                          _sendMessage();
-                        },
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
@@ -903,6 +918,7 @@ class _ChatScreenState extends State<ChatScreen>
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 13),
                         ),
+                      ),
                       ),
                     ),
                     Padding(
@@ -957,6 +973,132 @@ class _ChatScreenState extends State<ChatScreen>
 }
 
 // ── Animated typing dot ───────────────────────────────────────────────────
+
+class _LinkedEntityCard extends StatelessWidget {
+  final LinkedEntity entity;
+  final ExonoColors colors;
+
+  const _LinkedEntityCard({required this.entity, required this.colors});
+
+  IconData get _icon {
+    switch (entity.type) {
+      case 'contact':
+        return Icons.person_rounded;
+      case 'event':
+        return Icons.event_rounded;
+      case 'reminder':
+        return Icons.alarm_rounded;
+      case 'email_draft':
+        return Icons.mail_outline_rounded;
+      default:
+        return Icons.link_rounded;
+    }
+  }
+
+  String get _typeLabel {
+    switch (entity.type) {
+      case 'contact': return 'Contact';
+      case 'event': return 'Event';
+      case 'reminder': return 'Reminder';
+      case 'email_draft': return 'Draft';
+      default: return 'Item';
+    }
+  }
+
+  bool get _tappable => entity.type == 'contact' || entity.type == 'event';
+
+  void _onTap(BuildContext context) {
+    switch (entity.type) {
+      case 'contact':
+        context.push('/contacts/${entity.id}');
+        break;
+      case 'event':
+        context.push('/events/${entity.id}');
+        break;
+      default:
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _tappable ? () => _onTap(context) : null,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 180, maxWidth: 260),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [colors.surface, colors.surfaceAlt],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.accent.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: colors.accentSoft,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(_icon, size: 16, color: colors.accent),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _typeLabel.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                      color: colors.accent,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    entity.displayName,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (entity.subtitle != null) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      entity.subtitle!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colors.textMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_tappable) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right_rounded, size: 16, color: colors.textMuted),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _TypingDot extends StatefulWidget {
   final int delay;

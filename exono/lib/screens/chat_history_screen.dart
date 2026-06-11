@@ -4,6 +4,9 @@ import '../config/app_theme.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/app_card.dart';
+import '../widgets/app_header.dart';
+import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import 'chat_screen.dart';
 
@@ -15,6 +18,8 @@ class ChatHistoryScreen extends StatefulWidget {
 }
 
 class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
+  ExonoColors get _c => AppTheme.colorsOf(context);
+
   @override
   void initState() {
     super.initState();
@@ -27,245 +32,163 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     final auth = context.read<AuthProvider>();
     final chatProvider = context.read<ChatProvider>();
     context.read<ConversationProvider>().setActive(convo);
-
     await chatProvider.loadConversation(convo.id, accessToken: auth.accessToken);
-
     if (mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => const ChatScreen(),
-        ),
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(builder: (context) => const ChatScreen()),
       );
     }
   }
 
   void _startNewChat() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const ChatScreen(isNewChat: true),
-      ),
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(builder: (context) => const ChatScreen(isNewChat: true)),
     );
   }
 
   Future<void> _deleteConversation(ConversationModel convo) async {
-    final colors = AppTheme.colorsOf(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+        backgroundColor: _c.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Delete chat?',
-            style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700)),
+            style: TextStyle(color: _c.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
         content: Text(
           'This will permanently remove this conversation.',
-          style: TextStyle(color: colors.textSecondary, fontSize: 14),
+          style: TextStyle(color: _c.textSecondary, fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child:
-                Text('Cancel', style: TextStyle(color: colors.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: _c.textMuted)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text('Delete',
-                style: TextStyle(
-                    color: colors.destructive,
-                    fontWeight: FontWeight.w700)),
+                style: TextStyle(color: _c.destructive, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
     );
     if (confirmed == true && mounted) {
-      await context
-          .read<ConversationProvider>()
-          .deleteConversation(convo.id);
+      await context.read<ConversationProvider>().deleteConversation(convo.id);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppTheme.colorsOf(context);
     final convProvider = context.watch<ConversationProvider>();
     final conversations = convProvider.conversations;
 
     return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.background,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: colors.accent, size: 20),
-        ),
-        title: Text(
-          'Assistant History',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.5,
-          ),
-        ),
-        actions: [
-          IconButton(
-            onPressed: () => convProvider.loadConversations(),
-            icon: Icon(Icons.refresh_rounded, color: colors.accent),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildNewChatButton(colors),
-          Expanded(
-            child: convProvider.isLoading && conversations.isEmpty
-                ? _buildHistorySkeleton(colors)
-                : conversations.isEmpty
-                    ? _buildEmptyState(colors)
-                    : _buildHistoryList(conversations, colors),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNewChatButton(ExonoColors colors) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: InkWell(
-        onTap: _startNewChat,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-          decoration: BoxDecoration(
-            color: colors.textPrimary,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: colors.textPrimary.withValues(alpha: 0.2),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_rounded, color: colors.background, size: 20),
-              const SizedBox(width: 10),
-              Text(
-                'Start New Session',
-                style: TextStyle(
-                  color: colors.background,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(ExonoColors colors) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.forum_outlined, size: 64, color: colors.textMuted.withValues(alpha: 0.2)),
-          const SizedBox(height: 16),
-          Text(
-            'No chat history yet',
-            style: TextStyle(
-              color: colors.textMuted,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+      backgroundColor: _c.background,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            AppHeader(
+              actionIcon: Icons.refresh_rounded,
+              actionTooltip: 'Refresh',
+              onActionPressed: () => convProvider.loadConversations(),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Start a new chat to see it here.',
-            style: TextStyle(
-              color: colors.textMuted.withValues(alpha: 0.6),
-              fontSize: 14,
+            Expanded(
+              child: convProvider.isLoading && conversations.isEmpty
+                  ? _skeleton()
+                  : conversations.isEmpty
+                      ? _emptyState()
+                      : _list(conversations),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildHistoryList(List<ConversationModel> conversations, ExonoColors colors) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-      itemCount: conversations.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final convo = conversations[index];
-        return _buildHistoryItem(convo, colors);
-      },
+  Widget _list(List<ConversationModel> conversations) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        _newChatButton(),
+        const SizedBox(height: 24),
+        const AppSectionLabel('Recent Chats'),
+        const SizedBox(height: 10),
+        ...conversations.map((convo) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _chatItem(convo),
+        )),
+      ],
     );
   }
 
-  Widget _buildHistoryItem(ConversationModel convo, ExonoColors colors) {
-    IconData icon;
-    Color iconColor;
-    switch (convo.kind) {
-      case 'contact':
-        icon = Icons.person_rounded;
-        iconColor = Colors.blue;
-        break;
-      case 'event':
-        icon = Icons.event_rounded;
-        iconColor = Colors.orange;
-        break;
-      default:
-        icon = Icons.smart_toy_rounded;
-        iconColor = colors.accent;
-    }
+  Widget _newChatButton() {
+    return GestureDetector(
+      onTap: _startNewChat,
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [_c.accent, _c.accentStrong],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'NEW CHAT',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chatItem(ConversationModel convo) {
+    final (icon, iconBg) = _iconForKind(convo.kind);
 
     return Dismissible(
       key: ValueKey(convo.id),
       direction: DismissDirection.endToStart,
       confirmDismiss: (_) async {
         await _deleteConversation(convo);
-        // Return false — _deleteConversation handles removal via provider
         return false;
       },
-      background: Container(
-        alignment: Alignment.centerRight,
+      background: AppCard(
         padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: colors.destructive.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(16),
+        radius: 16,
+        borderColor: _c.destructive.withValues(alpha: 0.3),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Icon(Icons.delete_outline_rounded, color: _c.destructive, size: 20),
         ),
-        child: Icon(Icons.delete_outline_rounded,
-            color: colors.destructive, size: 22),
       ),
-      child: InkWell(
-        onTap: () => _openChat(convo),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.border.withValues(alpha: 0.5)),
-          ),
+      child: AppCard(
+        padding: const EdgeInsets.all(16),
+        radius: 16,
+        child: InkWell(
+          onTap: () => _openChat(convo),
+          borderRadius: BorderRadius.circular(16),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.1),
+                  color: iconBg,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: iconColor, size: 22),
+                child: Icon(icon, color: _c.accent, size: 20),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -275,31 +198,34 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                     Text(
                       convo.displayTitle(),
                       style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: 15,
+                        color: _c.textPrimary,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       _formatDate(convo.updatedAt),
                       style: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: 12,
+                        color: _c.textMuted,
+                        fontSize: 11,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.delete_outline_rounded,
-                    color: colors.destructive.withValues(alpha: 0.6), size: 20),
-                onPressed: () => _deleteConversation(convo),
-                visualDensity: VisualDensity.compact,
-                tooltip: 'Delete',
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _deleteConversation(convo),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.delete_outline_rounded,
+                      color: _c.destructive.withValues(alpha: 0.5), size: 18),
+                ),
               ),
             ],
           ),
@@ -308,10 +234,112 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     );
   }
 
+  (IconData, Color) _iconForKind(String kind) {
+    switch (kind) {
+      case 'contact':
+        return (Icons.person_outline_rounded, _c.accentSoft);
+      case 'event':
+        return (Icons.calendar_today_outlined, _c.accentSoft);
+      default:
+        return (Icons.auto_awesome_outlined, _c.accentSoft);
+    }
+  }
+
+  Widget _emptyState() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _newChatButton(),
+          const Spacer(),
+          Center(
+            child: Column(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: _c.accentSoft,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(Icons.auto_awesome_outlined, color: _c.accent, size: 28),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No chats yet',
+                  style: TextStyle(
+                    color: _c.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Start a new chat to ask about contacts,\nevents, or anything in your CRM.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _c.textMuted,
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+        ],
+      ),
+    );
+  }
+
+  Widget _skeleton() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        SkeletonLoader(width: double.infinity, height: 52, borderRadius: BorderRadius.circular(999)),
+        const SizedBox(height: 24),
+        SkeletonLoader(width: 100, height: 11, borderRadius: BorderRadius.circular(3)),
+        const SizedBox(height: 10),
+        for (int i = 0; i < 6; i++) ...[
+          _skeletonItem(),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+
+  Widget _skeletonItem() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _c.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _c.border),
+      ),
+      child: Row(
+        children: [
+          SkeletonLoader(width: 42, height: 42, borderRadius: BorderRadius.circular(12)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                const SizedBox(height: 8),
+                SkeletonLoader(width: 80, height: 11, borderRadius: BorderRadius.circular(3)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatDate(DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
-
     if (diff.inDays == 0) {
       return 'Today, ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
     } else if (diff.inDays == 1) {
@@ -321,57 +349,5 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     } else {
       return '${dt.day}/${dt.month}/${dt.year}';
     }
-  }
-
-  Widget _buildHistorySkeleton(ExonoColors colors) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-      itemCount: 8,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.border.withValues(alpha: 0.5)),
-          ),
-          child: Row(
-            children: [
-              SkeletonLoader(
-                width: 44,
-                height: 44,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SkeletonLoader(
-                      width: double.infinity,
-                      height: 15,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    const SizedBox(height: 8),
-                    SkeletonLoader(
-                      width: 100,
-                      height: 12,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              SkeletonLoader(
-                width: 20,
-                height: 20,
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 }

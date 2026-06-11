@@ -70,6 +70,7 @@ _SA_TYPE_MAP = {
     "UUID": DataType.TEXT,
     "JSON": DataType.TEXT,
     "JSONB": DataType.TEXT,
+    "ARRAY": DataType.TEXT,
     # Boolean
     "BOOLEAN": DataType.BOOLEAN,
     "BOOL": DataType.BOOLEAN,

@@ -81,6 +81,19 @@ class ApiService {
     }
   }
 
+  static Future<Event> getEvent(String eventId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return Event.fromJson(data['data']);
+    } else {
+      throw Exception('Failed to load event');
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getContactTimeline(String contactId) async {
     final response = await http.get(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId/timeline'),
@@ -147,6 +160,29 @@ class ApiService {
       return json.decode(response.body);
     } else {
       throw Exception('Failed to load dashboard summary');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAllFollowUps() async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/follow-ups'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    }
+    throw Exception('Failed to load follow-ups');
+  }
+
+  static Future<Map<String, dynamic>> getDashboardPriorities() async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/dashboard/priorities'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load dashboard priorities');
     }
   }
 
@@ -734,6 +770,18 @@ class ApiService {
       return Event.fromJson(data['data']);
     }
     throw Exception('No ongoing event found');
+  }
+
+  static Future<Event> getNextUpcomingEvent() async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/upcoming/next'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return Event.fromJson(data['data']);
+    }
+    throw Exception('No upcoming event found');
   }
 
   static Future<Map<String, dynamic>> createEventGoal(

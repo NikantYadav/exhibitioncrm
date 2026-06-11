@@ -361,8 +361,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     const statuses = [
       ('not_contacted', 'Not Contacted'),
       ('contacted', 'Contacted'),
-      ('urgent', 'Urgent'),
-      ('converted', 'Converted'),
     ];
 
     showModalBottomSheet(
@@ -394,8 +392,77 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
+  Future<bool> _confirmDelete(ContactProfileData contact) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final c = AppTheme.colorsOf(ctx);
+        return AlertDialog(
+          backgroundColor: c.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Delete contact?',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary)),
+          content: Text(
+            'This will permanently remove ${contact.listName} and cannot be undone.',
+            style: TextStyle(fontSize: 13, color: c.textMuted, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('CANCEL',
+                  style: TextStyle(fontSize: 11, color: c.textMuted, letterSpacing: 1.4)),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: c.destructive,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text('DELETE',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _deleteContact(ContactProfileData contact) async {
+    try {
+      await ApiService.deleteContact(contact.id);
+      if (!mounted) return;
+      setState(() => _allContacts.removeWhere((c) => c.id == contact.id));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete contact'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Widget _buildContactRow(ContactProfileData contact) {
-    return Padding(
+    return Dismissible(
+      key: ValueKey(contact.id),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDelete(contact),
+      onDismissed: (_) => _deleteContact(contact),
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: _c.destructive,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 22),
+      ),
+      child: Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: InkWell(
         onTap: () => context.push('/contacts/${contact.id}'),
@@ -470,6 +537,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 

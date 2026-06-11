@@ -123,14 +123,33 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
         if (type == 'meeting') title = 'Meeting: ${item['subject'] ?? 'Strategy Session'}';
         else if (type == 'interaction' && item['interaction_type'] == 'capture') title = 'Scanner Capture';
         else if (type == 'interaction' && mode != null && mode.isNotEmpty) title = mode;
-        else if (type == 'interaction' && item['interaction_type'] == 'voice_note') title = '🎙 Voice Note';
+        else if (type == 'interaction' && item['interaction_type'] == 'voice_note') title = 'Voice Note';
         final captureNote = details?['note'] as String?;
-        final description = item['summary'] ?? item['content'] ?? 'No additional details.';
+        final eventName = (item['event'] as Map<String, dynamic>?)?['name'] as String?;
+        final isMeeting = type == 'interaction' && item['interaction_type'] == 'meeting';
+        final rawSummary = (item['summary'] as String? ?? '').trim();
+
+        // For meeting interactions: summary = user notes (shown as bubble),
+        // event name = description line. For everything else: keep existing layout.
+        final String description;
+        final String? note;
+        if (isMeeting) {
+          description = eventName ?? '';
+          final summaryText = rawSummary.isNotEmpty && rawSummary != 'Met at event' ? rawSummary : null;
+          note = summaryText;
+        } else {
+          final rawDescription = item['summary'] ?? item['content'] ?? 'No additional details.';
+          description = (eventName != null && eventName.isNotEmpty)
+              ? '$rawDescription\n$eventName'
+              : rawDescription as String;
+          note = (captureNote != null && captureNote.isNotEmpty) ? captureNote : null;
+        }
+
         return ContactTimelineItem(
           dateLabel: '${_formatDate(date)} • ${_formatTime(date)}',
           title: title,
           description: description,
-          note: (captureNote != null && captureNote.isNotEmpty) ? captureNote : null,
+          note: note,
           isCurrent: false,
         );
       }).toList();
@@ -1134,23 +1153,15 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
           if (contact.timelineItems.isEmpty)
             Text('No interactions logged yet.', style: TextStyle(fontSize: 13, color: _c.textMuted))
           else
-            Stack(
-              children: [
-                Positioned(
-                  left: 10,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 1,
-                    color: _c.border.withValues(alpha: 0.4),
-                  ),
-                ),
-                Column(
-                  children: contact.timelineItems
-                      .map((item) => _buildTimelineItem(item))
-                      .toList(),
-                ),
-              ],
+            SizedBox(
+              height: contact.timelineItems.length > 3
+                  ? MediaQuery.of(context).size.height * 0.55
+                  : null,
+              child: _ScrollableTimeline(
+                items: contact.timelineItems,
+                itemBuilder: _buildTimelineItem,
+                borderColor: _c.border,
+              ),
             ),
         ],
       ),
@@ -1789,6 +1800,144 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─── Scrollable Timeline ──────────────────────────────────────────────────────
+
+class _ScrollableTimeline extends StatefulWidget {
+  final List<ContactTimelineItem> items;
+  final Widget Function(ContactTimelineItem) itemBuilder;
+  final Color borderColor;
+
+  const _ScrollableTimeline({
+    required this.items,
+    required this.itemBuilder,
+    required this.borderColor,
+  });
+
+  @override
+  State<_ScrollableTimeline> createState() => _ScrollableTimelineState();
+}
+
+class _ScrollableTimelineState extends State<_ScrollableTimeline>
+    with SingleTickerProviderStateMixin {
+  final ScrollController _scrollCtrl = ScrollController();
+  late final AnimationController _bounceCtrl;
+  bool _showIndicator = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _bounceCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+
+    _scrollCtrl.addListener(() {
+      final atBottom = _scrollCtrl.position.pixels >=
+          _scrollCtrl.position.maxScrollExtent - 4;
+      if (atBottom && _showIndicator) {
+        setState(() => _showIndicator = false);
+      }
+    });
+
+    // Check after layout whether content overflows
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scrollCtrl.hasClients &&
+          _scrollCtrl.position.maxScrollExtent > 0) {
+        setState(() => _showIndicator = true);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(_ScrollableTimeline old) {
+    super.didUpdateWidget(old);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scrollCtrl.hasClients &&
+          _scrollCtrl.position.maxScrollExtent > 0) {
+        setState(() => _showIndicator = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _bounceCtrl.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppTheme.colorsOf(context);
+    return Stack(
+      children: [
+        SingleChildScrollView(
+            controller: _scrollCtrl,
+            physics: const ClampingScrollPhysics(),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 10,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 1,
+                    color: widget.borderColor.withValues(alpha: 0.4),
+                  ),
+                ),
+                Column(
+                  children: widget.items
+                      .map((item) => widget.itemBuilder(item))
+                      .toList(),
+                ),
+              ],
+            ),
+          ),
+        // Scroll-down indicator
+        if (_showIndicator)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      c.surface.withValues(alpha: 0),
+                      c.surface.withValues(alpha: 0.95),
+                    ],
+                  ),
+                ),
+                alignment: Alignment.bottomCenter,
+                padding: const EdgeInsets.only(bottom: 6),
+                child: AnimatedBuilder(
+                  animation: _bounceCtrl,
+                  builder: (context, _) {
+                    final offset = 3.0 * _bounceCtrl.value;
+                    return Transform.translate(
+                      offset: Offset(0, offset),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 20,
+                        color: c.accent,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -114,6 +114,8 @@ export async function slayerQuery(
   const safeQuery = applyOwnership(query, userId);
 
   // 3. Forward to Slayer
+  console.log(`[slayer] query: ${JSON.stringify(safeQuery)}`);
+
   const res = await fetch(`${SLAYER_URL}/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -123,10 +125,13 @@ export async function slayerQuery(
 
   if (!res.ok) {
     const body = await res.text();
+    console.error(`[slayer] error (${res.status}): ${body}`);
     throw new Error(`Slayer query failed (${res.status}): ${body}`);
   }
 
-  return res.json() as Promise<SlayerResponse>;
+  const result = await res.json() as SlayerResponse;
+  console.log(`[slayer] result: ${result.row_count} rows, columns: ${result.columns.join(', ')}`);
+  return result;
 }
 
 export async function slayerHealthy(): Promise<boolean> {

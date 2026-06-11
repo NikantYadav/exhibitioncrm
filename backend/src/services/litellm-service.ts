@@ -21,14 +21,14 @@ export interface ToolCall {
 }
 
 export type ToolCallingResult =
-    | { type: 'tool_calls'; calls: ToolCall[] }
+    | { type: 'tool_calls'; calls: ToolCall[]; _geminiParts?: any[] }
     | { type: 'text'; content: string };
 
 /** One turn in a multi-turn tool-calling conversation. */
 export type ConversationTurn =
     | { role: 'user'; content: string }
     | { role: 'assistant'; content: string }
-    | { role: 'tool_calls'; calls: ToolCall[] }
+    | { role: 'tool_calls'; calls: ToolCall[]; _geminiParts?: any[] }
     | { role: 'tool_results'; results: Array<{ id: string; name: string; result: unknown }> };
 
 export interface LiteLLMConfig {
@@ -269,13 +269,12 @@ export class LiteLLMService {
             } else if (turn.role === 'assistant') {
                 contents.push({ role: 'model', parts: [{ text: turn.content }] });
             } else if (turn.role === 'tool_calls') {
-                // Model requested tool calls — add as model turn
-                contents.push({
-                    role: 'model',
-                    parts: turn.calls.map((c) => ({
-                        functionCall: { name: c.name, args: c.args },
-                    })),
-                });
+                // Replay raw Gemini parts (including thought_signature) if available,
+                // otherwise fall back to reconstructed functionCall parts.
+                const parts = turn._geminiParts ?? turn.calls.map((c) => ({
+                    functionCall: { name: c.name, args: c.args },
+                }));
+                contents.push({ role: 'model', parts });
             } else if (turn.role === 'tool_results') {
                 // Tool results — add as user turn with functionResponse parts
                 contents.push({
@@ -296,6 +295,9 @@ export class LiteLLMService {
         // Check for function calls in the response
         const calls = response.functionCalls();
         if (calls && calls.length > 0) {
+            // Preserve the raw response parts (which include thought_signature)
+            // so they can be replayed verbatim in subsequent turns.
+            const rawParts = response.candidates?.[0]?.content?.parts ?? [];
             return {
                 type: 'tool_calls',
                 calls: calls.map((c, i) => ({
@@ -303,6 +305,7 @@ export class LiteLLMService {
                     name: c.name,
                     args: (c.args ?? {}) as Record<string, unknown>,
                 })),
+                _geminiParts: rawParts,
             };
         }
 

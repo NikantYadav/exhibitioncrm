@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -21,6 +22,7 @@ import '../services/web_file_picker.dart' if (dart.library.io) '../services/web_
 import '../widgets/app_card.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_section_label.dart';
+import 'app_shell.dart';
 import 'manual_entry_screen.dart';
 import 'voice_contact_capture_screen.dart';
 
@@ -1416,18 +1418,27 @@ class _CaptureScreenState extends State<CaptureScreen>
       if (path != null) await _transcribe(path);
       return;
     }
-    final granted = await Permission.microphone.request();
-    if (!granted.isGranted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission required'), behavior: SnackBarBehavior.floating),
-        );
+    if (!kIsWeb) {
+      final granted = await Permission.microphone.request();
+      if (!granted.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Microphone permission required'), behavior: SnackBarBehavior.floating),
+          );
+        }
+        return;
       }
-      return;
     }
-    final dir = await getTemporaryDirectory();
-    _recPath = '${dir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    await _recorder.start(const RecordConfig(), path: _recPath!);
+    if (kIsWeb) {
+      _recPath = 'rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    } else {
+      final dir = await getTemporaryDirectory();
+      _recPath = '${dir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    }
+    final config = kIsWeb
+        ? const RecordConfig(encoder: AudioEncoder.opus)
+        : const RecordConfig();
+    await _recorder.start(config, path: _recPath!);
     setState(() { _isRecording = true; _recDuration = Duration.zero; });
     _recTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -1437,7 +1448,13 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   Future<void> _transcribe(String path) async {
     try {
-      final bytes = await File(path).readAsBytes();
+      final Uint8List bytes;
+      if (kIsWeb) {
+        final response = await http.get(Uri.parse(path));
+        bytes = response.bodyBytes;
+      } else {
+        bytes = await File(path).readAsBytes();
+      }
       final b64 = base64Encode(bytes);
       final transcript = await ApiService.transcribeAudio(b64);
       if (!mounted) return;
@@ -1506,6 +1523,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         _showDedup = false;
         _lastCapture = captureName;
       });
+      captureReturnSignal.value++;
       await Future<void>.delayed(const Duration(milliseconds: 1800));
       if (!mounted) return;
       setState(() { _saved = false; _stage = _Stage.scan; });
@@ -1516,8 +1534,140 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Future<void> _resolveDuplicateAndSave({required bool merge}) async {
+    if (!merge) {
+      await _promptRenameAndSave();
+      return;
+    }
+    setState(() { _showDedup = false; _isSaving = true; });
+    await _doMerge();
+  }
+
+  Future<void> _doMerge() async {
+    try {
+      final existingId = _dupes.first['id'] as String?;
+      if (existingId == null) {
+        await _doSave();
+        return;
+      }
+
+      final rawNotes = [_notesCtrl.text, _voiceCtrl.text]
+          .where((s) => s.isNotEmpty)
+          .join('\n')
+          .trim();
+      final summary = rawNotes.isNotEmpty ? rawNotes : 'Met at event';
+
+      await ApiService.logInteraction(
+        contactId: existingId,
+        eventId: _eventId,
+        type: 'meeting',
+        summary: summary,
+        interactionDate: DateTime.now().toIso8601String(),
+      );
+
+      // Explicitly link the contact to the event so it shows in Events tab
+      if (_eventId != null) {
+        try {
+          await ApiService.linkContactToEvent(existingId, _eventId!);
+        } catch (_) {}
+      }
+
+      if (!mounted) return;
+      final captureName = '${_fnCtrl.text.trim()} (${_coCtrl.text.trim()})'.trim();
+      setState(() {
+        _saved = true;
+        _isSaving = false;
+        _showDedup = false;
+        _lastCapture = captureName;
+      });
+      captureReturnSignal.value++;
+      await Future<void>.delayed(const Duration(milliseconds: 1800));
+      if (!mounted) return;
+      setState(() { _saved = false; _stage = _Stage.scan; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _isSaving = false; _saved = false; });
+    }
+  }
+
+  Future<void> _promptRenameAndSave() async {
+    final fnTemp = TextEditingController(text: _fnCtrl.text);
+    final lnTemp = TextEditingController(text: _lnCtrl.text);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final c = AppTheme.colorsOf(ctx);
+        return AlertDialog(
+          backgroundColor: c.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'Rename new contact',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Update the name to distinguish this contact from the existing one.',
+                style: TextStyle(fontSize: 13, color: c.textMuted, height: 1.5),
+              ),
+              const SizedBox(height: 16),
+              _dialogField(fnTemp, 'First name', c),
+              const SizedBox(height: 10),
+              _dialogField(lnTemp, 'Last name', c),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('CANCEL', style: TextStyle(fontSize: 11, color: c.textMuted, letterSpacing: 1.4)),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: c.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text('SAVE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    _fnCtrl.text = fnTemp.text.trim();
+    _lnCtrl.text = lnTemp.text.trim();
+    fnTemp.dispose();
+    lnTemp.dispose();
+
     setState(() { _showDedup = false; _isSaving = true; });
     await _doSave();
+  }
+
+  Widget _dialogField(TextEditingController ctrl, String hint, ExonoColors c) {
+    return TextField(
+      controller: ctrl,
+      autofocus: hint == 'First name',
+      style: TextStyle(fontSize: 14, color: c.textPrimary),
+      cursorColor: c.accent,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: c.textMuted),
+        filled: true,
+        fillColor: c.surfaceElevated,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
+    );
   }
 
   void _applyExtracted(Map<String, dynamic> d) {

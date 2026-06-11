@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/live_event_provider.dart';
 import '../widgets/app_bottom_nav.dart';
+import '../widgets/live_bar.dart';
 
 // Maps route path → AppBottomNav index
 int tabIndexForPath(String location) {
@@ -13,6 +15,8 @@ int tabIndexForPath(String location) {
   if (location.startsWith('/follow-ups')) return 4;
   if (location.startsWith('/profile'))   return 5;
   if (location.startsWith('/meetings'))  return 6;
+  if (location.startsWith('/chat-history')) return 7;
+  if (location.startsWith('/chat'))        return 7;
   return 0; // '/'
 }
 
@@ -23,10 +27,13 @@ const _tabPaths = {
   4: '/follow-ups',
   5: '/profile',
   6: '/meetings',
+  7: '/chat-history',
 };
 
 // Only these paths show the mobile bottom nav bar
-const _navBarPaths = {'/', '/events', '/contacts', '/profile'};
+const _navBarPaths = {'/', '/events', '/contacts', '/profile', '/chat-history', '/chat'};
+// Paths where bottom nav + live bar should be hidden
+bool _isNoNavPath(String location) => location == '/chat' || location.startsWith('/chat?') || location.startsWith('/chat/');
 
 /// Lets a descendant screen (e.g. an in-page detail view that lives on an
 /// allowed route) temporarily hide the shell's bottom nav bar.
@@ -71,12 +78,25 @@ class _AppShellState extends State<AppShell> {
         decoration: AppTheme.appBackground(context),
         child: isMobile ? _mobile() : _desktop(),
       ),
-      bottomNavigationBar: isMobile && _navBarPaths.contains(widget.location)
+      bottomNavigationBar: isMobile
+          && _navBarPaths.any((p) => widget.location == p || widget.location.startsWith('$p?'))
+          && !_isNoNavPath(widget.location)
           ? ValueListenableBuilder<bool>(
               valueListenable: appNavBarHidden,
-              builder: (_, hidden, __) => hidden
-                  ? const SizedBox.shrink()
-                  : AppBottomNav(selectedIndex: _tabIndex, onNavigate: _onNav),
+              builder: (_, hidden, __) {
+                if (hidden) return const SizedBox.shrink();
+                final isHome = widget.location == '/' || widget.location.startsWith('/?');
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isHome)
+                      LiveBar(
+                        onTap: () => context.go('/live-event'),
+                      ),
+                    AppBottomNav(selectedIndex: _tabIndex, onNavigate: _onNav),
+                  ],
+                );
+              },
             )
           : null,
     );
@@ -194,11 +214,11 @@ class _AppShellState extends State<AppShell> {
   Widget _navList() {
     final items = [
       _NavEntry(0, Icons.home_outlined, 'Home', '/'),
-      _NavEntry(1, Icons.calendar_today_outlined, 'Events', '/events'),
+      _NavEntry(7, Icons.auto_awesome_outlined, 'AI Chat', '/chat-history'),
       _NavEntry(2, Icons.qr_code_scanner_rounded, 'Capture', '/capture'),
       _NavEntry(3, Icons.group_outlined, 'Contacts', '/contacts'),
+      _NavEntry(1, Icons.calendar_today_outlined, 'Events', '/events'),
       _NavEntry(4, Icons.mail_outlined, 'Follow-Ups', '/follow-ups'),
-      _NavEntry(5, Icons.person_outline_rounded, 'Profile', '/profile'),
       _NavEntry(6, Icons.event_note_rounded, 'Meetings', '/meetings'),
     ];
     return ListView(

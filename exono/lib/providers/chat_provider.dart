@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/linked_entity.dart';
 import '../services/api_service.dart';
 
 class ChatMessage {
@@ -8,6 +9,7 @@ class ChatMessage {
   final bool isUser;
   final DateTime timestamp;
   final List<MessageLink> links;
+  final List<LinkedEntity> linkedEntities;
 
   ChatMessage({
     required this.id,
@@ -15,9 +17,11 @@ class ChatMessage {
     required this.isUser,
     required this.timestamp,
     this.links = const [],
+    this.linkedEntities = const [],
   });
 
-  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+  factory ChatMessage.fromJson(Map<String, dynamic> json,
+      {List<LinkedEntity> linkedEntities = const []}) {
     final rawLinks = json['links'] as List<dynamic>? ?? [];
     return ChatMessage(
       id: json['id'] as String,
@@ -30,6 +34,7 @@ class ChatMessage {
           .cast<Map<String, dynamic>>()
           .map(MessageLink.fromJson)
           .toList(),
+      linkedEntities: linkedEntities,
     );
   }
 }
@@ -231,17 +236,31 @@ class ChatProvider extends ChangeNotifier {
       _messages.removeWhere((m) => m.id == optimisticId);
       _messageIds.remove(optimisticId);
 
-      // Upsert real user + assistant messages from response
-      void upsert(Map<String, dynamic>? msg) {
+      // Parse linked_entities from response
+      final rawLinkedEntities = resp['linked_entities'] as List<dynamic>? ?? [];
+      final parsedLinkedEntities = rawLinkedEntities
+          .cast<Map<String, dynamic>>()
+          .map(LinkedEntity.fromJson)
+          .toList();
+
+      // Upsert messages — if already added by realtime, replace to attach linkedEntities.
+      void upsert(Map<String, dynamic>? msg, {List<LinkedEntity> linkedEntities = const []}) {
         if (msg == null) return;
         final id = msg['id'] as String?;
-        if (id == null || _messageIds.contains(id)) return;
-        _messageIds.add(id);
-        _messages.add(ChatMessage.fromJson(msg));
+        if (id == null) return;
+        final newMsg = ChatMessage.fromJson(msg, linkedEntities: linkedEntities);
+        final idx = _messages.indexWhere((m) => m.id == id);
+        if (idx != -1) {
+          _messages[idx] = newMsg;
+        } else {
+          _messageIds.add(id);
+          _messages.add(newMsg);
+        }
       }
 
       upsert(resp['user_message'] as Map<String, dynamic>?);
-      upsert(resp['assistant_message'] as Map<String, dynamic>?);
+      upsert(resp['assistant_message'] as Map<String, dynamic>?,
+          linkedEntities: parsedLinkedEntities);
 
       return resp['conversation'] as Map<String, dynamic>?;
     } catch (e) {

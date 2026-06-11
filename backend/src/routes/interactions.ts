@@ -9,7 +9,7 @@ router.use(requireAuth);
 // POST /api/interactions
 router.post('/', async (req, res, next) => {
   try {
-    const { contact_id, interaction_type, summary, interaction_date, details } = req.body;
+    const { contact_id, event_id, interaction_type, summary, interaction_date, details } = req.body;
 
     if (!contact_id) {
       return res.status(400).json({ error: 'contact_id is required' });
@@ -19,6 +19,7 @@ router.post('/', async (req, res, next) => {
       .from('interactions')
       .insert({
         contact_id,
+        ...(event_id ? { event_id } : {}),
         interaction_type: interaction_type || 'manual',
         summary: summary || '',
         interaction_date: interaction_date || new Date().toISOString(),

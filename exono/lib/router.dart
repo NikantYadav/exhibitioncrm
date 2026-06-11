@@ -5,14 +5,17 @@ import 'providers/auth_provider.dart';
 import 'screens/app_shell.dart';
 import 'screens/auth_screen.dart';
 import 'screens/capture_screen.dart';
+import 'screens/chat_history_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/company_detail_screen.dart';
 import 'screens/contact_detail_screen.dart';
 import 'screens/contacts_screen.dart';
+import 'screens/event_detail_route.dart';
 import 'screens/events_screen.dart';
 import 'screens/follow_ups_screen.dart';
 import 'screens/home_default_screen.dart';
 import 'screens/landing_screen.dart';
+import 'screens/live_home_screen.dart';
 import 'screens/meetings_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
@@ -39,12 +42,15 @@ GoRouter buildRouter(AuthProvider auth) {
       // ── Capture — full-screen modal, no nav shell ─────────────────────────
       GoRoute(path: '/capture', builder: (_, __) => const CaptureScreen()),
 
-      // ── Chat ──────────────────────────────────────────────────────────────
+      // ── Live event floor — full-screen (no nav shell) ──────────────────────
+      GoRoute(path: '/live-event', builder: (_, __) => const LiveHomeScreen()),
+
+      // ── Event detail — full-screen (no nav shell needed) ─────────────────
       GoRoute(
-        path: '/chat',
+        path: '/events/:id',
         builder: (_, state) {
-          final msg = state.uri.queryParameters['msg'];
-          return ChatScreen(initialMessage: msg, isNewChat: msg != null);
+          final eventId = state.pathParameters['id']!;
+          return EventDetailRoute(eventId: eventId);
         },
       ),
 
@@ -97,7 +103,20 @@ GoRouter buildRouter(AuthProvider auth) {
             path: '/meetings',
             builder: (_, __) => const MeetingsScreen(),
           ),
+          GoRoute(
+            path: '/chat-history',
+            builder: (_, __) => const ChatHistoryScreen(),
+          ),
         ],
+      ),
+
+      // ── Chat — full-screen (no nav shell / live bar) ─────────────────────
+      GoRoute(
+        path: '/chat',
+        builder: (_, state) {
+          final msg = state.uri.queryParameters['msg'];
+          return ChatScreen(initialMessage: msg, isNewChat: msg != null);
+        },
       ),
     ],
   );

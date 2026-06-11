@@ -81,6 +81,32 @@ router.get('/ongoing/current', async (req, res, next) => {
   }
 });
 
+// GET /api/events/upcoming/next
+// Returns the next upcoming event (soonest start_date in the future)
+router.get('/upcoming/next', async (req, res, next) => {
+  try {
+    const userId = req.user!.id;
+    const { data: events, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('user_id', userId)
+      .order('start_date', { ascending: true });
+
+    if (error) throw error;
+
+    const upcomingEvent = (events || []).find(event => getEventStatus(event) === 'upcoming');
+
+    if (!upcomingEvent) {
+      res.status(404).json({ error: 'No upcoming event found' });
+      return;
+    }
+
+    res.json({ data: { ...upcomingEvent, status: 'upcoming' } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const { data: event, error } = await supabase
@@ -103,6 +129,13 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
+    if (req.body.start_date) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (new Date(req.body.start_date) < today) {
+        return res.status(400).json({ error: 'Event start date cannot be in the past.' });
+      }
+    }
+
     const { data, error } = await supabase
       .from('events')
       .insert({
@@ -127,6 +160,13 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
+    if (req.body.start_date) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (new Date(req.body.start_date) < today) {
+        return res.status(400).json({ error: 'Event start date cannot be in the past.' });
+      }
+    }
+
     const { data, error } = await supabase
       .from('events')
       .update(req.body)
@@ -162,15 +202,69 @@ router.put('/:id', async (req, res, next) => {
 // GET /api/events/:id/captures
 router.get('/:id/captures', async (req, res, next) => {
   try {
-    const { data, error } = await supabase
-      .from('captures')
-      .select('*, contact:contacts(*)')
-      .eq('event_id', req.params.id)
-      .order('created_at', { ascending: false });
+    const eventId = req.params.id;
+
+    const [{ data: captures, error }, { data: contactEvents }, { data: interactions }] = await Promise.all([
+      supabase
+        .from('captures')
+        .select('*, contact:contacts(*)')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('contact_events')
+        .select('contact_id, created_at, contact:contacts(*)')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('interactions')
+        .select('contact_id, interaction_date, contact:contacts(*)')
+        .eq('event_id', eventId)
+        .not('contact_id', 'is', null)
+        .order('interaction_date', { ascending: false }),
+    ]);
 
     if (error) throw error;
 
-    res.json({ data: data || [] });
+    // Deduplicate across all three sources
+    const seenContactIds = new Set<string>();
+    const result: any[] = [];
+
+    for (const cap of captures || []) {
+      if (cap.contact?.id) seenContactIds.add(cap.contact.id);
+      result.push(cap);
+    }
+
+    for (const ce of contactEvents || []) {
+      if (!ce.contact?.id) continue;
+      if (seenContactIds.has(ce.contact.id)) continue;
+      seenContactIds.add(ce.contact.id);
+      result.push({
+        id: `ce-${ce.contact.id}`,
+        event_id: eventId,
+        contact_id: ce.contact.id,
+        contact: ce.contact,
+        capture_type: 'merged',
+        status: 'completed',
+        created_at: ce.created_at,
+      });
+    }
+
+    for (const interaction of interactions || []) {
+      if (!interaction.contact?.id) continue;
+      if (seenContactIds.has(interaction.contact.id)) continue;
+      seenContactIds.add(interaction.contact.id);
+      result.push({
+        id: `int-${interaction.contact.id}`,
+        event_id: eventId,
+        contact_id: interaction.contact.id,
+        contact: interaction.contact,
+        capture_type: 'merged',
+        status: 'completed',
+        created_at: interaction.interaction_date,
+      });
+    }
+
+    res.json({ data: result });
   } catch (error) {
     next(error);
   }

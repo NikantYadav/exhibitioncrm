@@ -8,6 +8,7 @@ import 'config/supabase_config.dart';
 import 'providers/auth_provider.dart';
 import 'providers/conversation_provider.dart';
 import 'providers/chat_provider.dart';
+import 'providers/live_event_provider.dart';
 import 'providers/theme_provider.dart';
 import 'router.dart';
 
@@ -39,6 +40,7 @@ class ExonoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => ConversationProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => LiveEventProvider()),
       ],
       child: _ExonoRouter(),
     );
@@ -56,9 +58,22 @@ class _ExonoRouterState extends State<_ExonoRouter> {
   @override
   void initState() {
     super.initState();
-    // Router is created once; auth is passed as a listenable — GoRouter
-    // calls its redirect whenever auth notifies, without recreating the router.
     _router = buildRouter(context.read<AuthProvider>());
+    // Start polling live event once auth is resolved
+    _initLiveEventOnAuth();
+  }
+
+  void _initLiveEventOnAuth() {
+    final auth = context.read<AuthProvider>();
+    // Re-init live event provider on every auth state change (login/logout cycles)
+    auth.addListener(() {
+      if (auth.isAuthenticated) {
+        context.read<LiveEventProvider>().init();
+      }
+    });
+    if (auth.isAuthenticated) {
+      context.read<LiveEventProvider>().init();
+    }
   }
 
   @override

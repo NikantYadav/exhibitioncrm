@@ -573,7 +573,10 @@ async def _execute_sql_async(
             except Exception:
                 pass
         result = await conn.execute(sa.text(sql))
-        columns = list(result.keys())
+        try:
+            columns = list(result.keys())
+        except Exception:
+            return []
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
 

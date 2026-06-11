@@ -144,7 +144,7 @@ router.post('/', requireAuth, async (req, res, next) => {
           company_id: companyId,
           notes: `${raw_text}\n\n[System Note: Captured at ${eventName}]`,
           follow_up_status: 'not_contacted',
-          follow_up_urgency: 'medium'
+          follow_up_urgency: null
         })
         .select()
         .single();

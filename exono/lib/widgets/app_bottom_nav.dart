@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 
 /// Single shared bottom nav bar used across all mobile screens.
-/// Matches the 5-item layout: Home | Contacts | [QR] | Events | Profile
+/// Layout: Home | AI Chat | [QR] | Contacts | Events
 class AppBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onNavigate;
@@ -48,11 +48,11 @@ class AppBottomNav extends StatelessWidget {
               ),
               Expanded(
                 child: _item(
-                  icon: Icons.group_outlined,
-                  label: 'Contacts',
-                  isActive: selectedIndex == 3,
+                  icon: Icons.auto_awesome_outlined,
+                  label: 'AI Chat',
+                  isActive: selectedIndex == 7,
                   showLabel: showLabels,
-                  onTap: () => onNavigate(3),
+                  onTap: () => onNavigate(7),
                   colors: colors,
                 ),
               ),
@@ -88,21 +88,21 @@ class AppBottomNav extends StatelessWidget {
               ),
               Expanded(
                 child: _item(
-                  icon: Icons.calendar_today_outlined,
-                  label: 'Events',
-                  isActive: selectedIndex == 1,
+                  icon: Icons.group_outlined,
+                  label: 'Contacts',
+                  isActive: selectedIndex == 3,
                   showLabel: showLabels,
-                  onTap: () => onNavigate(1),
+                  onTap: () => onNavigate(3),
                   colors: colors,
                 ),
               ),
               Expanded(
                 child: _item(
-                  icon: Icons.person_outline_rounded,
-                  label: 'Profile',
-                  isActive: selectedIndex == 5,
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Events',
+                  isActive: selectedIndex == 1,
                   showLabel: showLabels,
-                  onTap: () => onNavigate(5),
+                  onTap: () => onNavigate(1),
                   colors: colors,
                 ),
               ),
@@ -129,9 +129,9 @@ class AppBottomNav extends StatelessWidget {
           child: Row(
             children: [
               Expanded(child: _item(icon: Icons.home_outlined, label: 'Home', isActive: false, showLabel: true, onTap: () => onNavigate(0), colors: colors)),
+              Expanded(child: _item(icon: Icons.auto_awesome_outlined, label: 'AI Chat', isActive: false, showLabel: true, onTap: () => onNavigate(7), colors: colors)),
               Expanded(child: _item(icon: Icons.group_outlined, label: 'Contacts', isActive: false, showLabel: true, onTap: () => onNavigate(3), colors: colors)),
               Expanded(child: _item(icon: Icons.calendar_today_outlined, label: 'Events', isActive: false, showLabel: true, onTap: () => onNavigate(1), colors: colors)),
-              Expanded(child: _item(icon: Icons.person_outline_rounded, label: 'Profile', isActive: false, showLabel: true, onTap: () => onNavigate(5), colors: colors)),
             ],
           ),
         ),

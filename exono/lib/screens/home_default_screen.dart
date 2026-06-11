@@ -3,18 +3,15 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
-import '../providers/auth_provider.dart';
 import '../models/event.dart';
+import '../providers/auth_provider.dart';
+import '../providers/live_event_provider.dart';
 import '../services/api_service.dart';
-import 'app_shell.dart';
 import '../widgets/app_card.dart';
-import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
-import '../widgets/app_filter_row.dart';
-import 'live_target_person_screen.dart';
+import '../widgets/skeleton_loader.dart';
 import 'log_interaction_screen.dart';
-import 'event_target_screen.dart';
 
 class HomeDefaultScreen extends StatefulWidget {
   const HomeDefaultScreen({super.key});
@@ -26,457 +23,90 @@ class HomeDefaultScreen extends StatefulWidget {
 class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
-  bool _isLiveEvent = false;
-  bool _isLoadingLiveEvent = false;
+  List<Event> _upcomingEvents = [];
+  bool _eventsLoaded = false;
 
-  // Live event state
-  Event? _liveEvent;
-  Map<String, dynamic>? _liveStats;
-  List<Map<String, dynamic>> _liveGoals = [];
-  List<Map<String, dynamic>> _liveTargets = [];
-  List<Map<String, dynamic>> _scannedContacts = [];
-
-  // Target list state
-  String _targetSearch = '';
-  String _targetFilter = 'All';
-  String _scannedSearch = '';
-  final TextEditingController _targetSearchCtrl = TextEditingController();
-  final Set<String> _expandedTargetIds = {};
-  final Set<String> _expandedScannedIds = {};
-  final Map<String, bool> _targetMetOverrides = {};
-  String _activeTab = 'targets'; // 'targets' | 'scanned' | 'companies'
-
-  // Quick AI state
-  final List<Map<String, String>> _aiMessages = [];
-  bool _aiLoading = false;
-  final TextEditingController _aiQueryCtrl = TextEditingController();
-
-  Future<void> _toggleLiveEvent() async {
-    if (_isLiveEvent) {
-      setState(() { _isLiveEvent = false; });
-      return;
-    }
-    setState(() { _isLoadingLiveEvent = true; });
-    try {
-      final event = await ApiService.getOngoingEvent();
-      await _fetchLiveData(event);
-      if (mounted) setState(() { _isLiveEvent = true; _isLoadingLiveEvent = false; });
-    } catch (e) {
-      if (mounted) {
-        setState(() { _isLoadingLiveEvent = false; });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: _c.destructive,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    }
-  }
-
-  Future<void> _fetchLiveData(Event event) async {
-    final data = await ApiService.getLiveEventData(event.id);
-    final captures = await ApiService.getEventCaptures(event.id);
-    if (!mounted) return;
-    setState(() {
-      _liveEvent = event;
-      _liveStats = data['stats'] as Map<String, dynamic>;
-      _liveGoals = List<Map<String, dynamic>>.from(data['goals'] as List);
-      _liveTargets = List<Map<String, dynamic>>.from(data['targets'] as List);
-      _scannedContacts = captures;
-      // Reset local overrides so fresh data is authoritative
-      _targetMetOverrides.clear();
-      _expandedTargetIds.clear();
-    });
-  }
-
-  Future<void> _refreshLiveData() async {
-    if (_liveEvent == null) return;
-    try { await _fetchLiveData(_liveEvent!); } catch (_) {}
-  }
-
-  Future<void> _toggleCheckboxGoal(Map<String, dynamic> goal) async {
-    final eventId = _liveEvent?.id;
-    if (eventId == null) return;
-    final newVal = (goal['current'] as int) == 1 ? 0 : 1;
-    setState(() {
-      final idx = _liveGoals.indexWhere((g) => g['id'] == goal['id']);
-      if (idx != -1) _liveGoals[idx] = {..._liveGoals[idx], 'current': newVal};
-    });
-    try {
-      await ApiService.updateEventGoal(eventId, goal['id'] as String, {'current': newVal});
-    } catch (_) {
-      setState(() {
-        final idx = _liveGoals.indexWhere((g) => g['id'] == goal['id']);
-        if (idx != -1) _liveGoals[idx] = {..._liveGoals[idx], 'current': goal['current']};
-      });
-    }
-  }
-
-  Future<void> _incrementGoal(Map<String, dynamic> goal) async {
-    final eventId = _liveEvent?.id;
-    if (eventId == null) return;
-    final newVal = ((goal['current'] as int) + 1).clamp(0, goal['total'] as int);
-    // Optimistic update
-    setState(() {
-      final idx = _liveGoals.indexWhere((g) => g['id'] == goal['id']);
-      if (idx != -1) _liveGoals[idx] = {..._liveGoals[idx], 'current': newVal};
-    });
-    try {
-      await ApiService.updateEventGoal(eventId, goal['id'] as String, {'current': newVal});
-    } catch (_) {
-      // Revert
-      setState(() {
-        final idx = _liveGoals.indexWhere((g) => g['id'] == goal['id']);
-        if (idx != -1) _liveGoals[idx] = {..._liveGoals[idx], 'current': goal['current']};
-      });
-    }
-  }
-
-  Future<void> _showAddGoalSheet() async {
-    final eventId = _liveEvent?.id;
-    if (eventId == null) return;
-    final labelCtrl = TextEditingController();
-    final totalCtrl = TextEditingController(text: '1');
-    final c = _c;
-
-    bool isCheckbox = false;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: c.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Add Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
-              const SizedBox(height: 20),
-              TextField(
-                controller: labelCtrl,
-                autofocus: true,
-                style: TextStyle(color: c.textPrimary),
-                decoration: InputDecoration(
-                  hintText: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
-                  hintStyle: TextStyle(color: c.textMuted),
-                  filled: true, fillColor: c.surfaceAlt,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Type toggle
-              Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: c.surfaceAlt,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: c.border),
-                ),
-                child: Stack(children: [
-                  AnimatedAlign(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeInOut,
-                    alignment: isCheckbox ? Alignment.centerLeft : Alignment.centerRight,
-                    child: FractionallySizedBox(
-                      widthFactor: 0.5,
-                      child: Container(
-                        margin: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(999)),
-                      ),
-                    ),
-                  ),
-                  Row(children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setModalState(() => isCheckbox = true),
-                        behavior: HitTestBehavior.opaque,
-                        child: Center(child: Text('Checkbox',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                color: isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
-                      ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setModalState(() => isCheckbox = false),
-                        behavior: HitTestBehavior.opaque,
-                        child: Center(child: Text('Counted',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                color: !isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
-                      ),
-                    ),
-                  ]),
-                ]),
-              ),
-              if (!isCheckbox) ...[
-                const SizedBox(height: 12),
-                TextField(
-                  controller: totalCtrl,
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(color: c.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'Target count',
-                    hintStyle: TextStyle(color: c.textMuted),
-                    filled: true, fillColor: c.surfaceAlt,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () async {
-                    final label = labelCtrl.text.trim();
-                    if (label.isEmpty) return;
-                    final total = isCheckbox ? 0 : (int.tryParse(totalCtrl.text.trim()) ?? 1);
-                    Navigator.pop(ctx);
-                    try {
-                      final newGoal = await ApiService.createEventGoal(eventId, label, total);
-                      if (mounted) setState(() { _liveGoals.add(newGoal); });
-                    } catch (e) {
-                      if (mounted) _toast('Failed to add goal');
-                    }
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: c.accent,
-                    foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('ADD GOAL', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _deleteGoal(Map<String, dynamic> goal) async {
-    final eventId = _liveEvent?.id;
-    if (eventId == null) return;
-    setState(() { _liveGoals.removeWhere((g) => g['id'] == goal['id']); });
-    try {
-      await ApiService.deleteEventGoal(eventId, goal['id'] as String);
-    } catch (_) {
-      if (mounted) {
-        setState(() { _liveGoals.add(goal); });
-        _toast('Failed to delete goal');
-      }
-    }
-  }
-
-  Future<void> _sendAiQuery() async {
-    final question = _aiQueryCtrl.text.trim();
-    final eventId = _liveEvent?.id;
-    if (question.isEmpty || eventId == null) return;
-    _aiQueryCtrl.clear();
-    setState(() {
-      _aiMessages.add({'role': 'user', 'content': question});
-      _aiLoading = true;
-    });
-    try {
-      final answer = await ApiService.askEventQuestion(eventId, question);
-      if (mounted) setState(() { _aiMessages.add({'role': 'assistant', 'content': answer}); });
-    } catch (_) {
-      if (mounted) setState(() { _aiMessages.add({'role': 'assistant', 'content': 'Something went wrong on our end. Please try again in a moment.', 'error': 'true'}); });
-    } finally {
-      if (mounted) setState(() => _aiLoading = false);
-    }
-  }
-
-  final List<String> _promptChips = const [
-    'Draft follow-up for Sarah',
-    'Analyze recent event leads',
-    'Network health report',
-  ];
-
-  final List<_InsightCardData> _insights = const [
-    _InsightCardData(
-      title: 'David Chen',
-      subtitle: 'Last active at Tech Summit • 12 days ago',
-      avatarLabel: 'DC',
-      actionPrimary: 'Draft Follow-Up',
-      actionSecondary: 'More',
-      icon: Icons.person_outline_rounded,
-    ),
-    _InsightCardData(
-      title: 'Cloud Architecture Cluster',
-      subtitle: '5 new contacts found in shared circles',
-      avatarLabel: 'CL',
-      actionPrimary: 'Ask AI Strategy',
-      actionSecondary: 'View Cluster',
-      icon: Icons.hub_rounded,
-      useIconAvatar: true,
-    ),
-    _InsightCardData(
-      title: 'Sarah Jenkins',
-      subtitle: 'Mentioned "Q3 Expansion" in LinkedIn post',
-      avatarLabel: 'SJ',
-      actionPrimary: 'Draft Follow-Up',
-      actionSecondary: 'Signal',
-      icon: Icons.bolt_rounded,
-    ),
-  ];
-
-  final List<_EventCardData> _events = const [
-    _EventCardData('OCT', '24', 'SaaS Connect 2024', 'Networking Lounge • 10:00 AM'),
-    _EventCardData('OCT', '27', 'Private Equity Mixer', 'The Ritz-Carlton • 6:30 PM'),
-    _EventCardData('NOV', '02', 'Growth Leaders Dinner', 'Aria Suite • 8:00 PM'),
-  ];
+  int? _followUpsDue;
 
   @override
   void initState() {
     super.initState();
-    captureReturnSignal.addListener(_onCaptureReturn);
+    captureReturnSignalHome.addListener(_onCaptureReturn);
+    _loadUpcomingEvents();
+    _loadPriorities();
   }
 
+  // ValueNotifier used to refresh live data after capture
+  static final ValueNotifier<int> captureReturnSignalHome = ValueNotifier<int>(0);
+
   void _onCaptureReturn() {
-    if (_isLiveEvent && _liveEvent != null) {
-      _refreshLiveData();
-    }
+    context.read<LiveEventProvider>().refresh();
   }
 
   @override
   void dispose() {
-    captureReturnSignal.removeListener(_onCaptureReturn);
-    _targetSearchCtrl.dispose();
-    _aiQueryCtrl.dispose();
+    captureReturnSignalHome.removeListener(_onCaptureReturn);
     super.dispose();
   }
 
-  void _toast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
-  }
-
-  bool _isTargetMet(Map<String, dynamic> t) {
-    final id = t['id'] as String? ?? '';
-    return _targetMetOverrides.containsKey(id)
-        ? _targetMetOverrides[id]!
-        : (t['status'] as String?) == 'met';
-  }
-
-  List<Map<String, dynamic>> get _filteredTargets {
-    final q = _targetSearch.toLowerCase();
-    final filtered = _liveTargets.where((t) {
-      // Only show targets with a linked contact person
-      if ((t['contact_id'] as String?) == null) return false;
-      final name = (t['name'] as String? ?? '').toLowerCase();
-      final company = (t['company_name'] as String? ?? '').toLowerCase();
-      final booth = (t['booth'] as String? ?? '').toLowerCase();
-      final matchesSearch = q.isEmpty ||
-          name.contains(q) || company.contains(q) || booth.contains(q);
-      final matchesFilter = switch (_targetFilter) {
-        'Met' => _isTargetMet(t),
-        'Not Met' => !_isTargetMet(t),
-        _ => true,
-      };
-      return matchesSearch && matchesFilter;
-    }).toList()
-      ..sort((a, b) {
-        final aName = (a['name'] as String? ?? a['company_name'] as String? ?? '').toLowerCase();
-        final bName = (b['name'] as String? ?? b['company_name'] as String? ?? '').toLowerCase();
-        return aName.compareTo(bName);
+  Future<void> _loadPriorities() async {
+    try {
+      final data = await ApiService.getDashboardPriorities();
+      if (!mounted) return;
+      setState(() {
+        _followUpsDue = (data['followUpsDue'] as num?)?.toInt() ?? 0;
       });
-    return filtered;
-  }
-
-  Future<void> _toggleTargetMet(Map<String, dynamic> target) async {
-    final id = target['id'] as String? ?? '';
-    final eventId = _liveEvent?.id;
-    if (eventId == null || id.isEmpty) return;
-    final nowMet = !_isTargetMet(target);
-    setState(() {
-      _targetMetOverrides[id] = nowMet;
-      if (nowMet) _expandedTargetIds.remove(id);
-    });
-    try {
-      await ApiService.updateTargetStatus(
-          eventId, id, nowMet ? 'met' : 'not_contacted');
     } catch (_) {
-      if (mounted) {
-        setState(() => _targetMetOverrides.remove(id));
-        _toast('Failed to update target status');
-      }
+      if (mounted) setState(() { _followUpsDue = 0; });
     }
   }
 
-  Future<void> _addContactAsTarget() async {
-    final eventId = _liveEvent?.id;
-    if (eventId == null) return;
-
-    final contacts = await ApiService.getContacts();
-    if (!mounted) return;
-
-    // Filter out contacts already targeted (by company_id)
-    final existingCompanyIds = _liveTargets
-        .map((t) => t['company_id'] as String?)
-        .whereType<String>()
-        .toSet();
-
-    final eligible = contacts
-        .where((c) => c.companyId != null && c.companyId!.isNotEmpty && !existingCompanyIds.contains(c.companyId))
-        .toList();
-
-    if (eligible.isEmpty) {
-      _toast('All your contacts are already in the target list.');
-      return;
+  Future<void> _loadUpcomingEvents() async {
+    try {
+      final all = await ApiService.getEvents();
+      if (!mounted) return;
+      final upcoming = all
+          .where((e) => e.status == 'upcoming')
+          .toList()
+        ..sort((a, b) => a.startDate.compareTo(b.startDate));
+      setState(() {
+        _upcomingEvents = upcoming.take(3).toList();
+        _eventsLoaded = true;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _eventsLoaded = true);
     }
+  }
 
-    final picked = await showModalBottomSheet<dynamic>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ContactPickerSheet(contacts: eligible, colors: _c),
+  void _toast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
     );
+  }
 
-    if (picked == null || !mounted) return;
-    final companyId = picked['company_id'] as String;
-    final companyName = picked['company_name'] as String;
-    final contactId = picked['contact_id'] as String?;
-    final contactName = picked['contact_name'] as String?;
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }
 
-    if (contactId == null) {
-      _toast('Contact has no ID — cannot add.');
-      return;
-    }
-
-    try {
-      await ApiService.addContactToEvent(eventId, contactId);
-
-      // Build a local entry for the targets list
-      final mapped = <String, dynamic>{
-        'id': contactId,
-        'name': contactName ?? companyName,
-        'job_title': picked['job_title'] ?? '',
-        'company_name': companyName,
-        'company_id': companyId,
-        'contact_id': contactId,
-        'booth': '',
-        'status': 'not_contacted',
-        'priority': 'medium',
-        'talking_points': '',
-        'notes': '',
-      };
-      setState(() => _liveTargets.add(mapped));
-      _toast('${contactName ?? companyName} added to targets.');
-    } catch (_) {
-      _toast('Failed to add target.');
-    }
+  String _relativeDays(DateTime date) {
+    final today = DateTime.now();
+    final diff = date.difference(DateTime(today.year, today.month, today.day)).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    if (diff < 7) return 'in $diff days';
+    if (diff < 14) return 'next week';
+    return 'in ${(diff / 7).round()} weeks';
   }
 
   @override
   Widget build(BuildContext context) {
+    final lep = context.watch<LiveEventProvider>();
+    final auth = context.watch<AuthProvider>();
+    final firstName = auth.displayName.trim().split(RegExp(r'\s+')).first;
+
     return Scaffold(
       backgroundColor: _c.background,
       body: SafeArea(
@@ -484,450 +114,191 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
         child: Column(
           children: [
             AppHeader(
-              onNotificationPressed: () => _toast('Notifications are UI-only for now.'),
-              actionIcon: Icons.bolt_rounded,
-              actionTooltip: _isLiveEvent ? 'Exit live event' : 'Enter live event',
-              onActionPressed: _toggleLiveEvent,
+              onNotificationPressed: () => _toast('Notifications coming soon.'),
             ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 280),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                child: _isLiveEvent ? _buildLiveEventBody() : _buildNoEventBody(),
+            // While live status is resolving, show a skeleton to avoid flash
+            if (!lep.initialized)
+              Expanded(child: _buildSkeleton())
+            else
+              Expanded(
+                child: RefreshIndicator(
+                  color: _c.accent,
+                  backgroundColor: _c.surface,
+                  onRefresh: () async {
+                    await Future.wait([
+                      lep.refresh(),
+                      _loadUpcomingEvents(),
+                      _loadPriorities(),
+                    ]);
+                  },
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 160),
+                    child: lep.isLive
+                        ? _buildLiveHome(lep, firstName)
+                        : _buildTraditionalHome(lep, firstName),
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
 
+  // ── Skeleton shown while live status is resolving ─────────────────────────
 
-  // ─── NO-EVENT BODY ──────────────────────────────────────────────────────────
-
-  Widget _buildNoEventBody() {
-    final auth = context.watch<AuthProvider>();
-    final firstName = auth.displayName.trim().split(RegExp(r'\s+')).first;
-
+  Widget _buildSkeleton() {
     return SingleChildScrollView(
-      key: const ValueKey('no-event'),
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 160),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Good Morning, $firstName',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -1.0,
-              color: _c.textPrimary,
-              height: 1.1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Your professional network is ready.',
-            style: TextStyle(fontSize: 14, color: _c.textMuted, height: 1.4),
-          ),
-          const SizedBox(height: 24),
-          _buildAiCard(),
-          const SizedBox(height: 24),
-          AppSectionLabel('Today\'s Priorities'),
+          SkeletonLoader(width: 220, height: 28, borderRadius: BorderRadius.circular(6)),
+          const SizedBox(height: 10),
+          SkeletonLoader(width: 160, height: 14, borderRadius: BorderRadius.circular(4)),
+          const SizedBox(height: 28),
+          SkeletonLoader(width: double.infinity, height: 52, borderRadius: BorderRadius.circular(12)),
+          const SizedBox(height: 28),
+          SkeletonLoader(width: 120, height: 11, borderRadius: BorderRadius.circular(3)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildPriorityTile(
-                  icon: Icons.schedule_rounded,
-                  value: '3',
-                  label: 'Follow-ups Due',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildPriorityTile(
-                  icon: Icons.history_rounded,
-                  value: '4',
-                  label: 'Contacts to Reconnect',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          AppSectionLabel('Network Insights'),
+          Row(children: [
+            Expanded(child: SkeletonLoader(width: double.infinity, height: 72, borderRadius: BorderRadius.circular(12))),
+            const SizedBox(width: 12),
+            Expanded(child: SkeletonLoader(width: double.infinity, height: 72, borderRadius: BorderRadius.circular(12))),
+          ]),
+          const SizedBox(height: 28),
+          SkeletonLoader(width: 120, height: 11, borderRadius: BorderRadius.circular(3)),
           const SizedBox(height: 12),
-          ..._insights.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildInsightCard(item),
-            ),
-          ),
-          const SizedBox(height: 12),
-          AppSectionLabel('Upcoming Events'),
-          const SizedBox(height: 12),
-          ..._events.map(
-            (event) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildEventCard(event),
-            ),
-          ),
+          SkeletonLoader(width: double.infinity, height: 80, borderRadius: BorderRadius.circular(16)),
         ],
       ),
     );
   }
 
-  void _openChat({String? initialMessage}) {
-    if (initialMessage != null) {
-      context.push('/chat?msg=${Uri.encodeComponent(initialMessage)}');
-    } else {
-      context.push('/chat');
-    }
-  }
+  // ── Live home: live hero at top, traditional below ────────────────────────
 
-  Widget _buildAiCard() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppCard(
-          padding: const EdgeInsets.all(20),
-          radius: 16,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header row
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: _c.accentSoft,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.auto_awesome_rounded,
-                        size: 16, color: _c.accent),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Assistant',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _c.textPrimary,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      color: _c.success,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Online',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: _c.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Tappable search bar
-              GestureDetector(
-                onTap: () => _openChat(),
-                child: Container(
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: _c.surfaceAlt,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _c.border),
-                  ),
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 14),
-                      Icon(Icons.search_rounded, color: _c.accent, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Search contacts, events, or ask anything…',
-                          style: TextStyle(fontSize: 13, color: _c.textMuted),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Icon(Icons.mic_none_rounded,
-                            color: _c.border, size: 18),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Prompt chips
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _promptChips
-                    .map(
-                      (prompt) => GestureDetector(
-                        onTap: () => _openChat(initialMessage: prompt),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 7),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: _c.border),
-                          ),
-                          child: Text(
-                            prompt,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: _c.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: () => showLogInteractionSheet(context),
-            icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
-            label: const Text(
-              'LOG INTERACTION',
-              style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6),
-              overflow: TextOverflow.fade,
-              softWrap: false,
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: _c.accent,
-              foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPriorityTile({required IconData icon, required String value, required String label}) {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      radius: 12,
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _c.textPrimary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: _c.accent, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: _c.textPrimary, height: 1),
-              ),
-              const SizedBox(height: 4),
-              Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _c.textMuted)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInsightCard(_InsightCardData item) {
-    return AppCard(
-      padding: const EdgeInsets.all(18),
-      radius: 16,
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _c.surfaceAlt,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: _c.border),
-                ),
-                alignment: Alignment.center,
-                child: item.useIconAvatar
-                    ? Icon(item.icon, color: _c.accent, size: 22)
-                    : Text(
-                        item.avatarLabel,
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _c.textPrimary),
-                      ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _c.textPrimary),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.subtitle,
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _c.textMuted, height: 1.4),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _toast('${item.actionPrimary} is UI-only for now.'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _c.textPrimary,
-                    side: BorderSide(color: _c.border),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: Text(item.actionPrimary, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                ),
-              ),
-              const SizedBox(width: 10),
-              OutlinedButton(
-                onPressed: () => _toast('${item.actionSecondary} is UI-only for now.'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _c.textPrimary,
-                  side: BorderSide(color: _c.border),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: Text(item.actionSecondary, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEventCard(_EventCardData event) {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      radius: 12,
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            padding: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(border: Border(right: BorderSide(color: _c.border))),
-            child: Column(
-              children: [
-                Text(
-                  event.month,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: _c.textMuted),
-                ),
-                const SizedBox(height: 4),
-                Text(event.day, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: _c.textPrimary, height: 1)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(event.title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _c.textPrimary)),
-                const SizedBox(height: 4),
-                Text(event.subtitle, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _c.textMuted, height: 1.4)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── LIVE EVENT BODY ─────────────────────────────────────────────────────────
-
-  Widget _buildLiveEventBody() {
-    if (_isLoadingLiveEvent) {
-      return Center(
-        key: const ValueKey('live-loading'),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          CircularProgressIndicator(color: _c.accent, strokeWidth: 2),
-          const SizedBox(height: 16),
-          Text('Loading live event…', style: TextStyle(color: _c.textMuted, fontSize: 14)),
-        ]),
-      );
-    }
-
-    final event = _liveEvent;
-    if (event == null) return const SizedBox.shrink();
-
-    final stats = _liveStats;
-    final reach = stats?['target_reach'] as int? ?? 0;
-    final followUps = stats?['pending_follow_ups'] as int? ?? 0;
-    final scanned = _scannedContacts.length;
-    final targetsLeft = _liveTargets.where((t) => !_isTargetMet(t)).length;
-
+  Widget _buildLiveHome(LiveEventProvider lep, String firstName) {
+    final event = lep.liveEvent!;
     final location = [event.venue, event.hall]
         .whereType<String>()
         .where((s) => s.isNotEmpty)
         .join(' • ');
+    final scanned = lep.scannedContacts.length;
+    final targetsLeft = lep.liveTargets.where((t) => (t['status'] as String?) != 'met').length;
+    final metTargets = lep.liveTargets.where((t) => (t['status'] as String?) == 'met').length;
+    final totalContacted = scanned + metTargets;
 
-    return RefreshIndicator(
-      color: _c.accent,
-      backgroundColor: _c.surface,
-      onRefresh: _refreshLiveData,
-      child: SingleChildScrollView(
-        key: const ValueKey('live-event'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildLiveBanner(event, location),
-            const SizedBox(height: 12),
-            _buildLiveStatGrid(reach, scanned, targetsLeft, followUps),
-            const SizedBox(height: 24),
-            _buildLiveGoalsSection(),
-            const SizedBox(height: 24),
-            _buildQuickAiSection(),
-            const SizedBox(height: 24),
-            _buildTargetsScannedToggleSection(),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Live banner ──
+        _buildLiveBanner(event, location),
+        const SizedBox(height: 12),
+
+        // ── Stat strip ──
+        _buildStatStrip(scanned, targetsLeft, totalContacted),
+        const SizedBox(height: 20),
+
+        // ── Goals (compact) ──
+        if (lep.liveGoals.isNotEmpty) ...[
+          _buildGoalsCompact(lep),
+          const SizedBox(height: 20),
+        ],
+
+        // ── CTA: go to full live floor ──
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => context.push('/live-event'),
+            icon: Icon(Icons.open_in_full_rounded, size: 16, color: _c.accent),
+            label: Text('OPEN LIVE FLOOR', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: _c.accent)),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: _c.accent.withValues(alpha: 0.5)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
         ),
-      ),
+
+        // ── Divider between live and traditional ──
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Row(children: [
+            Expanded(child: Divider(color: _c.border)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text('BACK AT BASE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: _c.textMuted)),
+            ),
+            Expanded(child: Divider(color: _c.border)),
+          ]),
+        ),
+
+        // ── Traditional home (condensed) ──
+        _buildTraditionalHome(lep, firstName, condensed: true),
+      ],
     );
   }
+
+  // ── Traditional home ──────────────────────────────────────────────────────
+
+  Widget _buildTraditionalHome(LiveEventProvider lep, String firstName, {bool condensed = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!condensed) ...[
+          Text(
+            '${_greeting()}, $firstName',
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -1.0, color: _c.textPrimary, height: 1.1),
+          ),
+          const SizedBox(height: 6),
+          _buildContextLine(lep),
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => showLogInteractionSheet(context),
+              icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+              label: const Text('LOG INTERACTION', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6), overflow: TextOverflow.fade, softWrap: false),
+              style: FilledButton.styleFrom(
+                backgroundColor: _c.accent,
+                foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
+        ],
+
+        // Priorities
+        AppSectionLabel("Today's Priorities"),
+        const SizedBox(height: 12),
+        _buildPriorityTile(
+          icon: Icons.schedule_rounded,
+          value: _followUpsDue == null ? '—' : '$_followUpsDue',
+          label: 'Follow-ups Due',
+          onTap: () => context.go('/follow-ups'),
+        ),
+        const SizedBox(height: 28),
+
+        // Upcoming events
+        AppSectionLabel('Upcoming Events'),
+        const SizedBox(height: 12),
+        if (!_eventsLoaded)
+          _buildEventsPlaceholder()
+        else if (_upcomingEvents.isEmpty)
+          _buildNoEventsCard()
+        else
+          ..._upcomingEvents.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildUpcomingEventCard(e),
+          )),
+      ],
+    );
+  }
+
+  // ── Live banner ───────────────────────────────────────────────────────────
 
   Widget _buildLiveBanner(Event event, String location) {
     return AppCard(
@@ -939,22 +310,16 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           Row(children: [
             _PulsingDot(color: _c.destructive),
             const SizedBox(width: 8),
-            Text('LIVE NOW', style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w700,
-                letterSpacing: 1.6, color: _c.destructive)),
+            Text('LIVE NOW', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.6, color: _c.destructive)),
           ]),
           const SizedBox(height: 14),
-          Text(event.name, style: TextStyle(
-              fontSize: 22, fontWeight: FontWeight.w800,
-              letterSpacing: -0.6, color: _c.textPrimary, height: 1.1)),
+          Text(event.name, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.6, color: _c.textPrimary, height: 1.1)),
           if (location.isNotEmpty) ...[
             const SizedBox(height: 8),
             Row(children: [
               Icon(Icons.location_on_outlined, size: 14, color: _c.accent),
               const SizedBox(width: 6),
-              Expanded(child: Text(location,
-                  style: TextStyle(fontSize: 13, color: _c.textMuted),
-                  overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(location, style: TextStyle(fontSize: 13, color: _c.textMuted), overflow: TextOverflow.ellipsis)),
             ]),
           ],
         ],
@@ -962,478 +327,66 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     );
   }
 
-  Widget _buildLiveStatGrid(int reach, int scanned, int targetsLeft, int followUps) {
-    final metTargets = _liveTargets.where((t) => _isTargetMet(t)).length;
-    final totalTargets = scanned + metTargets;
+  // ── Stat strip ────────────────────────────────────────────────────────────
+
+  Widget _buildStatStrip(int scanned, int targetsLeft, int totalContacted) {
     return AppCard(
       elevated: true,
       padding: const EdgeInsets.all(16),
       radius: 14,
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildLiveStatGridColumn(
-              icon: Icons.qr_code_scanner_rounded,
-              value: '$scanned',
-              label: 'SCANNED',
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 48,
-            color: _c.border.withValues(alpha: 0.3),
-          ),
-          Expanded(
-            child: _buildLiveStatGridColumn(
-              icon: Icons.people_outline_rounded,
-              value: '$targetsLeft',
-              label: 'TARGETS LEFT',
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 48,
-            color: _c.border.withValues(alpha: 0.3),
-          ),
-          Expanded(
-            child: _buildLiveStatGridColumn(
-              icon: Icons.flag_outlined,
-              value: '$totalTargets',
-              label: 'TOTAL',
-              isSecondary: true,
-            ),
-          ),
-        ],
-      ),
+      child: Row(children: [
+        Expanded(child: _statCol(Icons.qr_code_scanner_rounded, '$scanned', 'SCANNED')),
+        Container(width: 1, height: 48, color: _c.border.withValues(alpha: 0.3)),
+        Expanded(child: _statCol(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT')),
+        Container(width: 1, height: 48, color: _c.border.withValues(alpha: 0.3)),
+        Expanded(child: _statCol(Icons.flag_outlined, '$totalContacted', 'TOTAL')),
+      ]),
     );
   }
 
-  Widget _buildLiveStatGridColumn({
-    required IconData icon,
-    required String value,
-    required String label,
-    bool isSecondary = false,
-  }) {
+  Widget _statCol(IconData icon, String value, String label) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: _c.accent.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
+          width: 28, height: 28,
+          decoration: BoxDecoration(color: _c.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
           child: Icon(icon, size: 14, color: _c.accent),
         ),
         const SizedBox(height: 10),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: _c.textPrimary,
-            height: 1,
-          ),
-        ),
+        Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _c.textPrimary, height: 1)),
         const SizedBox(height: 3),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.7,
-            color: _c.textMuted,
-          ),
-          textAlign: TextAlign.center,
-        ),
+        Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.7, color: _c.textMuted), textAlign: TextAlign.center),
       ],
     );
   }
 
-  Widget _buildLiveStatTile(IconData icon, Color color, String value, String label) {
+  // ── Goals compact ─────────────────────────────────────────────────────────
+
+  Widget _buildGoalsCompact(LiveEventProvider lep) {
+    final goals = lep.liveGoals.take(3).toList();
+    final done = goals.where((g) {
+      final current = g['current'] as int;
+      final total = g['total'] as int;
+      return total == 0 ? current == 1 : current >= total;
+    }).length;
+
     return AppCard(
-      elevated: true,
-      padding: const EdgeInsets.all(14),
-      radius: 14,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 28, height: 28,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 14, color: color),
-          ),
+          Row(children: [
+            AppSectionLabel('Goal Progress'),
+            const Spacer(),
+            Text('$done / ${goals.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _c.accent)),
+          ]),
           const SizedBox(height: 10),
-          Text(value, style: TextStyle(
-              fontSize: 22, fontWeight: FontWeight.w800,
-              color: _c.textPrimary, height: 1)),
-          const SizedBox(height: 3),
-          Text(label, style: TextStyle(
-              fontSize: 9, fontWeight: FontWeight.w700,
-              letterSpacing: 0.7, color: _c.textMuted)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLiveGoalsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          AppSectionLabel('Goal Progress'),
-          const Spacer(),
-          GestureDetector(
-            onTap: _showAddGoalSheet,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: _c.accent.withValues(alpha: 0.5)),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.add_rounded, size: 12, color: _c.accent),
-                const SizedBox(width: 4),
-                Text('ADD GOAL', style: TextStyle(
-                    fontSize: 10, fontWeight: FontWeight.w700,
-                    letterSpacing: 1.0, color: _c.accent)),
-              ]),
-            ),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        if (_liveGoals.isEmpty)
-          AppCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            child: Row(children: [
-              Icon(Icons.flag_outlined, size: 20, color: _c.accent),
-              const SizedBox(width: 12),
-              Expanded(child: Text(
-                  'No goals yet — tap ADD GOAL to create one.',
-                  style: TextStyle(fontSize: 13, color: _c.textMuted, height: 1.4))),
-            ]),
-          )
-        else
-          AppCard(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Column(children: [
-              for (int i = 0; i < _liveGoals.length; i++) ...[
-                _buildGoalRow(_liveGoals[i]),
-                if (i < _liveGoals.length - 1) ...[
-                  Divider(color: _c.border.withValues(alpha: 0.4), height: 1),
-                  const SizedBox(height: 4),
-                ],
-              ],
-            ]),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildTargetsScannedToggleSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Toggle pill — three tabs
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                height: 38,
-                decoration: BoxDecoration(
-                  color: _c.surfaceAlt,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: _c.border),
-                ),
-                child: Stack(
-                  children: [
-                    AnimatedAlign(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      alignment: _activeTab == 'targets'
-                          ? Alignment.centerLeft
-                          : _activeTab == 'scanned'
-                              ? Alignment.center
-                              : Alignment.centerRight,
-                      child: FractionallySizedBox(
-                        widthFactor: 1 / 3,
-                        child: Container(
-                          margin: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: _c.accent,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Row(children: [
-                      _buildTabItem('targets', 'Targets', '${_liveTargets.where((t) => (t['contact_id'] as String?) != null).length}'),
-                      _buildTabItem('scanned', 'Scanned', '${_scannedContacts.length}'),
-                      _buildTabItem('companies', 'Companies', '${_liveTargets.length}'),
-                    ]),
-                  ],
-                ),
-              ),
-            ),
-            if (_activeTab == 'targets') ...[
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: _addContactAsTarget,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: _c.accentSoft,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.person_add_outlined, size: 13, color: _c.accent),
-                    const SizedBox(width: 5),
-                    Text('ADD', style: TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8, color: _c.accent)),
-                  ]),
-                ),
-              ),
-            ],
+          for (final goal in goals) _buildGoalRow(goal),
+          if (lep.liveGoals.length > 3) ...[
+            const SizedBox(height: 6),
+            Text('+${lep.liveGoals.length - 3} more', style: TextStyle(fontSize: 11, color: _c.textMuted)),
           ],
-        ),
-        const SizedBox(height: 16),
-        if (_activeTab == 'targets')
-          _buildLiveTargetsSection()
-        else if (_activeTab == 'scanned')
-          _buildScannedSection()
-        else
-          _buildLiveCompaniesSection(),
-      ],
-    );
-  }
-
-  Widget _buildTabItem(String tab, String label, String count) {
-    final isActive = _activeTab == tab;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _activeTab = tab),
-        behavior: HitTestBehavior.opaque,
-        child: Center(
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(label, style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: isActive ? (_c.isDark ? _c.textPrimary : Colors.white) : _c.textMuted,
-            )),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: isActive ? Colors.white.withValues(alpha: 0.25) : _c.accentSoft,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(count, style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: isActive ? (_c.isDark ? _c.textPrimary : Colors.white) : _c.accent,
-              )),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLiveTargetsSection() {
-    final visible = _filteredTargets;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 12),
-        // Search
-        TextField(
-          controller: _targetSearchCtrl,
-          style: TextStyle(fontSize: 13, color: _c.textPrimary),
-          cursorColor: _c.accent,
-          onChanged: (v) => setState(() => _targetSearch = v),
-          decoration: InputDecoration(
-            hintText: 'Search companies, people, booths…',
-            hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(Icons.search_rounded, size: 18, color: _c.accent),
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 0),
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            filled: true,
-            fillColor: _c.surface,
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _c.border)),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _c.border)),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _c.accent)),
-          ),
-        ),
-        const SizedBox(height: 10),
-        // Filters
-        AppFilterRow(
-          filters: const ['All', 'Not Met', 'Met'],
-          selected: _targetFilter,
-          onSelect: (f) => setState(() => _targetFilter = f),
-          style: AppFilterRowStyle.filled,
-        ),
-        const SizedBox(height: 14),
-        // Target list
-        if (_liveTargets.isEmpty)
-          AppCard(
-            padding: const EdgeInsets.all(20),
-            child: Center(child: Column(children: [
-              Icon(Icons.people_outline_rounded, color: _c.accent, size: 32),
-              const SizedBox(height: 10),
-              Text('No targets yet for this event.',
-                  style: TextStyle(color: _c.textMuted, fontSize: 13)),
-            ])),
-          )
-        else if (visible.isEmpty)
-          AppCard(
-            padding: const EdgeInsets.all(16),
-            child: Row(children: [
-              Icon(Icons.search_off_rounded, color: _c.accent, size: 20),
-              const SizedBox(width: 12),
-              Text('No targets match.', style: TextStyle(fontSize: 13, color: _c.textMuted)),
-            ]),
-          )
-        else
-          Column(children: [
-            for (int i = 0; i < visible.length; i++) ...[
-              _buildTargetCard(visible[i], i + 1),
-              if (i < visible.length - 1) const SizedBox(height: 8),
-            ],
-          ]),
-      ],
-    );
-  }
-
-  Widget _buildQuickAiSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          Icon(Icons.auto_awesome_rounded, size: 13, color: _c.accent),
-          const SizedBox(width: 7),
-          AppSectionLabel('Quick AI', color: _c.accent),
-        ]),
-        const SizedBox(height: 12),
-        AppCard(
-          padding: const EdgeInsets.all(16),
-          child: Column(children: [
-            // Message history (max last 6)
-            if (_aiMessages.isNotEmpty) ...[
-              for (final msg in _aiMessages.reversed.take(6).toList().reversed)
-                _buildAiMessage(msg),
-              const SizedBox(height: 8),
-              Divider(color: _c.border.withValues(alpha: 0.5), height: 1),
-              const SizedBox(height: 8),
-            ],
-            // Input row
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _aiQueryCtrl,
-                  onSubmitted: (_) => _sendAiQuery(),
-                  style: TextStyle(fontSize: 13, color: _c.textPrimary),
-                  cursorColor: _c.accent,
-                  decoration: InputDecoration(
-                    hintText: 'Ask about this event…',
-                    hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    filled: true, fillColor: _c.surfaceAlt,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        borderSide: BorderSide(color: _c.border)),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        borderSide: BorderSide(color: _c.border)),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        borderSide: BorderSide(color: _c.accent)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _aiLoading ? null : _sendAiQuery,
-                child: Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: _aiLoading ? _c.surfaceElevated : _c.accent,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: _aiLoading
-                      ? Padding(
-                          padding: const EdgeInsets.all(11),
-                          child: CircularProgressIndicator(strokeWidth: 2, color: _c.textMuted))
-                      : Icon(Icons.arrow_upward_rounded,
-                          size: 18, color: _c.isDark ? _c.textPrimary : _c.background),
-                ),
-              ),
-            ]),
-          ]),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAiMessage(Map<String, String> msg) {
-    final isUser = msg['role'] == 'user';
-    final isError = !isUser && (msg['error'] == 'true');
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        children: [
-          if (!isUser) ...[
-            Container(
-              width: 24, height: 24,
-              decoration: BoxDecoration(
-                color: isError ? _c.destructive.withValues(alpha: 0.12) : _c.accentSoft,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(
-                isError ? Icons.error_outline_rounded : Icons.auto_awesome_rounded,
-                size: 12,
-                color: isError ? _c.destructive : _c.accent,
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(
-                color: isUser ? _c.accentSoft : _c.surfaceAlt,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(14),
-                  topRight: const Radius.circular(14),
-                  bottomLeft: Radius.circular(isUser ? 14 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 14),
-                ),
-              ),
-              child: Text(msg['content'] ?? '', style: TextStyle(
-                  fontSize: 13,
-                  color: isUser ? _c.accent : (isError ? _c.textMuted : _c.textSecondary),
-                  height: 1.45)),
-            ),
-          ),
         ],
       ),
     );
@@ -1446,720 +399,174 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     final isComplete = isCheckbox ? current == 1 : (total > 0 && current >= total);
     final progress = (!isCheckbox && total > 0) ? (current / total).clamp(0.0, 1.0) : 0.0;
 
-    return GestureDetector(
-      onLongPress: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: _c.surface,
-          shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-          builder: (_) => SafeArea(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const SizedBox(height: 8),
-              Container(width: 36, height: 4,
-                  decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
-              ListTile(
-                leading: Icon(Icons.delete_outline_rounded, color: _c.destructive),
-                title: Text('Delete goal', style: TextStyle(color: _c.destructive)),
-                onTap: () { Navigator.pop(context); _deleteGoal(goal); },
-              ),
-            ]),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(children: [
+        Container(
+          width: 16, height: 16,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isComplete ? _c.success : Colors.transparent,
+            border: Border.all(color: isComplete ? _c.success : _c.border, width: 1.5),
           ),
-        );
-      },
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              GestureDetector(
-                onTap: isCheckbox ? () => _toggleCheckboxGoal(goal) : null,
-                child: Container(
-                  width: 20, height: 20,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isComplete ? _c.success : Colors.transparent,
-                    border: Border.all(
-                      color: isComplete ? _c.success : _c.border, width: 1.5),
-                  ),
-                  child: isComplete
-                      ? Icon(Icons.check_rounded, size: 11, color: (_c.isDark ? _c.textPrimary : _c.background))
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: Text(goal['label'] as String, style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w500,
-                  color: isComplete ? _c.success : _c.textPrimary,
-                  decoration: isComplete ? TextDecoration.lineThrough : null,
-                  decorationColor: _c.success))),
-              const SizedBox(width: 10),
-              if (isCheckbox)
-                GestureDetector(
-                  onTap: () => _toggleCheckboxGoal(goal),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isComplete ? _c.success.withValues(alpha: 0.10) : _c.accentSoft,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      isComplete ? 'DONE' : 'MARK DONE',
-                      style: TextStyle(
-                          fontSize: 10, fontWeight: FontWeight.w700,
-                          letterSpacing: 0.4,
-                          color: isComplete ? _c.success : _c.accent),
-                    ),
-                  ),
-                )
-              else
-                GestureDetector(
-                  onTap: isComplete ? null : () => _incrementGoal(goal),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isComplete
-                          ? _c.success.withValues(alpha: 0.10)
-                          : _c.accentSoft,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      if (!isComplete) ...[
-                        Icon(Icons.add_rounded, size: 12, color: _c.accent),
-                        const SizedBox(width: 4),
-                      ],
-                      Text('$current / $total', style: TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w700,
-                          color: isComplete ? _c.success : _c.accent)),
-                    ]),
+          child: isComplete ? Icon(Icons.check_rounded, size: 9, color: _c.isDark ? _c.textPrimary : _c.background) : null,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(goal['label'] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isComplete ? _c.textMuted : _c.textPrimary,
+                  decoration: isComplete ? TextDecoration.lineThrough : null, decorationColor: _c.textMuted)),
+              if (!isCheckbox) ...[
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: progress, minHeight: 2,
+                    backgroundColor: _c.surfaceElevated,
+                    valueColor: AlwaysStoppedAnimation<Color>(isComplete ? _c.success : _c.accent),
                   ),
                 ),
-            ]),
-            if (!isCheckbox) ...[
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 3,
-                  backgroundColor: _c.surfaceElevated,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                      isComplete ? _c.success : _c.accent),
-                ),
-              ),
+              ],
             ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTargetCard(Map<String, dynamic> target, int rank) {
-    final id = target['id'] as String? ?? '';
-    final name = target['name'] as String? ?? '';
-    final jobTitle = target['job_title'] as String? ?? '';
-    final companyName = target['company_name'] as String? ?? '';
-    final booth = target['booth'] as String? ?? '';
-    final priority = target['priority'] as String? ?? 'low';
-    final contactId = target['contact_id'] as String?;
-    final isMet = _isTargetMet(target);
-    final isExpanded = _expandedTargetIds.contains(id);
-    return AppCard(
-      radius: AppTheme.radiusCard,
-      elevated: isExpanded,
-      borderColor: priority == 'high'
-          ? _c.destructive.withValues(alpha: 0.40)
-          : priority == 'medium'
-              ? _c.accent.withValues(alpha: 0.22)
-              : null,
-      child: Column(children: [
-        // ── Header ──
-        InkWell(
-          onTap: id.isEmpty ? null : () => setState(() {
-            if (isExpanded) { _expandedTargetIds.remove(id); }
-            else { _expandedTargetIds.add(id); }
-          }),
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppTheme.radiusCard),
-            bottom: isExpanded ? Radius.zero : Radius.circular(AppTheme.radiusCard),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Rank
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(rank.toString().padLeft(2, '0'), style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700,
-                    color: _c.textMuted)),
-              ),
-              const SizedBox(width: 12),
-              // Name + subtitle + expand chevron
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(
-                    name.isNotEmpty ? name : companyName,
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
-                        color: isMet ? _c.textMuted : _c.textPrimary),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    [if (jobTitle.isNotEmpty) jobTitle, if (companyName.isNotEmpty) companyName]
-                        .join(', '),
-                    style: TextStyle(fontSize: 12, color: _c.textMuted),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (booth.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    AppChip.label('BOOTH $booth'),
-                  ],
-                ]),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                size: 18, color: _c.textMuted),
-              const SizedBox(width: 6),
-              const SizedBox(width: 10),
-              // Met toggle
-              GestureDetector(
-                onTap: () => _toggleTargetMet(target),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: isMet ? _c.success.withValues(alpha: 0.12) : _c.surfaceAlt,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: isMet ? _c.success : _c.border,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(
-                      isMet ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                      size: 13,
-                      color: isMet ? _c.success : _c.textMuted,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      isMet ? 'MET' : 'MARK MET',
-                      style: TextStyle(
-                          fontSize: 9, fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                          color: isMet ? _c.success : _c.textMuted),
-                    ),
-                  ]),
-                ),
-              ),
-            ]),
           ),
         ),
-        // ── Expanded actions ──
-        if (isExpanded)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-            decoration: BoxDecoration(
-              color: _c.surfaceAlt,
-              border: Border(top: BorderSide(color: _c.border)),
-              borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(AppTheme.radiusCard)),
-            ),
-            child: Row(children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => showLogInteractionSheet(
-                    context,
-                    contactId: contactId,
-                    initialMode: _liveEvent?.name,
-                    onSaved: () async {
-                      try { await _fetchLiveData(_liveEvent!); } catch (_) {}
-                    },
-                  ),
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
-                  label: const Text('LOG INTERACTION', maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _c.accent,
-                    foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-                    minimumSize: const Size.fromHeight(42),
-                    iconSize: 14,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _liveEvent == null ? null : () {
-                    if (contactId != null && contactId.isNotEmpty) {
-                      context.push('/contacts/$contactId');
-                    } else {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => LiveTargetPersonScreen(
-                            event: _liveEvent!, target: target),
-                      ));
-                    }
-                  },
-                  icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
-                  label: const Text('PROFILE'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _c.textPrimary,
-                    side: BorderSide(color: _c.border),
-                    minimumSize: const Size.fromHeight(42),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: () => _deleteTarget(target),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _c.destructive,
-                  side: BorderSide(color: _c.destructive.withValues(alpha: 0.4)),
-                  minimumSize: const Size(42, 42),
-                  maximumSize: const Size(42, 42),
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: Icon(Icons.delete_outline_rounded, size: 18, color: _c.destructive),
-              ),
-            ]),
-          ),
+        if (!isCheckbox) ...[
+          const SizedBox(width: 10),
+          Text('$current/$total', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isComplete ? _c.success : _c.accent)),
+        ],
       ]),
     );
   }
 
-  Future<void> _deleteTarget(Map<String, dynamic> target) async {
-    final eventId = _liveEvent?.id;
-    if (eventId == null) return;
-    final id = target['id'] as String? ?? '';
-    final contactId = target['contact_id'] as String?;
-    final name = target['name'] as String? ?? 'Target';
+  // ── Context line ──────────────────────────────────────────────────────────
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: _c.surface,
-        title: Text('Remove Target', style: TextStyle(color: _c.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-        content: Text('Remove $name from targets?', style: TextStyle(color: _c.textSecondary, fontSize: 14)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: _c.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Remove', style: TextStyle(color: _c.destructive, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    try {
-      // Contact-linked targets use contact_events; company targets use target_companies
-      if (contactId != null && contactId == id) {
-        await ApiService.removeContactFromEvent(eventId, contactId);
-      } else {
-        await ApiService.deleteEventTarget(eventId, id);
-        if (contactId != null) {
-          try { await ApiService.removeContactFromEvent(eventId, contactId); } catch (_) {}
-        }
-      }
-      setState(() {
-        _liveTargets.removeWhere((t) => t['id'] == id);
-        _expandedTargetIds.remove(id);
-      });
-    } catch (_) {
-      _toast('Failed to remove target.');
-    }
-  }
-
-  Widget _buildLiveCompaniesSection() {
-    if (_liveTargets.isEmpty) {
-      return AppCard(
-        padding: const EdgeInsets.all(20),
-        child: Center(child: Column(children: [
-          Icon(Icons.business_outlined, color: _c.accent, size: 32),
-          const SizedBox(height: 10),
-          Text('No target companies for this event.', style: TextStyle(color: _c.textMuted, fontSize: 13)),
-        ])),
+  Widget _buildContextLine(LiveEventProvider lep) {
+    final next = lep.nextEvent;
+    if (next != null) {
+      return GestureDetector(
+        onTap: () => context.push('/events/${next.id}'),
+        child: Row(children: [
+          Container(width: 6, height: 6, decoration: BoxDecoration(color: _c.accent, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Next: ${next.name}  ·  ${_relativeDays(next.startDate)}',
+              style: TextStyle(fontSize: 14, color: _c.textMuted, height: 1.4), overflow: TextOverflow.ellipsis)),
+          Icon(Icons.chevron_right_rounded, size: 16, color: _c.textMuted),
+        ]),
       );
     }
-
-    return Column(
-      children: [
-        for (int i = 0; i < _liveTargets.length; i++) ...[
-          _buildLiveCompanyCard(_liveTargets[i]),
-          if (i < _liveTargets.length - 1) const SizedBox(height: 8),
-        ],
-      ],
-    );
+    return Text('No upcoming events scheduled.', style: TextStyle(fontSize: 14, color: _c.textMuted, height: 1.4));
   }
 
-  Widget _buildLiveCompanyCard(Map<String, dynamic> target) {
-    final companyName = target['company_name'] as String? ?? '';
-    final booth = target['booth'] as String? ?? '';
-    final priority = target['priority'] as String? ?? 'medium';
+  // ── Priority tiles ────────────────────────────────────────────────────────
 
-    final initials = companyName.length >= 2
-        ? companyName.substring(0, 2).toUpperCase()
-        : companyName.toUpperCase();
-
-    return AppCard(
-      radius: AppTheme.radiusCard,
-      borderColor: priority == 'high'
-          ? _c.destructive.withValues(alpha: 0.35)
-          : priority == 'medium'
-              ? _c.accent.withValues(alpha: 0.20)
-              : null,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
+  Widget _buildPriorityTile({required IconData icon, required String value, required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AppCard(
+        padding: const EdgeInsets.all(16),
+        radius: 12,
         child: Row(children: [
           Container(
             width: 40, height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _c.accentSoft,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _c.border),
-            ),
-            child: Text(initials, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _c.accent)),
+            decoration: BoxDecoration(color: _c.textPrimary.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: _c.accent, size: 20),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(companyName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _c.textPrimary)),
-              if (booth.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                AppChip.label('BOOTH $booth'),
-              ],
-            ]),
-          ),
-          const SizedBox(width: 8),
-          OutlinedButton(
-            onPressed: () {
-              if (_liveEvent == null) return;
-              final targetId = target['id'] as String? ?? '';
-              if (targetId.isEmpty) return;
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => EventTargetScreen(event: _liveEvent!, targetId: targetId),
-              ));
-            },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _c.accent,
-              side: BorderSide(color: _c.accent.withValues(alpha: 0.5)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8),
-            ),
-            child: const Text('VIEW'),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: _c.textPrimary, height: 1)),
+              const SizedBox(height: 4),
+              Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _c.textMuted)),
+            ],
           ),
         ]),
       ),
     );
   }
 
-  Widget _buildScannedSection() {
-    final filtered = _scannedContacts.where((c) {
-      if (_scannedSearch.isEmpty) return true;
-      final contact = c['contact'] as Map<String, dynamic>?;
-      if (contact == null) return false;
-      final query = _scannedSearch.toLowerCase();
-      final firstName = (contact['first_name'] as String? ?? '').toLowerCase();
-      final lastName = (contact['last_name'] as String? ?? '').toLowerCase();
-      final company = (contact['company_name'] as String? ?? '').toLowerCase();
-      return firstName.contains(query) || lastName.contains(query) || company.contains(query);
-    }).toList()
-      ..sort((a, b) {
-        final ac = a['contact'] as Map<String, dynamic>? ?? {};
-        final bc = b['contact'] as Map<String, dynamic>? ?? {};
-        final aName = '${ac['first_name'] ?? ''} ${ac['last_name'] ?? ''}'.trim().toLowerCase();
-        final bName = '${bc['first_name'] ?? ''} ${bc['last_name'] ?? ''}'.trim().toLowerCase();
-        return aName.compareTo(bName);
-      });
+  // ── Upcoming events ───────────────────────────────────────────────────────
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 12),
-          // Search
-          TextField(
-            style: TextStyle(fontSize: 13, color: _c.textPrimary),
-            cursorColor: _c.accent,
-            onChanged: (v) => setState(() => _scannedSearch = v),
-            decoration: InputDecoration(
-              hintText: 'Search scanned contacts…',
-              hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
-              prefixIcon: Padding(
-                padding: const EdgeInsets.only(left: 12, right: 8),
-                child: Icon(Icons.search_rounded, size: 18, color: _c.accent),
-              ),
-              prefixIconConstraints: const BoxConstraints(minWidth: 0),
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-              filled: true,
-              fillColor: _c.surface,
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _c.border)),
-              enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _c.border)),
-              focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _c.accent)),
+  Widget _buildUpcomingEventCard(Event event) {
+    final months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    final month = months[event.startDate.month - 1];
+    final day = event.startDate.day.toString();
+    final location = [event.venue, event.hall, event.location]
+        .whereType<String>()
+        .where((s) => s.isNotEmpty)
+        .firstOrNull ?? '';
+
+    return GestureDetector(
+      onTap: () => context.push('/events/${event.id}'),
+      child: AppCard(
+        padding: const EdgeInsets.all(16),
+        radius: 12,
+        child: Row(children: [
+          Container(
+            width: 52,
+            padding: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(border: Border(right: BorderSide(color: _c.border))),
+            child: Column(children: [
+              Text(month, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: _c.textMuted)),
+              const SizedBox(height: 4),
+              Text(day, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: _c.textPrimary, height: 1)),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(event.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _c.textPrimary)),
+                if (location.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(location, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _c.textMuted, height: 1.4), overflow: TextOverflow.ellipsis),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: 14),
-          // Scanned list
-          if (_scannedContacts.isEmpty)
-            AppCard(
-              padding: const EdgeInsets.all(20),
-              child: Center(child: Column(children: [
-                Icon(Icons.qr_code_scanner_rounded, color: _c.accent, size: 32),
-                const SizedBox(height: 10),
-                Text('No contacts scanned yet.',
-                    style: TextStyle(color: _c.textMuted, fontSize: 13)),
-              ])),
-            )
-          else if (filtered.isEmpty)
-            AppCard(
-              padding: const EdgeInsets.all(16),
-              child: Row(children: [
-                Icon(Icons.search_off_rounded, color: _c.accent, size: 20),
-                const SizedBox(width: 12),
-                Text('No scanned contacts match.', style: TextStyle(fontSize: 13, color: _c.textMuted)),
-              ]),
-            )
-          else
-            ...filtered.map((capture) => _buildScannedContactCard(capture)),
-      ],
+          Icon(Icons.chevron_right_rounded, size: 18, color: _c.textMuted),
+        ]),
+      ),
     );
   }
 
-  Widget _buildScannedContactCard(Map<String, dynamic> capture) {
-    final contact = capture['contact'] as Map<String, dynamic>? ?? {};
-    final contactId = contact['id'] as String? ?? '';
-    final firstName = contact['first_name'] as String? ?? '';
-    final lastName = contact['last_name'] as String? ?? '';
-    final fullName = '$firstName $lastName'.trim();
-    final company = contact['company_name'] as String? ?? '';
-    final jobTitle = contact['job_title'] as String? ?? '';
-    final email = contact['email'] as String? ?? '';
-    final phone = contact['phone'] as String? ?? '';
-    final createdAt = capture['created_at'] as String?;
-    final initials = (firstName.isNotEmpty ? firstName[0] : '') + (lastName.isNotEmpty ? lastName[0] : '');
-    final isExpanded = _expandedScannedIds.contains(contactId);
+  Widget _buildEventsPlaceholder() {
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      radius: 12,
+      child: Row(children: [
+        SkeletonLoader(width: 40, height: 40, borderRadius: BorderRadius.circular(10)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+          const SizedBox(height: 8),
+          SkeletonLoader(width: 140, height: 11, borderRadius: BorderRadius.circular(4)),
+        ])),
+      ]),
+    );
+  }
 
-    String timeAgo = '';
-    if (createdAt != null) {
-      try {
-        final date = DateTime.parse(createdAt);
-        final now = DateTime.now();
-        final diff = now.difference(date);
-        if (diff.inMinutes < 60) {
-          timeAgo = '${diff.inMinutes}m ago';
-        } else if (diff.inHours < 24) {
-          timeAgo = '${diff.inHours}h ago';
-        } else {
-          timeAgo = '${diff.inDays}d ago';
-        }
-      } catch (_) {}
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AppCard(
-        radius: AppTheme.radiusCard,
-        elevated: isExpanded,
-        child: Column(
-          children: [
-            // ── Header ──
-            InkWell(
-              onTap: contactId.isEmpty ? null : () => setState(() {
-                if (isExpanded) {
-                  _expandedScannedIds.remove(contactId);
-                } else {
-                  _expandedScannedIds.add(contactId);
-                }
-              }),
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(AppTheme.radiusCard),
-                bottom: isExpanded ? Radius.zero : Radius.circular(AppTheme.radiusCard),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-            Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: _c.accentSoft,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _c.accent),
-              ),
-              child: Text(
-                initials.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: _c.accent,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    fullName.isNotEmpty ? fullName : 'Unknown',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: _c.textPrimary,
-                    ),
-                  ),
-                  if (jobTitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      jobTitle,
-                      style: TextStyle(fontSize: 13, color: _c.textSecondary),
-                    ),
-                  ],
-                  if (company.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      company,
-                      style: TextStyle(fontSize: 12, color: _c.textMuted),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (timeAgo.isNotEmpty)
-              Text(
-                timeAgo,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: _c.textMuted,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-                  ],
-                ),
-              ),
-            ),
-            // ── Expanded details ──
-            if (isExpanded)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                decoration: BoxDecoration(
-                  color: _c.surfaceAlt,
-                  border: Border(top: BorderSide(color: _c.border)),
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(AppTheme.radiusCard),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (email.isNotEmpty) ...[
-                      Row(
-                        children: [
-                          Icon(Icons.email_outlined, size: 16, color: _c.accent),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              email,
-                              style: TextStyle(fontSize: 13, color: _c.textSecondary),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    if (phone.isNotEmpty) ...[
-                      Row(
-                        children: [
-                          Icon(Icons.phone_outlined, size: 16, color: _c.accent),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              phone,
-                              style: TextStyle(fontSize: 13, color: _c.textSecondary),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    // Action buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: FilledButton.icon(
-                            onPressed: () => showLogInteractionSheet(context, contactId: contactId),
-                            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
-                            label: const Text('LOG INTERACTION'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _c.accent,
-                              foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-                              minimumSize: const Size.fromHeight(42),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 2,
-                          child: OutlinedButton.icon(
-                            onPressed: contactId.isEmpty ? null : () {
-                              context.push('/contacts/$contactId');
-                            },
-                            icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
-                            label: const Text('PROFILE'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _c.textPrimary,
-                              side: BorderSide(color: _c.border),
-                              minimumSize: const Size.fromHeight(42),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
+  Widget _buildNoEventsCard() {
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      radius: 12,
+      child: Row(children: [
+        Icon(Icons.calendar_today_outlined, color: _c.accent, size: 20),
+        const SizedBox(width: 12),
+        Expanded(child: Text('No upcoming events. Add one in the Events tab.', style: TextStyle(fontSize: 13, color: _c.textMuted, height: 1.4))),
+      ]),
     );
   }
 }
 
-// ─── Pulsing dot ─────────────────────────────────────────────────────────────
+// ── Pulsing dot ───────────────────────────────────────────────────────────────
 
 class _PulsingDot extends StatefulWidget {
   final Color color;
   const _PulsingDot({required this.color});
-
   @override
   State<_PulsingDot> createState() => _PulsingDotState();
 }
@@ -2176,153 +583,13 @@ class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderState
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _ctrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _opacity,
-      child: Container(
-        width: 7,
-        height: 7,
-        decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
-      ),
-    );
-  }
-}
-
-// ─── Data models ─────────────────────────────────────────────────────────────
-
-class _InsightCardData {
-  final String title;
-  final String subtitle;
-  final String avatarLabel;
-  final String actionPrimary;
-  final String actionSecondary;
-  final IconData icon;
-  final bool useIconAvatar;
-
-  const _InsightCardData({
-    required this.title,
-    required this.subtitle,
-    required this.avatarLabel,
-    required this.actionPrimary,
-    required this.actionSecondary,
-    required this.icon,
-    this.useIconAvatar = false,
-  });
-}
-
-class _EventCardData {
-  final String month;
-  final String day;
-  final String title;
-  final String subtitle;
-  const _EventCardData(this.month, this.day, this.title, this.subtitle);
-}
-
-class _ContactPickerSheet extends StatefulWidget {
-  final List<dynamic> contacts;
-  final ExonoColors colors;
-  const _ContactPickerSheet({required this.contacts, required this.colors});
-
-  @override
-  State<_ContactPickerSheet> createState() => _ContactPickerSheetState();
-}
-
-class _ContactPickerSheetState extends State<_ContactPickerSheet> {
-  String _search = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final c = widget.colors;
-    final filtered = widget.contacts.where((contact) {
-      final name = '${contact.firstName} ${contact.lastName ?? ''}'.toLowerCase();
-      final company = (contact.company?.name ?? '').toLowerCase();
-      final q = _search.toLowerCase();
-      return q.isEmpty || name.contains(q) || company.contains(q);
-    }).toList();
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.65,
-      decoration: BoxDecoration(
-        color: c.background,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border(top: BorderSide(color: c.border)),
-      ),
-      child: Column(children: [
-        Container(
-          margin: const EdgeInsets.only(top: 10, bottom: 4),
-          width: 36, height: 4,
-          decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Add Contact as Target',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.textPrimary)),
-            const SizedBox(height: 12),
-            TextField(
-              autofocus: true,
-              onChanged: (v) => setState(() => _search = v),
-              style: TextStyle(fontSize: 13, color: c.textPrimary),
-              cursorColor: c.accent,
-              decoration: InputDecoration(
-                hintText: 'Search contacts…',
-                hintStyle: TextStyle(fontSize: 13, color: c.textMuted),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Icon(Icons.search_rounded, size: 18, color: c.accent),
-                ),
-                prefixIconConstraints: const BoxConstraints(minWidth: 0),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                filled: true, fillColor: c.surfaceAlt,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.accent)),
-              ),
-            ),
-          ]),
-        ),
-        Expanded(
-          child: filtered.isEmpty
-              ? Center(child: Text('No contacts found.', style: TextStyle(color: c.textMuted, fontSize: 13)))
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => Divider(color: c.border.withValues(alpha: 0.5), height: 1),
-                  itemBuilder: (_, i) {
-                    final contact = filtered[i];
-                    final name = '${contact.firstName} ${contact.lastName ?? ''}'.trim();
-                    final company = contact.company?.name ?? '';
-                    final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
-                      leading: Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(color: c.accentSoft, borderRadius: BorderRadius.circular(8)),
-                        child: Center(child: Text(initials, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.accent))),
-                      ),
-                      title: Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textPrimary)),
-                      subtitle: company.isNotEmpty
-                          ? Text(company, style: TextStyle(fontSize: 11, color: c.textMuted))
-                          : null,
-                      onTap: () => Navigator.of(context).pop({
-                        'company_id': contact.companyId,
-                        'company_name': company,
-                        'contact_id': contact.id,
-                        'contact_name': name,
-                        'job_title': contact.jobTitle ?? '',
-                      }),
-                    );
-                  },
-                ),
-        ),
-      ]),
+      child: Container(width: 7, height: 7, decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle)),
     );
   }
 }
