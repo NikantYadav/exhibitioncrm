@@ -3,6 +3,7 @@ import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/skeleton_loader.dart';
+import '../utils/screen_logger.dart';
 
 class IntegrationsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -13,7 +14,7 @@ class IntegrationsScreen extends StatefulWidget {
   State<IntegrationsScreen> createState() => _IntegrationsScreenState();
 }
 
-class _IntegrationsScreenState extends State<IntegrationsScreen> {
+class _IntegrationsScreenState extends State<IntegrationsScreen> with ScreenLogger {
   bool _isLoading = true;
 
   late final List<_IntegrationItem> _integrations = [

@@ -17,6 +17,7 @@ import '../services/api_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
+import '../utils/screen_logger.dart';
 
 // ── Result type ────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ class VoiceContactCaptureScreen extends StatefulWidget {
 }
 
 class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   // ── Phase ────────────────────────────────────────────────────

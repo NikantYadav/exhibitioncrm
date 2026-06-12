@@ -15,6 +15,7 @@ import '../providers/conversation_provider.dart';
 import '../widgets/app_button.dart';
 import '../widgets/skeleton_loader.dart';
 import 'app_shell.dart' show appNavBarHidden;
+import '../utils/screen_logger.dart';
 
 class ChatScreen extends StatefulWidget {
   final String? initialMessage;
@@ -31,7 +32,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   final TextEditingController _messageController = TextEditingController();

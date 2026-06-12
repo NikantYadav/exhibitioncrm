@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/entry_flow_components.dart';
+import '../utils/screen_logger.dart';
 
 class ModeSelectionScreen extends StatefulWidget {
   const ModeSelectionScreen({super.key});
@@ -13,7 +14,7 @@ class ModeSelectionScreen extends StatefulWidget {
   State<ModeSelectionScreen> createState() => _ModeSelectionScreenState();
 }
 
-class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
+class _ModeSelectionScreenState extends State<ModeSelectionScreen> with ScreenLogger {
   static const String _chatMode = 'chat';
   static const String _crmMode = 'main';
 

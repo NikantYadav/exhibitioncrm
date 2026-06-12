@@ -11,6 +11,7 @@ import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import 'chat_screen.dart';
+import '../utils/screen_logger.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
   const ChatHistoryScreen({super.key});
@@ -19,7 +20,7 @@ class ChatHistoryScreen extends StatefulWidget {
   State<ChatHistoryScreen> createState() => _ChatHistoryScreenState();
 }
 
-class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
+class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   @override

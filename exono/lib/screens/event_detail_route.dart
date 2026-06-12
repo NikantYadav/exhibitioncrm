@@ -6,6 +6,7 @@ import '../models/event.dart';
 import '../services/api_service.dart';
 import 'event_follow_ups_screen.dart';
 import 'pre_event_prep_screen.dart';
+import '../utils/screen_logger.dart';
 
 class EventDetailRoute extends StatefulWidget {
   final String eventId;
@@ -16,7 +17,7 @@ class EventDetailRoute extends StatefulWidget {
   State<EventDetailRoute> createState() => _EventDetailRouteState();
 }
 
-class _EventDetailRouteState extends State<EventDetailRoute> {
+class _EventDetailRouteState extends State<EventDetailRoute> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   Event? _event;

@@ -7,7 +7,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../config/app_theme.dart';
 import '../models/contact.dart';
 import '../models/contact_profile_data.dart';
 import '../models/event.dart';
@@ -17,6 +16,7 @@ import '../widgets/app_input.dart';
 import '../widgets/skeleton_loader.dart';
 import 'contact_links_files_sheet.dart';
 import 'log_interaction_screen.dart';
+import '../utils/screen_logger.dart';
 
 class ContactDetailScreen extends StatefulWidget {
   final String contactId;
@@ -26,7 +26,7 @@ class ContactDetailScreen extends StatefulWidget {
   State<ContactDetailScreen> createState() => _ContactDetailScreenState();
 }
 
-class _ContactDetailScreenState extends State<ContactDetailScreen> {
+class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLogger {
   ContactProfileData? _contact;
   bool _isLoading = true;
   bool _isLoadingDetails = false;

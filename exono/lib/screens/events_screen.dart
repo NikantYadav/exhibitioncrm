@@ -5,8 +5,10 @@ import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
@@ -15,6 +17,7 @@ import 'package:go_router/go_router.dart';
 
 import 'event_follow_ups_screen.dart';
 import 'pre_event_prep_screen.dart';
+import '../utils/screen_logger.dart';
 
 class EventsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -25,7 +28,7 @@ class EventsScreen extends StatefulWidget {
   State<EventsScreen> createState() => _EventsScreenState();
 }
 
-class _EventsScreenState extends State<EventsScreen> {
+class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   bool _showUpcoming = true;
@@ -111,10 +114,7 @@ class _EventsScreenState extends State<EventsScreen> {
       child: Column(
         children: [
           AppHeader(
-            onNotificationPressed: () => showFToast(
-              context: context,
-              title: const Text('Notifications are UI-only for now.'),
-            ),
+            onNotificationPressed: () => showAppToast(context, 'Notifications are UI-only for now.'),
             actionIcon: Icons.add_rounded,
             actionTooltip: 'Add Event',
             onActionPressed: _showNewEventForm,
@@ -173,10 +173,10 @@ class _EventsScreenState extends State<EventsScreen> {
             style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
           ),
           const SizedBox(height: 16),
-          FButton(
-            variant: FButtonVariant.primary,
-            onPress: _loadEvents,
-            child: const Text('Retry'),
+          AppButton(
+            label: 'Retry',
+            variant: ButtonVariant.primary,
+            onPressed: _loadEvents,
           ),
         ],
       ),
@@ -227,17 +227,12 @@ class _EventsScreenState extends State<EventsScreen> {
   Widget _buildNewEventButton() {
     return SizedBox(
       width: double.infinity,
-      child: FButton(
-        variant: FButtonVariant.primary,
-        onPress: _showNewEventSheet,
-        prefix: const Icon(Icons.add, size: 22),
-        child: Text(
-          'NEW EVENT',
-          style: context.theme.typography.xs.copyWith(
-            fontWeight: FontWeight.w500,
-            letterSpacing: 3.2,
-          ),
-        ),
+      child: AppButton(
+        label: 'NEW EVENT',
+        prefixIcon: const Icon(Icons.add, size: 22),
+        variant: ButtonVariant.primary,
+        fullWidth: true,
+        onPressed: _showNewEventSheet,
       ),
     );
   }
@@ -338,14 +333,10 @@ class _EventsScreenState extends State<EventsScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              FButton(
-                variant: FButtonVariant.ghost,
-                onPress: () => _showEventActionsSheet(event),
-                child: Icon(
-                  Icons.more_vert,
-                  color: context.theme.colors.primary,
-                  size: 22,
-                ),
+              AppButton(
+                variant: ButtonVariant.ghost,
+                onPressed: () => _showEventActionsSheet(event),
+                child: Icon(Icons.more_vert, color: context.theme.colors.primary, size: 22),
               ),
             ],
           ),
@@ -362,16 +353,11 @@ class _EventsScreenState extends State<EventsScreen> {
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            child: FButton(
-              variant: FButtonVariant.primary,
-              onPress: () => isOngoing ? _openEventFloor(event) : _openPrepScreen(event),
-              child: Text(
-                isOngoing ? 'ENTER LIVE FLOOR' : 'PREPARE',
-                style: context.theme.typography.xs.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 2.4,
-                ),
-              ),
+            child: AppButton(
+              label: isOngoing ? 'ENTER LIVE FLOOR' : 'PREPARE',
+              variant: ButtonVariant.primary,
+              fullWidth: true,
+              onPressed: () => isOngoing ? _openEventFloor(event) : _openPrepScreen(event),
             ),
           ),
         ],
@@ -481,16 +467,11 @@ class _EventsScreenState extends State<EventsScreen> {
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
-            child: FButton(
-              variant: FButtonVariant.primary,
-              onPress: () => _openFollowUpQueue(event),
-              child: Text(
-                'FOLLOW-UP QUEUE',
-                style: context.theme.typography.xs.copyWith(
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.6,
-                ),
-              ),
+            child: AppButton(
+              label: 'FOLLOW-UP QUEUE',
+              variant: ButtonVariant.primary,
+              fullWidth: true,
+              onPressed: () => _openFollowUpQueue(event),
             ),
           ),
         ],
@@ -580,9 +561,8 @@ class _EventsScreenState extends State<EventsScreen> {
     _startDateController.clear();
     _endDateController.clear();
 
-    showFSheet(
+    showAppSheet(
       context: context,
-      side: FLayout.btt,
       builder: (sheetContext) => _NewEventSheet(
         nameController: _eventNameController,
         locationController: _locationController,
@@ -598,7 +578,7 @@ class _EventsScreenState extends State<EventsScreen> {
   Future<void> _saveEvent(BuildContext sheetContext, bool isOneDay) async {
     final name = _eventNameController.text.trim();
     if (name.isEmpty) {
-      showFToast(context: sheetContext, title: const Text('Event name is required.'));
+      showAppToast(sheetContext, 'Event name is required.');
       return;
     }
 
@@ -609,7 +589,7 @@ class _EventsScreenState extends State<EventsScreen> {
 
     final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
     if (DateTime.parse(startDate).isBefore(today)) {
-      showFToast(context: sheetContext, title: const Text('Event start date cannot be in the past.'));
+      showAppToast(sheetContext, 'Event start date cannot be in the past.');
       return;
     }
 
@@ -632,13 +612,9 @@ class _EventsScreenState extends State<EventsScreen> {
       if (sheetContext.mounted) Navigator.of(sheetContext).pop();
       await _loadEvents();
 
-      if (mounted) {
-        showFToast(context: context, title: const Text('Event created successfully.'));
-      }
+      if (mounted) showAppToast(context, 'Event created successfully.');
     } catch (_) {
-      if (sheetContext.mounted) {
-        showFToast(context: sheetContext, title: const Text('Server error — please try again.'));
-      }
+      if (sheetContext.mounted) showAppToast(sheetContext, 'Server error — please try again.');
     }
   }
 
@@ -651,9 +627,8 @@ class _EventsScreenState extends State<EventsScreen> {
         ? '${event.endDate!.year}-${event.endDate!.month.toString().padLeft(2, '0')}-${event.endDate!.day.toString().padLeft(2, '0')}'
         : '';
 
-    showFSheet(
+    showAppSheet(
       context: context,
-      side: FLayout.btt,
       builder: (sheetContext) => _NewEventSheet(
         nameController: _eventNameController,
         locationController: _locationController,
@@ -672,7 +647,7 @@ class _EventsScreenState extends State<EventsScreen> {
   Future<void> _updateEvent(BuildContext sheetContext, String eventId, bool isOneDay) async {
     final name = _eventNameController.text.trim();
     if (name.isEmpty) {
-      showFToast(context: sheetContext, title: const Text('Event name is required.'));
+      showAppToast(sheetContext, 'Event name is required.');
       return;
     }
     final startText = _startDateController.text;
@@ -680,7 +655,7 @@ class _EventsScreenState extends State<EventsScreen> {
 
     final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
     if (startDate != null && DateTime.parse(startDate).isBefore(today)) {
-      showFToast(context: sheetContext, title: const Text('Event start date cannot be in the past.'));
+      showAppToast(sheetContext, 'Event start date cannot be in the past.');
       return;
     }
 
@@ -697,31 +672,22 @@ class _EventsScreenState extends State<EventsScreen> {
       });
       if (sheetContext.mounted) Navigator.of(sheetContext).pop();
       await _loadEvents();
-      if (mounted) {
-        showFToast(context: context, title: const Text('Event updated.'));
-      }
+      if (mounted) showAppToast(context, 'Event updated.');
     } catch (_) {
-      if (sheetContext.mounted) {
-        showFToast(context: sheetContext, title: const Text('Server error — please try again.'));
-      }
+      if (sheetContext.mounted) showAppToast(sheetContext, 'Server error — please try again.');
     }
   }
 
   void _showEventActionsSheet(Event event) {
-    showFSheet(
+    showAppSheet(
       context: context,
-      side: FLayout.btt,
       builder: (ctx) => _buildEventActionsContent(ctx, event),
     );
   }
 
   Widget _buildEventActionsContent(BuildContext ctx, Event event) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.theme.colors.secondary,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(top: BorderSide(color: context.theme.colors.border)),
-      ),
+    return SafeArea(
+      top: false,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -763,9 +729,7 @@ class _EventsScreenState extends State<EventsScreen> {
                         : '${months[start.month - 1]} ${start.day} - ${months[event.endDate!.month - 1]} ${event.endDate!.day}, ${start.year}';
                     final text = '${event.name}\n$dateStr${event.location != null ? '\n${event.location}' : ''}';
                     Clipboard.setData(ClipboardData(text: text));
-                    if (mounted) {
-                      showFToast(context: context, title: const Text('Event details copied to clipboard.'));
-                    }
+                    if (mounted) showAppToast(context, 'Event details copied to clipboard.');
                   },
                 ),
                 Padding(
@@ -781,13 +745,9 @@ class _EventsScreenState extends State<EventsScreen> {
                     try {
                       await ApiService.deleteEvent(event.id);
                       await _loadEvents();
-                      if (mounted) {
-                        showFToast(context: context, title: const Text('Event deleted.'));
-                      }
+                      if (mounted) showAppToast(context, 'Event deleted.');
                     } catch (e) {
-                      if (mounted) {
-                        showFToast(context: context, title: Text('Failed to delete event: $e'));
-                      }
+                      if (mounted) showAppToast(context, 'Failed to delete event: $e');
                     }
                   },
                 ),
@@ -807,17 +767,25 @@ class _EventsScreenState extends State<EventsScreen> {
   }) {
     final color = isDestructive ? context.theme.colors.error : context.theme.colors.foreground;
 
-    return FButton(
-      variant: FButtonVariant.ghost,
-      onPress: onTap,
-      prefix: Icon(icon, size: 20, color: color),
-      child: Expanded(
-        child: Text(
-          label,
-          style: context.theme.typography.lg.copyWith(
-            fontWeight: FontWeight.w400,
-            color: color,
-          ),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: context.theme.typography.lg.copyWith(
+                  fontWeight: FontWeight.w400,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -946,12 +914,8 @@ class _NewEventSheetState extends State<_NewEventSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.theme.colors.background,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(top: BorderSide(color: context.theme.colors.border)),
-      ),
+    return SafeArea(
+      top: false,
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1028,34 +992,18 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                     _buildDateField(label: 'End Date', controller: widget.endDateController),
                   ],
                   const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FButton(
-                      variant: FButtonVariant.primary,
-                      onPress: () => widget.onSave(_isOneDay),
-                      child: Text(
-                        widget.saveLabel,
-                        style: context.theme.typography.xs.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2.0,
-                        ),
-                      ),
-                    ),
+                  AppButton(
+                    label: widget.saveLabel,
+                    variant: ButtonVariant.primary,
+                    fullWidth: true,
+                    onPressed: () => widget.onSave(_isOneDay),
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FButton(
-                      variant: FButtonVariant.outline,
-                      onPress: widget.onCancel,
-                      child: Text(
-                        'CANCEL',
-                        style: context.theme.typography.xs.copyWith(
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 1.6,
-                        ),
-                      ),
-                    ),
+                  AppButton(
+                    label: 'CANCEL',
+                    variant: ButtonVariant.outline,
+                    fullWidth: true,
+                    onPressed: widget.onCancel,
                   ),
                   const SizedBox(height: 24),
                 ],

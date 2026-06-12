@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/entry_flow_components.dart';
+import '../utils/screen_logger.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -16,7 +17,7 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen> with ScreenLogger {
   bool _isLogin = true;
   bool _isLoading = false;
   bool _obscurePassword = true;

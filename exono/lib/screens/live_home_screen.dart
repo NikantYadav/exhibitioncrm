@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
+import '../widgets/app_button.dart';
+import '../widgets/app_feedback.dart';
 import '../models/event.dart';
 import '../providers/live_event_provider.dart';
 import '../services/api_service.dart';
@@ -11,11 +14,13 @@ import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_header.dart';
+import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import 'app_shell.dart';
 import 'event_target_screen.dart';
 import 'live_target_person_screen.dart';
 import 'log_interaction_screen.dart';
+import '../utils/screen_logger.dart';
 
 /// Standalone live event floor screen — the full workspace shown when an event
 /// is ongoing.  Launched via the home auto-redirect and the LiveBar tap.
@@ -26,7 +31,7 @@ class LiveHomeScreen extends StatefulWidget {
   State<LiveHomeScreen> createState() => _LiveHomeScreenState();
 }
 
-class _LiveHomeScreenState extends State<LiveHomeScreen> {
+class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   // Local overrides & UI state
@@ -57,9 +62,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-    );
+    showAppToast(context, msg);
   }
 
   bool _isTargetMet(Map<String, dynamic> t) {
@@ -131,15 +134,12 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
     bool isCheckbox = false;
     final c = _c;
 
-    await showModalBottomSheet(
+    await showAppSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: c.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
+        builder: (ctx, setModalState) => SafeArea(
+          top: false,
+          child: Padding(
           padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -147,17 +147,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
             children: [
               Text('Add Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
               const SizedBox(height: 20),
-              TextField(
+              AppInput(
                 controller: labelCtrl,
                 autofocus: true,
-                style: TextStyle(color: c.textPrimary),
-                decoration: InputDecoration(
-                  hintText: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
-                  hintStyle: TextStyle(color: c.textMuted),
-                  filled: true, fillColor: c.surfaceAlt,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                ),
+                hint: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
               ),
               const SizedBox(height: 16),
               Container(
@@ -204,46 +197,33 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
               ),
               if (!isCheckbox) ...[
                 const SizedBox(height: 12),
-                TextField(
+                AppInput(
                   controller: totalCtrl,
                   keyboardType: TextInputType.number,
-                  style: TextStyle(color: c.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'Target count',
-                    hintStyle: TextStyle(color: c.textMuted),
-                    filled: true, fillColor: c.surfaceAlt,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                  ),
+                  hint: 'Target count',
                 ),
               ],
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () async {
-                    final label = labelCtrl.text.trim();
-                    if (label.isEmpty) return;
-                    final total = isCheckbox ? 0 : (int.tryParse(totalCtrl.text.trim()) ?? 1);
-                    Navigator.pop(ctx);
-                    try {
-                      final newGoal = await ApiService.createEventGoal(event.id, label, total);
-                      if (mounted) lep.addGoalLocally(newGoal);
-                    } catch (_) {
-                      if (mounted) _toast('Failed to add goal');
-                    }
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: c.accent,
-                    foregroundColor: (c.isDark ? c.textPrimary : c.background),
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('ADD GOAL', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-                ),
+              AppButton(
+                label: 'ADD GOAL',
+                fullWidth: true,
+                variant: ButtonVariant.primary,
+                onPressed: () async {
+                  final label = labelCtrl.text.trim();
+                  if (label.isEmpty) return;
+                  final total = isCheckbox ? 0 : (int.tryParse(totalCtrl.text.trim()) ?? 1);
+                  Navigator.pop(ctx);
+                  try {
+                    final newGoal = await ApiService.createEventGoal(event.id, label, total);
+                    if (mounted) lep.addGoalLocally(newGoal);
+                  } catch (_) {
+                    if (mounted) _toast('Failed to add goal');
+                  }
+                },
               ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -288,10 +268,8 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
       return;
     }
 
-    final picked = await showModalBottomSheet<dynamic>(
+    final picked = await showAppSheet<dynamic>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => _ContactPickerSheet(contacts: eligible, colors: _c),
     );
 
@@ -332,17 +310,12 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
     final contactId = target['contact_id'] as String?;
     final name = target['name'] as String? ?? 'Target';
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppConfirmDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: _c.surface,
-        title: Text('Remove Target', style: TextStyle(color: _c.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-        content: Text('Remove $name from targets?', style: TextStyle(color: _c.textSecondary, fontSize: 14)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel', style: TextStyle(color: _c.textMuted))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: Text('Remove', style: TextStyle(color: _c.destructive, fontWeight: FontWeight.w700))),
-        ],
-      ),
+      title: 'Remove Target',
+      message: 'Remove $name from targets?',
+      confirmLabel: 'Remove',
+      destructive: true,
     );
     if (confirmed != true || !mounted) return;
 
@@ -372,14 +345,14 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
         if (event == null) {
           // Event ended — go back to home
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && context.canPop()) context.pop();
-            else if (mounted) context.go('/');
+            if (mounted && context.canPop()) { context.pop(); }
+            else if (mounted) { context.go('/'); }
           });
           return const SizedBox.shrink();
         }
 
         return Scaffold(
-          backgroundColor: _c.background,
+          backgroundColor: context.theme.colors.background,
           bottomNavigationBar: AppBottomNav(
             selectedIndex: 0,
             onNavigate: (index) {
@@ -560,7 +533,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
               for (int i = 0; i < lep.liveGoals.length; i++) ...[
                 _buildGoalRow(lep.liveGoals[i], event, lep),
                 if (i < lep.liveGoals.length - 1) ...[
-                  Divider(color: _c.border.withValues(alpha: 0.4), height: 1),
+                  FDivider(),
                   const SizedBox(height: 4),
                 ],
               ],
@@ -579,11 +552,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
 
     return GestureDetector(
       onLongPress: () {
-        showModalBottomSheet(
+        showAppSheet(
           context: context,
-          backgroundColor: _c.surface,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
           builder: (_) => SafeArea(
+            top: false,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               const SizedBox(height: 8),
               Container(width: 36, height: 4,
@@ -779,26 +751,11 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 12),
-        TextField(
+        AppInput(
           controller: _targetSearchCtrl,
-          style: TextStyle(fontSize: 13, color: _c.textPrimary),
-          cursorColor: _c.accent,
+          hint: 'Search companies, people, booths…',
           onChanged: (v) => setState(() => _targetSearch = v),
-          decoration: InputDecoration(
-            hintText: 'Search companies, people, booths…',
-            hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(Icons.search_rounded, size: 18, color: _c.accent),
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 0),
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            filled: true, fillColor: _c.surface,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
-          ),
+          prefixIcon: Icon(Icons.search_rounded, size: 18, color: _c.accent),
         ),
         const SizedBox(height: 10),
         AppFilterRow(
@@ -857,15 +814,11 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
               ? _c.accent.withValues(alpha: 0.22)
               : null,
       child: Column(children: [
-        InkWell(
+        GestureDetector(
           onTap: id.isEmpty ? null : () => setState(() {
             if (isExpanded) { _expandedTargetIds.remove(id); }
             else { _expandedTargetIds.add(id); }
           }),
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppTheme.radiusCard),
-            bottom: isExpanded ? Radius.zero : Radius.circular(AppTheme.radiusCard),
-          ),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -927,26 +880,21 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
             ),
             child: Row(children: [
               Expanded(
-                child: FilledButton.icon(
+                child: AppButton(
+                  label: 'LOG INTERACTION',
+                  prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
+                  variant: ButtonVariant.primary,
                   onPressed: () => showLogInteractionSheet(context,
                       contactId: contactId, initialMode: event.name,
                       onSaved: () => lep.refresh()),
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
-                  label: const Text('LOG INTERACTION', maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _c.accent,
-                    foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-                    minimumSize: const Size.fromHeight(42),
-                    iconSize: 14,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5),
-                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: OutlinedButton.icon(
+                child: AppButton(
+                  label: 'PROFILE',
+                  prefixIcon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
+                  variant: ButtonVariant.outline,
                   onPressed: () {
                     if (contactId != null && contactId.isNotEmpty) {
                       context.push('/contacts/$contactId');
@@ -955,28 +903,12 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
                           builder: (_) => LiveTargetPersonScreen(event: event, target: target)));
                     }
                   },
-                  icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
-                  label: const Text('PROFILE'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _c.textPrimary,
-                    side: BorderSide(color: _c.border),
-                    minimumSize: const Size.fromHeight(42),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
-                  ),
                 ),
               ),
               const SizedBox(width: 8),
-              OutlinedButton(
+              AppButton(
+                variant: ButtonVariant.outline,
                 onPressed: () => _deleteTarget(target, event, lep),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _c.destructive,
-                  side: BorderSide(color: _c.destructive.withValues(alpha: 0.4)),
-                  minimumSize: const Size(42, 42),
-                  maximumSize: const Size(42, 42),
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
                 child: Icon(Icons.delete_outline_rounded, size: 18, color: _c.destructive),
               ),
             ]),
@@ -1010,25 +942,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 12),
-        TextField(
-          style: TextStyle(fontSize: 13, color: _c.textPrimary),
-          cursorColor: _c.accent,
+        AppInput(
+          hint: 'Search scanned contacts…',
           onChanged: (v) => setState(() => _scannedSearch = v),
-          decoration: InputDecoration(
-            hintText: 'Search scanned contacts…',
-            hintStyle: TextStyle(fontSize: 13, color: _c.textMuted),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(Icons.search_rounded, size: 18, color: _c.accent),
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 0),
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            filled: true, fillColor: _c.surface,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
-          ),
+          prefixIcon: Icon(Icons.search_rounded, size: 18, color: _c.accent),
         ),
         const SizedBox(height: 14),
         if (lep.scannedContacts.isEmpty)
@@ -1074,10 +991,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
       try {
         final date = DateTime.parse(createdAt).toLocal();
         final diff = DateTime.now().difference(date);
-        if (diff.isNegative || diff.inSeconds < 60) timeAgo = 'just now';
-        else if (diff.inMinutes < 60) timeAgo = '${diff.inMinutes}m ago';
-        else if (diff.inHours < 24) timeAgo = '${diff.inHours}h ago';
-        else timeAgo = '${diff.inDays}d ago';
+        if (diff.isNegative || diff.inSeconds < 60) { timeAgo = 'just now'; }
+        else if (diff.inMinutes < 60) { timeAgo = '${diff.inMinutes}m ago'; }
+        else if (diff.inHours < 24) { timeAgo = '${diff.inHours}h ago'; }
+        else { timeAgo = '${diff.inDays}d ago'; }
       } catch (_) {}
     }
 
@@ -1087,15 +1004,11 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
         radius: AppTheme.radiusCard,
         elevated: isExpanded,
         child: Column(children: [
-          InkWell(
+          GestureDetector(
             onTap: contactId.isEmpty ? null : () => setState(() {
-              if (isExpanded) _expandedScannedIds.remove(contactId);
-              else _expandedScannedIds.add(contactId);
+              if (isExpanded) { _expandedScannedIds.remove(contactId); }
+              else { _expandedScannedIds.add(contactId); }
             }),
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(AppTheme.radiusCard),
-              bottom: isExpanded ? Radius.zero : Radius.circular(AppTheme.radiusCard),
-            ),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(children: [
@@ -1159,33 +1072,21 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
                 Row(children: [
                   Expanded(
                     flex: 3,
-                    child: FilledButton.icon(
+                    child: AppButton(
+                      label: 'LOG INTERACTION',
+                      prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
+                      variant: ButtonVariant.primary,
                       onPressed: () => showLogInteractionSheet(context, contactId: contactId),
-                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
-                      label: const Text('LOG INTERACTION'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _c.accent,
-                        foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-                        minimumSize: const Size.fromHeight(42),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6),
-                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     flex: 2,
-                    child: OutlinedButton.icon(
+                    child: AppButton(
+                      label: 'PROFILE',
+                      prefixIcon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
+                      variant: ButtonVariant.outline,
                       onPressed: contactId.isEmpty ? null : () => context.push('/contacts/$contactId'),
-                      icon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
-                      label: const Text('PROFILE'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _c.textPrimary,
-                        side: BorderSide(color: _c.border),
-                        minimumSize: const Size.fromHeight(42),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6),
-                      ),
                     ),
                   ),
                 ]),
@@ -1253,23 +1154,16 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
             ]),
           ),
           const SizedBox(width: 8),
-          OutlinedButton(
+          AppButton(
+            label: 'VIEW',
+            variant: ButtonVariant.outline,
+            size: ButtonSize.sm,
             onPressed: () {
               final targetId = target['id'] as String? ?? '';
               if (targetId.isEmpty) return;
               Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => EventTargetScreen(event: event, targetId: targetId)));
             },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _c.accent,
-              side: BorderSide(color: _c.accent.withValues(alpha: 0.5)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8),
-            ),
-            child: const Text('VIEW'),
           ),
         ]),
       ),
@@ -1332,13 +1226,10 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
       return q.isEmpty || name.contains(q) || company.contains(q);
     }).toList();
 
-    return Container(
+    return SafeArea(
+      top: false,
+      child: SizedBox(
       height: MediaQuery.of(context).size.height * 0.65,
-      decoration: BoxDecoration(
-        color: c.background,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border(top: BorderSide(color: c.border)),
-      ),
       child: Column(children: [
         Container(
           margin: const EdgeInsets.only(top: 10, bottom: 4),
@@ -1351,26 +1242,11 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
             Text('Add Contact as Target',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.textPrimary)),
             const SizedBox(height: 12),
-            TextField(
+            AppInput(
               autofocus: true,
+              hint: 'Search contacts…',
               onChanged: (v) => setState(() => _search = v),
-              style: TextStyle(fontSize: 13, color: c.textPrimary),
-              cursorColor: c.accent,
-              decoration: InputDecoration(
-                hintText: 'Search contacts…',
-                hintStyle: TextStyle(fontSize: 13, color: c.textMuted),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Icon(Icons.search_rounded, size: 18, color: c.accent),
-                ),
-                prefixIconConstraints: const BoxConstraints(minWidth: 0),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                filled: true, fillColor: c.surfaceAlt,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.accent)),
-              ),
+              prefixIcon: Icon(Icons.search_rounded, size: 18, color: c.accent),
             ),
           ]),
         ),
@@ -1380,7 +1256,7 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   itemCount: filtered.length,
-                  separatorBuilder: (context, index) => Divider(color: c.border.withValues(alpha: 0.5), height: 1),
+                  separatorBuilder: (context, index) => FDivider(),
                   itemBuilder: (_, i) {
                     final contact = filtered[i];
                     final name = '${contact.firstName} ${contact.lastName ?? ''}'.trim();
@@ -1410,6 +1286,6 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                 ),
         ),
       ]),
-    );
+    ));
   }
 }

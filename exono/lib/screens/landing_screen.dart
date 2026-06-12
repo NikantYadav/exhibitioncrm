@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../utils/screen_logger.dart';
 
 // ─── Dark navy palette ────────────────────────────────────────────────────────
 const _bg    = Color(0xFF010C1C);   // very dark navy canvas
@@ -104,7 +105,7 @@ class _Hover extends StatefulWidget {
   State<_Hover> createState() => _HoverState();
 }
 
-class _HoverState extends State<_Hover> {
+class _HoverState extends State<_Hover> with ScreenLogger {
   bool _h = false;
   @override
   Widget build(BuildContext context) => MouseRegion(
@@ -305,10 +306,10 @@ class _HeroState extends State<_Hero> with SingleTickerProviderStateMixin {
     super.initState();
     _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
     _fades = List.generate(5, (i) => CurvedAnimation(parent: _c,
-        curve: Interval(i * 0.12, i * 0.12 + 0.50, curve: Curves.easeOut)));
+        curve: Interval(i * 0.12, (i * 0.12 + 0.50).clamp(0.0, 1.0), curve: Curves.easeOut)));
     _slides = List.generate(5, (i) =>
         Tween(begin: const Offset(0, 0.05), end: Offset.zero).animate(CurvedAnimation(
-            parent: _c, curve: Interval(i * 0.12, i * 0.12 + 0.55, curve: Curves.easeOutCubic))));
+            parent: _c, curve: Interval(i * 0.12, (i * 0.12 + 0.55).clamp(0.0, 1.0), curve: Curves.easeOutCubic))));
     _c.forward();
   }
 

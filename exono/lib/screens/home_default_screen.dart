@@ -8,11 +8,14 @@ import '../models/event.dart';
 import '../providers/auth_provider.dart';
 import '../providers/live_event_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import 'log_interaction_screen.dart';
+import '../utils/screen_logger.dart';
 
 class HomeDefaultScreen extends StatefulWidget {
   const HomeDefaultScreen({super.key});
@@ -21,7 +24,7 @@ class HomeDefaultScreen extends StatefulWidget {
   State<HomeDefaultScreen> createState() => _HomeDefaultScreenState();
 }
 
-class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
+class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   List<Event> _upcomingEvents = [];
@@ -80,7 +83,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   }
 
   void _toast(String msg) {
-    showFToast(context: context, title: Text(msg));
+    showAppToast(context, msg);
   }
 
   String _greeting() {
@@ -106,9 +109,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
     final auth = context.watch<AuthProvider>();
     final firstName = auth.displayName.trim().split(RegExp(r'\s+')).first;
 
-    return Scaffold(
-      backgroundColor: _c.background,
-      body: SafeArea(
+    return ColoredBox(
+      color: context.theme.colors.background,
+      child: SafeArea(
         bottom: false,
         child: Column(
           children: [
@@ -206,13 +209,12 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
         ],
 
         // ── CTA: go to full live floor ──
-        SizedBox(
-          width: double.infinity,
-          child: FButton(variant: FButtonVariant.outline, 
-            onPress: () => context.push('/live-event'),
-            prefix: Icon(Icons.open_in_full_rounded, size: 16, color: _c.accent),
-            child: Text('OPEN LIVE FLOOR', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: _c.accent)),
-          ),
+        AppButton(
+          label: 'OPEN LIVE FLOOR',
+          prefixIcon: Icon(Icons.open_in_full_rounded, size: 16, color: _c.accent),
+          variant: ButtonVariant.outline,
+          fullWidth: true,
+          onPressed: () => context.push('/live-event'),
         ),
 
         // ── Divider between live and traditional ──
@@ -248,13 +250,12 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           const SizedBox(height: 6),
           _buildContextLine(lep),
           const SizedBox(height: 28),
-          SizedBox(
-            width: double.infinity,
-            child: FButton(variant: FButtonVariant.primary, 
-              onPress: () => showLogInteractionSheet(context),
-              prefix: const Icon(Icons.add_circle_outline_rounded, size: 20),
-              child: const Text('LOG INTERACTION', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6), overflow: TextOverflow.fade, softWrap: false),
-            ),
+          AppButton(
+            label: 'LOG INTERACTION',
+            prefixIcon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+            variant: ButtonVariant.primary,
+            fullWidth: true,
+            onPressed: () => showLogInteractionSheet(context),
           ),
           const SizedBox(height: 28),
         ],

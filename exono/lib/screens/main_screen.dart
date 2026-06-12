@@ -13,9 +13,9 @@ import 'follow_ups_screen.dart';
 import 'account_settings_screen.dart';
 import 'meetings_screen.dart';
 import 'integrations_screen.dart';
-import 'account_settings_screen.dart';
 import 'log_interaction_screen.dart';
 import '../widgets/app_bottom_nav.dart';
+import '../utils/screen_logger.dart';
 
 /// Main screen with sidebar navigation matching CRM's information architecture
 class MainScreen extends StatefulWidget {
@@ -28,7 +28,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with ScreenLogger {
   int _selectedIndex = 0;
   bool _isSidebarCollapsed = false;
 

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/live_event_provider.dart';
 
-/// Live bar docked to the nav bar — rounded top corners, flat bottom, extends
-/// slightly beyond the nav bar edges. Inspired by iOS widget-docked style.
+/// Live bar docked above the nav bar — rounded top corners, blue accent theme.
 class LiveBar extends StatefulWidget {
   final VoidCallback onTap;
 
@@ -76,10 +76,10 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
     final scanned = lep.scannedContacts.length;
     final goalsLeft = lep.liveGoals.where((g) => (g['status'] as String?) != 'completed').length;
 
-    const bg = Color(0xFF1C1C1E);
-    const live = Color(0xFFFF3B30);
-    const divider = Color(0x26FFFFFF);
-    const labelColor = Color(0x99FFFFFF);
+    final bg = c.isDark ? c.accentStrong : c.accent;
+    const live = Color(0xFFFF453A);
+    final divider = Colors.white.withValues(alpha: 0.20);
+    final labelColor = Colors.white.withValues(alpha: 0.70);
     const valueColor = Colors.white;
 
     return AnimatedBuilder(
@@ -90,142 +90,150 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
       ),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(18),
-              topRight: Radius.circular(18),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.45),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
+        // Extra bottom padding so the QR button floating 14px above the nav
+        // doesn't overlap this bar's content.
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Container(
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Top row: dot + LIVE + event name + arrow
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-                child: Row(
-                  children: [
-                    // Pulsing dot
-                    AnimatedBuilder(
-                      animation: _pulseCtrl,
-                      builder: (context, _) {
-                        return SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Transform.scale(
-                                scale: _pulseScale.value,
-                                child: Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: live.withValues(
-                                      alpha: (1 - (_pulseScale.value - 0.75) / 0.65) * 0.25,
+              boxShadow: [
+                BoxShadow(
+                  color: c.accent.withValues(alpha: 0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top row: dot + LIVE + event name + arrow
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+                  child: Row(
+                    children: [
+                      // Pulsing dot
+                      AnimatedBuilder(
+                        animation: _pulseCtrl,
+                        builder: (context, _) {
+                          return SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Transform.scale(
+                                  scale: _pulseScale.value,
+                                  child: Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: live.withValues(
+                                        alpha: (1 - (_pulseScale.value - 0.75) / 0.65) * 0.30,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: live,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: live.withValues(alpha: 0.7),
-                                      blurRadius: 5,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
+                                Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: live,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: live.withValues(alpha: 0.7),
+                                        blurRadius: 5,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 5),
-                    const Text(
-                      'LIVE',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.5,
-                        color: live,
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(width: 1, height: 12, color: divider),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        event.name,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: valueColor,
-                          letterSpacing: 0.1,
+                      const SizedBox(width: 5),
+                      const Text(
+                        'LIVE',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.5,
+                          color: live,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.north_east_rounded, size: 13, color: Color(0x66FFFFFF)),
-                  ],
+                      const SizedBox(width: 8),
+                      Container(width: 1, height: 12, color: divider),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          event.name,
+                          style: context.theme.typography.sm.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: valueColor,
+                            letterSpacing: 0.1,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(Icons.north_east_rounded, size: 13, color: Colors.white.withValues(alpha: 0.5)),
+                    ],
+                  ),
                 ),
-              ),
 
-              // Stats row
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                child: Row(
-                  children: [
-                    _stat(scanned.toString(), 'Scanned', labelColor, valueColor),
-                    _divider(),
-                    _stat(
-                      targetsLeft.toString(),
-                      'Targets left',
-                      labelColor,
-                      targetsLeft > 0 ? live : const Color(0x66FFFFFF),
-                    ),
-                    _divider(),
-                    _stat(
-                      goalsLeft.toString(),
-                      'Goals left',
-                      labelColor,
-                      goalsLeft > 0 ? live : const Color(0x66FFFFFF),
-                    ),
-                  ],
+                // Thin divider
+                Container(height: 1, color: Colors.white.withValues(alpha: 0.12)),
+
+                // Stats row
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+                  child: Row(
+                    children: [
+                      _stat(scanned.toString(), 'Scanned', labelColor, valueColor, context),
+                      _dividerWidget(divider),
+                      _stat(
+                        targetsLeft.toString(),
+                        'Targets left',
+                        labelColor,
+                        targetsLeft > 0 ? live : Colors.white.withValues(alpha: 0.5),
+                        context,
+                      ),
+                      _dividerWidget(divider),
+                      _stat(
+                        goalsLeft.toString(),
+                        'Goals left',
+                        labelColor,
+                        goalsLeft > 0 ? live : Colors.white.withValues(alpha: 0.5),
+                        context,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _stat(String value, String label, Color labelColor, Color valueColor) {
+  Widget _stat(String value, String label, Color labelColor, Color valueColor, BuildContext context) {
     return Expanded(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             value,
-            style: TextStyle(
-              fontSize: 16,
+            style: context.theme.typography.lg.copyWith(
               fontWeight: FontWeight.w700,
               color: valueColor,
               height: 1.1,
@@ -234,8 +242,7 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 9,
+            style: context.theme.typography.xs.copyWith(
               fontWeight: FontWeight.w500,
               color: labelColor,
               letterSpacing: 0.2,
@@ -246,7 +253,7 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
     );
   }
 
-  Widget _divider() {
-    return Container(width: 1, height: 28, color: const Color(0x1AFFFFFF));
+  Widget _dividerWidget(Color color) {
+    return Container(width: 1, height: 28, color: color);
   }
 }

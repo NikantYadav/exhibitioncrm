@@ -4,10 +4,13 @@ import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
+import '../utils/screen_logger.dart';
 
 class ManualEntryScreen extends StatefulWidget {
   const ManualEntryScreen({super.key});
@@ -21,7 +24,7 @@ class ManualEntryResult {
   const ManualEntryResult(this.savedName);
 }
 
-class _ManualEntryScreenState extends State<ManualEntryScreen> {
+class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   // ── Controllers ────────────────────────────────────────────
@@ -163,7 +166,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
   // ── Header ─────────────────────────────────────────────────
 
   Widget _buildHeader() {
-    return Material(
+    return ColoredBox(
       color: _c.navBackground,
       child: SafeArea(
         bottom: false,
@@ -427,9 +430,8 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
 
   Future<void> _showAddTagSheet() async {
     final ctrl = TextEditingController();
-    await showFSheet<void>(
+    await showAppSheet<void>(
       context: context,
-      side: FLayout.btt,
       builder: (ctx) {
         return Padding(
           padding: EdgeInsets.fromLTRB(
@@ -475,27 +477,17 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: FButton(
-                  variant: FButtonVariant.primary,
-                  onPress: () {
-                    final tag = ctrl.text.trim();
-                    if (tag.isNotEmpty && !_tags.contains(tag)) {
-                      setState(() => _tags.add(tag));
-                    }
-                    Navigator.of(ctx).pop();
-                  },
-                  child: const Text(
-                    'ADD',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ),
+              AppButton(
+                label: 'ADD',
+                fullWidth: true,
+                variant: ButtonVariant.primary,
+                onPressed: () {
+                  final tag = ctrl.text.trim();
+                  if (tag.isNotEmpty && !_tags.contains(tag)) {
+                    setState(() => _tags.add(tag));
+                  }
+                  Navigator.of(ctx).pop();
+                },
               ),
             ],
           ),
@@ -516,33 +508,13 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
         color: _c.navBackground,
         border: Border(top: BorderSide(color: _c.border)),
       ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 54,
-        child: FButton(
-          variant: FButtonVariant.primary,
-          onPress: (_isSaving || _saved) ? null : _save,
-          child: _isSaving
-              ? const FCircularProgress()
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _saved ? Icons.check_circle_outline_rounded : Icons.person_add_outlined,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      _saved ? 'CONTACT SAVED' : 'SAVE CONTACT',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.8,
-                      ),
-                    ),
-                  ],
-                ),
-        ),
+      child: AppButton(
+        label: _saved ? 'CONTACT SAVED' : 'SAVE CONTACT',
+        fullWidth: true,
+        size: ButtonSize.lg,
+        variant: ButtonVariant.primary,
+        isLoading: _isSaving,
+        onPressed: (_isSaving || _saved) ? null : _save,
       ),
     );
   }
@@ -565,10 +537,10 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: Material(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              child: ColoredBox(
               color: _c.surface,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -681,23 +653,17 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
                               _resolveDuplicateAndSave(merge: false),
                         ),
                         const SizedBox(height: 10),
-                        FButton(
-                          variant: FButtonVariant.ghost,
-                          onPress: () =>
-                              setState(() => _showDedup = false),
-                          child: Text(
-                            'CANCEL',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: _c.textMuted,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
+                        AppButton(
+                          label: 'CANCEL',
+                          variant: ButtonVariant.ghost,
+                          fullWidth: true,
+                          onPressed: () => setState(() => _showDedup = false),
                         ),
                       ],
                     ),
                   ),
                 ],
+              ),
               ),
             ),
           ),
@@ -711,21 +677,11 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
     required VoidCallback onTap,
     bool primary = false,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: FButton(
-        variant: primary ? FButtonVariant.primary : FButtonVariant.secondary,
-        onPress: onTap,
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.6,
-          ),
-        ),
-      ),
+    return AppButton(
+      label: label,
+      fullWidth: true,
+      variant: primary ? ButtonVariant.primary : ButtonVariant.secondary,
+      onPressed: onTap,
     );
   }
 
@@ -736,11 +692,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
     final ln = _lnCtrl.text.trim();
     final name = '$fn $ln'.trim();
     if (name.isEmpty) {
-      showFToast(
-        context: context,
-        title: const Text('Enter at least a name'),
-        variant: FToastVariant.destructive,
-      );
+      showAppToast(context, 'Enter at least a name');
       return;
     }
     setState(() => _isSaving = true);
@@ -765,11 +717,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      showFToast(
-        context: context,
-        title: const Text('Failed to save contact'),
-        variant: FToastVariant.destructive,
-      );
+      showAppToast(context, 'Failed to save contact');
     }
   }
 
@@ -809,11 +757,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
         _isSaving = false;
         _saved    = false;
       });
-      showFToast(
-        context: context,
-        title: const Text('Failed to save contact'),
-        variant: FToastVariant.destructive,
-      );
+      showAppToast(context, 'Failed to save contact');
     }
   }
 

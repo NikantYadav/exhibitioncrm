@@ -45,6 +45,7 @@ AppButton(
   size: ButtonSize.md,                 // sm | md | lg
   fullWidth: true,                     // wraps in SizedBox(width: infinity)
   isLoading: false,                    // shows spinner, disables
+  prefixIcon: Icon(Icons.save),        // for icon+label buttons (replaces FilledButton.icon / OutlinedButton.icon)
 )
 ```
 Variant mapping: Filled/Elevated → primary · Outlined → outline · Text/cancel → ghost · delete confirm → destructive · "Link X"/secondary → secondary.
@@ -92,6 +93,13 @@ The app also has `ExonoColors` via `AppTheme.colorsOf(context)` (aliased `_c` in
 - **`AppCard` does not support gradient backgrounds or conditional colors.** If a surface has a `LinearGradient`/`RadialGradient` fill, OR has conditional background color (e.g. `isSelected ? color : _c.surfaceAlt`), keep the raw `Container+BoxDecoration`. `AppCard` uses a fixed theme color — only replace with it when the background is unconditionally the default card color.
 - **Unused variables left over from replaced widgets cause analyzer warnings.** After replacing a widget that used a local variable (e.g. `urgencyColor` used only for a `Container` color), delete the variable declaration too — don't just leave it orphaned.
 - **`showFToast` → `showAppToast(context, 'message')`.** The forui raw call is `showFToast(context: context, title: Text(...))` which requires a widget; the wrapper takes a plain string. Always use the wrapper and add `app_feedback.dart` to imports.
+- **`FilledButton.icon` / `OutlinedButton.icon` → `AppButton(prefixIcon: Icon(...), label: '...')`.** The `prefixIcon` param was added to `AppButton` for icon+label buttons. Do NOT pass a `Row(icon, text)` as `child:` to `AppButton` — `FButton` imposes its own internal layout and will throw. Use `prefixIcon:` instead.
+- **`AppButton(child: Icon(...))` for icon-only buttons** — pass only `child:` (not `label:` + `child:`). The assertion requires at least one of `label` or `child`, so an icon-only button must use `child: Icon(...)`.
+- **`local variable '_name'` starts with underscore lint.** Local variables (inside methods/builders) must not start with `_`. Rename to `name` (remove the underscore). Only class-level fields use `_` prefix.
+- **Screens with `bottomNavigationBar` (i.e., top-level app screens) keep `Scaffold`.** These use Material's `bottomNavigationBar` slot which forui has no equivalent for. Only replace `Scaffold` with `ColoredBox`+`SafeArea`+`Column` when the screen has no `bottomNavigationBar` (e.g. detail/modal screens embedded in a tab shell). Set `backgroundColor: context.theme.colors.background` directly on `Scaffold` in those cases.
+- **`showDialog`+`AlertDialog`+`TextButton` for simple confirm → `showAppConfirmDialog`.** Only keep raw `showDialog` when the dialog contains interactive widgets (TextFields, etc.). Simple title+message+confirm/cancel dialogs always use `showAppConfirmDialog(context, title, message, confirmLabel, destructive)`.
+- **`_ContactPickerSheet` and similar self-contained sheet widgets:** when they're passed as builder to `showAppSheet`, the `showAppSheet` wrapper already supplies background color. Remove any `Container(color: _c.background, ...)` wrapper from their `build` method — replace with `SizedBox` for sizing. Wrap the whole thing in `SafeArea(top: false)`.
+- **`if/else` chains in `try` blocks (timeAgo, status strings) trigger `curly_braces_in_flow_control_structures`.** Always use braces: `if (cond) { x = 'a'; } else if (...) { x = 'b'; } else { x = 'c'; }` — even for single-statement branches.
 
 ## Working efficiently (token discipline — read this)
 

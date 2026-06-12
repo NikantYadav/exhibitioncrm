@@ -9,6 +9,7 @@ import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
+import '../utils/screen_logger.dart';
 
 class EventTargetScreen extends StatefulWidget {
   final Event event;
@@ -18,7 +19,7 @@ class EventTargetScreen extends StatefulWidget {
   State<EventTargetScreen> createState() => _EventTargetScreenState();
 }
 
-class _EventTargetScreenState extends State<EventTargetScreen> {
+class _EventTargetScreenState extends State<EventTargetScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   Map<String, dynamic> _target = {};

@@ -29,6 +29,7 @@ import '../widgets/app_section_label.dart';
 import 'app_shell.dart';
 import 'manual_entry_screen.dart';
 import 'voice_contact_capture_screen.dart';
+import '../utils/screen_logger.dart';
 
 class CaptureScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -43,7 +44,7 @@ enum _Stage { scan, notes }
 enum _ScanMode { qr, card }
 
 class _CaptureScreenState extends State<CaptureScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   // ── Scanner ────────────────────────────────────────────────

@@ -22,6 +22,7 @@ class AppInput extends StatelessWidget {
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
   final String? Function(String?)? validator;
+  final bool autofocus;
 
   const AppInput({
     super.key,
@@ -44,6 +45,7 @@ class AppInput extends StatelessWidget {
     this.textInputAction,
     this.onSubmitted,
     this.validator,
+    this.autofocus = false,
   });
 
   @override
@@ -54,6 +56,7 @@ class AppInput extends StatelessWidget {
     );
 
     return FTextField(
+      autofocus: autofocus,
       control: control,
       label: label != null ? Text(label!) : null,
       hint: hint,

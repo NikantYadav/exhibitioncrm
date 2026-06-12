@@ -1,15 +1,19 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import 'event_target_screen.dart';
+import '../utils/screen_logger.dart';
 
 class PreEventPrepScreen extends StatefulWidget {
   final Event event;
@@ -21,7 +25,7 @@ class PreEventPrepScreen extends StatefulWidget {
   State<PreEventPrepScreen> createState() => _PreEventPrepScreenState();
 }
 
-class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
+class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   List<Map<String, dynamic>> _targets = [];
@@ -51,90 +55,89 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     final c = _c;
     bool isCheckbox = false;
 
-    await showModalBottomSheet(
+    await showAppSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: c.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Add Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
-            const SizedBox(height: 20),
-            TextField(
-              controller: labelCtrl, autofocus: true,
-              style: TextStyle(color: c.textPrimary),
-              decoration: InputDecoration(
-                hintText: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
-                hintStyle: TextStyle(color: c.textMuted),
-                filled: true, fillColor: c.surfaceAlt,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Type toggle
-            Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: c.surfaceAlt,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: c.border),
-              ),
-              child: Stack(children: [
-                AnimatedAlign(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeInOut,
-                  alignment: isCheckbox ? Alignment.centerLeft : Alignment.centerRight,
-                  child: FractionallySizedBox(
-                    widthFactor: 0.5,
-                    child: Container(
-                      margin: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(999)),
-                    ),
-                  ),
-                ),
-                Row(children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setModalState(() => isCheckbox = true),
-                      behavior: HitTestBehavior.opaque,
-                      child: Center(child: Text('Checkbox',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                              color: isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setModalState(() => isCheckbox = false),
-                      behavior: HitTestBehavior.opaque,
-                      child: Center(child: Text('Counted',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                              color: !isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
-                    ),
-                  ),
-                ]),
-              ]),
-            ),
-            if (!isCheckbox) ...[
-              const SizedBox(height: 12),
+        builder: (ctx, setModalState) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Add Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
+              const SizedBox(height: 20),
               TextField(
-                controller: totalCtrl, keyboardType: TextInputType.number,
+                controller: labelCtrl, autofocus: true,
                 style: TextStyle(color: c.textPrimary),
                 decoration: InputDecoration(
-                  hintText: 'Target count',
+                  hintText: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
                   hintStyle: TextStyle(color: c.textMuted),
                   filled: true, fillColor: c.surfaceAlt,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
                 ),
               ),
-            ],
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
+              const SizedBox(height: 16),
+              Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: c.surfaceAlt,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: c.border),
+                ),
+                child: Stack(children: [
+                  AnimatedAlign(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeInOut,
+                    alignment: isCheckbox ? Alignment.centerLeft : Alignment.centerRight,
+                    child: FractionallySizedBox(
+                      widthFactor: 0.5,
+                      child: Container(
+                        margin: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(999)),
+                      ),
+                    ),
+                  ),
+                  Row(children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setModalState(() => isCheckbox = true),
+                        behavior: HitTestBehavior.opaque,
+                        child: Center(child: Text('Checkbox',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                                color: isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setModalState(() => isCheckbox = false),
+                        behavior: HitTestBehavior.opaque,
+                        child: Center(child: Text('Counted',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                                color: !isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
+                      ),
+                    ),
+                  ]),
+                ]),
+              ),
+              if (!isCheckbox) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: totalCtrl, keyboardType: TextInputType.number,
+                  style: TextStyle(color: c.textPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'Target count',
+                    hintStyle: TextStyle(color: c.textMuted),
+                    filled: true, fillColor: c.surfaceAlt,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              AppButton(
+                label: 'ADD GOAL',
+                fullWidth: true,
+                variant: ButtonVariant.primary,
                 onPressed: () async {
                   final label = labelCtrl.text.trim();
                   if (label.isEmpty) return;
@@ -145,16 +148,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                     if (mounted) setState(() => _goals.add(newGoal));
                   } catch (_) {}
                 },
-                style: FilledButton.styleFrom(
-                  backgroundColor: c.accent,
-                  foregroundColor: c.isDark ? c.textPrimary : c.background,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('ADD GOAL', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               ),
-            ),
-          ]),
+            ]),
+          ),
         ),
       ),
     );
@@ -222,11 +218,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
         withData: true,
       );
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open file picker.'), behavior: SnackBarBehavior.floating),
-        );
-      }
+      if (mounted) showAppToast(context, 'Could not open file picker.');
       return;
     }
 
@@ -234,19 +226,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     final file = result.files.first;
     final name = file.name.toLowerCase();
     if (!name.endsWith('.csv') && !name.endsWith('.xlsx') && !name.endsWith('.xls')) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a CSV or Excel file.'), behavior: SnackBarBehavior.floating),
-        );
-      }
+      if (mounted) showAppToast(context, 'Please select a CSV or Excel file.');
       return;
     }
     if (file.bytes == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not read file. Try again.'), behavior: SnackBarBehavior.floating),
-        );
-      }
+      if (mounted) showAppToast(context, 'Could not read file. Try again.');
       return;
     }
 
@@ -254,27 +238,18 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
       final imported = await ApiService.importEventTargets(widget.event.id, file.bytes!, file.name);
       await _loadTargets();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Import complete: ${imported['added']} added, ${imported['skipped']} skipped.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showAppToast(context, 'Import complete: ${imported['added']} added, ${imported['skipped']} skipped.');
       }
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Upload failed. Check the file and try again.'), behavior: SnackBarBehavior.floating),
-        );
-      }
+      if (mounted) showAppToast(context, 'Upload failed. Check the file and try again.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _c.background,
-      body: SafeArea(
+    return ColoredBox(
+      color: context.theme.colors.background,
+      child: SafeArea(
         bottom: false,
         child: Column(
           children: [
@@ -432,7 +407,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
             for (int i = 0; i < _goals.length; i++) ...[
               _buildPrepGoalRow(_goals[i]),
               if (i < _goals.length - 1) ...[
-                Divider(color: _c.border.withValues(alpha: 0.4), height: 1),
+                FDivider(),
                 const SizedBox(height: 4),
               ],
             ],
@@ -450,19 +425,20 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
 
     return GestureDetector(
       onLongPress: () {
-        showModalBottomSheet(
+        showAppSheet(
           context: context,
-          backgroundColor: _c.surface,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-          builder: (_) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const SizedBox(height: 8),
-            Container(width: 36, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded, color: _c.destructive),
-              title: Text('Delete goal', style: TextStyle(color: _c.destructive)),
-              onTap: () { Navigator.pop(context); _deleteGoalPrep(goal); },
-            ),
-          ])),
+          builder: (_) => SafeArea(
+            top: false,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SizedBox(height: 8),
+              Container(width: 36, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded, color: _c.destructive),
+                title: Text('Delete goal', style: TextStyle(color: _c.destructive)),
+                onTap: () { Navigator.pop(context); _deleteGoalPrep(goal); },
+              ),
+            ]),
+          ),
         );
       },
       child: Padding(
@@ -568,9 +544,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     required bool filled,
     required VoidCallback onTap,
   }) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
@@ -606,7 +581,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     final tags = rawTags != null && rawTags.isNotEmpty
         ? rawTags.cast<String>()
         : (industryStr != null ? [industryStr] : <String>[]);
-    return InkWell(
+    return GestureDetector(
       onTap: () => _openTargetDetail(target, globalIndex),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -670,29 +645,24 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     String searchQuery = '';
     List<Map<String, dynamic>> companies = [];
     bool isSearching = true;
-    bool _initialLoaded = false;
+    bool initialLoaded = false;
 
-    await showModalBottomSheet(
+    await showAppSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            if (!_initialLoaded) {
-              _initialLoaded = true;
+            if (!initialLoaded) {
+              initialLoaded = true;
               ApiService.getCompanies(query: '').then((results) {
                 results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
                 setModalState(() { companies = results; isSearching = false; });
               }).catchError((_) { setModalState(() => isSearching = false); });
             }
-            return Container(
+            return SafeArea(
+              top: false,
+              child: SizedBox(
               height: MediaQuery.of(context).size.height * 0.7,
-              decoration: BoxDecoration(
-                color: _c.background,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                border: Border(top: BorderSide(color: _c.border)),
-              ),
               child: Column(
                 children: [
                   Padding(
@@ -758,12 +728,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                                     );
                                   }
                                   final co = companies[i];
-                                  return InkWell(
+                                  return GestureDetector(
                                     onTap: () async {
                                       Navigator.of(sheetCtx).pop();
                                       _showBoothInputDialog(co);
                                     },
-                                    borderRadius: BorderRadius.circular(8),
                                     child: Padding(
                                       padding: const EdgeInsets.symmetric(vertical: 12),
                                       child: Row(
@@ -797,7 +766,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                               ),
                   ),
                 ],
-              ),
+              )),
             );
           },
         );
@@ -808,19 +777,12 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
   Future<void> _showBoothInputDialog(Map<String, dynamic> company) async {
     final boothCtrl = TextEditingController();
 
-    await showModalBottomSheet(
+    await showAppSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _c.background,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border(top: BorderSide(color: _c.border)),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 20, 16, MediaQuery.of(ctx).viewInsets.bottom + 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -854,34 +816,26 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: AppButton(
+                      label: 'SKIP',
+                      variant: ButtonVariant.outline,
                       onPressed: () async {
                         Navigator.of(ctx).pop();
                         await _addCompanyAsTarget(company, null);
                       },
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: _c.border),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: Text('SKIP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.4, color: _c.textSecondary)),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     flex: 2,
-                    child: FilledButton(
+                    child: AppButton(
+                      label: 'ADD TO LIST',
+                      variant: ButtonVariant.primary,
                       onPressed: () async {
                         final booth = boothCtrl.text.trim();
                         Navigator.of(ctx).pop();
                         await _addCompanyAsTarget(company, booth.isEmpty ? null : booth);
                       },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _c.accent,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('ADD TO LIST', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.6, color: Colors.white)),
                     ),
                   ),
                 ],
@@ -898,17 +852,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     try {
       final newTarget = await ApiService.addEventTarget(widget.event.id, company['id'] as String, boothLocation: booth);
       setState(() => _targets.add(newTarget));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${company['name']} added to target list.'), behavior: SnackBarBehavior.floating),
-        );
-      }
+      if (mounted) showAppToast(context, '${company['name']} added to target list.');
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to add target.'), behavior: SnackBarBehavior.floating),
-        );
-      }
+      if (mounted) showAppToast(context, 'Failed to add target.');
     }
   }
 
@@ -916,19 +862,12 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
     final nameCtrl = TextEditingController(text: initialName);
     final industryCtrl = TextEditingController();
 
-    await showModalBottomSheet(
+    await showAppSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _c.background,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border(top: BorderSide(color: _c.border)),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 20, 16, MediaQuery.of(sheetCtx).viewInsets.bottom + 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -968,40 +907,30 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: FilledButton(
-                  onPressed: () async {
-                    final name = nameCtrl.text.trim();
-                    if (name.isEmpty) return;
-                    Navigator.of(sheetCtx).pop();
-                    try {
-                      final companyData = <String, dynamic>{'name': name};
-                      final industryText = industryCtrl.text.trim();
-                      if (industryText.isNotEmpty) {
-                        companyData['industry'] = industryText;
-                      }
-                      final company = await ApiService.createCompany(companyData);
-                      nameCtrl.dispose();
-                      industryCtrl.dispose();
-                      await _showBoothInputDialog(company);
-                    } catch (_) {
-                      nameCtrl.dispose();
-                      industryCtrl.dispose();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Failed to add company.'), behavior: SnackBarBehavior.floating),
-                        );
-                      }
+              AppButton(
+                label: 'CONTINUE',
+                fullWidth: true,
+                variant: ButtonVariant.primary,
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) return;
+                  Navigator.of(sheetCtx).pop();
+                  try {
+                    final companyData = <String, dynamic>{'name': name};
+                    final industryText = industryCtrl.text.trim();
+                    if (industryText.isNotEmpty) {
+                      companyData['industry'] = industryText;
                     }
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _c.accent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('CONTINUE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 2.0, color: Colors.white)),
-                ),
+                    final company = await ApiService.createCompany(companyData);
+                    nameCtrl.dispose();
+                    industryCtrl.dispose();
+                    await _showBoothInputDialog(company);
+                  } catch (_) {
+                    nameCtrl.dispose();
+                    industryCtrl.dispose();
+                    if (mounted) showAppToast(context, 'Failed to add company.');
+                  }
+                },
               ),
             ],
           ),
@@ -1018,9 +947,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> {
         _targets.removeAt(index);
       });
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to remove target.'), behavior: SnackBarBehavior.floating));
-      }
+      if (mounted) showAppToast(context, 'Failed to remove target.');
     }
   }
 

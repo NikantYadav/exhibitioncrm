@@ -8,6 +8,7 @@ import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import 'offline_mode_screen.dart';
 import 'log_interaction_screen.dart';
+import '../utils/screen_logger.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -18,7 +19,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with ScreenLogger {
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 

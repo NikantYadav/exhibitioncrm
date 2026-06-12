@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
-import '../providers/live_event_provider.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/live_bar.dart';
+import '../utils/screen_logger.dart';
 
 // Maps route path → AppBottomNav index
 int tabIndexForPath(String location) {
@@ -53,7 +53,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
   bool _sidebarCollapsed = false;
 

@@ -11,6 +11,7 @@ import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import 'event_target_screen.dart';
 import 'log_interaction_screen.dart';
+import '../utils/screen_logger.dart';
 
 class LiveTargetPersonScreen extends StatefulWidget {
   final Event event;
@@ -28,7 +29,7 @@ class LiveTargetPersonScreen extends StatefulWidget {
   State<LiveTargetPersonScreen> createState() => _LiveTargetPersonScreenState();
 }
 
-class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
+class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   late Map<String, dynamic> _target;

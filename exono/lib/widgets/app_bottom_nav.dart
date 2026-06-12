@@ -19,7 +19,7 @@ class AppBottomNav extends StatelessWidget {
   });
 
   // Map app selectedIndex to FBottomNavigationBar 0-based index.
-  // Items order: 0=Home, 1=AIChat, 2=Contacts, 3=Events
+  // Items order: 0=Home, 1=AIChat, 2=placeholder(QR), 3=Contacts, 4=Events
   int get _forIndex {
     switch (selectedIndex) {
       case 0:
@@ -27,9 +27,9 @@ class AppBottomNav extends StatelessWidget {
       case 7:
         return 1;
       case 3:
-        return 2;
-      case 1:
         return 3;
+      case 1:
+        return 4;
       default:
         return -1; // no tab active
     }
@@ -42,8 +42,10 @@ class AppBottomNav extends StatelessWidget {
       case 1:
         onNavigate(7);
       case 2:
-        onNavigate(3);
+        onNavigate(2); // QR placeholder — handled by the floating button
       case 3:
+        onNavigate(3);
+      case 4:
         onNavigate(1);
     }
   }
@@ -67,6 +69,11 @@ class AppBottomNav extends StatelessWidget {
         FBottomNavigationBarItem(
           icon: Icon(Icons.auto_awesome_outlined),
           label: Text('AI Chat'),
+        ),
+        // Invisible placeholder so the QR floating button sits centered above it
+        FBottomNavigationBarItem(
+          icon: SizedBox(width: 24, height: 24),
+          label: Text(''),
         ),
         FBottomNavigationBarItem(
           icon: Icon(Icons.group_outlined),
@@ -125,6 +132,10 @@ class AppBottomNav extends StatelessWidget {
         FBottomNavigationBarItem(
           icon: Icon(Icons.auto_awesome_outlined),
           label: Text('AI Chat'),
+        ),
+        FBottomNavigationBarItem(
+          icon: SizedBox(width: 24, height: 24),
+          label: Text(''),
         ),
         FBottomNavigationBarItem(
           icon: Icon(Icons.group_outlined),

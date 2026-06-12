@@ -13,6 +13,7 @@ import '../services/api_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
+import '../utils/screen_logger.dart';
 
 Future<bool> showLogInteractionSheet(
   BuildContext context, {
@@ -51,7 +52,7 @@ class _LogInteractionSheet extends StatefulWidget {
   State<_LogInteractionSheet> createState() => _LogInteractionSheetState();
 }
 
-class _LogInteractionSheetState extends State<_LogInteractionSheet> {
+class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   late final TextEditingController _modeController;

@@ -13,6 +13,7 @@ class AppButton extends StatelessWidget {
   final ButtonVariant variant;
   final ButtonSize size;
   final IconData? icon;
+  final Widget? prefixIcon;
   final bool loading;
   final bool isLoading;
   final bool fullWidth;
@@ -25,6 +26,7 @@ class AppButton extends StatelessWidget {
     this.variant = ButtonVariant.primary,
     this.size = ButtonSize.md,
     this.icon,
+    this.prefixIcon,
     this.loading = false,
     this.isLoading = false,
     this.fullWidth = false,
@@ -68,6 +70,11 @@ class AppButton extends StatelessWidget {
         width: 16,
         height: 16,
         child: FCircularProgress(),
+      );
+    } else if (prefixIcon != null) {
+      content = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [prefixIcon!, const SizedBox(width: 6), Text(label!)],
       );
     } else {
       content = Text(label!);

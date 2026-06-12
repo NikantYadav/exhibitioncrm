@@ -13,6 +13,7 @@ import '../widgets/app_feedback.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
+import '../utils/screen_logger.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen({super.key});
@@ -21,7 +22,7 @@ class AccountSettingsScreen extends StatefulWidget {
   State<AccountSettingsScreen> createState() => _AccountSettingsScreenState();
 }
 
-class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
+class _AccountSettingsScreenState extends State<AccountSettingsScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   // ── Edit mode ───────────────────────────────────────────────────────────────

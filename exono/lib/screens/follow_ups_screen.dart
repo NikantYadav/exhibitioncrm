@@ -10,6 +10,7 @@ import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_header.dart';
 import '../widgets/skeleton_loader.dart';
+import '../utils/screen_logger.dart';
 
 class FollowUpsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -27,7 +28,7 @@ class FollowUpsScreen extends StatefulWidget {
   State<FollowUpsScreen> createState() => _FollowUpsScreenState();
 }
 
-class _FollowUpsScreenState extends State<FollowUpsScreen> {
+class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   List<Map<String, dynamic>> _needsFollowup = [];

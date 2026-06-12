@@ -15,6 +15,7 @@ import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
+import '../utils/screen_logger.dart';
 
 // ---------------------------------------------------------------------------
 // Public screen
@@ -48,7 +49,7 @@ class EventFollowUpsScreen extends StatefulWidget {
 // ---------------------------------------------------------------------------
 
 class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   String get _eventId => widget.event?.id ?? widget.eventId ?? '';

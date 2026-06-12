@@ -10,6 +10,7 @@ import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/skeleton_loader.dart';
 import 'add_contact_dialog.dart';
+import '../utils/screen_logger.dart';
 
 class ContactsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -20,7 +21,7 @@ class ContactsScreen extends StatefulWidget {
   State<ContactsScreen> createState() => _ContactsScreenState();
 }
 
-class _ContactsScreenState extends State<ContactsScreen> {
+class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 

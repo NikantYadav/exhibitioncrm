@@ -3,6 +3,7 @@ import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 import '../services/api_service.dart';
 import '../widgets/app_input.dart';
+import '../utils/screen_logger.dart';
 
 class AddContactDialog extends StatefulWidget {
   const AddContactDialog({super.key});
@@ -11,7 +12,7 @@ class AddContactDialog extends StatefulWidget {
   State<AddContactDialog> createState() => _AddContactDialogState();
 }
 
-class _AddContactDialogState extends State<AddContactDialog> {
+class _AddContactDialogState extends State<AddContactDialog> with ScreenLogger {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();

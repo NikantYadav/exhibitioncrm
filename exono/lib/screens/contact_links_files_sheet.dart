@@ -9,6 +9,7 @@ import '../models/contact_asset.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
+import '../utils/screen_logger.dart';
 
 Future<List<ContactAsset>?> showContactLinksFilesSheet(
   BuildContext context, {
@@ -39,7 +40,7 @@ class _ContactLinksFilesSheet extends StatefulWidget {
       _ContactLinksFilesSheetState();
 }
 
-class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
+class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   late final List<ContactAsset> _assets = [...widget.initialAssets];

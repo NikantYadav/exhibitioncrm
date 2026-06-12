@@ -7,6 +7,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_section_label.dart';
+import '../utils/screen_logger.dart';
 
 class OfflineModeScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -17,7 +18,7 @@ class OfflineModeScreen extends StatefulWidget {
   State<OfflineModeScreen> createState() => _OfflineModeScreenState();
 }
 
-class _OfflineModeScreenState extends State<OfflineModeScreen> {
+class _OfflineModeScreenState extends State<OfflineModeScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   static const Color _pending = Color(0xFFFACC15);

@@ -3,6 +3,7 @@ import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/skeleton_loader.dart';
+import '../utils/screen_logger.dart';
 
 class MeetingsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -13,7 +14,7 @@ class MeetingsScreen extends StatefulWidget {
   State<MeetingsScreen> createState() => _MeetingsScreenState();
 }
 
-class _MeetingsScreenState extends State<MeetingsScreen> {
+class _MeetingsScreenState extends State<MeetingsScreen> with ScreenLogger {
   late final List<_MeetingItem> _meetings = [
     const _MeetingItem(
       title: 'Operations Sync • Atlas Manufacturing',
@@ -102,7 +103,6 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppTheme.colorsOf(context);
     return Container(
       color: AppTheme.background,
       child: LayoutBuilder(

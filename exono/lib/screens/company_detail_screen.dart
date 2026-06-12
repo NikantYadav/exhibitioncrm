@@ -10,6 +10,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
+import '../utils/screen_logger.dart';
 
 class CompanyDetailScreen extends StatefulWidget {
   final String companyId;
@@ -19,7 +20,7 @@ class CompanyDetailScreen extends StatefulWidget {
   State<CompanyDetailScreen> createState() => _CompanyDetailScreenState();
 }
 
-class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
+class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   Map<String, dynamic>? _company;

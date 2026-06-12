@@ -3,6 +3,7 @@ import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/app_input.dart';
+import '../utils/screen_logger.dart';
 
 Future<List<String>?> showEditSectorsSheet(
   BuildContext context, {
@@ -24,7 +25,7 @@ class _EditSectorsSheet extends StatefulWidget {
   State<_EditSectorsSheet> createState() => _EditSectorsSheetState();
 }
 
-class _EditSectorsSheetState extends State<_EditSectorsSheet> {
+class _EditSectorsSheetState extends State<_EditSectorsSheet> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   final TextEditingController _searchController = TextEditingController();

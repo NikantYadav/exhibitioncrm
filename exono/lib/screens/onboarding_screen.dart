@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/entry_flow_components.dart';
+import '../utils/screen_logger.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -16,7 +17,7 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
   final PageController _pageController = PageController();
 
   final _nameController = TextEditingController();
