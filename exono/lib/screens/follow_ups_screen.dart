@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_button.dart';
+import '../widgets/app_input.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
@@ -223,7 +225,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                 child: Container(
                   width: 36, height: 4,
                   decoration: BoxDecoration(
-                    color: _c.border,
+                    color: context.theme.colors.border,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -231,17 +233,17 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
               const SizedBox(height: 16),
               Text(
                 'Set Urgency',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _c.textPrimary),
+                style: context.theme.typography.lg.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground),
               ),
               Text(
                 _fullName(contact),
-                style: TextStyle(fontSize: 13, color: _c.textMuted),
+                style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
               ),
               const SizedBox(height: 16),
               for (final opt in [
                 ('high',   'Urgent',  Icons.priority_high_rounded, _c.destructive),
                 ('medium', 'Medium',  Icons.remove_rounded,        _c.accent),
-                ('low',    'Low',     Icons.arrow_downward_rounded, _c.textMuted),
+                ('low',    'Low',     Icons.arrow_downward_rounded, context.theme.colors.mutedForeground),
               ]) ...[
                 _urgencyOption(
                   contact: contact,
@@ -280,7 +282,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
           color: isSelected ? color.withValues(alpha: 0.1) : _c.surfaceAlt,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? color.withValues(alpha: 0.4) : _c.border,
+            color: isSelected ? color.withValues(alpha: 0.4) : context.theme.colors.border,
           ),
         ),
         child: Row(
@@ -294,8 +296,8 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
               child: Icon(icon, size: 16, color: color),
             ),
             const SizedBox(width: 12),
-            Text(label, style: TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+            Text(label, style: context.theme.typography.sm.copyWith(
+              fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
             const Spacer(),
             if (isSelected)
               Icon(Icons.check_rounded, size: 18, color: color),
@@ -306,54 +308,74 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
   }
 
   void _showEventFilterSheet() {
+    final searchCtrl = TextEditingController();
     showAppSheet(
       context: context,
-      builder: (ctx) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36, height: 4,
-                  decoration: BoxDecoration(
-                    color: _c.border,
-                    borderRadius: BorderRadius.circular(999),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: ctx.theme.colors.border,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text('Filter by Event',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _c.textPrimary)),
-              const SizedBox(height: 12),
-              _eventOption(
-                ctx: ctx,
-                id: null,
-                name: 'All Events',
-                isSelected: _selectedEventId == null,
-              ),
-              const SizedBox(height: 8),
-              if (_events.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text('No completed events yet.',
-                    style: TextStyle(fontSize: 13, color: _c.textMuted)),
-                )
-              else
-                ...(_events.map((e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _eventOption(
-                    ctx: ctx,
-                    id: e.id,
-                    name: e.name,
-                    isSelected: _selectedEventId == e.id,
-                  ),
-                ))),
-              const SizedBox(height: 8),
-            ],
+                const SizedBox(height: 16),
+                Text('Filter by Event',
+                  style: ctx.theme.typography.lg.copyWith(fontWeight: FontWeight.w700, color: ctx.theme.colors.foreground)),
+                const SizedBox(height: 12),
+                AppInput(
+                  hint: 'Search events...',
+                  controller: searchCtrl,
+                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: ctx.theme.colors.mutedForeground),
+                  onChanged: (_) => setSheet(() {}),
+                ),
+                const SizedBox(height: 12),
+                _eventOption(
+                  ctx: ctx,
+                  id: null,
+                  name: 'All Events',
+                  isSelected: _selectedEventId == null,
+                ),
+                const SizedBox(height: 8),
+                if (_events.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text('No completed events yet.',
+                      style: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground)),
+                  )
+                else ...[
+                  ...(_events
+                    .where((e) => e.name.toLowerCase().contains(searchCtrl.text.toLowerCase()))
+                    .map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _eventOption(
+                        ctx: ctx,
+                        id: e.id,
+                        name: e.name,
+                        isSelected: _selectedEventId == e.id,
+                      ),
+                    ))),
+                  if (_events.isNotEmpty &&
+                      _events.where((e) => e.name.toLowerCase().contains(searchCtrl.text.toLowerCase())).isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text('No events match your search.',
+                        style: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground)),
+                    ),
+                ],
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       ),
@@ -377,7 +399,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
           color: isSelected ? _c.accentSoft : _c.surfaceAlt,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? _c.accent.withValues(alpha: 0.4) : _c.border,
+            color: isSelected ? _c.accent.withValues(alpha: 0.4) : context.theme.colors.border,
           ),
         ),
         child: Row(
@@ -385,12 +407,12 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
             Icon(
               id == null ? Icons.event_note_rounded : Icons.event_rounded,
               size: 16,
-              color: isSelected ? _c.accent : _c.textMuted,
+              color: isSelected ? _c.accent : context.theme.colors.mutedForeground,
             ),
             const SizedBox(width: 10),
             Expanded(child: Text(name,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-                color: isSelected ? _c.accent : _c.textPrimary),
+              style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600,
+                color: isSelected ? _c.accent : context.theme.colors.foreground),
               overflow: TextOverflow.ellipsis)),
             if (isSelected)
               Icon(Icons.check_rounded, size: 16, color: _c.accent),
@@ -404,33 +426,30 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _c.background,
-      body: DecoratedBox(
-        decoration: AppTheme.appBackground(context),
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              AppHeader(
-                onNotificationPressed: () {},
-                actionWidget: IconButton(
-                  onPressed: () => widget.event != null || widget.eventId != null
-                      ? Navigator.of(context).pop()
-                      : context.go('/'),
-                  icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary),
-                ),
+    return ColoredBox(
+      color: context.theme.colors.background,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            AppHeader(
+              onNotificationPressed: () {},
+              actionWidget: IconButton(
+                onPressed: () => widget.event != null || widget.eventId != null
+                    ? Navigator.of(context).pop()
+                    : context.go('/'),
+                icon: Icon(Icons.arrow_back_rounded, color: context.theme.colors.foreground),
               ),
-              Expanded(
-                child: RefreshIndicator(
-                  color: _c.accent,
-                  backgroundColor: _c.surface,
-                  onRefresh: _load,
-                  child: _loading ? _buildSkeleton() : _buildContent(),
-                ),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                color: _c.accent,
+                backgroundColor: context.theme.colors.background,
+                onRefresh: _load,
+                child: _loading ? _buildSkeleton() : _buildContent(),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -475,20 +494,20 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                       border: Border.all(
                         color: _selectedEventId != null
                             ? _c.accent.withValues(alpha: 0.5)
-                            : _c.border,
+                            : context.theme.colors.border,
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.filter_list_rounded, size: 14,
-                          color: _selectedEventId != null ? _c.accent : _c.textMuted),
+                          color: _selectedEventId != null ? _c.accent : context.theme.colors.mutedForeground),
                         const SizedBox(width: 4),
                         Text(
                           _selectedEventId != null ? 'Event' : 'Event',
-                          style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600,
-                            color: _selectedEventId != null ? _c.accent : _c.textMuted,
+                          style: context.theme.typography.xs.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: _selectedEventId != null ? _c.accent : context.theme.colors.mutedForeground,
                           ),
                         ),
                         if (_selectedEventId != null) ...[
@@ -532,14 +551,14 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Follow-Ups',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800,
-              letterSpacing: -1.0, color: _c.textPrimary, height: 1.1)),
+            style: context.theme.typography.xl2.copyWith(fontWeight: FontWeight.w800,
+              letterSpacing: -1.0, color: context.theme.colors.foreground, height: 1.1)),
           const SizedBox(height: 4),
           Text(
             eventName != null
                 ? '$eventName · $_pendingCount pending'
                 : '$_pendingCount pending · $_doneCount done',
-            style: TextStyle(fontSize: 13, color: _c.textMuted),
+            style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
           ),
         ],
       ),
@@ -563,7 +582,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
               _vDivider(),
               Expanded(child: _summaryCol('$_doneCount', 'Done', _c.success)),
               _vDivider(),
-              Expanded(child: _summaryCol('$_newCount', 'New', _c.textMuted)),
+              Expanded(child: _summaryCol('$_newCount', 'New', context.theme.colors.mutedForeground)),
             ]),
             const SizedBox(height: 14),
             ClipRRect(
@@ -577,7 +596,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
             ),
             const SizedBox(height: 6),
             Text('$_doneCount of $total contacts followed up',
-              style: TextStyle(fontSize: 11, color: _c.textMuted)),
+              style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
           ],
         ),
       ),
@@ -585,15 +604,15 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
   }
 
   Widget _summaryCol(String value, String label, Color valueColor) => Column(children: [
-    Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
+    Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800,
         color: valueColor, height: 1.0)),
     const SizedBox(height: 3),
-    Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-        color: _c.textMuted, letterSpacing: 0.3)),
+    Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600,
+        color: context.theme.colors.mutedForeground, letterSpacing: 0.3)),
   ]);
 
   Widget _vDivider() =>
-      Container(width: 1, height: 32, color: _c.border.withValues(alpha: 0.5));
+      Container(width: 1, height: 32, color: context.theme.colors.border.withValues(alpha: 0.5));
 
   Widget _buildContactCard(Map<String, dynamic> contact) {
     final isDone = (contact['follow_up_status'] as String? ?? '') == 'followed_up';
@@ -637,7 +656,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                   child: isDone
                       ? Icon(Icons.check_rounded, size: 18, color: _c.success)
                       : Text(_initials(contact),
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _c.accent)),
+                          style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -645,24 +664,24 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(_fullName(contact),
-                        style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w700,
-                          color: isDone ? _c.textMuted : _c.textPrimary,
+                        style: context.theme.typography.sm.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: isDone ? context.theme.colors.mutedForeground : context.theme.colors.foreground,
                           decoration: isDone ? TextDecoration.lineThrough : null,
-                          decorationColor: _c.textMuted,
+                          decorationColor: context.theme.colors.mutedForeground,
                         ),
                         overflow: TextOverflow.ellipsis),
                       if (company.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(company,
-                          style: TextStyle(fontSize: 12, color: _c.textMuted),
+                          style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
                           overflow: TextOverflow.ellipsis),
                       ],
                       const SizedBox(height: 4),
                       Row(children: [
-                        Icon(Icons.access_time_rounded, size: 11, color: _c.textMuted),
+                        Icon(Icons.access_time_rounded, size: 11, color: context.theme.colors.mutedForeground),
                         const SizedBox(width: 4),
-                        Text(lastTouched, style: TextStyle(fontSize: 11, color: _c.textMuted)),
+                        Text(lastTouched, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
                       ]),
                     ],
                   ),
@@ -727,10 +746,10 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
           Icon(Icons.check_circle_outline_rounded, size: 48,
             color: _c.success.withValues(alpha: 0.6)),
           const SizedBox(height: 16),
-          Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700,
-            color: _c.textPrimary)),
+          Text(title, style: context.theme.typography.lg.copyWith(fontWeight: FontWeight.w700,
+            color: context.theme.colors.foreground)),
           const SizedBox(height: 6),
-          Text(subtitle, style: TextStyle(fontSize: 13, color: _c.textMuted),
+          Text(subtitle, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
             textAlign: TextAlign.center),
         ]),
       ),

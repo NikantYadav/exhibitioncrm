@@ -125,7 +125,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
               Expanded(
                 child: RefreshIndicator(
                   color: _c.accent,
-                  backgroundColor: _c.surface,
+                  backgroundColor: context.theme.colors.background,
                   onRefresh: () async {
                     await Future.wait([
                       lep.refresh(),
@@ -224,7 +224,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
             Expanded(child: FDivider()),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text('BACK AT BASE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: _c.textMuted)),
+              child: Text('BACK AT BASE', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.4, color: context.theme.colors.mutedForeground)),
             ),
             Expanded(child: FDivider()),
           ]),
@@ -245,7 +245,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         if (!condensed) ...[
           Text(
             '${_greeting()}, $firstName',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -1.0, color: _c.textPrimary, height: 1.1),
+            style: context.theme.typography.xl2.copyWith(fontWeight: FontWeight.w700, letterSpacing: -1.0, color: context.theme.colors.foreground, height: 1.1),
           ),
           const SizedBox(height: 6),
           _buildContextLine(lep),
@@ -299,16 +299,16 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           Row(children: [
             _PulsingDot(color: _c.destructive),
             const SizedBox(width: 8),
-            Text('LIVE NOW', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.6, color: _c.destructive)),
+            Text('LIVE NOW', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.6, color: _c.destructive)),
           ]),
           const SizedBox(height: 14),
-          Text(event.name, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.6, color: _c.textPrimary, height: 1.1)),
+          Text(event.name, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.6, color: context.theme.colors.foreground, height: 1.1)),
           if (location.isNotEmpty) ...[
             const SizedBox(height: 8),
             Row(children: [
               Icon(Icons.location_on_outlined, size: 14, color: _c.accent),
               const SizedBox(width: 6),
-              Expanded(child: Text(location, style: TextStyle(fontSize: 13, color: _c.textMuted), overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(location, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground), overflow: TextOverflow.ellipsis)),
             ]),
           ],
         ],
@@ -325,9 +325,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
       radius: 14,
       child: Row(children: [
         Expanded(child: _statCol(Icons.qr_code_scanner_rounded, '$scanned', 'SCANNED')),
-        Container(width: 1, height: 48, color: _c.border.withValues(alpha: 0.3)),
+        Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
         Expanded(child: _statCol(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT')),
-        Container(width: 1, height: 48, color: _c.border.withValues(alpha: 0.3)),
+        Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
         Expanded(child: _statCol(Icons.flag_outlined, '$totalContacted', 'TOTAL')),
       ]),
     );
@@ -343,9 +343,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           child: Icon(icon, size: 14, color: _c.accent),
         ),
         const SizedBox(height: 10),
-        Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _c.textPrimary, height: 1)),
+        Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, color: context.theme.colors.foreground, height: 1)),
         const SizedBox(height: 3),
-        Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.7, color: _c.textMuted), textAlign: TextAlign.center),
+        Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.7, color: context.theme.colors.mutedForeground), textAlign: TextAlign.center),
       ],
     );
   }
@@ -368,13 +368,13 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           Row(children: [
             AppSectionLabel('Goal Progress'),
             const Spacer(),
-            Text('$done / ${goals.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _c.accent)),
+            Text('$done / ${goals.length}', style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
           ]),
           const SizedBox(height: 10),
           for (final goal in goals) _buildGoalRow(goal),
           if (lep.liveGoals.length > 3) ...[
             const SizedBox(height: 6),
-            Text('+${lep.liveGoals.length - 3} more', style: TextStyle(fontSize: 11, color: _c.textMuted)),
+            Text('+${lep.liveGoals.length - 3} more', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
           ],
         ],
       ),
@@ -396,17 +396,17 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: isComplete ? _c.success : Colors.transparent,
-            border: Border.all(color: isComplete ? _c.success : _c.border, width: 1.5),
+            border: Border.all(color: isComplete ? _c.success : context.theme.colors.border, width: 1.5),
           ),
-          child: isComplete ? Icon(Icons.check_rounded, size: 9, color: _c.isDark ? _c.textPrimary : _c.background) : null,
+          child: isComplete ? Icon(Icons.check_rounded, size: 9, color: _c.isDark ? context.theme.colors.foreground : context.theme.colors.background) : null,
         ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(goal['label'] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isComplete ? _c.textMuted : _c.textPrimary,
-                  decoration: isComplete ? TextDecoration.lineThrough : null, decorationColor: _c.textMuted)),
+              Text(goal['label'] as String, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: isComplete ? context.theme.colors.mutedForeground : context.theme.colors.foreground,
+                  decoration: isComplete ? TextDecoration.lineThrough : null, decorationColor: context.theme.colors.mutedForeground)),
               if (!isCheckbox) ...[
                 const SizedBox(height: 4),
                 ClipRRect(
@@ -419,7 +419,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         ),
         if (!isCheckbox) ...[
           const SizedBox(width: 10),
-          Text('$current/$total', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isComplete ? _c.success : _c.accent)),
+          Text('$current/$total', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, color: isComplete ? _c.success : _c.accent)),
         ],
       ]),
     );
@@ -436,12 +436,12 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           Container(width: 6, height: 6, decoration: BoxDecoration(color: _c.accent, shape: BoxShape.circle)),
           const SizedBox(width: 8),
           Expanded(child: Text('Next: ${next.name}  ·  ${_relativeDays(next.startDate)}',
-              style: TextStyle(fontSize: 14, color: _c.textMuted, height: 1.4), overflow: TextOverflow.ellipsis)),
-          Icon(Icons.chevron_right_rounded, size: 16, color: _c.textMuted),
+              style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4), overflow: TextOverflow.ellipsis)),
+          Icon(Icons.chevron_right_rounded, size: 16, color: context.theme.colors.mutedForeground),
         ]),
       );
     }
-    return Text('No upcoming events scheduled.', style: TextStyle(fontSize: 14, color: _c.textMuted, height: 1.4));
+    return Text('No upcoming events scheduled.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4));
   }
 
   // ── Priority tiles ────────────────────────────────────────────────────────
@@ -455,16 +455,16 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         child: Row(children: [
           Container(
             width: 40, height: 40,
-            decoration: BoxDecoration(color: _c.textPrimary.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: context.theme.colors.foreground.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10)),
             child: Icon(icon, color: _c.accent, size: 20),
           ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: _c.textPrimary, height: 1)),
+              Text(value, style: context.theme.typography.xl2.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground, height: 1)),
               const SizedBox(height: 4),
-              Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _c.textMuted)),
+              Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.mutedForeground)),
             ],
           ),
         ]),
@@ -492,11 +492,11 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           Container(
             width: 52,
             padding: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(border: Border(right: BorderSide(color: _c.border))),
+            decoration: BoxDecoration(border: Border(right: BorderSide(color: context.theme.colors.border))),
             child: Column(children: [
-              Text(month, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: _c.textMuted)),
+              Text(month, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.0, color: context.theme.colors.mutedForeground)),
               const SizedBox(height: 4),
-              Text(day, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: _c.textPrimary, height: 1)),
+              Text(day, style: context.theme.typography.xl2.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground, height: 1)),
             ]),
           ),
           const SizedBox(width: 12),
@@ -504,15 +504,15 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(event.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _c.textPrimary)),
+                Text(event.name, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground)),
                 if (location.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(location, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _c.textMuted, height: 1.4), overflow: TextOverflow.ellipsis),
+                  Text(location, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.mutedForeground, height: 1.4), overflow: TextOverflow.ellipsis),
                 ],
               ],
             ),
           ),
-          Icon(Icons.chevron_right_rounded, size: 18, color: _c.textMuted),
+          Icon(Icons.chevron_right_rounded, size: 18, color: context.theme.colors.mutedForeground),
         ]),
       ),
     );
@@ -541,7 +541,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
       child: Row(children: [
         Icon(Icons.calendar_today_outlined, color: _c.accent, size: 20),
         const SizedBox(width: 12),
-        Expanded(child: Text('No upcoming events. Add one in the Events tab.', style: TextStyle(fontSize: 13, color: _c.textMuted, height: 1.4))),
+        Expanded(child: Text('No upcoming events. Add one in the Events tab.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4))),
       ]),
     );
   }

@@ -80,12 +80,31 @@ class AppButton extends StatelessWidget {
       content = Text(label!);
     }
 
-    final btn = FButton(
+    Widget btn = FButton(
       variant: _variant,
       size: _size,
       onPress: _isLoading ? null : onPressed,
       child: content,
     );
+
+    // Outline buttons inherit secondaryForeground for their text/icon color.
+    // Since secondaryForeground is white (for the filled secondary button),
+    // we locally override it to primary (blue) so outline text reads correctly.
+    if (variant == ButtonVariant.outline) {
+      btn = Builder(builder: (ctx) {
+        final t = ctx.theme;
+        final colors = t.colors.copyWith(secondaryForeground: t.colors.primary);
+        return FTheme(
+          data: FThemeData(colors: colors, touch: true),
+          child: FButton(
+            variant: _variant,
+            size: _size,
+            onPress: _isLoading ? null : onPressed,
+            child: content,
+          ),
+        );
+      });
+    }
 
     if (fullWidth) {
       return SizedBox(width: double.infinity, child: btn);

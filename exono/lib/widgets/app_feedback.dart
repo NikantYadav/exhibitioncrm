@@ -25,9 +25,13 @@ Future<T?> showAppSheet<T>({
     // forui sizes sheets via mainAxisMaxRatio; null lets tall content scroll.
     mainAxisMaxRatio: isScrollControlled ? null : 9 / 16,
     builder: (ctx) {
-      // showFSheet has no implicit background; wrap here so callers never need ColoredBox.
+      // showFSheet has no implicit background or rounding; wrap once here so all sheets
+      // get rounded top corners and the correct background colour.
       final bg = ctx.theme.colors.background;
-      return ColoredBox(color: bg, child: builder(ctx));
+      return ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: ColoredBox(color: bg, child: builder(ctx)),
+      );
     },
   );
 }
