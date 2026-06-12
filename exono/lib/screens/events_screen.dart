@@ -7,7 +7,6 @@ import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
-import '../widgets/app_chip.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/app_header.dart';
@@ -32,24 +31,22 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   bool _showUpcoming = true;
+  String _searchQuery = '';
 
   List<Event> _events = [];
   Map<String, Map<String, dynamic>> _eventStats = {};
   bool _isLoading = true;
   String? _error;
 
-  late final TextEditingController _eventNameController;
-  late final TextEditingController _locationController;
-  late final TextEditingController _startDateController;
-  late final TextEditingController _endDateController;
+  final TextEditingController _eventNameController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _startDateController = TextEditingController();
+  final TextEditingController _endDateController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _eventNameController = TextEditingController();
-    _locationController = TextEditingController();
-    _startDateController = TextEditingController();
-    _endDateController = TextEditingController();
     _loadEvents();
   }
 
@@ -59,6 +56,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     _locationController.dispose();
     _startDateController.dispose();
     _endDateController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -71,7 +69,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
       final events = await ApiService.getEvents();
       final pastEvents = events.where((e) => e.status == 'completed').toList();
       final statsResults = await Future.wait(
-        pastEvents.map((e) => ApiService.getEventStats(e.id).catchError((_) => <String, dynamic>{})),
+        pastEvents.map((e) => ApiService.getEventStats(e.id).catchError((e) => <String, dynamic>{})),
       );
       final statsMap = <String, Map<String, dynamic>>{};
       for (var i = 0; i < pastEvents.length; i++) {
@@ -96,6 +94,24 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   List<Event> get _pastEvents =>
       _events.where((e) => e.status == 'completed').toList();
 
+  List<Event> get _filteredUpcoming {
+    if (_searchQuery.isEmpty) return _upcomingEvents;
+    final q = _searchQuery.toLowerCase();
+    return _upcomingEvents.where((e) =>
+      e.name.toLowerCase().contains(q) ||
+      (e.location ?? '').toLowerCase().contains(q)
+    ).toList();
+  }
+
+  List<Event> get _filteredPast {
+    if (_searchQuery.isEmpty) return _pastEvents;
+    final q = _searchQuery.toLowerCase();
+    return _pastEvents.where((e) =>
+      e.name.toLowerCase().contains(q) ||
+      (e.location ?? '').toLowerCase().contains(q)
+    ).toList();
+  }
+
   String _formatDateRange(DateTime start, DateTime? end) {
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -103,8 +119,15 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     ];
     final s = '${months[start.month - 1]} ${start.day}';
     if (end == null) return '$s, ${start.year}';
-    if (start.month == end.month) return '$s - ${end.day}, ${start.year}';
-    return '$s - ${months[end.month - 1]} ${end.day}, ${end.year}';
+    if (start.month == end.month) return '$s–${end.day}, ${start.year}';
+    return '$s – ${months[end.month - 1]} ${end.day}, ${end.year}';
+  }
+
+  int _daysUntil(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(date.year, date.month, date.day);
+    return target.difference(today).inDays;
   }
 
   @override
@@ -117,43 +140,36 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
             onNotificationPressed: () => showAppToast(context, 'Notifications are UI-only for now.'),
             actionIcon: Icons.add_rounded,
             actionTooltip: 'Add Event',
-            onActionPressed: _showNewEventForm,
+            onActionPressed: _showNewEventSheet,
           ),
           Expanded(
             child: _isLoading
                 ? _buildSkeletonLoader()
                 : _error != null
                     ? _buildErrorState()
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildHeader(),
-                            const SizedBox(height: 18),
-                            _buildNewEventButton(),
-                            const SizedBox(height: 26),
-                            _buildTabs(),
-                            const SizedBox(height: 18),
-                            if (_showUpcoming) ...[
-                              ..._upcomingEvents.map(
-                                (event) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 28),
-                                  child: _buildUpcomingEventCard(event),
+                    : RefreshIndicator(
+                        onRefresh: _loadEvents,
+                        color: _c.accent,
+                        backgroundColor: context.theme.colors.background,
+                        child: CustomScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          slivers: [
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildSearchBar(),
+                                    const SizedBox(height: 20),
+                                    _buildTabs(),
+                                    const SizedBox(height: 20),
+                                  ],
                                 ),
                               ),
-                              if (_upcomingEvents.isEmpty)
-                                _buildEmptyState('No upcoming events scheduled.'),
-                            ] else ...[
-                              ..._pastEvents.map(
-                                (event) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: _buildPastEventCard(event),
-                                ),
-                              ),
-                              if (_pastEvents.isEmpty)
-                                _buildEmptyState('No past events found.'),
-                            ],
+                            ),
+                            _buildEventsList(),
+                            const SliverToBoxAdapter(child: SizedBox(height: 120)),
                           ],
                         ),
                       ),
@@ -163,77 +179,12 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Failed to load events.',
-            style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
-          ),
-          const SizedBox(height: 16),
-          AppButton(
-            label: 'Retry',
-            variant: ButtonVariant.primary,
-            onPressed: _loadEvents,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(String message) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Center(
-        child: Text(
-          message,
-          style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
-        ),
-      ),
-    );
-  }
-
-  void _showNewEventForm() {
-    _showNewEventSheet();
-  }
-
-  Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Network Hub',
-          style: context.theme.typography.xl2.copyWith(
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.48,
-            color: context.theme.colors.foreground,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          '${_events.length} TOTAL SCHEDULED EVENTS',
-          style: context.theme.typography.xs.copyWith(
-            fontWeight: FontWeight.w500,
-            letterSpacing: 3.2,
-            color: context.theme.colors.mutedForeground,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNewEventButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: AppButton(
-        label: 'NEW EVENT',
-        prefixIcon: const Icon(Icons.add, size: 22),
-        variant: ButtonVariant.primary,
-        fullWidth: true,
-        onPressed: _showNewEventSheet,
-      ),
+  Widget _buildSearchBar() {
+    return AppInput(
+      hint: 'Search events...',
+      controller: _searchController,
+      prefixIcon: Icon(Icons.search_rounded, size: 20, color: context.theme.colors.mutedForeground),
+      onChanged: (val) => setState(() => _searchQuery = val),
     );
   }
 
@@ -242,122 +193,340 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: _c.surfaceElevated,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: context.theme.colors.border),
       ),
       child: Row(
         children: [
-          _buildTabButton(label: 'UPCOMING', isActive: _showUpcoming),
-          const SizedBox(width: 36),
-          _buildTabButton(label: 'PAST', isActive: !_showUpcoming),
+          _buildTabButton(label: 'Upcoming', count: _upcomingEvents.length, isActive: _showUpcoming),
+          const SizedBox(width: 4),
+          _buildTabButton(label: 'Past', count: _pastEvents.length, isActive: !_showUpcoming),
         ],
       ),
     );
   }
 
-  Widget _buildTabButton({required String label, required bool isActive}) {
-    return GestureDetector(
-      onTap: () => setState(() => _showUpcoming = label == 'UPCOMING'),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        decoration: BoxDecoration(
-          color: isActive ? context.theme.colors.secondary : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: _c.accentGlow.withValues(alpha: 0.07),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
+  Widget _buildTabButton({required String label, required int count, required bool isActive}) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _showUpcoming = label == 'Upcoming';
+          _searchQuery = '';
+          _searchController.clear();
+        }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          decoration: BoxDecoration(
+            color: isActive ? context.theme.colors.background : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: context.theme.typography.sm.copyWith(
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive ? context.theme.colors.foreground : context.theme.colors.mutedForeground,
+                ),
+              ),
+              const SizedBox(width: 6),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isActive ? context.theme.colors.primary.withValues(alpha: 0.12) : context.theme.colors.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  '$count',
+                  style: context.theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? context.theme.colors.primary : context.theme.colors.mutedForeground,
                   ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: context.theme.typography.xs.copyWith(
-            fontWeight: FontWeight.w600,
-            letterSpacing: 1.2,
-            color: isActive ? context.theme.colors.foreground : context.theme.colors.mutedForeground,
+                ),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildEventsList() {
+    if (_showUpcoming) {
+      final events = _filteredUpcoming;
+      if (events.isEmpty) {
+        return SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildEmptyState(
+              icon: Icons.event_outlined,
+              title: _searchQuery.isEmpty ? 'No upcoming events' : 'No results found',
+              description: _searchQuery.isEmpty
+                  ? 'Create your first event to get started tracking your networking.'
+                  : 'Try a different search term.',
+              showAction: _searchQuery.isEmpty,
+            ),
+          ),
+        );
+      }
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverList.separated(
+          itemCount: events.length,
+          separatorBuilder: (ctx, i) => const SizedBox(height: 14),
+          itemBuilder: (_, i) => _buildUpcomingEventCard(events[i]),
+        ),
+      );
+    } else {
+      final events = _filteredPast;
+      if (events.isEmpty) {
+        return SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildEmptyState(
+              icon: Icons.history_rounded,
+              title: _searchQuery.isEmpty ? 'No past events' : 'No results found',
+              description: _searchQuery.isEmpty
+                  ? 'Completed events will appear here.'
+                  : 'Try a different search term.',
+              showAction: false,
+            ),
+          ),
+        );
+      }
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverList.separated(
+          itemCount: events.length,
+          separatorBuilder: (ctx, i) => const SizedBox(height: 14),
+          itemBuilder: (_, i) => _buildPastEventCard(events[i]),
+        ),
+      );
+    }
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: context.theme.colors.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(Icons.wifi_off_rounded, size: 36, color: context.theme.colors.error),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Failed to load events',
+            style: context.theme.typography.lg.copyWith(
+              fontWeight: FontWeight.w600,
+              color: context.theme.colors.foreground,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Check your connection and try again.',
+            style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+          ),
+          const SizedBox(height: 24),
+          AppButton(
+            label: 'Retry',
+            prefixIcon: const Icon(Icons.refresh_rounded, size: 18),
+            variant: ButtonVariant.primary,
+            onPressed: _loadEvents,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String description,
+    bool showAction = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: context.theme.colors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(icon, size: 34, color: context.theme.colors.primary.withValues(alpha: 0.6)),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: context.theme.typography.lg.copyWith(
+              fontWeight: FontWeight.w600,
+              color: context.theme.colors.foreground,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+            textAlign: TextAlign.center,
+          ),
+          if (showAction) ...[
+            const SizedBox(height: 24),
+            AppButton(
+              label: 'Create Event',
+              prefixIcon: const Icon(Icons.add_rounded, size: 18),
+              variant: ButtonVariant.outline,
+              onPressed: _showNewEventSheet,
+            ),
+          ],
+        ],
       ),
     );
   }
 
   Widget _buildUpcomingEventCard(Event event) {
     final isOngoing = event.status == 'ongoing';
+    final daysUntil = isOngoing ? 0 : _daysUntil(event.startDate);
+    final isToday = daysUntil == 0 && !isOngoing;
+    final isTomorrow = daysUntil == 1;
 
     return AppCard(
-      padding: const EdgeInsets.all(20),
-      radius: 28,
+      padding: const EdgeInsets.all(0),
+      radius: 20,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isOngoing) ...[
-            Row(
+          if (isOngoing)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: context.theme.colors.error.withValues(alpha: 0.18),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: context.theme.colors.error,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'LIVE NOW',
+                    style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                      color: context.theme.colors.error,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Floor is open',
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.error.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (isToday || isTomorrow || daysUntil <= 7)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: context.theme.colors.primary.withValues(alpha: 0.06),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.schedule_rounded, size: 14, color: context.theme.colors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    isToday ? 'TODAY' : isTomorrow ? 'TOMORROW' : 'IN $daysUntil DAYS',
+                    style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                      color: context.theme.colors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: context.theme.colors.error,
-                    shape: BoxShape.circle,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        event.name,
+                        style: context.theme.typography.lg.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
+                          color: context.theme.colors.foreground,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => _showEventActionsSheet(event),
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(Icons.more_vert_rounded, color: context.theme.colors.mutedForeground, size: 20),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'LIVE FLOOR AVAILABLE',
-                  style: context.theme.typography.xs.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.4,
-                    color: context.theme.colors.foreground,
-                  ),
+                const SizedBox(height: 12),
+                _buildMetaRow(Icons.calendar_today_outlined, _formatDateRange(event.startDate, event.endDate)),
+                const SizedBox(height: 6),
+                _buildMetaRow(Icons.location_on_outlined, event.location ?? 'Location TBD'),
+                if (!isOngoing && daysUntil > 7) ...[
+                  const SizedBox(height: 6),
+                  _buildMetaRow(Icons.hourglass_empty_rounded, '$daysUntil days away'),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(
+                        label: isOngoing ? 'ENTER LIVE FLOOR' : 'PREPARE',
+                        variant: ButtonVariant.primary,
+                        fullWidth: true,
+                        onPressed: () => isOngoing ? _openEventFloor(event) : _openPrepScreen(event),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-          ],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  event.name,
-                  style: context.theme.typography.xl.copyWith(
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.2,
-                    color: context.theme.colors.foreground,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              AppButton(
-                variant: ButtonVariant.ghost,
-                onPressed: () => _showEventActionsSheet(event),
-                child: Icon(Icons.more_vert, color: context.theme.colors.primary, size: 22),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildUpcomingMetaRow(
-            Icons.calendar_today_outlined,
-            _formatDateRange(event.startDate, event.endDate),
-          ),
-          const SizedBox(height: 8),
-          _buildUpcomingMetaRow(
-            Icons.location_on_outlined,
-            event.location ?? 'Location TBD',
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: AppButton(
-              label: isOngoing ? 'ENTER LIVE FLOOR' : 'PREPARE',
-              variant: ButtonVariant.primary,
-              fullWidth: true,
-              onPressed: () => isOngoing ? _openEventFloor(event) : _openPrepScreen(event),
             ),
           ),
         ],
@@ -372,13 +541,13 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     final skipped = (stats['follow_ups_skipped'] as num?)?.toInt() ?? 0;
     final done = (stats['follow_ups_done'] as num?)?.toInt() ?? 0;
     final followUpPct = totalContacts > 0 ? (done / totalContacts).clamp(0.0, 1.0) : 0.0;
-
-    final dateLocation =
-        '${_formatDateRange(event.startDate, event.endDate)}${event.location != null ? ' • ${event.location}' : ''}';
+    final pctLabel = '${(followUpPct * 100).round()}%';
+    final isComplete = followUpPct >= 1.0 && totalContacts > 0;
+    final barColor = isComplete ? _c.success : context.theme.colors.primary;
 
     return AppCard(
-      padding: const EdgeInsets.all(20),
-      radius: 28,
+      padding: const EdgeInsets.all(16),
+      radius: 20,
       elevated: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,30 +568,44 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      dateLocation,
-                      style: context.theme.typography.xs.copyWith(
-                        color: context.theme.colors.mutedForeground,
-                      ),
+                    _buildMetaRow(
+                      Icons.calendar_today_outlined,
+                      [
+                        _formatDateRange(event.startDate, event.endDate),
+                        if (event.location != null) event.location!,
+                      ].join(' · '),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              AppChip.status('COMPLETED', color: context.theme.colors.secondaryForeground),
+              GestureDetector(
+                onTap: () => _showEventActionsSheet(event),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.more_vert_rounded, color: context.theme.colors.mutedForeground, size: 20),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
-                child: AppSectionLabel('Follow-Up Completion'),
+                child: Text(
+                  'Follow-up progress',
+                  style: context.theme.typography.xs.copyWith(
+                    color: context.theme.colors.mutedForeground,
+                    letterSpacing: 0.4,
+                  ),
+                ),
               ),
               Text(
-                '${(followUpPct * 100).round()}%',
+                pctLabel,
                 style: context.theme.typography.xs.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: followUpPct >= 1.0 ? _c.success : context.theme.colors.primary,
+                  color: barColor,
                 ),
               ),
             ],
@@ -431,7 +614,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: Container(
-              height: 5,
+              height: 6,
               color: _c.surfaceElevated,
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -439,7 +622,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                   widthFactor: followUpPct,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: followUpPct >= 1.0 ? _c.success : context.theme.colors.primary,
+                      color: barColor,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -448,31 +631,27 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
             ),
           ),
           const SizedBox(height: 14),
-          AppCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            radius: 16,
-            elevated: true,
-            child: Row(
-              children: [
-                _buildStatCell('Contacts', '$totalContacts', context.theme.colors.foreground),
-                _buildStatDivider(),
-                _buildStatCell('Pending', '$pending', pending > 0 ? context.theme.colors.primary : context.theme.colors.mutedForeground),
-                _buildStatDivider(),
-                _buildStatCell('Skipped', '$skipped', skipped > 0 ? context.theme.colors.error : context.theme.colors.mutedForeground),
-                _buildStatDivider(),
-                _buildStatCell('Done', '$done', done > 0 ? _c.success : context.theme.colors.mutedForeground),
-              ],
-            ),
+          Row(
+            children: [
+              _buildStatCell('Contacts', '$totalContacts', context.theme.colors.foreground),
+              _buildStatDivider(),
+              _buildStatCell('Pending', '$pending',
+                  pending > 0 ? context.theme.colors.primary : context.theme.colors.mutedForeground),
+              _buildStatDivider(),
+              _buildStatCell('Skipped', '$skipped',
+                  skipped > 0 ? context.theme.colors.error : context.theme.colors.mutedForeground),
+              _buildStatDivider(),
+              _buildStatCell('Done', '$done',
+                  done > 0 ? _c.success : context.theme.colors.mutedForeground),
+            ],
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: AppButton(
-              label: 'FOLLOW-UP QUEUE',
-              variant: ButtonVariant.primary,
-              fullWidth: true,
-              onPressed: () => _openFollowUpQueue(event),
-            ),
+          AppButton(
+            label: 'FOLLOW-UP QUEUE',
+            prefixIcon: const Icon(Icons.checklist_rounded, size: 18),
+            variant: isComplete ? ButtonVariant.secondary : ButtonVariant.primary,
+            fullWidth: true,
+            onPressed: () => _openFollowUpQueue(event),
           ),
         ],
       ),
@@ -507,18 +686,18 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildUpcomingMetaRow(IconData icon, String value) {
+  Widget _buildMetaRow(IconData icon, String value) {
     return Row(
       children: [
-        Icon(icon, color: context.theme.colors.primary, size: 18),
-        const SizedBox(width: 12),
+        Icon(icon, color: context.theme.colors.mutedForeground, size: 14),
+        const SizedBox(width: 7),
         Expanded(
           child: Text(
             value,
-            style: context.theme.typography.sm.copyWith(
-              fontWeight: FontWeight.w400,
+            style: context.theme.typography.xs.copyWith(
               color: context.theme.colors.mutedForeground,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -535,7 +714,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
       ),
     );
     if (!mounted) return;
-    final updated = await ApiService.getEventStats(event.id).catchError((_) => <String, dynamic>{});
+    final updated = await ApiService.getEventStats(event.id).catchError((e) => <String, dynamic>{});
     if (!mounted) return;
     setState(() => _eventStats[event.id] = updated);
   }
@@ -609,12 +788,12 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         'end_date': endDate,
       });
 
-      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+      if (sheetContext.mounted) { Navigator.of(sheetContext).pop(); }
       await _loadEvents();
 
-      if (mounted) showAppToast(context, 'Event created successfully.');
+      if (mounted) { showAppToast(context, 'Event created successfully.'); }
     } catch (_) {
-      if (sheetContext.mounted) showAppToast(sheetContext, 'Server error — please try again.');
+      if (sheetContext.mounted) { showAppToast(sheetContext, 'Server error — please try again.'); }
     }
   }
 
@@ -670,11 +849,11 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         'start_date': startDate,
         'end_date': endDate,
       });
-      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+      if (sheetContext.mounted) { Navigator.of(sheetContext).pop(); }
       await _loadEvents();
-      if (mounted) showAppToast(context, 'Event updated.');
+      if (mounted) { showAppToast(context, 'Event updated.'); }
     } catch (_) {
-      if (sheetContext.mounted) showAppToast(sheetContext, 'Server error — please try again.');
+      if (sheetContext.mounted) { showAppToast(sheetContext, 'Server error — please try again.'); }
     }
   }
 
@@ -705,9 +884,32 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.name,
+                  style: context.theme.typography.sm.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: context.theme.colors.foreground,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDateRange(event.startDate, event.endDate),
+                  style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             child: Column(
               children: [
+                FDivider(),
                 _buildActionButton(
                   icon: Icons.edit_outlined,
                   label: 'Edit Event',
@@ -716,38 +918,42 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                     _showEditEventSheet(event);
                   },
                 ),
-                const SizedBox(height: 4),
                 _buildActionButton(
                   icon: Icons.share_outlined,
-                  label: 'Share Event',
+                  label: 'Copy Event Details',
                   onTap: () {
                     Navigator.of(ctx).pop();
                     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                     final start = event.startDate;
                     final dateStr = event.endDate == null
                         ? '${months[start.month - 1]} ${start.day}, ${start.year}'
-                        : '${months[start.month - 1]} ${start.day} - ${months[event.endDate!.month - 1]} ${event.endDate!.day}, ${start.year}';
+                        : '${months[start.month - 1]} ${start.day} – ${months[event.endDate!.month - 1]} ${event.endDate!.day}, ${start.year}';
                     final text = '${event.name}\n$dateStr${event.location != null ? '\n${event.location}' : ''}';
                     Clipboard.setData(ClipboardData(text: text));
-                    if (mounted) showAppToast(context, 'Event details copied to clipboard.');
+                    if (mounted) { showAppToast(context, 'Event details copied to clipboard.'); }
                   },
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: FDivider(),
-                ),
+                FDivider(),
                 _buildActionButton(
-                  icon: Icons.delete_outlined,
+                  icon: Icons.delete_outline_rounded,
                   label: 'Delete Event',
                   isDestructive: true,
                   onTap: () async {
                     Navigator.of(ctx).pop();
+                    final confirmed = await showAppConfirmDialog(
+                      context: context,
+                      title: 'Delete Event',
+                      message: 'Are you sure you want to delete "${event.name}"? This cannot be undone.',
+                      confirmLabel: 'Delete',
+                      destructive: true,
+                    );
+                    if (confirmed != true) return;
                     try {
                       await ApiService.deleteEvent(event.id);
                       await _loadEvents();
-                      if (mounted) showAppToast(context, 'Event deleted.');
+                      if (mounted) { showAppToast(context, 'Event deleted.'); }
                     } catch (e) {
-                      if (mounted) showAppToast(context, 'Failed to delete event: $e');
+                      if (mounted) { showAppToast(context, 'Failed to delete event.'); }
                     }
                   },
                 ),
@@ -800,29 +1006,43 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
           height: 28,
           borderRadius: BorderRadius.circular(8),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         SkeletonLoader(
-          width: 250,
-          height: 12,
+          width: 240,
+          height: 14,
           borderRadius: BorderRadius.circular(4),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(child: SkeletonLoader(width: double.infinity, height: 62, borderRadius: BorderRadius.circular(16))),
+            const SizedBox(width: 10),
+            Expanded(child: SkeletonLoader(width: double.infinity, height: 62, borderRadius: BorderRadius.circular(16))),
+          ],
+        ),
+        const SizedBox(height: 20),
         SkeletonLoader(
           width: double.infinity,
-          height: 58,
-          borderRadius: BorderRadius.circular(22),
+          height: 52,
+          borderRadius: BorderRadius.circular(14),
         ),
-        const SizedBox(height: 26),
+        const SizedBox(height: 16),
+        SkeletonLoader(
+          width: double.infinity,
+          height: 44,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        const SizedBox(height: 16),
         SkeletonLoader(
           width: double.infinity,
           height: 48,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(14),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         const SkeletonCard(),
-        const SizedBox(height: 28),
+        const SizedBox(height: 14),
         const SkeletonCard(),
-        const SizedBox(height: 28),
+        const SizedBox(height: 14),
         const SkeletonCard(),
       ],
     );
@@ -867,20 +1087,6 @@ class _NewEventSheetState extends State<_NewEventSheet> {
     _isOneDay = widget.initialIsOneDay;
   }
 
-  Widget _buildFormField({
-    required String label,
-    required TextEditingController controller,
-    required String placeholder,
-    IconData? icon,
-  }) {
-    return AppInput(
-      label: label,
-      hint: placeholder,
-      controller: controller,
-      prefixIcon: icon != null ? Icon(icon, size: 20, color: context.theme.colors.primary) : null,
-    );
-  }
-
   Widget _buildDateField({required String label, required TextEditingController controller}) {
     return AppInput(
       label: label,
@@ -917,6 +1123,7 @@ class _NewEventSheetState extends State<_NewEventSheet> {
     return SafeArea(
       top: false,
       child: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -942,35 +1149,32 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                   Text(
                     widget.title,
                     style: context.theme.typography.xl2.copyWith(
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.48,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
                       color: context.theme.colors.foreground,
-                      height: 1.2,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     'Fill in the details to schedule a new event.',
                     style: context.theme.typography.sm.copyWith(
-                      fontWeight: FontWeight.w400,
                       color: context.theme.colors.mutedForeground,
-                      height: 1.5,
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _buildFormField(
+                  AppInput(
                     label: 'Event Name',
+                    hint: 'e.g. AI Innovation Summit 2025',
                     controller: widget.nameController,
-                    placeholder: 'e.g. AI Innovation Summit 2025',
                   ),
-                  const SizedBox(height: 18),
-                  _buildFormField(
+                  const SizedBox(height: 16),
+                  AppInput(
                     label: 'Location',
+                    hint: 'Venue or city',
                     controller: widget.locationController,
-                    placeholder: 'Search for a venue or city',
-                    icon: Icons.location_on_outlined,
+                    prefixIcon: Icon(Icons.location_on_outlined, size: 20, color: context.theme.colors.primary),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
                   _buildDateField(label: 'Start Date', controller: widget.startDateController),
                   const SizedBox(height: 14),
                   FCheckbox(
@@ -978,34 +1182,33 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                     label: Text(
                       'One-day event',
                       style: context.theme.typography.sm.copyWith(
-                        fontWeight: FontWeight.w400,
                         color: context.theme.colors.mutedForeground,
                       ),
                     ),
                     onChange: (val) => setState(() {
                       _isOneDay = val;
-                      if (_isOneDay) widget.endDateController.clear();
+                      if (_isOneDay) { widget.endDateController.clear(); }
                     }),
                   ),
                   if (!_isOneDay) ...[
                     const SizedBox(height: 14),
                     _buildDateField(label: 'End Date', controller: widget.endDateController),
                   ],
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
                   AppButton(
                     label: widget.saveLabel,
                     variant: ButtonVariant.primary,
                     fullWidth: true,
                     onPressed: () => widget.onSave(_isOneDay),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   AppButton(
                     label: 'CANCEL',
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.ghost,
                     fullWidth: true,
                     onPressed: widget.onCancel,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
