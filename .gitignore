@@ -51,3 +51,5 @@ next-env.d.ts
 .supabase
 
 .claude/
+# Added by code-review-graph
+.code-review-graph/

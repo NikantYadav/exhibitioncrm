@@ -22,11 +22,13 @@ Future<T?> showAppSheet<T>({
   required Widget Function(BuildContext) builder,
   FLayout side = FLayout.btt,
   bool isScrollControlled = true,
+  bool useRootNavigator = false,
 }) {
   appNavBarHidden.value = true;
   return showFSheet<T>(
     context: context,
     side: side,
+    useRootNavigator: useRootNavigator,
     mainAxisMaxRatio: isScrollControlled ? null : 9 / 16,
     builder: (ctx) {
       final bg = ctx.theme.colors.background;

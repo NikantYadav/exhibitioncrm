@@ -467,19 +467,9 @@ class _AddContactSheet extends StatelessWidget {
               fullWidth: true,
               onPressed: () async {
                 context.pop();
-                final result = await showAppDialog<bool>(
-                  context: context,
-                  builder: (ctx, style, _) => const AddContactDialog(),
-                );
+                final result = await showManualEntrySheet(context);
                 if (result == true) { onContactAdded(); }
               },
-            ),
-            const SizedBox(height: 20),
-            AppButton(
-              label: 'CANCEL',
-              variant: ButtonVariant.ghost,
-              fullWidth: true,
-              onPressed: () => context.pop(),
             ),
           ],
         ),

@@ -107,15 +107,46 @@ class AppButton extends StatelessWidget {
       return btn;
     }
 
+    // Ghost variant: FButton.ghost renders white text on light backgrounds.
+    // Render manually so the text always uses mutedForeground — readable on any bg.
+    if (variant == ButtonVariant.ghost) {
+      return Builder(builder: (ctx) {
+        final t = ctx.theme;
+        final fg = t.colors.mutedForeground;
+        Widget ghostContent;
+        if (child != null) {
+          ghostContent = child!;
+        } else if (_isLoading) {
+          ghostContent = const SizedBox(width: 16, height: 16, child: FCircularProgress());
+        } else if (prefixIcon != null) {
+          ghostContent = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconTheme(data: IconThemeData(color: fg, size: 16), child: prefixIcon!),
+              const SizedBox(width: 6),
+              Text(label!, style: t.typography.sm.copyWith(color: fg, fontWeight: FontWeight.w500)),
+            ],
+          );
+        } else {
+          ghostContent = Text(label!, style: t.typography.sm.copyWith(color: fg, fontWeight: FontWeight.w500));
+        }
+        final btn = GestureDetector(
+          onTap: _isLoading ? null : onPressed,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Center(child: ghostContent),
+          ),
+        );
+        if (fullWidth) return SizedBox(width: double.infinity, child: btn);
+        return btn;
+      });
+    }
+
     Widget content;
     if (child != null) {
       content = child!;
     } else if (_isLoading) {
-      content = const SizedBox(
-        width: 16,
-        height: 16,
-        child: FCircularProgress(),
-      );
+      content = const SizedBox(width: 16, height: 16, child: FCircularProgress());
     } else if (prefixIcon != null) {
       content = Row(
         mainAxisSize: MainAxisSize.min,

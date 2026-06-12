@@ -244,9 +244,6 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
 /// floating scanner button (centred over the nav bar) nests into the bar
 /// instead of overlapping its content or leaving a gap above the nav.
 class _LiveBarNotchClipper extends CustomClipper<Path> {
-  // Geometry of the notch — a wide, shallow concave cradle for the scanner
-  // button (≈56px). Half-width controls how wide it spreads; depth how far it
-  // dips up into the bar. Kept shallow so the centre stat's label clears it.
   static const double _notchHalfWidth = 56;
   static const double _notchDepth = 24;
   static const double _topRadius = 18;
@@ -258,10 +255,11 @@ class _LiveBarNotchClipper extends CustomClipper<Path> {
     final cx = w / 2;
 
     final path = Path();
-    // Start just below the top-left rounded corner.
+    // Top-left rounded corner.
     path.moveTo(0, _topRadius);
     path.quadraticBezierTo(0, 0, _topRadius, 0);
     path.lineTo(w - _topRadius, 0);
+    // Top-right rounded corner.
     path.quadraticBezierTo(w, 0, w, _topRadius);
     // Down the right edge to the bottom.
     path.lineTo(w, h);

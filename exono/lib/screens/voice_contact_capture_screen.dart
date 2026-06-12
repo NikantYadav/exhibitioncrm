@@ -14,8 +14,11 @@ import 'package:record/record.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../widgets/app_avatar.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
-import '../widgets/app_chip.dart';
+import '../widgets/app_input.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_section_label.dart';
 import '../utils/screen_logger.dart';
 
@@ -83,8 +86,6 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   bool _showDedup = false;
   List<Map<String, dynamic>> _dupes = [];
 
-  // ── Transcript card ──────────────────────────────────────────
-  bool _transcriptExpanded = false;
 
   @override
   void initState() {
@@ -162,13 +163,6 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
               ],
             ),
           ),
-          if (_phase == _Phase.review)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: _buildFixedSaveBar(),
-            ),
           if (_showDedup) _buildDedupSheet(),
         ],
       ),
@@ -180,12 +174,13 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   // ════════════════════════════════════════════════════════════
 
   Widget _buildHeader() {
+    final theme = context.theme;
     return Material(
       color: _c.navBackground,
       child: Container(
         height: 56,
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: _c.border)),
+          border: Border(bottom: BorderSide(color: theme.colors.border)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Row(
@@ -194,7 +189,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
               onPressed: _onBack,
               icon: Icon(
                 Icons.arrow_back_ios_new_rounded,
-                color: _c.textPrimary,
+                color: theme.colors.foreground,
                 size: 18,
               ),
               tooltip: _phase == _Phase.review ? 'Retake' : 'Back',
@@ -206,18 +201,17 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                 children: [
                   Text(
                     'REVIEW CONTACT',
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.8,
-                      color: _c.textPrimary,
+                      color: theme.colors.foreground,
                       height: 1,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'Verify extracted details',
-                    style: TextStyle(fontSize: 10, color: _c.textMuted),
+                    'Tap fields to edit',
+                    style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground),
                   ),
                 ],
               ),
@@ -295,11 +289,10 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                       ? Text(
                           _fmtDur(_recDuration),
                           key: const ValueKey('timer'),
-                          style: TextStyle(
-                            fontSize: 36,
+                          style: context.theme.typography.xl2.copyWith(
                             fontWeight: FontWeight.w700,
                             letterSpacing: 6,
-                            color: _c.textPrimary,
+                            color: context.theme.colors.foreground,
                           ),
                         )
                       : const SizedBox(key: ValueKey('no-timer'), height: 44),
@@ -353,12 +346,11 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           Text(
             'Capture Contact\nby Voice',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 28,
+            style: context.theme.typography.xl2.copyWith(
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
               height: 1.2,
-              color: _c.textPrimary,
+              color: context.theme.colors.foreground,
             ),
           ),
           const SizedBox(height: 12),
@@ -367,10 +359,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             child: Text(
               'Speak naturally about the person you just met. Our AI will extract their details automatically.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
+              style: context.theme.typography.sm.copyWith(
                 height: 1.55,
-                color: _c.textMuted,
+                color: context.theme.colors.mutedForeground,
               ),
             ),
           ),
@@ -380,19 +371,19 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   }
 
   Widget _buildStatusPill() {
+    final theme = context.theme;
+    final isRec = _isRecording;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
       decoration: BoxDecoration(
-        color: _isRecording
+        color: isRec
             ? _c.destructive.withValues(alpha: 0.12)
-            : _c.accentSoft,
+            : _c.accent,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: _isRecording
-              ? _c.destructive.withValues(alpha: 0.35)
-              : _c.accent.withValues(alpha: 0.3),
-        ),
+        border: isRec
+            ? Border.all(color: _c.destructive.withValues(alpha: 0.35))
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -402,17 +393,16 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             width: 7, height: 7,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _isRecording ? _c.destructive : _c.accent,
+              color: isRec ? _c.destructive : Colors.white,
             ),
           ),
           const SizedBox(width: 8),
           Text(
-            _isRecording ? 'RECORDING — TAP TO STOP' : 'TAP MIC TO START',
-            style: TextStyle(
-              fontSize: 10,
+            isRec ? 'RECORDING — TAP TO STOP' : 'TAP MIC TO START',
+            style: theme.typography.xs.copyWith(
               fontWeight: FontWeight.w700,
               letterSpacing: 1.6,
-              color: _isRecording ? _c.destructive : _c.accent,
+              color: isRec ? _c.destructive : Colors.white,
             ),
           ),
         ],
@@ -550,29 +540,18 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: FButton(variant: FButtonVariant.outline, 
-                  onPress: _goManual,
-                  prefix: const Icon(Icons.edit_note_outlined, size: 16),
-                  child: const Text('MANUAL ENTRY'),
-                ),
-              ),
-            ],
+          AppButton(
+            label: 'Manual Entry',
+            prefixIcon: const Icon(Icons.edit_note_outlined, size: 16),
+            variant: ButtonVariant.outline,
+            fullWidth: true,
+            onPressed: _goManual,
           ),
           const SizedBox(height: 10),
-          FButton(variant: FButtonVariant.ghost, 
-            onPress: () => Navigator.of(context).pop(),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.8,
-                color: _c.textMuted,
-              ),
-            ),
+          AppButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            onPressed: () => Navigator.of(context).pop(),
           ),
         ],
       ),
@@ -615,18 +594,20 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             const SizedBox(height: 32),
             Text(
               'ANALYSING',
-              style: TextStyle(
-                fontSize: 13,
+              style: context.theme.typography.sm.copyWith(
                 fontWeight: FontWeight.w800,
                 letterSpacing: 3.5,
-                color: _c.textPrimary,
+                color: context.theme.colors.foreground,
               ),
             ),
             const SizedBox(height: 10),
             Text(
               'Transcribing and extracting\ncontact details from your recording…',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, height: 1.55, color: _c.textMuted),
+              style: context.theme.typography.sm.copyWith(
+                height: 1.55,
+                color: context.theme.colors.mutedForeground,
+              ),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -644,229 +625,194 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   // ════════════════════════════════════════════════════════════
 
   Widget _buildReviewBody() {
+    final theme = context.theme;
+    final fn = _fnCtrl.text;
+    final ln = _lnCtrl.text;
+    final initials = '${fn.isNotEmpty ? fn[0] : ''}${ln.isNotEmpty ? ln[0] : ''}';
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomInset + 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildContactHeroCard(),
-          const SizedBox(height: 20),
-          AppSectionLabel('Work'),
+          // ── Hero ─────────────────────────────────────────────
+          AppCard(
+            padding: const EdgeInsets.all(20),
+            borderColor: _c.accent.withValues(alpha: 0.18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    AppAvatar(initials: initials.isEmpty ? '?' : initials, size: 44),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fn.isNotEmpty || ln.isNotEmpty
+                                ? '${fn.trim()} ${ln.trim()}'.trim()
+                                : 'New Contact',
+                            style: theme.typography.lg.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: theme.colors.foreground,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _onBack,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: theme.colors.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.refresh_rounded, size: 12, color: _c.accent),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Retake',
+                              style: theme.typography.xs.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colors.mutedForeground,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppInput(
+                        controller: _fnCtrl,
+                        label: 'First Name',
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: AppInput(
+                        controller: _lnCtrl,
+                        label: 'Last Name',
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // ── Professional ─────────────────────────────────────
+          _sectionHeader(context, 'Professional'),
           const SizedBox(height: 10),
-          _buildWorkCard(),
-          const SizedBox(height: 20),
-          AppSectionLabel('Contact Info'),
+          AppInput(controller: _coCtrl, label: 'Company'),
           const SizedBox(height: 10),
-          _buildContactInfoCard(),
+          AppInput(controller: _titleCtrl, label: 'Job Title'),
+
+          const SizedBox(height: 24),
+
+          // ── Contact Info ──────────────────────────────────────
+          _sectionHeader(context, 'Contact Info'),
+          const SizedBox(height: 10),
+          AppInput(
+            controller: _emailCtrl,
+            label: 'Email',
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 10),
+          AppInput(
+            controller: _phoneCtrl,
+            label: 'Phone',
+            keyboardType: TextInputType.phone,
+          ),
+
           if (_events.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            AppSectionLabel('Event'),
+            const SizedBox(height: 24),
+            _sectionHeader(context, 'Event'),
             const SizedBox(height: 10),
             _buildEventSelector(),
           ],
+
+          if (_transcript.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _buildTranscriptCard(),
+          ],
+
+          // ── Save bar inline — no overlay, fully scrollable ────
           const SizedBox(height: 20),
-          _buildTranscriptCard(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContactHeroCard() {
-    final fn = _fnCtrl.text;
-    final ln = _lnCtrl.text;
-    final initials = (fn.isNotEmpty ? fn[0] : '') + (ln.isNotEmpty ? ln[0] : '');
-    final subtitle = [_titleCtrl.text, _coCtrl.text]
-        .where((s) => s.isNotEmpty)
-        .join(' · ');
-
-    return AppCard(
-      radius: 28,
-      padding: const EdgeInsets.all(20),
-      borderColor: _c.accent.withValues(alpha: 0.22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Avatar
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [_c.accent, _c.accentStrong],
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  initials.toUpperCase().isEmpty ? '?' : initials.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              AppChip.label(
-                                'AI Extracted',
-                                color: _c.accentSoft,
-                                textColor: _c.accent,
-                              ),
-                              const SizedBox(height: 8),
-                              _inlineField(_fnCtrl, 'First name', fontSize: 22, bold: true),
-                              const SizedBox(height: 2),
-                              _inlineField(_lnCtrl, 'Last name', fontSize: 15),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: _onBack,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: _c.border),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.refresh_rounded, size: 11, color: _c.accent),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'RETAKE',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.8,
-                                    color: _c.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        subtitle,
-                        style: TextStyle(fontSize: 12, color: _c.textMuted, height: 1.3),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWorkCard() {
-    return AppCard(
-      elevated: true,
-      radius: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Column(
-        children: [
-          _fieldRow(Icons.business_outlined, _coCtrl, 'Company'),
-          FDivider(),
-          _fieldRow(Icons.work_outline_rounded, _titleCtrl, 'Job title'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContactInfoCard() {
-    return AppCard(
-      elevated: true,
-      radius: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Column(
-        children: [
-          _fieldRow(Icons.email_outlined, _emailCtrl, 'Email', kbd: TextInputType.emailAddress),
-          FDivider(),
-          _fieldRow(Icons.phone_outlined, _phoneCtrl, 'Phone', kbd: TextInputType.phone),
-        ],
-      ),
-    );
-  }
-
-  Widget _fieldRow(
-    IconData icon,
-    TextEditingController ctrl,
-    String hint, {
-    TextInputType? kbd,
-  }) {
-    return SizedBox(
-      height: 50,
-      child: Row(
-        children: [
-          Icon(icon, size: 15, color: _c.accent),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: ctrl,
-              keyboardType: kbd,
-              style: TextStyle(fontSize: 14, color: _c.textPrimary),
-              cursorColor: _c.accent,
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: TextStyle(fontSize: 14, color: _c.textMuted),
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
+          AppButton(
+            label: _saved ? 'Contact Saved' : 'Save Contact',
+            prefixIcon: Icon(
+              _saved ? Icons.check_circle_outline_rounded : Icons.person_add_outlined,
+              size: 18,
             ),
+            variant: ButtonVariant.primary,
+            fullWidth: true,
+            isLoading: _isSaving,
+            onPressed: (_isSaving || _saved) ? null : _save,
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Retake Recording',
+            variant: ButtonVariant.ghost,
+            onPressed: _onBack,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(BuildContext context, String label) {
+    return Text(
+      label.toUpperCase(),
+      style: context.theme.typography.xs.copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.1,
+        color: context.theme.colors.mutedForeground,
       ),
     );
   }
 
   Widget _buildEventSelector() {
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    final theme = context.theme;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colors.border),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
       child: Row(
         children: [
           Icon(Icons.event_outlined, size: 15, color: _c.accent),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _eventId,
                 isExpanded: true,
                 dropdownColor: _c.surfaceAlt,
-                icon: Icon(Icons.expand_more, color: _c.accent, size: 18),
-                style: TextStyle(fontSize: 14, color: _c.textPrimary),
+                icon: Icon(Icons.keyboard_arrow_down_rounded, color: theme.colors.mutedForeground, size: 18),
+                style: theme.typography.sm.copyWith(color: theme.colors.foreground),
                 hint: Text(
                   'Select event',
-                  style: TextStyle(color: _c.textMuted, fontSize: 14),
+                  style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground),
                 ),
                 items: _events
-                    .map(
-                      (e) => DropdownMenuItem(value: e.id, child: Text(e.name)),
-                    )
+                    .map((e) => DropdownMenuItem(value: e.id, child: Text(e.name)))
                     .toList(),
                 onChanged: (v) => setState(() => _eventId = v),
               ),
@@ -878,47 +824,54 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   }
 
   Widget _buildTranscriptCard() {
-    final hasText = _transcript.isNotEmpty;
-    final preview = hasText
-        ? (_transcript.length > 110 ? '${_transcript.substring(0, 110)}…' : _transcript)
-        : 'No transcript available.';
-    final showToggle = hasText && _transcript.length > 110;
-
+    final theme = context.theme;
     return AppCard(
-      elevated: true,
-      radius: 20,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.mic_none_rounded, size: 14, color: _c.accent),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _c.accentSoft,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(Icons.mic_none_rounded, size: 12, color: _c.accent),
+              ),
               const SizedBox(width: 8),
-              AppSectionLabel('Transcript', color: _c.accent),
-              const Spacer(),
-              if (showToggle)
-                GestureDetector(
-                  onTap: () => setState(() => _transcriptExpanded = !_transcriptExpanded),
-                  child: Text(
-                    _transcriptExpanded ? 'LESS' : 'MORE',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                      color: _c.accent,
-                    ),
+              Text(
+                'Transcript',
+                style: theme.typography.sm.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colors.foreground,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _c.accentSoft,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'AI',
+                  style: theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: _c.accent,
+                    letterSpacing: 0.5,
                   ),
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
-            _transcriptExpanded ? _transcript : preview,
-            style: TextStyle(
-              fontSize: 13,
-              color: _c.textSecondary,
-              height: 1.6,
+            _transcript,
+            style: theme.typography.sm.copyWith(
+              color: theme.colors.mutedForeground,
+              height: 1.65,
             ),
           ),
         ],
@@ -929,64 +882,6 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   // ════════════════════════════════════════════════════════════
   // FIXED SAVE BAR
   // ════════════════════════════════════════════════════════════
-
-  Widget _buildFixedSaveBar() {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        16, 14, 16,
-        MediaQuery.of(context).padding.bottom + 14,
-      ),
-      decoration: BoxDecoration(
-        color: _c.navBackground,
-        border: Border(top: BorderSide(color: _c.border)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: FButton(variant: FButtonVariant.primary, 
-              onPress: (_isSaving || _saved) ? null : _save,
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 20, height: 20,
-                      child: FCircularProgress(),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(_saved ? Icons.check_circle_outline_rounded : Icons.person_add_outlined, size: 18),
-                        const SizedBox(width: 10),
-                        Text(
-                          _saved ? 'CONTACT SAVED' : 'SAVE CONTACT',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.8,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          FButton(variant: FButtonVariant.ghost, 
-            onPress: _onBack,
-            child: Text(
-              'RETAKE RECORDING',
-              style: TextStyle(
-                fontSize: 10,
-                color: _c.textMuted,
-                letterSpacing: 1.6,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // ════════════════════════════════════════════════════════════
   // DEDUP SHEET
@@ -1017,7 +912,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: _c.border,
+                      color: context.theme.colors.border,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -1038,10 +933,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                               Expanded(
                                 child: Text(
                                   'Possible duplicate detected',
-                                  style: TextStyle(
-                                    fontSize: 17,
+                                  style: context.theme.typography.lg.copyWith(
                                     fontWeight: FontWeight.w700,
-                                    color: _c.textPrimary,
+                                    color: context.theme.colors.foreground,
                                   ),
                                 ),
                               ),
@@ -1060,19 +954,17 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                                   Text(
                                     '${_dupes.first['first_name'] ?? ''} ${_dupes.first['last_name'] ?? ''}'
                                         .trim(),
-                                    style: TextStyle(
-                                      fontSize: 15,
+                                    style: context.theme.typography.sm.copyWith(
                                       fontWeight: FontWeight.w600,
-                                      color: _c.textPrimary,
+                                      color: context.theme.colors.foreground,
                                     ),
                                   ),
                                   if (_dupes.first['email'] != null) ...[
                                     const SizedBox(height: 4),
                                     Text(
                                       _dupes.first['email'] as String,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: _c.textSecondary,
+                                      style: context.theme.typography.sm.copyWith(
+                                        color: context.theme.colors.mutedForeground,
                                       ),
                                     ),
                                   ],
@@ -1080,9 +972,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                                     const SizedBox(height: 2),
                                     Text(
                                       (_dupes.first['company'] as Map?)?['name'] ?? '',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: _c.textMuted,
+                                      style: context.theme.typography.xs.copyWith(
+                                        color: context.theme.colors.mutedForeground,
                                       ),
                                     ),
                                   ],
@@ -1115,16 +1006,10 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                           onTap: () => _resolveDuplicateAndSave(merge: false),
                         ),
                         const SizedBox(height: 10),
-                        FButton(variant: FButtonVariant.ghost, 
-                          onPress: () => setState(() => _showDedup = false),
-                          child: Text(
-                            'CANCEL',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: _c.textMuted,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
+                        AppButton(
+                          label: 'Cancel',
+                          variant: ButtonVariant.ghost,
+                          onPressed: () => setState(() => _showDedup = false),
                         ),
                       ],
                     ),
@@ -1143,20 +1028,11 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     required VoidCallback onTap,
     bool primary = false,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: FButton(variant: FButtonVariant.primary, 
-        onPress: onTap,
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.6,
-          ),
-        ),
-      ),
+    return AppButton(
+      label: label,
+      variant: primary ? ButtonVariant.primary : ButtonVariant.outline,
+      fullWidth: true,
+      onPressed: onTap,
     );
   }
 
@@ -1165,30 +1041,6 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   // ════════════════════════════════════════════════════════════
 
 
-  Widget _inlineField(
-    TextEditingController ctrl,
-    String hint, {
-    double fontSize = 14,
-    bool bold = false,
-  }) {
-    return TextField(
-      controller: ctrl,
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
-        color: _c.textPrimary,
-      ),
-      cursorColor: _c.accent,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(fontSize: fontSize, color: _c.textMuted),
-        isDense: true,
-        border: InputBorder.none,
-        contentPadding: EdgeInsets.zero,
-      ),
-      onChanged: (_) => setState(() {}),
-    );
-  }
 
   // ════════════════════════════════════════════════════════════
   // ACTIONS
@@ -1219,7 +1071,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         final granted = await Permission.microphone.request();
         if (!granted.isGranted) {
           if (mounted) {
-            showFToast(context: context, title: Text('Microphone permission required'));
+            showAppToast(context, 'Microphone permission required');
           }
           return;
         }
@@ -1265,7 +1117,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         _amplitude = 0.0;
         _phase = _Phase.recording;
       });
-      showFToast(context: context, title: Text('Could not start recording: $e'));
+      showAppToast(context, 'Could not start recording');
     }
   }
 
@@ -1288,7 +1140,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _phase = _Phase.recording);
-      showFToast(context: context, title: Text('Transcription failed: $e'));
+      showAppToast(context, 'Transcription failed');
     }
   }
 
@@ -1351,7 +1203,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     final name =
         '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();
     if (name.isEmpty) {
-      showFToast(context: context, title: Text('Enter at least a name'));
+      showAppToast(context, 'Enter at least a name');
       return;
     }
     setState(() => _isSaving = true);
