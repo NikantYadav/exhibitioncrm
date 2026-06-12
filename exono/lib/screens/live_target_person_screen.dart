@@ -3,6 +3,7 @@ import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/app_avatar.dart';
+import '../widgets/app_button.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
@@ -346,11 +347,12 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
     return Column(children: [
       Row(children: [
         Expanded(
-          child: FButton(
-            variant: FButtonVariant.primary,
-            onPress: () => showLogInteractionSheet(context, contactId: _target['contact_id'] as String?),
-            prefix: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-            child: const Text('LOG INTERACTION'),
+          child: AppButton(
+            variant: ButtonVariant.branded,
+            onPressed: () => showLogInteractionSheet(context, contactId: _target['contact_id'] as String?),
+            prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+            label: 'LOG INTERACTION',
+            fullWidth: true,
           ),
         ),
         const SizedBox(width: 10),

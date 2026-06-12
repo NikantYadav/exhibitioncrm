@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import '../config/app_theme.dart';
 
-enum ButtonVariant { primary, secondary, outline, ghost, destructive }
+enum ButtonVariant { primary, secondary, outline, ghost, destructive, branded }
 
 enum ButtonSize { sm, md, lg }
 
@@ -46,6 +47,8 @@ class AppButton extends StatelessWidget {
         return FButtonVariant.ghost;
       case ButtonVariant.destructive:
         return FButtonVariant.destructive;
+      case ButtonVariant.branded:
+        return FButtonVariant.primary;
     }
   }
 
@@ -62,6 +65,48 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Branded variant: blue bg + white text (light) / white bg + blue text (dark).
+    if (variant == ButtonVariant.branded) {
+      final c = AppTheme.colorsOf(context);
+      final t = context.theme;
+      final isDark = c.isDark;
+      final bg = isDark ? Colors.white : c.accent;
+      final fg = isDark ? c.accent : Colors.white;
+
+      Widget content;
+      if (_isLoading) {
+        content = SizedBox(width: 16, height: 16, child: FCircularProgress());
+      } else if (prefixIcon != null) {
+        content = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconTheme(data: IconThemeData(color: fg, size: 16), child: prefixIcon!),
+            const SizedBox(width: 6),
+            Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg)),
+          ],
+        );
+      } else if (child != null) {
+        content = child!;
+      } else {
+        content = Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg));
+      }
+
+      final btn = GestureDetector(
+        onTap: _isLoading ? null : onPressed,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(child: content),
+        ),
+      );
+
+      if (fullWidth) return SizedBox(width: double.infinity, child: btn);
+      return btn;
+    }
+
     Widget content;
     if (child != null) {
       content = child!;

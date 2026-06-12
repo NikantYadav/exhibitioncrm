@@ -13,6 +13,7 @@ import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_input.dart';
 import '../widgets/skeleton_loader.dart';
@@ -214,7 +215,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   }
 
   Future<void> _showEditContactSheet(ContactProfileData contact) async {
-    final result = await showFSheet<bool>(
+    final result = await showAppSheet<bool>(
       context: context,
       side: FLayout.btt,
       builder: (ctx) => _EditContactSheet(contact: contact),
@@ -223,7 +224,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   }
 
   Future<void> _deleteContact(ContactProfileData contact) async {
-    final confirmed = await showFDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (ctx, style, _) => FDialog(
         title: const Text('Delete Contact'),
@@ -276,7 +277,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     List<Event> allEvents = [];
     try { allEvents = await ApiService.getEvents(); } catch (_) {}
     if (!mounted) return;
-    await showFSheet(
+    await showAppSheet(
       context: context,
       side: FLayout.btt,
       builder: (ctx) => _EventPickerSheet(
@@ -311,7 +312,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     try {
       final result = await ApiService.generateEmailDraft(contactId: contact.id, emailType: 'general');
       if (mounted) {
-        showFDialog<void>(
+        showAppDialog<void>(
           context: context,
           builder: (ctx, style, _) => FDialog(
             title: const Text('Email Draft'),
@@ -547,17 +548,33 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
 
           // Contact info rows
           if (contact.email.isNotEmpty || contact.phone.isNotEmpty || contact.linkedin.isNotEmpty || contact.company.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            FDivider(),
-            if (contact.company.isNotEmpty)
-              _infoRow(Icons.business_outlined, contact.company, () => _navigateToCompanyDetail(contact)),
-            if (contact.email.isNotEmpty)
-              _infoRow(Icons.mail_outline, contact.email, () => _launchUrl('mailto:${contact.email}')),
-            if (contact.phone.isNotEmpty)
-              _infoRow(Icons.call_outlined, contact.phone, () => _launchUrl('tel:${contact.phone}')),
-            if (contact.linkedin.isNotEmpty)
-              _infoRow(Icons.link, 'LinkedIn Profile', () => _launchUrl(
-                contact.linkedin.startsWith('http') ? contact.linkedin : 'https://${contact.linkedin}')),
+            const SizedBox(height: 14),
+            AppCard(
+              padding: EdgeInsets.zero,
+              radius: 12,
+              child: Column(
+                children: [
+                  if (contact.company.isNotEmpty) ...[
+                    _infoRow(Icons.business_outlined, contact.company, () => _navigateToCompanyDetail(contact)),
+                    if (contact.email.isNotEmpty || contact.phone.isNotEmpty || contact.linkedin.isNotEmpty)
+                      _rowDivider(),
+                  ],
+                  if (contact.email.isNotEmpty) ...[
+                    _infoRow(Icons.mail_outline, contact.email, () => _launchUrl('mailto:${contact.email}')),
+                    if (contact.phone.isNotEmpty || contact.linkedin.isNotEmpty)
+                      _rowDivider(),
+                  ],
+                  if (contact.phone.isNotEmpty) ...[
+                    _infoRow(Icons.call_outlined, contact.phone, () => _launchUrl('tel:${contact.phone}')),
+                    if (contact.linkedin.isNotEmpty)
+                      _rowDivider(),
+                  ],
+                  if (contact.linkedin.isNotEmpty)
+                    _infoRow(Icons.link, 'LinkedIn Profile', () => _launchUrl(
+                      contact.linkedin.startsWith('http') ? contact.linkedin : 'https://${contact.linkedin}')),
+                ],
+              ),
+            ),
           ],
 
           const SizedBox(height: 14),
@@ -577,7 +594,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
 
           const SizedBox(height: 12),
           AppButton(
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.branded,
             onPressed: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
             prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
             label: 'LOG INTERACTION',
@@ -588,13 +605,33 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     );
   }
 
+  Widget _rowDivider() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Container(height: 1, color: context.theme.colors.border),
+  );
+
   Widget _infoRow(IconData icon, String value, VoidCallback onTap) {
-    return FButton(
-      variant: FButtonVariant.ghost,
-      onPress: onTap,
-      prefix: Icon(icon, size: 17),
-      suffix: const Icon(Icons.chevron_right, size: 16),
-      child: Expanded(child: Text(value, overflow: TextOverflow.ellipsis)),
+    final fg = context.theme.colors.foreground;
+    final muted = context.theme.colors.mutedForeground;
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 17, color: muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                value,
+                overflow: TextOverflow.ellipsis,
+                style: context.theme.typography.sm.copyWith(color: fg),
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 16, color: muted),
+          ],
+        ),
+      ),
     );
   }
 
@@ -608,17 +645,26 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   }
 
   Widget _quickBtn(IconData icon, String label, VoidCallback? onTap) {
+    final theme = context.theme;
+    final fg = theme.colors.foreground;
     return Expanded(
-      child: FButton(
-        variant: FButtonVariant.outline,
-        onPress: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18),
-            const SizedBox(height: 4),
-            Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600)),
-          ],
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: theme.colors.border),
+            borderRadius: BorderRadius.circular(8),
+            color: theme.colors.background,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: fg),
+              const SizedBox(height: 4),
+              Text(label, style: theme.typography.xs.copyWith(fontWeight: FontWeight.w600, color: fg)),
+            ],
+          ),
         ),
       ),
     );
@@ -703,7 +749,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         )),
         const SizedBox(height: 4),
         AppButton(
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.branded,
           onPressed: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
           prefixIcon: const Icon(Icons.add, size: 14),
           label: 'LOG INTERACTION',
@@ -881,20 +927,28 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
 
   Widget _buildLinksCard(ContactProfileData contact) {
     final hasAssets = contact.assets.isNotEmpty;
-    return FButton(
-      variant: FButtonVariant.outline,
-      onPress: _openLinksFiles,
-      prefix: const Icon(Icons.attachment_outlined, size: 18),
-      suffix: Icon(hasAssets ? Icons.chevron_right : Icons.add, size: 18),
-      child: Expanded(
+    final theme = context.theme;
+    return GestureDetector(
+      onTap: _openLinksFiles,
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        radius: 12,
         child: Row(
           children: [
-            const Text('Links & Files'),
+            Icon(Icons.attachment_outlined, size: 18, color: theme.colors.mutedForeground),
+            const SizedBox(width: 10),
+            Text('Links & Files', style: theme.typography.sm.copyWith(
+                fontWeight: FontWeight.w600, color: theme.colors.foreground)),
             const Spacer(),
-            Text(hasAssets ? '${contact.assets.length} items' : 'None added',
-                style: context.theme.typography.xs.copyWith(
-                    fontStyle: hasAssets ? FontStyle.normal : FontStyle.italic,
-                    color: context.theme.colors.mutedForeground)),
+            Text(
+              hasAssets ? '${contact.assets.length} items' : 'None added',
+              style: theme.typography.xs.copyWith(
+                  fontStyle: hasAssets ? FontStyle.normal : FontStyle.italic,
+                  color: theme.colors.mutedForeground),
+            ),
+            const SizedBox(width: 6),
+            Icon(hasAssets ? Icons.chevron_right : Icons.add,
+                size: 18, color: theme.colors.mutedForeground),
           ],
         ),
       ),
@@ -933,7 +987,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                 children: [
                   FBadge(
                     variant: FBadgeVariant.secondary,
-                    child: const Icon(Icons.event_outlined, size: 18),
+                    child: const Icon(Icons.event_outlined, size: 18, color: Colors.white),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1247,7 +1301,7 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
                               finally { if (mounted) setState(() => _linking = false); }
                               if (mounted) Navigator.pop(context);
                             },
-                            prefix: FBadge(variant: FBadgeVariant.secondary, child: const Icon(Icons.event_outlined, size: 18)),
+                            prefix: FBadge(variant: FBadgeVariant.secondary, child: const Icon(Icons.event_outlined, size: 18, color: Colors.white)),
                             suffix: isLinked
                                 ? Icon(Icons.check_circle_rounded, color: theme.colors.primary, size: 20)
                                 : (_linking

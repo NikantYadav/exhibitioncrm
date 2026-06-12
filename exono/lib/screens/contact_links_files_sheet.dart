@@ -16,7 +16,7 @@ Future<List<ContactAsset>?> showContactLinksFilesSheet(
   required String contactId,
   required List<ContactAsset> initialAssets,
 }) {
-  return showFSheet<List<ContactAsset>>(
+  return showAppSheet<List<ContactAsset>>(
     context: context,
     side: FLayout.btt,
     builder: (ctx) => _ContactLinksFilesSheet(
@@ -299,7 +299,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
     final titleCtrl = TextEditingController();
     final urlCtrl = TextEditingController();
 
-    final result = await showFDialog<ContactAsset>(
+    final result = await showAppDialog<ContactAsset>(
       context: context,
       builder: (ctx, style, _) {
         final c = AppTheme.colorsOf(ctx);

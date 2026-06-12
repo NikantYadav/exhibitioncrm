@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 
+// Imported lazily via a function reference to avoid a circular import.
+// The notifier lives in app_shell.dart.
+import '../screens/app_shell.dart' show appNavBarHidden;
+
 /// ForUI sheet / toast / dialog helpers.
 ///
 /// These replace the raw `showModalBottomSheet`, `ScaffoldMessenger.showSnackBar`,
@@ -19,21 +23,19 @@ Future<T?> showAppSheet<T>({
   FLayout side = FLayout.btt,
   bool isScrollControlled = true,
 }) {
+  appNavBarHidden.value = true;
   return showFSheet<T>(
     context: context,
     side: side,
-    // forui sizes sheets via mainAxisMaxRatio; null lets tall content scroll.
     mainAxisMaxRatio: isScrollControlled ? null : 9 / 16,
     builder: (ctx) {
-      // showFSheet has no implicit background or rounding; wrap once here so all sheets
-      // get rounded top corners and the correct background colour.
       final bg = ctx.theme.colors.background;
       return ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         child: ColoredBox(color: bg, child: builder(ctx)),
       );
     },
-  );
+  ).whenComplete(() => appNavBarHidden.value = false);
 }
 
 /// Toast / snackbar. Replaces `ScaffoldMessenger.of(context).showSnackBar(...)`.
@@ -78,6 +80,7 @@ Future<bool?> showAppConfirmDialog({
   String cancelLabel = 'Cancel',
   bool destructive = false,
 }) {
+  appNavBarHidden.value = true;
   return showFDialog<bool>(
     context: context,
     builder: (ctx, style, _) => FDialog(
@@ -96,5 +99,20 @@ Future<bool?> showAppConfirmDialog({
         ),
       ],
     ),
-  );
+  ).whenComplete(() => appNavBarHidden.value = false);
+}
+
+/// Dialog wrapper that hides the live bar while open. Use this instead of
+/// calling [showFDialog] directly in screens.
+Future<T?> showAppDialog<T>({
+  required BuildContext context,
+  required Widget Function(BuildContext, FDialogStyle, Animation<double>) builder,
+  bool barrierDismissible = true,
+}) {
+  appNavBarHidden.value = true;
+  return showFDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: builder,
+  ).whenComplete(() => appNavBarHidden.value = false);
 }

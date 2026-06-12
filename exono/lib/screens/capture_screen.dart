@@ -1502,7 +1502,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     final fnTemp = TextEditingController(text: _fnCtrl.text);
     final lnTemp = TextEditingController(text: _lnCtrl.text);
 
-    final confirmed = await showFDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx, style, _) {

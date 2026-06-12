@@ -253,7 +253,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           AppButton(
             label: 'LOG INTERACTION',
             prefixIcon: const Icon(Icons.add_circle_outline_rounded, size: 20),
-            variant: ButtonVariant.primary,
+            variant: ButtonVariant.branded,
             fullWidth: true,
             onPressed: () => showLogInteractionSheet(context),
           ),

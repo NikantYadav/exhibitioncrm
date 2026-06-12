@@ -13,7 +13,6 @@ import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/skeleton_loader.dart';
 import 'add_contact_dialog.dart';
-import 'app_shell.dart' show appNavBarHidden;
 import '../utils/screen_logger.dart';
 
 class ContactsScreen extends StatefulWidget {
@@ -189,7 +188,6 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
       ('contacted', 'Contacted'),
     ];
 
-    appNavBarHidden.value = true;
     showAppSheet(
       context: context,
       builder: (ctx) => _FilterSheet(
@@ -210,7 +208,7 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
           });
         },
       ),
-    ).whenComplete(() => appNavBarHidden.value = false);
+    );
   }
 
   Widget _buildListBody() {
@@ -469,7 +467,7 @@ class _AddContactSheet extends StatelessWidget {
               fullWidth: true,
               onPressed: () async {
                 context.pop();
-                final result = await showFDialog<bool>(
+                final result = await showAppDialog<bool>(
                   context: context,
                   builder: (ctx, style, _) => const AddContactDialog(),
                 );

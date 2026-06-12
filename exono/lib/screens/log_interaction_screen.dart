@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import '../widgets/app_feedback.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
@@ -29,7 +30,7 @@ Future<bool> showLogInteractionSheet(
     );
     return false;
   }
-  final saved = await showFSheet<bool>(
+  final saved = await showAppSheet<bool>(
     context: context,
     side: FLayout.btt,
     builder: (_) => _LogInteractionSheet(contactId: contactId, initialMode: initialMode),

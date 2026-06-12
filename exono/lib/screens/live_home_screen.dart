@@ -891,7 +891,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                 child: AppButton(
                   label: 'LOG INTERACTION',
                   prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
-                  variant: ButtonVariant.primary,
+                  variant: ButtonVariant.branded,
                   onPressed: () => showLogInteractionSheet(context,
                       contactId: contactId, initialMode: event.name,
                       onSaved: () => lep.refresh()),
@@ -1073,7 +1073,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                     child: AppButton(
                       label: 'LOG INTERACTION',
                       prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
-                      variant: ButtonVariant.primary,
+                      variant: ButtonVariant.branded,
                       onPressed: () => showLogInteractionSheet(context, contactId: contactId),
                     ),
                   ),
