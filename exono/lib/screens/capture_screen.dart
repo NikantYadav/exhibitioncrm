@@ -20,6 +20,7 @@ import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../services/web_file_picker.dart' if (dart.library.io) '../services/web_file_picker_stub.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
@@ -733,28 +734,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Avatar circle with accent gradient
-          Container(
-            width: 60, height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [_c.accent, _c.accentStrong],
-              ),
-              border: Border.all(color: _c.accentSoft, width: 2),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initials.toUpperCase().isEmpty ? '?' : initials.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ),
+          AppAvatar(initials: initials.isEmpty ? '?' : initials, size: 60),
           const SizedBox(width: 16),
           // Editable name fields
           Expanded(

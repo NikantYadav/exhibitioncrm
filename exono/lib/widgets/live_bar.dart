@@ -77,10 +77,10 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
     final goalsLeft = lep.liveGoals.where((g) => (g['status'] as String?) != 'completed').length;
 
     final bg = c.isDark ? c.accentStrong : c.accent;
-    const live = Color(0xFFFF453A);
     final divider = Colors.white.withValues(alpha: 0.20);
-    final labelColor = Colors.white.withValues(alpha: 0.70);
+    final labelColor = Colors.white.withValues(alpha: 0.65);
     const valueColor = Colors.white;
+    const liveIndicator = Colors.white;
 
     return AnimatedBuilder(
       animation: _enterCtrl,
@@ -121,38 +121,30 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
                       AnimatedBuilder(
                         animation: _pulseCtrl,
                         builder: (context, _) {
+                          final ringAlpha = (1 - (_pulseScale.value - 0.75) / 0.65) * 0.35;
                           return SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: 18,
+                            height: 18,
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
                                 Transform.scale(
                                   scale: _pulseScale.value,
                                   child: Container(
-                                    width: 16,
-                                    height: 16,
+                                    width: 14,
+                                    height: 14,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: live.withValues(
-                                        alpha: (1 - (_pulseScale.value - 0.75) / 0.65) * 0.30,
-                                      ),
+                                      color: liveIndicator.withValues(alpha: ringAlpha),
                                     ),
                                   ),
                                 ),
                                 Container(
-                                  width: 7,
-                                  height: 7,
-                                  decoration: BoxDecoration(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: live,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: live.withValues(alpha: 0.7),
-                                        blurRadius: 5,
-                                        spreadRadius: 1,
-                                      ),
-                                    ],
+                                    color: liveIndicator,
                                   ),
                                 ),
                               ],
@@ -161,13 +153,12 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
                         },
                       ),
                       const SizedBox(width: 5),
-                      const Text(
+                      Text(
                         'LIVE',
-                        style: TextStyle(
-                          fontSize: 10,
+                        style: context.theme.typography.xs.copyWith(
                           fontWeight: FontWeight.w800,
-                          letterSpacing: 1.5,
-                          color: live,
+                          letterSpacing: 1.6,
+                          color: Colors.white.withValues(alpha: 0.90),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -204,7 +195,7 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
                         targetsLeft.toString(),
                         'Targets left',
                         labelColor,
-                        targetsLeft > 0 ? live : Colors.white.withValues(alpha: 0.5),
+                        targetsLeft > 0 ? valueColor : Colors.white.withValues(alpha: 0.45),
                         context,
                       ),
                       _dividerWidget(divider),
@@ -212,7 +203,7 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
                         goalsLeft.toString(),
                         'Goals left',
                         labelColor,
-                        goalsLeft > 0 ? live : Colors.white.withValues(alpha: 0.5),
+                        goalsLeft > 0 ? valueColor : Colors.white.withValues(alpha: 0.45),
                         context,
                       ),
                     ],

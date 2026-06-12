@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
+import '../widgets/app_avatar.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
@@ -199,18 +200,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          Container(
-            width: 56, height: 56,
-            decoration: BoxDecoration(
-              color: _priorityColor.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-              border: Border.all(color: _priorityColor.withValues(alpha: 0.35), width: 1.5),
-            ),
-            alignment: Alignment.center,
-            child: Text(_initials, style: TextStyle(
-                fontSize: 20, fontWeight: FontWeight.w800, color: _priorityColor)),
-          ),
+          AppAvatar(initials: _initials, size: 56),
           const SizedBox(width: 16),
           Expanded(
             child: Column(

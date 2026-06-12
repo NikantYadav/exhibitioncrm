@@ -11,6 +11,8 @@ import '../models/contact.dart';
 import '../models/contact_profile_data.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../widgets/app_avatar.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_input.dart';
 import '../widgets/skeleton_loader.dart';
@@ -490,29 +492,22 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                 onPress: () => _pickAndUploadAvatar(contact),
                 child: Stack(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: ColoredBox(
-                        color: theme.colors.secondary,
-                        child: SizedBox(
-                          width: 72,
-                          height: 72,
-                          child: _isUploadingAvatar
-                              ? const Center(child: FCircularProgress())
-                              : contact.avatarUrl.isNotEmpty
-                                  ? Image.network(contact.avatarUrl, fit: BoxFit.cover)
-                                  : Center(
-                                      child: Text(
-                                        contact.initials,
-                                        style: theme.typography.xl2.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          color: theme.colors.foreground,
-                                        ),
-                                      ),
-                                    ),
-                        ),
-                      ),
-                    ),
+                    _isUploadingAvatar
+                        ? SizedBox(
+                            width: 72, height: 72,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: ColoredBox(
+                                color: theme.colors.secondary,
+                                child: const Center(child: FCircularProgress()),
+                              ),
+                            ),
+                          )
+                        : AppAvatar.network(
+                            url: contact.avatarUrl,
+                            initials: contact.initials,
+                            size: 72,
+                          ),
                     Positioned(
                       right: 0,
                       bottom: 0,
@@ -581,14 +576,12 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           ),
 
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FButton(
-              variant: FButtonVariant.outline,
-              onPress: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
-              prefix: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-              child: const Text('LOG INTERACTION'),
-            ),
+          AppButton(
+            variant: ButtonVariant.outline,
+            onPressed: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
+            prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+            label: 'LOG INTERACTION',
+            fullWidth: true,
           ),
         ],
       ),
@@ -649,9 +642,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               )),
               const Spacer(),
               if (_contactInsights != null)
-                FButton(
-                  variant: FButtonVariant.ghost,
-                  onPress: () => _fetchInsights(contact.id),
+                AppButton(
+                  variant: ButtonVariant.ghost,
+                  onPressed: () => _fetchInsights(contact.id),
                   child: const Icon(Icons.refresh, size: 15),
                 ),
             ],
@@ -709,11 +702,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           ]),
         )),
         const SizedBox(height: 4),
-        FButton(
-          variant: FButtonVariant.outline,
-          onPress: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
-          prefix: const Icon(Icons.add, size: 14),
-          child: const Text('LOG INTERACTION'),
+        AppButton(
+          variant: ButtonVariant.outline,
+          onPressed: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
+          prefixIcon: const Icon(Icons.add, size: 14),
+          label: 'LOG INTERACTION',
         ),
       ],
     );
@@ -922,11 +915,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               Text('EVENTS', style: theme.typography.xs.copyWith(
                   fontWeight: FontWeight.w700, letterSpacing: 1.4, color: theme.colors.mutedForeground)),
               const Spacer(),
-              FButton(
-                variant: FButtonVariant.secondary,
-                onPress: () => _showLinkEventSheet(contact),
-                prefix: const Icon(Icons.add, size: 14),
-                child: const Text('Link Event'),
+              AppButton(
+                variant: ButtonVariant.secondary,
+                onPressed: () => _showLinkEventSheet(contact),
+                prefixIcon: const Icon(Icons.add, size: 14),
+                label: 'Link Event',
               ),
             ],
           ),
@@ -953,9 +946,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                       ],
                     ),
                   ),
-                  FButton(
-                    variant: FButtonVariant.ghost,
-                    onPress: () => _unlinkEvent(contact, event),
+                  AppButton(
+                    variant: ButtonVariant.ghost,
+                    onPressed: () => _unlinkEvent(contact, event),
                     child: const Icon(Icons.link_off_rounded, size: 16),
                   ),
                 ],
@@ -1054,7 +1047,7 @@ class _EditContactSheetState extends State<_EditContactSheet> {
                 children: [
                   Text('Edit Contact', style: theme.typography.lg.copyWith(fontWeight: FontWeight.w700)),
                   const Spacer(),
-                  FButton(variant: FButtonVariant.ghost, onPress: () => Navigator.pop(context), child: const Text('Cancel')),
+                  AppButton(variant: ButtonVariant.ghost, onPressed: () => Navigator.pop(context), label: 'Cancel'),
                 ],
               ),
             ),
@@ -1080,15 +1073,12 @@ class _EditContactSheetState extends State<_EditContactSheet> {
                     const SizedBox(height: 12),
                     AppInput(label: 'LinkedIn URL', controller: _linkedinCtrl, keyboardType: TextInputType.url),
                     const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FButton(
-                        variant: FButtonVariant.primary,
-                        onPress: _isSaving ? null : _save,
-                        child: _isSaving
-                            ? const SizedBox(width: 18, height: 18, child: FCircularProgress())
-                            : const Text('SAVE CHANGES'),
-                      ),
+                    AppButton(
+                      variant: ButtonVariant.primary,
+                      onPressed: _save,
+                      isLoading: _isSaving,
+                      label: 'SAVE CHANGES',
+                      fullWidth: true,
                     ),
                   ],
                 ),
@@ -1226,7 +1216,7 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
                   children: [
                     Text('Link to Event', style: theme.typography.lg.copyWith(fontWeight: FontWeight.w700)),
                     const Spacer(),
-                    FButton(variant: FButtonVariant.ghost, onPress: () => Navigator.pop(context), child: const Icon(Icons.close)),
+                    AppButton(variant: ButtonVariant.ghost, onPressed: () => Navigator.pop(context), child: const Icon(Icons.close)),
                   ],
                 ),
               ),

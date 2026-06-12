@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/app_input.dart';
 
 import '../config/app_theme.dart';
@@ -847,12 +848,7 @@ class _ContactFollowUpCard extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  // Avatar
-                  _Avatar(
-                    initials: initials,
-                    isSent: isSent,
-                    colors: _c,
-                  ),
+                  AppAvatar(initials: initials, size: 46, done: isSent),
                   const SizedBox(width: 14),
                   // Name + role
                   Expanded(
@@ -1176,47 +1172,6 @@ class _TopBar extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Avatar extends StatelessWidget {
-  final String initials;
-  final bool isSent;
-  final ExonoColors colors;
-
-  const _Avatar({
-    required this.initials,
-    required this.isSent,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = isSent ? colors.success.withValues(alpha: 0.18) : colors.surfaceElevated;
-    final textColor = isSent ? colors.success : colors.textPrimary;
-
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isSent ? colors.success.withValues(alpha: 0.3) : colors.border,
-        ),
-      ),
-      alignment: Alignment.center,
-      child: isSent
-          ? Icon(Icons.check_rounded, color: colors.success, size: 20)
-          : Text(
-              initials,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-              ),
-            ),
     );
   }
 }

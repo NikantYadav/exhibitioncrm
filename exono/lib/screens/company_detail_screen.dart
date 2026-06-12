@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_theme.dart';
 import '../services/api_service.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
@@ -624,12 +625,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            Container(
-              width: 38, height: 38,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: _c.accentSoft, borderRadius: BorderRadius.circular(999), border: Border.all(color: _c.border)),
-              child: Text(initials.toUpperCase(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _c.accent)),
-            ),
+            AppAvatar(initials: initials, size: 38),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

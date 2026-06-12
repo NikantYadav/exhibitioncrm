@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_feedback.dart';
 import '../models/event.dart';
@@ -1019,17 +1020,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(children: [
-                Container(
-                  width: 44, height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: _c.accentSoft,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _c.accent),
-                  ),
-                  child: Text(initials.toUpperCase(),
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _c.accent)),
-                ),
+                AppAvatar(initials: initials),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_card.dart';
@@ -635,29 +636,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isDone
-                          ? [_c.success.withValues(alpha: 0.18), _c.success.withValues(alpha: 0.08)]
-                          : [_c.accent.withValues(alpha: 0.22), _c.accentStrong.withValues(alpha: 0.10)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDone
-                          ? _c.success.withValues(alpha: 0.3)
-                          : _c.accent.withValues(alpha: 0.25),
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: isDone
-                      ? Icon(Icons.check_rounded, size: 18, color: _c.success)
-                      : Text(_initials(contact),
-                          style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
-                ),
+                AppAvatar(initials: _initials(contact), done: isDone),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

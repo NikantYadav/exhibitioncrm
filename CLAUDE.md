@@ -12,6 +12,7 @@ The wrappers already exist in `exono/lib/widgets/`. They wrap forui correctly an
 
 | Need | Use | Replaces |
 |------|-----|----------|
+| Contact avatar | `AppAvatar` (`lib/widgets/app_avatar.dart`) | `Container`+`BoxDecoration`+initials, `CircleAvatar`, `FAvatar`, hand-rolled rounded-square |
 | Button / tap target | `AppButton` (`lib/widgets/app_button.dart`) | `ElevatedButton`, `FilledButton`, `OutlinedButton`, `TextButton`, tappable `InkWell`/`GestureDetector` |
 | Card surface | `AppCard` (`lib/widgets/app_card.dart`) | `Container`+`BoxDecoration` used as a card |
 | Text input | `AppInput` (`lib/widgets/app_input.dart`) | `TextField`, `TextFormField`. Has `readOnly:` for date/picker fields |
@@ -35,6 +36,15 @@ The wrappers already exist in `exono/lib/widgets/`. They wrap forui correctly an
 **Why:** every fix is paid once and then every later screen reuses it for free. Working around a gap in the screen instead pays the same cost again on every screen that has the same widget. The wrapper set is the thing that makes migration cheap — investing in it is the whole strategy, so each migration should leave the wrappers at least as capable as it found them.
 
 After changing or adding a wrapper, update the table above and run `flutter analyze` on the wrapper file.
+
+### `AppAvatar` API
+```dart
+AppAvatar(initials: 'JS')                         // default 44×44, accent gradient
+AppAvatar(initials: 'JS', size: 56)               // any size
+AppAvatar(initials: 'JS', done: true)             // green check state (follow-up done)
+AppAvatar.network(url: avatarUrl, initials: 'JS') // shows image, falls back to initials
+```
+Style: rounded square (radius 12), blue accent gradient fill, accent border, accent-colored initials. `done: true` switches to green gradient + check icon. `size < 36` uses `xs` typography; `size >= 36` uses `sm`.
 
 ### `AppButton` API (note: NOT the raw `FButton`)
 ```dart
@@ -100,6 +110,8 @@ The app also has `ExonoColors` via `AppTheme.colorsOf(context)` (aliased `_c` in
 - **`showDialog`+`AlertDialog`+`TextButton` for simple confirm → `showAppConfirmDialog`.** Only keep raw `showDialog` when the dialog contains interactive widgets (TextFields, etc.). Simple title+message+confirm/cancel dialogs always use `showAppConfirmDialog(context, title, message, confirmLabel, destructive)`.
 - **`_ContactPickerSheet` and similar self-contained sheet widgets:** when they're passed as builder to `showAppSheet`, the `showAppSheet` wrapper already supplies background color. Remove any `Container(color: _c.background, ...)` wrapper from their `build` method — replace with `SizedBox` for sizing. Wrap the whole thing in `SafeArea(top: false)`.
 - **`if/else` chains in `try` blocks (timeAgo, status strings) trigger `curly_braces_in_flow_control_structures`.** Always use braces: `if (cond) { x = 'a'; } else if (...) { x = 'b'; } else { x = 'c'; }` — even for single-statement branches.
+- **Raw `FButton`/`FButtonVariant` in screens must be replaced with `AppButton`/`ButtonVariant`.** The outline color fix (blue text on white) is applied inside `AppButton` — raw `FButton.outline` bypasses it and renders with white text. Only keep raw `FButton` inside `showFDialog` action arrays (where `AppButton` cannot be used) and for complex layout children (`prefix`+`suffix`+`Expanded` child, `Column` child) where `FButton`'s internal layout is load-bearing.
+- **Contact avatars must always use `AppAvatar`.** Never hand-roll a rounded-square or circle container with initials — not `Container`+`BoxDecoration`, not `CircleAvatar`, not `FAvatar`. Every screen that shows a contact's avatar uses `AppAvatar` (or `AppAvatar.network` when an image URL is available). The `done: true` prop handles the green/check state for followed-up contacts.
 - **`TextStyle(fontSize: N, ...)` must be replaced with `context.theme.typography.XX.copyWith(...)`.** Never hardcode `fontSize` — use the scale: `xs` (~10–11px), `sm` (~13–14px), `lg` (~16–18px), `xl` (~20–22px), `xl2` (~24–28px). There is no `.base` or `.md`. When in doubt, match the closest size.
 - **`_c.textPrimary` → `context.theme.colors.foreground`, `_c.textMuted` → `context.theme.colors.mutedForeground`, `_c.border` → `context.theme.colors.border`, `_c.background` → `context.theme.colors.background`.** These four have direct forui token equivalents — always substitute. Only keep `_c.*` for brand-only colors with no forui token: `_c.accent`, `_c.success`, `_c.destructive`, `_c.isDark`, `_c.surface`, `_c.surfaceElevated`, `_c.surfaceAlt`, `_c.accentGlow`, `_c.accentStrong`.
 - **`RefreshIndicator` has no forui equivalent — keep it.** Replace its `color:` with `_c.accent` and `backgroundColor:` with `context.theme.colors.background`. Do not try to wrap or replace it.
