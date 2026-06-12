@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 
-/// Single shared bottom nav bar used across all mobile screens.
-/// Layout: Home | AI Chat | [QR] | Contacts | Events
+/// Single shared bottom nav bar.
+/// Layout: Home | AI Chat | [QR elevated] | Contacts | Events
+///
+/// selectedIndex mapping:
+///   0 = Home, 1 = Events, 2 = QR/Capture, 3 = Contacts,
+///   5 = Profile, 7 = AI Chat, 4 = sentinel (no tab active)
 class AppBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onNavigate;
@@ -13,165 +18,123 @@ class AppBottomNav extends StatelessWidget {
     required this.onNavigate,
   });
 
+  // Map app selectedIndex to FBottomNavigationBar 0-based index.
+  // Items order: 0=Home, 1=AIChat, 2=Contacts, 3=Events
+  int get _forIndex {
+    switch (selectedIndex) {
+      case 0:
+        return 0;
+      case 7:
+        return 1;
+      case 3:
+        return 2;
+      case 1:
+        return 3;
+      default:
+        return -1; // no tab active
+    }
+  }
+
+  void _handleChange(int forIndex) {
+    switch (forIndex) {
+      case 0:
+        onNavigate(0);
+      case 1:
+        onNavigate(7);
+      case 2:
+        onNavigate(3);
+      case 3:
+        onNavigate(1);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppTheme.colorsOf(context);
-    final showLabels = selectedIndex != 2;
 
     if (selectedIndex == 2) {
       return _buildScannerNav(colors, context);
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.navBackground.withValues(alpha: colors.isDark ? 0.97 : 0.94),
-        border: Border(
-          top: BorderSide(color: colors.border.withValues(alpha: 0.85), width: 1),
+    final nav = FBottomNavigationBar(
+      index: _forIndex,
+      onChange: _handleChange,
+      children: const [
+        FBottomNavigationBarItem(
+          icon: Icon(Icons.home_outlined),
+          label: Text('Home'),
         ),
-        boxShadow: AppTheme.softShadow(context),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: showLabels ? 66 : 66,
-          child: Row(
-            children: [
-              Expanded(
-                child: _item(
-                  icon: Icons.home_outlined,
-                  label: 'Home',
-                  isActive: selectedIndex == 0,
-                  showLabel: showLabels,
-                  onTap: () => onNavigate(0),
-                  colors: colors,
+        FBottomNavigationBarItem(
+          icon: Icon(Icons.auto_awesome_outlined),
+          label: Text('AI Chat'),
+        ),
+        FBottomNavigationBarItem(
+          icon: Icon(Icons.group_outlined),
+          label: Text('Contacts'),
+        ),
+        FBottomNavigationBarItem(
+          icon: Icon(Icons.calendar_today_outlined),
+          label: Text('Events'),
+        ),
+      ],
+    );
+
+    // Wrap with the QR center button overlay
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: [
+        nav,
+        Positioned(
+          top: -14,
+          child: GestureDetector(
+            onTap: () => onNavigate(2),
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [colors.accent, colors.accentStrong],
                 ),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: AppTheme.softShadow(context),
               ),
-              Expanded(
-                child: _item(
-                  icon: Icons.auto_awesome_outlined,
-                  label: 'AI Chat',
-                  isActive: selectedIndex == 7,
-                  showLabel: showLabels,
-                  onTap: () => onNavigate(7),
-                  colors: colors,
-                ),
+              child: Icon(
+                Icons.qr_code_scanner_rounded,
+                color: colors.isDark ? colors.background : Colors.white,
+                size: 26,
               ),
-              SizedBox(
-                width: 78,
-                child: Center(
-                  child: Transform.translate(
-                    offset: const Offset(0, -14),
-                    child: InkWell(
-                      onTap: () => onNavigate(2),
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [colors.accent, colors.accentStrong],
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: AppTheme.softShadow(context),
-                        ),
-                        child: Icon(
-                          Icons.qr_code_scanner_rounded,
-                          color: colors.isDark ? colors.background : Colors.white,
-                          size: 26,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _item(
-                  icon: Icons.group_outlined,
-                  label: 'Contacts',
-                  isActive: selectedIndex == 3,
-                  showLabel: showLabels,
-                  onTap: () => onNavigate(3),
-                  colors: colors,
-                ),
-              ),
-              Expanded(
-                child: _item(
-                  icon: Icons.calendar_today_outlined,
-                  label: 'Events',
-                  isActive: selectedIndex == 1,
-                  showLabel: showLabels,
-                  onTap: () => onNavigate(1),
-                  colors: colors,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildScannerNav(ExonoColors colors, BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.navBackground.withValues(alpha: colors.isDark ? 0.97 : 0.94),
-        border: Border(
-          top: BorderSide(color: colors.border.withValues(alpha: 0.85), width: 1),
+    return FBottomNavigationBar(
+      index: -1,
+      onChange: _handleChange,
+      children: const [
+        FBottomNavigationBarItem(
+          icon: Icon(Icons.home_outlined),
+          label: Text('Home'),
         ),
-        boxShadow: AppTheme.softShadow(context),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 66,
-          child: Row(
-            children: [
-              Expanded(child: _item(icon: Icons.home_outlined, label: 'Home', isActive: false, showLabel: true, onTap: () => onNavigate(0), colors: colors)),
-              Expanded(child: _item(icon: Icons.auto_awesome_outlined, label: 'AI Chat', isActive: false, showLabel: true, onTap: () => onNavigate(7), colors: colors)),
-              Expanded(child: _item(icon: Icons.group_outlined, label: 'Contacts', isActive: false, showLabel: true, onTap: () => onNavigate(3), colors: colors)),
-              Expanded(child: _item(icon: Icons.calendar_today_outlined, label: 'Events', isActive: false, showLabel: true, onTap: () => onNavigate(1), colors: colors)),
-            ],
-          ),
+        FBottomNavigationBarItem(
+          icon: Icon(Icons.auto_awesome_outlined),
+          label: Text('AI Chat'),
         ),
-      ),
-    );
-  }
-
-  Widget _item({
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required bool showLabel,
-    required VoidCallback onTap,
-    required ExonoColors colors,
-  }) {
-    final color = isActive ? colors.accent : colors.textMuted;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 20, color: color),
-            if (showLabel) ...[
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                  color: color,
-                  height: 1,
-                ),
-              ),
-            ],
-          ],
+        FBottomNavigationBarItem(
+          icon: Icon(Icons.group_outlined),
+          label: Text('Contacts'),
         ),
-      ),
+        FBottomNavigationBarItem(
+          icon: Icon(Icons.calendar_today_outlined),
+          label: Text('Events'),
+        ),
+      ],
     );
   }
 }

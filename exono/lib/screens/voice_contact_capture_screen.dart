@@ -5,6 +5,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -551,30 +552,17 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _goManual,
-                  icon: const Icon(Icons.edit_note_outlined, size: 16),
-                  label: const Text('MANUAL ENTRY'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _c.textSecondary,
-                    side: BorderSide(color: _c.border),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.4,
-                    ),
-                  ),
+                child: FButton(variant: FButtonVariant.outline, 
+                  onPress: _goManual,
+                  prefix: const Icon(Icons.edit_note_outlined, size: 16),
+                  child: const Text('MANUAL ENTRY'),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+          FButton(variant: FButtonVariant.ghost, 
+            onPress: () => Navigator.of(context).pop(),
             child: Text(
               'CANCEL',
               style: TextStyle(
@@ -642,12 +630,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             const SizedBox(height: 32),
             SizedBox(
               width: 160,
-              child: LinearProgressIndicator(
-                backgroundColor: _c.surfaceElevated,
-                color: _c.accent,
-                minHeight: 3,
-                borderRadius: BorderRadius.circular(999),
-              ),
+              child: FProgress(),
             ),
           ],
         ),
@@ -806,7 +789,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       child: Column(
         children: [
           _fieldRow(Icons.business_outlined, _coCtrl, 'Company'),
-          Divider(height: 1, color: _c.border),
+          FDivider(),
           _fieldRow(Icons.work_outline_rounded, _titleCtrl, 'Job title'),
         ],
       ),
@@ -821,7 +804,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       child: Column(
         children: [
           _fieldRow(Icons.email_outlined, _emailCtrl, 'Email', kbd: TextInputType.emailAddress),
-          Divider(height: 1, color: _c.border),
+          FDivider(),
           _fieldRow(Icons.phone_outlined, _phoneCtrl, 'Phone', kbd: TextInputType.phone),
         ],
       ),
@@ -962,21 +945,12 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           SizedBox(
             width: double.infinity,
             height: 54,
-            child: FilledButton(
-              onPressed: (_isSaving || _saved) ? null : _save,
-              style: FilledButton.styleFrom(
-                backgroundColor: _saved ? _c.success : _c.accent,
-                disabledBackgroundColor: _saved ? _c.success : _c.surfaceElevated,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                ),
-                elevation: 0,
-              ),
+            child: FButton(variant: FButtonVariant.primary, 
+              onPress: (_isSaving || _saved) ? null : _save,
               child: _isSaving
                   ? const SizedBox(
                       width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: FCircularProgress(),
                     )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -996,8 +970,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             ),
           ),
           const SizedBox(height: 6),
-          TextButton(
-            onPressed: _onBack,
+          FButton(variant: FButtonVariant.ghost, 
+            onPress: _onBack,
             child: Text(
               'RETAKE RECORDING',
               style: TextStyle(
@@ -1140,8 +1114,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                           onTap: () => _resolveDuplicateAndSave(merge: false),
                         ),
                         const SizedBox(height: 10),
-                        TextButton(
-                          onPressed: () => setState(() => _showDedup = false),
+                        FButton(variant: FButtonVariant.ghost, 
+                          onPress: () => setState(() => _showDedup = false),
                           child: Text(
                             'CANCEL',
                             style: TextStyle(
@@ -1171,16 +1145,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     return SizedBox(
       width: double.infinity,
       height: 48,
-      child: FilledButton(
-        onPressed: onTap,
-        style: FilledButton.styleFrom(
-          backgroundColor: primary ? _c.accent : _c.surfaceElevated,
-          foregroundColor: primary ? Colors.white : _c.textSecondary,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999),
-          ),
-        ),
+      child: FButton(variant: FButtonVariant.primary, 
+        onPress: onTap,
         child: Text(
           label,
           style: const TextStyle(
@@ -1252,12 +1218,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         final granted = await Permission.microphone.request();
         if (!granted.isGranted) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Microphone permission required'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            showFToast(context: context, title: Text('Microphone permission required'));
           }
           return;
         }
@@ -1303,12 +1264,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         _amplitude = 0.0;
         _phase = _Phase.recording;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not start recording: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFToast(context: context, title: Text('Could not start recording: $e'));
     }
   }
 
@@ -1331,12 +1287,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _phase = _Phase.recording);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Transcription failed: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFToast(context: context, title: Text('Transcription failed: $e'));
     }
   }
 
@@ -1399,12 +1350,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     final name =
         '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter at least a name'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFToast(context: context, title: Text('Enter at least a name'));
       return;
     }
     setState(() => _isSaving = true);

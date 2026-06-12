@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -812,11 +813,7 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       IconButton(
                         onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Flash toggle is UI-only for now.'),
-                            ),
-                          );
+                          showFToast(context: context, title: const Text('Flash toggle is UI-only for now.'));
                         },
                         icon: Icon(
                           Icons.flashlight_on,

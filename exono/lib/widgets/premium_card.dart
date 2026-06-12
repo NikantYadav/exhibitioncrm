@@ -47,8 +47,8 @@ class _PremiumCardState extends State<PremiumCard> {
               width: 1,
             ),
             boxShadow: _isHovered && widget.hoverable
-                ? AppTheme.cardHoverShadow
-                : AppTheme.cardShadow,
+                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(0, 8))]
+                : [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 2))],
           ),
           transform: _isHovered && widget.hoverable
               ? Matrix4.translationValues(0, -2, 0)

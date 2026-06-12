@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:forui/forui.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import '../models/linked_entity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/conversation_provider.dart';
+import '../widgets/app_button.dart';
 import '../widgets/skeleton_loader.dart';
 import 'app_shell.dart' show appNavBarHidden;
 
@@ -379,10 +381,7 @@ class _ChatScreenState extends State<ChatScreen>
                 child: Center(
                   child: SizedBox(
                     width: 20, height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: _c.accent,
-                    ),
+                    child: FCircularProgress(),
                   ),
                 ),
               );
@@ -501,10 +500,10 @@ class _ChatScreenState extends State<ChatScreen>
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            OutlinedButton.icon(
+            AppButton(
+              label: 'Retry',
               onPressed: _initConversation,
-              icon: const Icon(Icons.refresh_rounded, size: 16),
-              label: const Text('Retry'),
+              variant: ButtonVariant.outline,
             ),
           ],
         ),
@@ -930,23 +929,24 @@ class _ChatScreenState extends State<ChatScreen>
                           return AnimatedContainer(
                             duration: const Duration(milliseconds: 180),
                             curve: Curves.easeOut,
-                            child: Material(
-                              color: canSend
-                                  ? _c.accent
-                                  : _c.surfaceElevated,
-                              borderRadius: BorderRadius.circular(10),
-                              child: InkWell(
-                                onTap: canSend ? () => _sendMessage() : null,
+                            child: GestureDetector(
+                              onTap: canSend ? () => _sendMessage() : null,
+                              child: ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
-                                child: SizedBox(
-                                  width: 36,
-                                  height: 36,
-                                  child: Icon(
-                                    Icons.arrow_upward_rounded,
-                                    size: 18,
-                                    color: canSend
-                                        ? Colors.white
-                                        : _c.textMuted,
+                                child: ColoredBox(
+                                  color: canSend
+                                      ? _c.accent
+                                      : _c.surfaceElevated,
+                                  child: SizedBox(
+                                    width: 36,
+                                    height: 36,
+                                    child: Icon(
+                                      Icons.arrow_upward_rounded,
+                                      size: 18,
+                                      color: canSend
+                                          ? Colors.white
+                                          : _c.textMuted,
+                                    ),
                                   ),
                                 ),
                               ),

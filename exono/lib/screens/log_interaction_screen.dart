@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import '../config/app_theme.dart';
 import '../services/api_service.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 
 Future<bool> showLogInteractionSheet(
@@ -19,20 +21,16 @@ Future<bool> showLogInteractionSheet(
   VoidCallback? onSaved,
 }) async {
   if (contactId == null || contactId.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('No contact linked — interaction cannot be saved.'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    showFToast(
+      context: context,
+      title: const Text('No contact linked — interaction cannot be saved.'),
+      variant: FToastVariant.destructive,
     );
     return false;
   }
-  final saved = await showModalBottomSheet<bool>(
+  final saved = await showFSheet<bool>(
     context: context,
-    isScrollControlled: true,
-    useSafeArea: false,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.60),
+    side: FLayout.btt,
     builder: (_) => _LogInteractionSheet(contactId: contactId, initialMode: initialMode),
   );
   if (saved == true) {
@@ -94,8 +92,10 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
     final status = await Permission.microphone.request();
     if (status != PermissionStatus.granted) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission required'), behavior: SnackBarBehavior.floating),
+        showFToast(
+          context: context,
+          title: const Text('Microphone permission required'),
+          variant: FToastVariant.destructive,
         );
       }
       return;
@@ -158,8 +158,10 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e'), behavior: SnackBarBehavior.floating),
+        showFToast(
+          context: context,
+          title: Text('Failed to save: $e'),
+          variant: FToastVariant.destructive,
         );
       }
     }
@@ -181,8 +183,10 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
   Future<void> _saveInteraction() async {
     final notes = _notesController.text.trim();
     if (notes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add some notes'), behavior: SnackBarBehavior.floating),
+      showFToast(
+        context: context,
+        title: const Text('Please add some notes'),
+        variant: FToastVariant.destructive,
       );
       return;
     }
@@ -202,8 +206,10 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e'), behavior: SnackBarBehavior.floating),
+        showFToast(
+          context: context,
+          title: Text('Failed to save: $e'),
+          variant: FToastVariant.destructive,
         );
       }
     }
@@ -391,58 +397,18 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
         const SizedBox(height: 20),
         AppSectionLabel('Mode of Interaction'),
         const SizedBox(height: 8),
-        TextField(
+        AppInput(
           controller: _modeController,
-          style: TextStyle(fontSize: 14, color: _c.textSecondary),
-          cursorColor: _c.accent,
-          decoration: InputDecoration(
-            hintText: 'e.g. Coffee chat, WhatsApp, Call...',
-            hintStyle: TextStyle(fontSize: 14, color: _c.textMuted.withValues(alpha: 0.6)),
-            filled: true,
-            fillColor: _c.surfaceElevated,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.accent, width: 1.5),
-            ),
-          ),
+          hint: 'e.g. Coffee chat, WhatsApp, Call...',
         ),
         const SizedBox(height: 20),
         AppSectionLabel('What happened?'),
         const SizedBox(height: 8),
-        TextField(
+        AppInput(
           controller: _notesController,
           minLines: 5,
           maxLines: 8,
-          style: TextStyle(fontSize: 14, color: _c.textSecondary, height: 1.5),
-          cursorColor: _c.accent,
-          decoration: InputDecoration(
-            hintText: 'Key discussion points, decisions, next steps...',
-            hintStyle: TextStyle(fontSize: 14, color: _c.textMuted.withValues(alpha: 0.6)),
-            filled: true,
-            fillColor: _c.surfaceElevated,
-            contentPadding: const EdgeInsets.all(16),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.accent, width: 1.5),
-            ),
-          ),
+          hint: 'Key discussion points, decisions, next steps...',
         ),
         const SizedBox(height: 24),
       ],
@@ -611,22 +577,11 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> {
       child: SizedBox(
         width: double.infinity,
         height: 52,
-        child: FilledButton(
-          onPressed: canSave ? (_isVoiceMode ? _saveVoiceNote : _saveInteraction) : null,
-          style: FilledButton.styleFrom(
-            backgroundColor: _c.accent,
-            disabledBackgroundColor: _c.accent.withValues(alpha: 0.35),
-            foregroundColor: Colors.white,
-            disabledForegroundColor: Colors.white.withValues(alpha: 0.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-            elevation: 0,
-          ),
+        child: FButton(
+          variant: FButtonVariant.primary,
+          onPress: canSave ? (_isVoiceMode ? _saveVoiceNote : _saveInteraction) : null,
           child: _isSaving
-              ? SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
+              ? const FCircularProgress()
               : Text(
                   _isVoiceMode ? 'SAVE VOICE NOTE' : 'SAVE TO TIMELINE',
                   style: const TextStyle(

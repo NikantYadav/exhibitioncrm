@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/app_card.dart';
@@ -169,12 +170,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showUiOnlyMessage(String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label is UI-only for now.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    showFToast(context: context, title: Text('$label is UI-only for now.'));
   }
 
   void _navigateTo(int index) {
@@ -206,10 +202,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _openTargetListFullView() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Full target list is available in Live Event mode.'),
-      behavior: SnackBarBehavior.floating,
-    ));
+    showFToast(context: context, title: const Text('Full target list is available in Live Event mode.'));
   }
 
   @override

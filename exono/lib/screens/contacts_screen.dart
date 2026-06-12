@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 
-import '../config/app_theme.dart';
 import '../models/contact_profile_data.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
+import '../widgets/app_input.dart';
 import '../widgets/skeleton_loader.dart';
 import 'add_contact_dialog.dart';
-import 'capture_screen.dart';
-import 'voice_contact_capture_screen.dart';
 
 class ContactsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -22,8 +21,6 @@ class ContactsScreen extends StatefulWidget {
 }
 
 class _ContactsScreenState extends State<ContactsScreen> {
-  ExonoColors get _c => AppTheme.colorsOf(context);
-
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -127,24 +124,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: _c.background,
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            AppHeader(
-              onNotificationPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notifications is UI-only for now.'), behavior: SnackBarBehavior.floating),
-              ),
-              actionIcon: Icons.add_rounded,
-              actionTooltip: 'Add Contact',
-              onActionPressed: _showAddContactSheet,
-            ),
-            Expanded(child: _buildListBody()),
-          ],
-        ),
+    return FScaffold(
+      header: AppHeader(
+        onNotificationPressed: () => showFToast(context: context, title: const Text('Notifications is UI-only for now.')),
+        actionIcon: Icons.add_rounded,
+        actionTooltip: 'Add Contact',
+        onActionPressed: _showAddContactSheet,
       ),
+      childPad: false,
+      child: _buildListBody(),
     );
   }
 
@@ -167,8 +155,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
           children: [
             Text('Error: $_error', textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadContacts,
+            FButton(
+              variant: FButtonVariant.primary,
+              onPress: _loadContacts,
               child: const Text('RETRY'),
             ),
           ],
@@ -191,14 +180,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
           const SizedBox(height: 16),
           _buildFilterButton(),
           const SizedBox(height: 26),
-          Container(height: 1, color: _c.border),
+          FDivider(),
           if (paged.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Center(
                 child: Text(
                   'No contacts found.',
-                  style: TextStyle(color: _c.textSecondary),
+                  style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
                 ),
               ),
             )
@@ -207,7 +196,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           if (_isLoadingMore)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              child: Center(child: FCircularProgress()),
             ),
           const SizedBox(height: 28),
         ],
@@ -216,29 +205,28 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Widget _buildListHeader(int count) {
+    final theme = context.theme;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Expanded(
           child: Text(
             'Contacts',
-            style: TextStyle(
-              fontSize: 24,
+            style: theme.typography.xl2.copyWith(
               fontWeight: FontWeight.w600,
               height: 1,
               letterSpacing: -0.48,
-              color: _c.textPrimary,
+              color: theme.colors.foreground,
             ),
           ),
         ),
         Text(
           'Total $count',
-          style: TextStyle(
-            fontSize: 11,
+          style: theme.typography.xs.copyWith(
             fontWeight: FontWeight.w600,
             height: 1,
             letterSpacing: 1.7,
-            color: _c.textSecondary.withValues(alpha: 0.6),
+            color: theme.colors.mutedForeground,
           ),
         ),
       ],
@@ -246,40 +234,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Widget _buildSearchField() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _c.surfaceAlt,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _c.border),
-        boxShadow: [
-          BoxShadow(
-            color: _c.accentGlow.withValues(alpha: 0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (value) => setState(() => _searchQuery = value),
-        cursorColor: _c.textPrimary,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-          color: _c.textPrimary,
-        ),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          hintText: 'Search across network...',
-          hintStyle: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: _c.textSecondary,
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
-          prefixIcon: Icon(Icons.search, color: _c.accent, size: 22),
-        ),
-      ),
+    return AppInput(
+      controller: _searchController,
+      hint: 'Search across network...',
+      onChanged: (value) => setState(() => _searchQuery = value),
+      prefixIcon: Icon(Icons.search, color: context.theme.colors.primary, size: 22),
     );
   }
 
@@ -289,39 +248,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
         .length;
     return Row(
       children: [
-        GestureDetector(
-          onTap: _showFilterSheet,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: _hasActiveFilters ? _c.accent : _c.surface,
-              border: Border.all(color: _hasActiveFilters ? _c.accent : _c.border),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.tune_rounded,
-                    size: 16,
-                    color: _hasActiveFilters ? _c.background : _c.textSecondary),
-                const SizedBox(width: 6),
-                Text(
-                  activeCount > 0 ? 'Filters ($activeCount)' : 'Filter',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _hasActiveFilters ? _c.background : _c.textSecondary,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        FButton(
+          variant: _hasActiveFilters ? FButtonVariant.primary : FButtonVariant.outline,
+          onPress: _showFilterSheet,
+          prefix: const Icon(Icons.tune_rounded, size: 16),
+          child: Text(activeCount > 0 ? 'Filters ($activeCount)' : 'Filter'),
         ),
         if (_hasActiveFilters) ...[
           const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => setState(() {
+          FButton(
+            variant: FButtonVariant.ghost,
+            onPress: () => setState(() {
               _filterCompany = null;
               _filterLocation = null;
               _filterStatus = null;
@@ -329,18 +266,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               _filterEventName = null;
               _displayedCount = _pageSize * 2;
             }),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: _c.surface,
-                border: Border.all(color: _c.border),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                'Clear',
-                style: TextStyle(fontSize: 13, color: _c.textSecondary),
-              ),
-            ),
+            child: const Text('Clear'),
           ),
         ],
       ],
@@ -363,11 +289,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
       ('contacted', 'Contacted'),
     ];
 
-    showModalBottomSheet(
+    showFSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _FilterSheet(
+      side: FLayout.btt,
+      builder: (ctx) => _FilterSheet(
         initialCompany: _filterCompany,
         initialLocation: _filterLocation,
         initialStatus: _filterStatus,
@@ -377,7 +302,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
         allLocations: allLocations,
         allEvents: allEvents,
         statuses: statuses,
-        colors: _c,
         onApply: (company, location, status, eventId, eventName) {
           setState(() {
             _filterCompany = company;
@@ -393,39 +317,27 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<bool> _confirmDelete(ContactProfileData contact) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showFDialog<bool>(
       context: context,
-      builder: (ctx) {
-        final c = AppTheme.colorsOf(ctx);
-        return AlertDialog(
-          backgroundColor: c.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text('Delete contact?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary)),
-          content: Text(
-            'This will permanently remove ${contact.listName} and cannot be undone.',
-            style: TextStyle(fontSize: 13, color: c.textMuted, height: 1.5),
+      builder: (ctx, style, _) => FDialog(
+        title: const Text('Delete contact?'),
+        body: Text(
+          'This will permanently remove ${contact.listName} and cannot be undone.',
+          style: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground, height: 1.5),
+        ),
+        actions: [
+          FButton(
+            variant: FButtonVariant.ghost,
+            onPress: () => ctx.pop(false),
+            child: const Text('Cancel'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text('CANCEL',
-                  style: TextStyle(fontSize: 11, color: c.textMuted, letterSpacing: 1.4)),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: c.destructive,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-              child: const Text('DELETE',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
-            ),
-          ],
-        );
-      },
+          FButton(
+            variant: FButtonVariant.destructive,
+            onPress: () => ctx.pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
     return confirmed == true;
   }
@@ -437,12 +349,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       setState(() => _allContacts.removeWhere((c) => c.id == contact.id));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to delete contact'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFToast(context: context, title: const Text('Failed to delete contact'));
     }
   }
 
@@ -455,7 +362,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       background: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
-          color: _c.destructive,
+          color: context.theme.colors.error,
           borderRadius: BorderRadius.circular(16),
         ),
         alignment: Alignment.centerRight,
@@ -463,10 +370,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
         child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 22),
       ),
       child: Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        onTap: () => context.push('/contacts/${contact.id}'),
-        child: AppCard(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: FTappable(
+          onPress: () => context.push('/contacts/${contact.id}'),
+          child: AppCard(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           radius: 16,
           child: Row(
@@ -478,18 +385,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: _c.accentSoft,
+                        color: context.theme.colors.secondary,
                         shape: BoxShape.circle,
-                        border: Border.all(color: _c.border),
+                        border: Border.all(color: context.theme.colors.border),
                       ),
                       alignment: Alignment.center,
                       child: Text(
                         contact.initials,
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: context.theme.typography.xs.copyWith(
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.3,
-                          color: _c.textPrimary,
+                          color: context.theme.colors.foreground,
                         ),
                       ),
                     ),
@@ -501,21 +407,19 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         children: [
                           Text(
                             contact.listName,
-                            style: TextStyle(
-                              fontSize: 20,
+                            style: context.theme.typography.xl.copyWith(
                               fontWeight: FontWeight.w600,
                               height: 1,
-                              color: _c.textPrimary,
+                              color: context.theme.colors.foreground,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             contact.listSubtitle,
-                            style: TextStyle(
-                              fontSize: 12,
+                            style: context.theme.typography.xs.copyWith(
                               fontWeight: FontWeight.w400,
                               height: 1.2,
-                              color: _c.textSecondary,
+                              color: context.theme.colors.mutedForeground,
                             ),
                           ),
                         ],
@@ -530,7 +434,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 height: 10,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: contact.followUpDue ? _c.textPrimary : _c.border,
+                  color: contact.followUpDue ? context.theme.colors.foreground : context.theme.colors.border,
                 ),
               ),
             ],
@@ -542,58 +446,50 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   void _showAddContactSheet() {
-    showModalBottomSheet(
+    showFSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => _buildAddContactBottomSheet(),
+      side: FLayout.btt,
+      builder: (ctx) => _buildAddContactBottomSheet(),
     );
   }
 
   Widget _buildAddContactBottomSheet() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _c.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border(top: BorderSide(color: _c.border, width: 1)),
-      ),
+    final theme = context.theme;
+    return ColoredBox(
+      color: theme.colors.background,
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 48,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _c.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 48,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colors.border,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Add New Contact',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: _c.textPrimary,
-                ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Add New Contact',
+              style: theme.typography.xl.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colors.foreground,
               ),
+            ),
               const SizedBox(height: 20),
               _buildAddContactOption(
                 icon: Icons.qr_code_scanner,
                 label: 'Scan Card',
                 onTap: () async {
-                  Navigator.pop(context);
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => CaptureScreen()),
-                  );
+                  context.pop();
+                  final result = await context.push('/capture');
                   if (result == true) _loadContacts();
                 },
               ),
@@ -602,13 +498,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 icon: Icons.mic,
                 label: 'Voice Entry',
                 onTap: () async {
-                  Navigator.of(context).pop();
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const VoiceContactCaptureScreen(),
-                    ),
-                  );
+                  context.pop();
+                  final result = await context.push('/voice-capture');
                   if (result != null) _loadContacts();
                 },
               ),
@@ -617,10 +508,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 icon: Icons.edit,
                 label: 'Manual Entry',
                 onTap: () async {
-                  Navigator.pop(context);
-                  final result = await showDialog<bool>(
+                  context.pop();
+                  final result = await showFDialog<bool>(
                     context: context,
-                    builder: (context) => const AddContactDialog(),
+                    builder: (ctx, style, _) => const AddContactDialog(),
                   );
                   if (result == true) _loadContacts();
                 },
@@ -628,24 +519,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: _c.border),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    'CANCEL',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 2.0,
-                      color: _c.textPrimary,
-                    ),
-                  ),
+                child: FButton(
+                  variant: FButtonVariant.outline,
+                  onPress: () => context.pop(),
+                  child: const Text('CANCEL'),
                 ),
               ),
             ],
@@ -660,34 +537,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
     required String label,
     required VoidCallback onTap,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: _c.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _c.border),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: _c.accent, size: 20),
-              const SizedBox(width: 16),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1.8,
-                  color: _c.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
+    return SizedBox(
+      width: double.infinity,
+      child: FButton(
+        variant: FButtonVariant.outline,
+        onPress: onTap,
+        prefix: Icon(icon, size: 20),
+        child: Text(label),
       ),
     );
   }
@@ -705,7 +561,6 @@ class _FilterSheet extends StatefulWidget {
   final List<String> allLocations;
   final List<Event> allEvents;
   final List<(String, String)> statuses;
-  final ExonoColors colors;
   final void Function(String? company, String? location, String? status, String? eventId, String? eventName) onApply;
 
   const _FilterSheet({
@@ -718,7 +573,6 @@ class _FilterSheet extends StatefulWidget {
     required this.allLocations,
     required this.allEvents,
     required this.statuses,
-    required this.colors,
     required this.onApply,
   });
 
@@ -727,8 +581,6 @@ class _FilterSheet extends StatefulWidget {
 }
 
 class _FilterSheetState extends State<_FilterSheet> {
-  ExonoColors get _c => widget.colors;
-
   late final _companyCtrl = TextEditingController(text: widget.initialCompany ?? '');
   late final _locationCtrl = TextEditingController(text: widget.initialLocation ?? '');
   late final _eventCtrl = TextEditingController(text: widget.initialEventName ?? '');
@@ -800,233 +652,193 @@ class _FilterSheetState extends State<_FilterSheet> {
     final location = _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim();
     final eventName = _eventCtrl.text.trim().isEmpty ? null : _eventCtrl.text.trim();
     widget.onApply(company, location, _tempStatus, _tempEventId, eventName);
-    Navigator.pop(context);
+    context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _c.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border(top: BorderSide(color: _c.border)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 48, height: 4,
-                decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2)),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
-                  children: [
-                    Text('Filter Contacts',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _c.textPrimary)),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: _reset,
-                      child: Text('Reset', style: TextStyle(color: _c.textMuted, fontSize: 13)),
-                    ),
-                  ],
+    final theme = context.theme;
+    return ColoredBox(
+      color: theme.colors.background,
+      child: SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 48, height: 4,
+            decoration: BoxDecoration(color: theme.colors.border, borderRadius: BorderRadius.circular(2)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Row(
+              children: [
+                Text('Filter Contacts',
+                    style: theme.typography.lg.copyWith(fontWeight: FontWeight.w700, color: theme.colors.foreground)),
+                const Spacer(),
+                FButton(
+                  variant: FButtonVariant.ghost,
+                  onPress: _reset,
+                  child: const Text('Reset'),
                 ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 20, right: 20, top: 12,
+                bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
               ),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionLabel('Company'),
-                      _searchField(_companyCtrl, 'Search company...'),
-                      if (_companySuggestions.isNotEmpty)
-                        _suggestionList(_companySuggestions, (v) {
-                          _companyCtrl.text = v;
-                          setState(() => _companySuggestions = []);
-                        }),
-                      const SizedBox(height: 20),
-                      _sectionLabel('Location / Country'),
-                      _searchField(_locationCtrl, 'Search location...'),
-                      if (_locationSuggestions.isNotEmpty)
-                        _suggestionList(_locationSuggestions, (v) {
-                          _locationCtrl.text = v;
-                          setState(() => _locationSuggestions = []);
-                        }),
-                      const SizedBox(height: 20),
-                      _sectionLabel('Event'),
-                      _searchField(_eventCtrl, 'Search event...'),
-                      if (_tempEventId != null) ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(Icons.event_available_outlined, size: 14, color: _c.accent),
-                            const SizedBox(width: 6),
-                            Text(_eventCtrl.text, style: TextStyle(fontSize: 13, color: _c.accent, fontWeight: FontWeight.w500)),
-                            const Spacer(),
-                            GestureDetector(
-                              onTap: () => setState(() { _tempEventId = null; _eventCtrl.clear(); }),
-                              child: Icon(Icons.close, size: 14, color: _c.accent),
-                            ),
-                          ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionLabel('Company'),
+                  _searchField(_companyCtrl, 'Search company...'),
+                  if (_companySuggestions.isNotEmpty)
+                    _suggestionList(_companySuggestions, (v) {
+                      _companyCtrl.text = v;
+                      setState(() => _companySuggestions = []);
+                    }),
+                  const SizedBox(height: 20),
+                  _sectionLabel('Location / Country'),
+                  _searchField(_locationCtrl, 'Search location...'),
+                  if (_locationSuggestions.isNotEmpty)
+                    _suggestionList(_locationSuggestions, (v) {
+                      _locationCtrl.text = v;
+                      setState(() => _locationSuggestions = []);
+                    }),
+                  const SizedBox(height: 20),
+                  _sectionLabel('Event'),
+                  _searchField(_eventCtrl, 'Search event...'),
+                  if (_tempEventId != null) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.event_available_outlined, size: 14, color: theme.colors.primary),
+                        const SizedBox(width: 6),
+                        Text(_eventCtrl.text, style: theme.typography.sm.copyWith(color: theme.colors.primary, fontWeight: FontWeight.w500)),
+                        const Spacer(),
+                        FButton(
+                          variant: FButtonVariant.ghost,
+                          onPress: () => setState(() { _tempEventId = null; _eventCtrl.clear(); }),
+                          child: Icon(Icons.close, size: 14, color: theme.colors.primary),
                         ),
                       ],
-                      if (_eventSuggestions.isNotEmpty && _tempEventId == null)
-                        _eventSuggestionList(_eventSuggestions, (event) {
-                          setState(() {
-                            _tempEventId = event.id;
-                            _eventCtrl.text = event.name;
-                            _eventSuggestions = [];
-                          });
-                        }),
-                      const SizedBox(height: 20),
-                      _sectionLabel('Communication Status'),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: widget.statuses.map((s) {
-                          final isSelected = _tempStatus == s.$1;
-                          return GestureDetector(
-                            onTap: () => setState(() => _tempStatus = isSelected ? null : s.$1),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isSelected ? _c.accent : _c.surface,
-                                border: Border.all(color: isSelected ? _c.accent : _c.border),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                s.$2,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                                  color: isSelected ? _c.background : _c.textPrimary,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 28),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: FilledButton(
-                          onPressed: _apply,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _c.accent,
-                            foregroundColor: _c.background,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text('APPLY FILTERS',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
-                        ),
-                      ),
-                    ],
+                    ),
+                  ],
+                  if (_eventSuggestions.isNotEmpty && _tempEventId == null)
+                    _eventSuggestionList(_eventSuggestions, (event) {
+                      setState(() {
+                        _tempEventId = event.id;
+                        _eventCtrl.text = event.name;
+                        _eventSuggestions = [];
+                      });
+                    }),
+                  const SizedBox(height: 20),
+                  _sectionLabel('Communication Status'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: widget.statuses.map((s) {
+                      final isSelected = _tempStatus == s.$1;
+                      return FButton(
+                        variant: isSelected ? FButtonVariant.primary : FButtonVariant.outline,
+                        onPress: () => setState(() => _tempStatus = isSelected ? null : s.$1),
+                        child: Text(s.$2),
+                      );
+                    }).toList(),
                   ),
-                ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FButton(
+                      variant: FButtonVariant.primary,
+                      onPress: _apply,
+                      child: const Text('APPLY FILTERS'),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
+      ),
+    ),
+    );
+  }
+
+  Widget _sectionLabel(String label) {
+    final theme = context.theme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        label.toUpperCase(),
+        style: theme.typography.xs.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.4, color: theme.colors.mutedForeground),
       ),
     );
   }
 
-  Widget _sectionLabel(String label) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Text(
-      label.toUpperCase(),
-      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.4, color: _c.textMuted),
-    ),
-  );
-
-  Widget _searchField(TextEditingController ctrl, String hint) => TextField(
+  Widget _searchField(TextEditingController ctrl, String hint) => AppInput(
     controller: ctrl,
-    style: TextStyle(color: _c.textPrimary, fontSize: 14),
-    decoration: InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: _c.textMuted, fontSize: 14),
-      prefixIcon: Icon(Icons.search, color: _c.accent, size: 18),
-      suffixIcon: ctrl.text.isNotEmpty
-          ? IconButton(
-              icon: Icon(Icons.clear, size: 16, color: _c.accent),
-              onPressed: () => ctrl.clear(),
-            )
-          : null,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: _c.border),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: _c.accent, width: 1.6),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    ),
+    hint: hint,
+    prefixIcon: Icon(Icons.search, color: context.theme.colors.primary, size: 18),
+    suffixIcon: ctrl.text.isNotEmpty
+        ? Icon(Icons.clear, size: 16, color: context.theme.colors.primary)
+        : null,
   );
 
-  Widget _suggestionList(List<String> items, ValueChanged<String> onTap) => Container(
-    margin: const EdgeInsets.only(top: 4),
-    decoration: BoxDecoration(
-      color: _c.surface,
-      border: Border.all(color: _c.border),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Column(
-      children: items.take(5).map((item) => InkWell(
-        onTap: () => onTap(item),
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          child: Row(
-            children: [
-              Icon(Icons.business_outlined, size: 14, color: _c.accent),
-              const SizedBox(width: 8),
-              Text(item, style: TextStyle(fontSize: 14, color: _c.textPrimary)),
-            ],
+  Widget _suggestionList(List<String> items, ValueChanged<String> onTap) {
+    final theme = context.theme;
+    return FCard.raw(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: items.take(5).map((item) => FTappable(
+          onPress: () => onTap(item),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            child: Row(
+              children: [
+                Icon(Icons.business_outlined, size: 14, color: theme.colors.primary),
+                const SizedBox(width: 8),
+                Text(item, style: theme.typography.sm.copyWith(color: theme.colors.foreground)),
+              ],
+            ),
           ),
-        ),
-      )).toList(),
-    ),
-  );
+        )).toList(),
+      ),
+    );
+  }
 
-  Widget _eventSuggestionList(List<Event> events, ValueChanged<Event> onTap) => Container(
-    margin: const EdgeInsets.only(top: 4),
-    decoration: BoxDecoration(
-      color: _c.surface,
-      border: Border.all(color: _c.border),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Column(
-      children: events.take(6).map((event) => InkWell(
-        onTap: () => onTap(event),
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          child: Row(
-            children: [
-              Icon(Icons.event_outlined, size: 14, color: _c.accent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(event.name, style: TextStyle(fontSize: 13, color: _c.textPrimary)),
-                    if (event.location != null && event.location!.isNotEmpty)
-                      Text(event.location!, style: TextStyle(fontSize: 11, color: _c.textMuted)),
-                  ],
+  Widget _eventSuggestionList(List<Event> events, ValueChanged<Event> onTap) {
+    final theme = context.theme;
+    return FCard.raw(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: events.take(6).map((event) => FTappable(
+          onPress: () => onTap(event),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            child: Row(
+              children: [
+                Icon(Icons.event_outlined, size: 14, color: theme.colors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(event.name, style: theme.typography.sm.copyWith(color: theme.colors.foreground)),
+                      if (event.location != null && event.location!.isNotEmpty)
+                        Text(event.location!, style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground)),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      )).toList(),
-    ),
-  );
+        )).toList(),
+      ),
+    );
+  }
 }

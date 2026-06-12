@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -260,10 +261,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                     SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(colors.accentStrong),
-                      ),
+                      child: FCircularProgress(),
                     )
                   else
                     Icon(

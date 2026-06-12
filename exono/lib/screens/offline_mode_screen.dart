@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/app_bottom_nav.dart';
@@ -71,9 +72,7 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
   }
 
   void _showUiOnlyMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    showFToast(context: context, title: Text(message));
   }
 
   void _toggleTarget(_OfflineTarget target) {
@@ -288,14 +287,9 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          FilledButton(
-            onPressed: () => _showUiOnlyMessage('Cache download started.'),
-            style: FilledButton.styleFrom(
-              backgroundColor: _c.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              shape: const StadiumBorder(),
-            ),
+          FButton(
+            variant: FButtonVariant.primary,
+            onPress: () => _showUiOnlyMessage('Cache download started.'),
             child: const Text(
               'DOWNLOAD',
               style: TextStyle(
@@ -339,16 +333,11 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
             ],
           ),
         ),
-        TextButton.icon(
-          onPressed: () => _showUiOnlyMessage('Sort by booth'),
-          style: TextButton.styleFrom(
-            foregroundColor: _c.textMuted,
-            padding: EdgeInsets.zero,
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          icon: const Icon(Icons.sort, size: 16),
-          label: const Text(
+        FButton(
+          variant: FButtonVariant.ghost,
+          onPress: () => _showUiOnlyMessage('Sort by booth'),
+          prefix: const Icon(Icons.sort, size: 16),
+          child: const Text(
             'SORT BY BOOTH',
             style: TextStyle(
               fontSize: 11,
@@ -548,16 +537,11 @@ class _OfflineModeScreenState extends State<OfflineModeScreen> {
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showUiOnlyMessage('Add interaction'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _c.textSecondary,
-                          side: BorderSide(color: _c.border),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: const StadiumBorder(),
-                        ),
-                        icon: const Icon(Icons.note_add_outlined, size: 18),
-                        label: const Text(
+                      child: FButton(
+                        variant: FButtonVariant.outline,
+                        onPress: () => _showUiOnlyMessage('Add interaction'),
+                        prefix: const Icon(Icons.note_add_outlined, size: 18),
+                        child: const Text(
                           'ADD INTERACTION',
                           style: TextStyle(
                             fontSize: 11,

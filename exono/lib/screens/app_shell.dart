@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -140,7 +141,7 @@ class _AppShellState extends State<AppShell> {
           const SizedBox(height: 28),
           _brand(),
           const SizedBox(height: 20),
-          Divider(color: _c.border.withValues(alpha: 0.6), indent: 20, endIndent: 20),
+          FDivider(),
           const SizedBox(height: 8),
           _collapseToggle(),
           const SizedBox(height: 8),
@@ -312,7 +313,7 @@ class _AppShellState extends State<AppShell> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Divider(color: _c.border),
+        FDivider(),
         const SizedBox(height: 4),
         InkWell(
           onTap: () => context.go('/profile'),

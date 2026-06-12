@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
+import '../widgets/app_button.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/entry_flow_components.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -171,13 +173,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppTheme.destructive,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
+    showAppToast(context, message);
   }
 
   @override
@@ -560,9 +556,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final colors = AppTheme.colorsOf(context);
     final isSelected = _profileType == value;
 
-    return InkWell(
+    return GestureDetector(
       onTap: () => setState(() => _profileType = value),
-      borderRadius: BorderRadius.circular(22),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         padding: const EdgeInsets.all(18),
@@ -611,9 +606,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final colors = AppTheme.colorsOf(context);
     final isSelected = _aiTone == value;
 
-    return InkWell(
+    return GestureDetector(
       onTap: () => setState(() => _aiTone = value),
-      borderRadius: BorderRadius.circular(999),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -645,13 +639,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             children: [
               if (_currentPage > 0)
                 Expanded(
-                  child: SizedBox(
-                    height: 54,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _previousPage,
-                      icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                      label: const Text('BACK'),
-                    ),
+                  child: AppButton(
+                    label: 'BACK',
+                    onPressed: _isLoading ? null : _previousPage,
+                    variant: ButtonVariant.outline,
+                    fullWidth: true,
                   ),
                 ),
               if (_currentPage > 0) const SizedBox(width: 12),

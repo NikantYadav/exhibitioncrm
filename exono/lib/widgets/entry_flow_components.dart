@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
@@ -319,35 +320,18 @@ class EntryPrimaryButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           boxShadow: AppTheme.softShadow(context),
         ),
-        child: FilledButton.icon(
-          onPressed: loading ? null : onPressed,
-          icon: loading
-              ? SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      colors.isDark ? colors.background : Colors.white,
-                    ),
-                  ),
-                )
+        child: FButton(
+          variant: FButtonVariant.primary,
+          onPress: loading ? null : onPressed,
+          prefix: loading
+              ? const SizedBox(width: 18, height: 18, child: FCircularProgress())
               : Icon(icon ?? Icons.arrow_forward_rounded, size: 18),
-          label: Text(
+          child: Text(
             label,
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.2,
-            ),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            disabledBackgroundColor: Colors.transparent,
-            foregroundColor: colors.isDark ? colors.background : Colors.white,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(999),
             ),
           ),
         ),

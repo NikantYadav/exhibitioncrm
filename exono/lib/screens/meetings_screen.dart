@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/skeleton_loader.dart';
@@ -93,12 +94,9 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
   _MeetingItem get _selectedMeeting => _meetings[_selectedIndex];
 
   void _showUiOnlyMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+    showFToast(
+      context: context,
+      title: Text(message),
     );
   }
 
@@ -685,22 +683,12 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              FilledButton.icon(
-                onPressed: () =>
+              FButton(
+                variant: FButtonVariant.primary,
+                onPress: () =>
                     _showUiOnlyMessage('Prep checklist marked complete.'),
-                icon: const Icon(Icons.task_alt_rounded, size: 18),
-                label: const Text('MARK PREPPED'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.stone900,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                prefix: const Icon(Icons.task_alt_rounded, size: 18),
+                child: const Text('MARK PREPPED'),
               ),
               _buildOutlinedButtonWithAccent(
                 onPressed: () => widget.onNavigateTab?.call(4),
@@ -814,22 +802,11 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
     required IconData icon,
     required String label,
   }) {
-    final colors = AppTheme.colorsOf(context);
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: colors.accent,
-        side: BorderSide(color: AppTheme.stone300),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 14,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
+    return FButton(
+      variant: FButtonVariant.outline,
+      onPress: onPressed,
+      prefix: Icon(icon, size: 18),
+      child: Text(label),
     );
   }
 

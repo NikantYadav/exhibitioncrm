@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
@@ -133,8 +134,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating));
+    showFToast(context: context, title: Text(msg));
   }
 
   @override
@@ -268,22 +268,15 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
           ],
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _isGenerating ? null : _generateBriefing,
-              icon: _isGenerating
-                  ? SizedBox(width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: _c.textMuted))
+            child: FButton(
+              variant: FButtonVariant.outline,
+              onPress: _isGenerating ? null : _generateBriefing,
+              prefix: _isGenerating
+                  ? const SizedBox(width: 14, height: 14, child: FCircularProgress())
                   : Icon(Icons.auto_awesome_outlined, size: 14, color: _c.accent),
-              label: Text(_isGenerating
+              child: Text(_isGenerating
                   ? 'GENERATING...'
                   : (_talkingPoints.isEmpty ? 'GENERATE AI BRIEFING' : 'REGENERATE')),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _c.accent,
-                side: BorderSide(color: _c.accent.withValues(alpha: 0.4)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
-              ),
             ),
           ),
         ],
@@ -330,29 +323,17 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
             const SizedBox(height: 10),
             Row(children: [
               Expanded(
-                child: FilledButton(
-                  onPressed: _saveNotes,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _c.accent,
-                    foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
+                child: FButton(
+                  variant: FButtonVariant.primary,
+                  onPress: _saveNotes,
                   child: const Text('SAVE'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () => setState(() => _editingNotes = false),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _c.textMuted,
-                    side: BorderSide(color: _c.border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
+                child: FButton(
+                  variant: FButtonVariant.outline,
+                  onPress: () => setState(() => _editingNotes = false),
                   child: const Text('CANCEL'),
                 ),
               ),
@@ -374,62 +355,42 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> {
     return Column(children: [
       Row(children: [
         Expanded(
-          child: FilledButton.icon(
-            onPressed: () => showLogInteractionSheet(context, contactId: _target['contact_id'] as String?),
-            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-            label: const Text('LOG INTERACTION'),
-            style: FilledButton.styleFrom(
-              backgroundColor: _c.accent,
-              foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-              minimumSize: const Size.fromHeight(50),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8),
-            ),
+          child: FButton(
+            variant: FButtonVariant.primary,
+            onPress: () => showLogInteractionSheet(context, contactId: _target['contact_id'] as String?),
+            prefix: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+            child: const Text('LOG INTERACTION'),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
+          child: FButton(
+            variant: FButtonVariant.outline,
+            onPress: () {
               final targetId = _target['id'] as String? ?? '';
               if (targetId.isEmpty) return;
               Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => EventTargetScreen(event: widget.event, targetId: targetId),
               ));
             },
-            icon: Icon(Icons.business_outlined, size: 16, color: _c.accent),
-            label: const Text('COMPANY'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _c.textSecondary,
-              side: BorderSide(color: _c.border),
-              minimumSize: const Size.fromHeight(50),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8),
-            ),
+            prefix: Icon(Icons.business_outlined, size: 16, color: _c.accent),
+            child: const Text('COMPANY'),
           ),
         ),
       ]),
       const SizedBox(height: 10),
       SizedBox(
         width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: _isTogglingMet ? null : _toggleMet,
-          icon: _isTogglingMet
-              ? SizedBox(width: 14, height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: _c.textMuted))
+        child: FButton(
+          variant: FButtonVariant.outline,
+          onPress: _isTogglingMet ? null : _toggleMet,
+          prefix: _isTogglingMet
+              ? const SizedBox(width: 14, height: 14, child: FCircularProgress())
               : Icon(
                   _isMet ? Icons.undo_rounded : Icons.check_circle_outline_rounded,
                   size: 16,
                   color: _isMet ? _c.textMuted : _c.success),
-          label: Text(_isMet ? 'UNMARK AS MET' : 'MARK AS MET'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: _isMet ? _c.textMuted : _c.success,
-            side: BorderSide(
-                color: _isMet ? _c.border : _c.success.withValues(alpha: 0.5)),
-            minimumSize: const Size.fromHeight(50),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8),
-          ),
+          child: Text(_isMet ? 'UNMARK AS MET' : 'MARK AS MET'),
         ),
       ),
     ]);

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_theme.dart';
 import '../services/api_service.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
@@ -73,10 +75,12 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
       final updated = await ApiService.enrichCompany(widget.companyId);
       if (mounted) setState(() { _company = updated; _isEnriching = false; });
     } catch (e) {
-      if (mounted) setState(() {
-        _isEnriching = false;
-        _enrichError = 'Could not load company details. Will retry next visit.';
-      });
+      if (mounted) {
+        setState(() {
+          _isEnriching = false;
+          _enrichError = 'Could not load company details. Will retry next visit.';
+        });
+      }
     }
   }
 
@@ -84,15 +88,19 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
     setState(() { _isGenerating = true; _briefingError = null; });
     try {
       final points = await ApiService.generateCompanyBriefing(widget.companyId);
-      if (mounted) setState(() {
-        _company = {...?_company, 'talking_points': points};
-        _isGenerating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _company = {...?_company, 'talking_points': points};
+          _isGenerating = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() {
-        _isGenerating = false;
-        _briefingError = 'Could not generate talking points. Please try again.';
-      });
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+          _briefingError = 'Could not generate talking points. Please try again.';
+        });
+      }
     }
   }
 
@@ -273,10 +281,10 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
             const SizedBox(height: 6),
             Text(_error ?? '', style: TextStyle(color: _c.textMuted, fontSize: 13), textAlign: TextAlign.center),
             const SizedBox(height: 20),
-            OutlinedButton(
+            AppButton(
+              label: 'RETRY',
               onPressed: _load,
-              style: OutlinedButton.styleFrom(side: BorderSide(color: _c.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
-              child: Text('RETRY', style: TextStyle(color: _c.accent, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+              variant: ButtonVariant.outline,
             ),
           ],
         ),
@@ -466,26 +474,12 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
                 const SizedBox(height: 16),
 
                 // Generate / regenerate button
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: _isGenerating ? null : _generateBriefing,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _c.accent,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: _c.surfaceElevated,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                      elevation: 0,
-                    ),
-                    icon: _isGenerating
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.auto_awesome, size: 16),
-                    label: Text(
-                      _isGenerating ? 'GENERATING...' : (talkingPoints.isEmpty ? 'GENERATE AI BRIEFING' : 'REGENERATE'),
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.6),
-                    ),
-                  ),
+                AppButton(
+                  label: _isGenerating ? 'GENERATING...' : (talkingPoints.isEmpty ? 'GENERATE AI BRIEFING' : 'REGENERATE'),
+                  onPressed: _isGenerating ? null : _generateBriefing,
+                  variant: ButtonVariant.primary,
+                  fullWidth: true,
+                  isLoading: _isGenerating,
                 ),
 
                 // Error
@@ -541,10 +535,10 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
   Widget _buildEnrichingIndicator() {
     return Row(
       children: [
-        SizedBox(
+        const SizedBox(
           width: 12,
           height: 12,
-          child: CircularProgressIndicator(strokeWidth: 1.5, color: _c.accent),
+          child: FCircularProgress(),
         ),
         const SizedBox(width: 8),
         Text('Loading company details…', style: TextStyle(fontSize: 12, color: _c.textMuted, fontStyle: FontStyle.italic)),
@@ -602,9 +596,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
   Widget _infoRow(IconData icon, String value, VoidCallback? onTap) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
         child: Row(
           children: [
             Icon(icon, size: 17, color: _c.accent),
@@ -624,9 +617,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
     final contactId = contact['id']         as String? ?? '';
     final initials  = (firstName.isNotEmpty ? firstName[0] : '') + (lastName.isNotEmpty ? lastName[0] : '');
 
-    return InkWell(
+    return GestureDetector(
       onTap: contactId.isNotEmpty ? () => context.push('/contacts/$contactId') : null,
-      borderRadius: BorderRadius.circular(10),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
@@ -657,14 +649,10 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
   // ── Skeleton helpers ──────────────────────────────────────────────────────────
 
   Widget _skeletonCard({required Widget child, double radius = 20, bool accent = false}) {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _c.surface,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: accent ? _c.accent.withValues(alpha: 0.3) : _c.border),
-      ),
+      radius: radius,
+      borderColor: accent ? _c.accent.withValues(alpha: 0.3) : null,
       child: child,
     );
   }

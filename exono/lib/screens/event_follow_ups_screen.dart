@@ -2,12 +2,16 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:forui/forui.dart';
+import '../widgets/app_input.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
@@ -288,44 +292,40 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
     final key = _fuKey(fu);
     final noteCtrl = TextEditingController();
     final channelCtrl = TextEditingController(text: 'Email');
-    await showModalBottomSheet<void>(
+    await showAppSheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: _FollowedUpSheet(
-            name: _fullName(fu),
-            noteCtrl: noteCtrl,
-            channelCtrl: channelCtrl,
-            colors: _c,
-            onSubmit: (note, channel) async {
-              Navigator.of(ctx).pop();
-              setState(() {
-                _sentIds.add(key);
-                _expandedContactId = null;
-              });
-              _snack('Follow-up logged.');
-              ApiService.markFollowUpSent(
-                _eventId,
-                contactId,
-                subject: _subjectCtrl.text.isNotEmpty ? _subjectCtrl.text : null,
-                body: _bodyCtrl.text.isNotEmpty ? _bodyCtrl.text : null,
-              ).catchError((_) {});
-              ApiService.logInteraction(
-                contactId: contactId,
-                eventId: _eventId.isNotEmpty ? _eventId : null,
-                type: 'follow_up',
-                summary: note.isNotEmpty
-                    ? note
-                    : 'Followed up via ${channel.isNotEmpty ? channel : "email"}',
-                details: {'channel': channel},
-              ).catchError((_) => <String, dynamic>{});
-            },
-          ),
-        );
-      },
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: _FollowedUpSheet(
+          name: _fullName(fu),
+          noteCtrl: noteCtrl,
+          channelCtrl: channelCtrl,
+          colors: _c,
+          onSubmit: (note, channel) async {
+            Navigator.of(ctx).pop();
+            setState(() {
+              _sentIds.add(key);
+              _expandedContactId = null;
+            });
+            _snack('Follow-up logged.');
+            ApiService.markFollowUpSent(
+              _eventId,
+              contactId,
+              subject: _subjectCtrl.text.isNotEmpty ? _subjectCtrl.text : null,
+              body: _bodyCtrl.text.isNotEmpty ? _bodyCtrl.text : null,
+            ).catchError((_) {});
+            ApiService.logInteraction(
+              contactId: contactId,
+              eventId: _eventId.isNotEmpty ? _eventId : null,
+              type: 'follow_up',
+              summary: note.isNotEmpty
+                  ? note
+                  : 'Followed up via ${channel.isNotEmpty ? channel : "email"}',
+              details: {'channel': channel},
+            ).catchError((_) => <String, dynamic>{});
+          },
+        ),
+      ),
     );
     noteCtrl.dispose();
     channelCtrl.dispose();
@@ -372,9 +372,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   }
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-    );
+    showAppToast(context, msg);
   }
 
   // ---------------------------------------------------------------------------
@@ -383,9 +381,9 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _c.background,
-      body: SafeArea(
+    return ColoredBox(
+      color: context.theme.colors.background,
+      child: SafeArea(
         bottom: false,
         child: Column(
           children: [
@@ -687,10 +685,9 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
               style: TextStyle(fontSize: 16, color: _c.textSecondary),
             ),
             const SizedBox(height: 16),
-            FilledButton(
+            AppButton(
+              label: 'Retry',
               onPressed: _loadAll,
-              style: FilledButton.styleFrom(backgroundColor: _c.accent),
-              child: const Text('Retry'),
             ),
           ],
         ),
@@ -843,9 +840,8 @@ class _ContactFollowUpCard extends StatelessWidget {
       child: Column(
         children: [
           // ── Header row (always visible) ─────────────────────────────────
-          InkWell(
+          GestureDetector(
             onTap: (isSent || isSkipped) ? null : onExpand,
-            borderRadius: BorderRadius.circular(20),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -902,25 +898,11 @@ class _ContactFollowUpCard extends StatelessWidget {
                     Icon(Icons.check_circle_rounded, color: _c.success, size: 22),
                   ] else if (isSkipped) ...[
                     const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: onUnskip,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _c.accentSoft,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: _c.accent.withValues(alpha: 0.3)),
-                        ),
-                        child: Text(
-                          'UNSKIP',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: _c.accent,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
+                    AppButton(
+                      label: 'UNSKIP',
+                      onPressed: onUnskip,
+                      variant: ButtonVariant.secondary,
+                      size: ButtonSize.sm,
                     ),
                   ] else ...[
                     const SizedBox(width: 8),
@@ -952,48 +934,24 @@ class _ContactFollowUpCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Divider(height: 1, color: _c.border.withValues(alpha: 0.5)),
+        FDivider(),
         // Quick action buttons (Followed Up + Skip)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: Row(
             children: [
               Expanded(
-                child: FilledButton.icon(
+                child: AppButton(
+                  label: 'FOLLOWED UP',
                   onPressed: onFollowedUp,
-                  icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
-                  label: const Text('FOLLOWED UP'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _c.success,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(44),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(13)),
-                    textStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.0),
-                  ),
+                  fullWidth: true,
                 ),
               ),
               const SizedBox(width: 10),
-              SizedBox(
-                height: 44,
-                child: OutlinedButton(
-                  onPressed: onSkip,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _c.textMuted,
-                    side: BorderSide(color: _c.border),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(13)),
-                    textStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.0),
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                  ),
-                  child: const Text('SKIP'),
-                ),
+              AppButton(
+                label: 'SKIP',
+                onPressed: onSkip,
+                variant: ButtonVariant.outline,
               ),
             ],
           ),
@@ -1003,7 +961,7 @@ class _ContactFollowUpCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: Row(
             children: [
-              Expanded(child: Divider(color: _c.border.withValues(alpha: 0.4))),
+              const Expanded(child: FDivider()),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(
@@ -1015,7 +973,7 @@ class _ContactFollowUpCard extends StatelessWidget {
                       color: _c.textMuted),
                 ),
               ),
-              Expanded(child: Divider(color: _c.border.withValues(alpha: 0.4))),
+              const Expanded(child: FDivider()),
             ],
           ),
         ),
@@ -1050,19 +1008,8 @@ class _ContactFollowUpCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      TextField(
+                      AppInput(
                         controller: subjectCtrl,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: _c.textPrimary,
-                        ),
-                        cursorColor: _c.accent,
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                        ),
                       ),
                     ],
                   ),
@@ -1086,13 +1033,10 @@ class _ContactFollowUpCard extends StatelessWidget {
                           ),
                           if (isDraftLoading) ...[
                             const SizedBox(width: 8),
-                            SizedBox(
+                            const SizedBox(
                               width: 12,
                               height: 12,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                color: _c.accent,
-                              ),
+                              child: FCircularProgress(),
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -1107,21 +1051,10 @@ class _ContactFollowUpCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      TextField(
+                      AppInput(
                         controller: bodyCtrl,
                         maxLines: null,
                         minLines: 6,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _c.textSecondary,
-                          height: 1.6,
-                        ),
-                        cursorColor: _c.accent,
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                        ),
                       ),
                     ],
                   ),
@@ -1137,60 +1070,25 @@ class _ContactFollowUpCard extends StatelessWidget {
             children: [
               Expanded(
                 flex: 3,
-                child: FilledButton.icon(
+                child: AppButton(
+                  label: 'SEND',
                   onPressed: onSend,
-                  icon: const Icon(Icons.send_rounded, size: 16),
-                  label: const Text('SEND'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _c.accent,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(46),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
+                  fullWidth: true,
                 ),
               ),
               const SizedBox(width: 8),
-              // Copy button
-              SizedBox(
-                height: 46,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    final subject = subjectCtrl?.text ?? '';
-                    final body = bodyCtrl?.text ?? '';
-                    Clipboard.setData(ClipboardData(
-                        text: subject.isNotEmpty
-                            ? 'Subject: $subject\n\n$body'
-                            : body));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Draft copied to clipboard.'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.copy_rounded, size: 15),
-                  label: const Text('COPY'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _c.textSecondary,
-                    side: BorderSide(color: _c.border),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.0,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                  ),
-                ),
+              AppButton(
+                label: 'COPY',
+                onPressed: () {
+                  final subject = subjectCtrl?.text ?? '';
+                  final body = bodyCtrl?.text ?? '';
+                  Clipboard.setData(ClipboardData(
+                      text: subject.isNotEmpty
+                          ? 'Subject: $subject\n\n$body'
+                          : body));
+                  showAppToast(context, 'Draft copied to clipboard.');
+                },
+                variant: ButtonVariant.outline,
               ),
             ],
           ),
@@ -1230,10 +1128,11 @@ class _TopBar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(
             children: [
-              IconButton(
+              AppButton(
                 onPressed: onBack,
-                icon: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
-                splashRadius: 20,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.sm,
+                child: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
               ),
               Expanded(
                 child: Column(
@@ -1266,10 +1165,11 @@ class _TopBar extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
+              AppButton(
                 onPressed: onNotification,
-                icon: Icon(Icons.notifications_none_rounded, color: _c.accent, size: 22),
-                splashRadius: 20,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.sm,
+                child: Icon(Icons.notifications_none_rounded, color: _c.accent, size: 22),
               ),
             ],
           ),
@@ -1552,23 +1452,10 @@ class _FollowedUpSheet extends StatelessWidget {
             style: TextStyle(fontSize: 11, color: c.textMuted, height: 1.4),
           ),
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => onSubmit(noteCtrl.text.trim(), channelCtrl.text.trim()),
-              style: FilledButton.styleFrom(
-                backgroundColor: c.accent,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(50),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                textStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8),
-              ),
-              child: const Text('CONFIRM FOLLOW-UP'),
-            ),
+          AppButton(
+            label: 'CONFIRM FOLLOW-UP',
+            onPressed: () => onSubmit(noteCtrl.text.trim(), channelCtrl.text.trim()),
+            fullWidth: true,
           ),
         ],
       ),
@@ -1606,26 +1493,10 @@ class _SheetField extends StatelessWidget {
               color: c.textMuted),
         ),
         const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: c.surfaceAlt,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: c.border),
-          ),
-          child: TextField(
-            controller: controller,
-            maxLines: maxLines,
-            style: TextStyle(fontSize: 14, color: c.textPrimary, height: 1.5),
-            cursorColor: c.accent,
-            decoration: InputDecoration(
-              isDense: true,
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.zero,
-              hintText: hint,
-              hintStyle: TextStyle(color: c.textMuted, fontSize: 13),
-            ),
-          ),
+        AppInput(
+          controller: controller,
+          maxLines: maxLines,
+          hint: hint,
         ),
       ],
     );

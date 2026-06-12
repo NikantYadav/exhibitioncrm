@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import '../providers/chat_provider.dart';
 
 /// Renders tappable chips for records created/linked by the assistant.
@@ -92,13 +93,6 @@ class MessageLinkChips extends StatelessWidget {
   }
 
   void _showInfo(BuildContext context, String type, String id) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$type created (id: ${id.substring(0, 8)}...)'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    showFToast(context: context, title: Text('$type created (id: ${id.substring(0, 8)}...)'));
   }
 }

@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
@@ -19,8 +20,11 @@ import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../services/web_file_picker.dart' if (dart.library.io) '../services/web_file_picker_stub.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
+import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import 'app_shell.dart';
 import 'manual_entry_screen.dart';
@@ -585,7 +589,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: _c.accent, strokeWidth: 2.5),
+            FCircularProgress(),
             const SizedBox(height: 20),
             Text(
               'ANALYZING',
@@ -661,7 +665,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Widget _buildNotesHeader() {
-    return Material(
+    return ColoredBox(
       color: _c.navBackground,
       child: SafeArea(
         bottom: false,
@@ -673,9 +677,11 @@ class _CaptureScreenState extends State<CaptureScreen>
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
-              IconButton(
+              AppButton(
                 onPressed: () => setState(() => _stage = _Stage.scan),
-                icon: Icon(Icons.arrow_back_ios_new_rounded, color: _c.accent, size: 18),
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.sm,
+                child: Icon(Icons.arrow_back_ios_new_rounded, color: _c.accent, size: 18),
               ),
               const Spacer(),
               Column(
@@ -702,9 +708,11 @@ class _CaptureScreenState extends State<CaptureScreen>
                 ],
               ),
               const Spacer(),
-              IconButton(
+              AppButton(
                 onPressed: _close,
-                icon: Icon(Icons.close_rounded, color: _c.accent, size: 20),
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.sm,
+                child: Icon(Icons.close_rounded, color: _c.accent, size: 20),
               ),
             ],
           ),
@@ -800,11 +808,11 @@ class _CaptureScreenState extends State<CaptureScreen>
       child: Column(
         children: [
           _fieldRow(Icons.business_outlined, _coCtrl, 'Company'),
-          Divider(height: 1, color: _c.border),
+          FDivider(),
           _fieldRow(Icons.work_outline_rounded, _titleCtrl, 'Job title'),
-          Divider(height: 1, color: _c.border),
+          FDivider(),
           _fieldRow(Icons.email_outlined, _emailCtrl, 'Email', kbd: TextInputType.emailAddress),
-          Divider(height: 1, color: _c.border),
+          FDivider(),
           _fieldRow(Icons.phone_outlined, _phoneCtrl, 'Phone', kbd: TextInputType.phone),
         ],
       ),
@@ -819,18 +827,10 @@ class _CaptureScreenState extends State<CaptureScreen>
           Icon(icon, size: 15, color: _c.accent),
           const SizedBox(width: 12),
           Expanded(
-            child: TextField(
+            child: AppInput(
               controller: ctrl,
               keyboardType: kbd,
-              style: TextStyle(fontSize: 14, color: _c.textPrimary),
-              cursorColor: _c.accent,
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: TextStyle(fontSize: 14, color: _c.textMuted),
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
+              hint: hint,
             ),
           ),
         ],
@@ -873,17 +873,10 @@ class _CaptureScreenState extends State<CaptureScreen>
       _ => AppCard(
         elevated: true,
         padding: const EdgeInsets.all(4),
-        child: TextField(
+        child: AppInput(
           controller: _notesCtrl,
           maxLines: 6,
-          style: TextStyle(fontSize: 14, color: _c.textSecondary, height: 1.5),
-          cursorColor: _c.accent,
-          decoration: InputDecoration(
-            hintText: 'Key topics, next steps, what they need…',
-            hintStyle: TextStyle(fontSize: 14, color: _c.textMuted),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.all(14),
-          ),
+          hint: 'Key topics, next steps, what they need…',
         ),
       ),
     };
@@ -898,39 +891,11 @@ class _CaptureScreenState extends State<CaptureScreen>
         color: _c.background,
         border: Border(top: BorderSide(color: _c.border)),
       ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: FilledButton(
-          onPressed: (_isSaving || _saved) ? null : _save,
-          style: FilledButton.styleFrom(
-            backgroundColor: _saved ? _c.success : _c.accent,
-            disabledBackgroundColor: _saved ? _c.success : _c.surfaceElevated,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-            elevation: 0,
-          ),
-          child: _isSaving
-              ? const SizedBox(
-                  width: 20, height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(_saved ? Icons.check_rounded : Icons.person_add_outlined, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      _saved ? 'CONTACT SAVED' : 'SAVE CONTACT',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ],
-                ),
-        ),
+      child: AppButton(
+        label: _saved ? 'CONTACT SAVED' : 'SAVE CONTACT',
+        onPressed: (_isSaving || _saved) ? null : _save,
+        isLoading: _isSaving,
+        fullWidth: true,
       ),
     );
   }
@@ -944,23 +909,16 @@ class _CaptureScreenState extends State<CaptureScreen>
       child: Column(
         children: [
           if (_isTranscribing) ...[
-            CircularProgressIndicator(color: _c.accent),
+            FCircularProgress(),
             const SizedBox(height: 14),
             Text('Transcribing…', style: TextStyle(fontSize: 13, color: _c.textMuted)),
           ] else if (_voiceCtrl.text.isNotEmpty) ...[
             AppSectionLabel('Transcript'),
             const SizedBox(height: 10),
-            TextField(
+            AppInput(
               controller: _voiceCtrl,
               maxLines: 5,
-              style: TextStyle(fontSize: 13, color: _c.textSecondary, height: 1.5),
-              cursorColor: _c.accent,
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-                hintText: 'Transcript will appear here…',
-                hintStyle: TextStyle(color: _c.textMuted),
-              ),
+              hint: 'Transcript will appear here…',
             ),
             const SizedBox(height: 14),
             _outlineBtn(
@@ -1053,7 +1011,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         padding: const EdgeInsets.symmetric(vertical: 44),
         child: Column(
           children: [
-            CircularProgressIndicator(color: _c.accent),
+            FCircularProgress(),
             const SizedBox(height: 14),
             Text('Analyzing image…', style: TextStyle(fontSize: 13, color: _c.textMuted)),
           ],
@@ -1103,9 +1061,10 @@ class _CaptureScreenState extends State<CaptureScreen>
           ),
           Positioned(
             left: 0, right: 0, bottom: 0,
-            child: Material(
-              color: _c.surface,
+            child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              child: ColoredBox(
+              color: _c.surface,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1197,16 +1156,11 @@ class _CaptureScreenState extends State<CaptureScreen>
                           onTap: () => _resolveDuplicateAndSave(merge: false),
                         ),
                         const SizedBox(height: 10),
-                        TextButton(
+                        AppButton(
+                          label: 'CANCEL',
                           onPressed: () => setState(() => _showDedup = false),
-                          child: Text(
-                            'CANCEL',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: _c.textMuted,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
+                          variant: ButtonVariant.ghost,
+                          fullWidth: true,
                         ),
                       ],
                     ),
@@ -1215,43 +1169,26 @@ class _CaptureScreenState extends State<CaptureScreen>
               ),
             ),
           ),
+          ),
         ],
       ),
     );
   }
 
   Widget _dedupAction(String label, {required VoidCallback onTap, bool primary = false}) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: FilledButton(
-        onPressed: onTap,
-        style: FilledButton.styleFrom(
-          backgroundColor: primary ? _c.accent : _c.surfaceElevated,
-          foregroundColor: primary ? Colors.white : _c.textSecondary,
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.6),
-        ),
-      ),
+    return AppButton(
+      label: label,
+      onPressed: onTap,
+      variant: primary ? ButtonVariant.primary : ButtonVariant.outline,
+      fullWidth: true,
     );
   }
 
   Widget _outlineBtn({required IconData icon, required String label, required VoidCallback onTap}) {
-    return OutlinedButton.icon(
+    return AppButton(
+      label: label,
       onPressed: onTap,
-      icon: Icon(icon, size: 16),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _c.textMuted,
-        side: BorderSide(color: _c.border),
-        textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      ),
+      variant: ButtonVariant.outline,
     );
   }
 
@@ -1370,12 +1307,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   void _onFilesError(Object e) {
     if (!mounted) return;
     setState(() => _isCapturing = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Failed to analyze image: $e'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    showAppToast(context, 'Failed to analyze image: $e');
   }
 
   Future<void> _onManual() async {
@@ -1422,9 +1354,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       final granted = await Permission.microphone.request();
       if (!granted.isGranted) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Microphone permission required'), behavior: SnackBarBehavior.floating),
-          );
+          showAppToast(context, 'Microphone permission required');
         }
         return;
       }
@@ -1468,9 +1398,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   Future<void> _save() async {
     final name = '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter at least a name'), behavior: SnackBarBehavior.floating),
-      );
+      showAppToast(context, 'Enter at least a name');
       return;
     }
     setState(() => _isSaving = true);
@@ -1593,19 +1521,17 @@ class _CaptureScreenState extends State<CaptureScreen>
     final fnTemp = TextEditingController(text: _fnCtrl.text);
     final lnTemp = TextEditingController(text: _lnCtrl.text);
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showFDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) {
+      builder: (ctx, style, _) {
         final c = AppTheme.colorsOf(ctx);
-        return AlertDialog(
-          backgroundColor: c.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        return FDialog(
           title: Text(
             'Rename new contact',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
           ),
-          content: Column(
+          body: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1620,19 +1546,14 @@ class _CaptureScreenState extends State<CaptureScreen>
             ],
           ),
           actions: [
-            TextButton(
+            AppButton(
+              label: 'CANCEL',
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text('CANCEL', style: TextStyle(fontSize: 11, color: c.textMuted, letterSpacing: 1.4)),
+              variant: ButtonVariant.ghost,
             ),
-            FilledButton(
+            AppButton(
+              label: 'SAVE',
               onPressed: () => Navigator.of(ctx).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: c.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-              child: const Text('SAVE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
             ),
           ],
         );
@@ -1651,22 +1572,9 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Widget _dialogField(TextEditingController ctrl, String hint, ExonoColors c) {
-    return TextField(
+    return AppInput(
       controller: ctrl,
-      autofocus: hint == 'First name',
-      style: TextStyle(fontSize: 14, color: c.textPrimary),
-      cursorColor: c.accent,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: c.textMuted),
-        filled: true,
-        fillColor: c.surfaceElevated,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      ),
+      hint: hint,
     );
   }
 

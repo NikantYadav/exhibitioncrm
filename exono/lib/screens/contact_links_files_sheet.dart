@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_theme.dart';
 import '../models/contact_asset.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_feedback.dart';
 
 Future<List<ContactAsset>?> showContactLinksFilesSheet(
   BuildContext context, {
   required String contactId,
   required List<ContactAsset> initialAssets,
 }) {
-  return showModalBottomSheet<List<ContactAsset>>(
+  return showFSheet<List<ContactAsset>>(
     context: context,
-    isScrollControlled: true,
-    useSafeArea: false,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.50),
-    builder: (_) => _ContactLinksFilesSheet(
+    side: FLayout.btt,
+    builder: (ctx) => _ContactLinksFilesSheet(
       contactId: contactId,
       initialAssets: initialAssets,
     ),
@@ -91,10 +91,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                       SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(_c.accent),
-                        ),
+                        child: const FCircularProgress(),
                       )
                     else
                       IconButton(
@@ -116,44 +113,20 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton.icon(
+                      child: AppButton(
+                        label: 'ADD LINK',
                         onPressed: _uploading ? null : _addLink,
-                        icon: const Icon(Icons.link, size: 18),
-                        label: const Text('ADD LINK'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _c.textPrimary,
-                          side: BorderSide(color: _c.border),
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.4,
-                          ),
-                        ),
+                        variant: ButtonVariant.outline,
+                        fullWidth: true,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: OutlinedButton.icon(
+                      child: AppButton(
+                        label: 'ADD FILE',
                         onPressed: _uploading ? null : _addFile,
-                        icon: const Icon(Icons.upload_file_outlined, size: 18),
-                        label: const Text('ADD FILE'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _c.textPrimary,
-                          side: BorderSide(color: _c.border),
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.4,
-                          ),
-                        ),
+                        variant: ButtonVariant.outline,
+                        fullWidth: true,
                       ),
                     ),
                   ],
@@ -210,9 +183,8 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
         return AppCard(
           padding: const EdgeInsets.all(16),
           radius: 8,
-          child: InkWell(
+          child: GestureDetector(
             onTap: asset.url.isNotEmpty ? () => _openAsset(asset) : null,
-            borderRadius: BorderRadius.circular(8),
             child: Row(
               children: [
                 Container(
@@ -273,9 +245,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
     if (url == null) return;
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open ${asset.url}'), behavior: SnackBarBehavior.floating),
-        );
+        showAppToast(context, 'Could not open ${asset.url}');
       }
     }
   }
@@ -319,9 +289,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _uploading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e'), behavior: SnackBarBehavior.floating),
-        );
+        showAppToast(context, 'Upload failed: $e');
       }
     }
   }
@@ -330,17 +298,16 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
     final titleCtrl = TextEditingController();
     final urlCtrl = TextEditingController();
 
-    final result = await showDialog<ContactAsset>(
+    final result = await showFDialog<ContactAsset>(
       context: context,
-      builder: (ctx) {
+      builder: (ctx, style, _) {
         final c = AppTheme.colorsOf(ctx);
-        return AlertDialog(
-          backgroundColor: c.background,
+        return FDialog(
           title: Text(
             'Add link',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.textPrimary),
           ),
-          content: Column(
+          body: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
@@ -387,11 +354,13 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
             ],
           ),
           actions: [
-            TextButton(
+            AppButton(
+              label: 'Cancel',
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('Cancel', style: TextStyle(color: c.textMuted)),
+              variant: ButtonVariant.ghost,
             ),
-            FilledButton(
+            AppButton(
+              label: 'Add',
               onPressed: () {
                 final url = urlCtrl.text.trim();
                 final title = titleCtrl.text.trim();
@@ -402,11 +371,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> {
                   url: url,
                 ));
               },
-              style: FilledButton.styleFrom(
-                backgroundColor: c.textPrimary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Add'),
+              variant: ButtonVariant.primary,
             ),
           ],
         );

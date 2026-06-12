@@ -1,6 +1,7 @@
 import 'dart:math' as Math;
 
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,15 +13,13 @@ import '../models/contact_profile_data.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_card.dart';
-import '../widgets/app_chip.dart';
-import '../widgets/app_section_label.dart';
+import '../widgets/app_input.dart';
 import '../widgets/skeleton_loader.dart';
 import 'contact_links_files_sheet.dart';
 import 'log_interaction_screen.dart';
 
 class ContactDetailScreen extends StatefulWidget {
   final String contactId;
-
   const ContactDetailScreen({super.key, required this.contactId});
 
   @override
@@ -28,8 +27,6 @@ class ContactDetailScreen extends StatefulWidget {
 }
 
 class _ContactDetailScreenState extends State<ContactDetailScreen> {
-  ExonoColors get _c => AppTheme.colorsOf(context);
-
   ContactProfileData? _contact;
   bool _isLoading = true;
   bool _isLoadingDetails = false;
@@ -129,8 +126,6 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
         final isMeeting = type == 'interaction' && item['interaction_type'] == 'meeting';
         final rawSummary = (item['summary'] as String? ?? '').trim();
 
-        // For meeting interactions: summary = user notes (shown as bubble),
-        // event name = description line. For everything else: keep existing layout.
         final String description;
         final String? note;
         if (isMeeting) {
@@ -175,7 +170,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) _showErrorMessage('Could not open $url');
+      if (mounted) _toast('Could not open $url');
     }
   }
 
@@ -183,7 +178,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     if (contact.companyId.isNotEmpty) {
       context.push('/companies/${contact.companyId}');
     } else {
-      _showUiOnlyMessage('No company linked to this contact');
+      _toast('No company linked to this contact');
     }
   }
 
@@ -198,13 +193,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
       final bytes = await picked.readAsBytes();
       final ext = picked.path.split('.').last.toLowerCase();
       final path = 'contacts/${contact.id}/avatar.$ext';
-
       final supabase = Supabase.instance.client;
       await supabase.storage.from('contact-avatars').uploadBinary(
         path, bytes, fileOptions: const FileOptions(upsert: true),
       );
       final url = supabase.storage.from('contact-avatars').getPublicUrl(path);
-
       await ApiService.updateContact(contact.id, {'avatar_url': url});
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
@@ -213,44 +206,29 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
-        _showErrorMessage('Failed to upload photo: $e');
+        _toast('Failed to upload photo: $e');
       }
     }
   }
 
   Future<void> _showEditContactSheet(ContactProfileData contact) async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showFSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      side: FLayout.btt,
       builder: (ctx) => _EditContactSheet(contact: contact),
     );
-    if (result == true && mounted) {
-      _reloadContact();
-    }
+    if (result == true && mounted) _reloadContact();
   }
 
   Future<void> _deleteContact(ContactProfileData contact) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showFDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _c.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete Contact',
-            style: TextStyle(color: _c.textPrimary, fontWeight: FontWeight.w700)),
-        content: Text(
-          'Are you sure you want to delete ${contact.listName}? This cannot be undone.',
-          style: TextStyle(color: _c.textSecondary, fontSize: 14),
-        ),
+      builder: (ctx, style, _) => FDialog(
+        title: const Text('Delete Contact'),
+        body: Text('Are you sure you want to delete ${contact.listName}? This cannot be undone.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('CANCEL', style: TextStyle(color: _c.textMuted, fontSize: 12, letterSpacing: 1.2)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('DELETE', style: TextStyle(color: _c.destructive, fontSize: 12, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
-          ),
+          FButton(variant: FButtonVariant.ghost, onPress: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FButton(variant: FButtonVariant.destructive, onPress: () => Navigator.pop(ctx, true), child: const Text('Delete')),
         ],
       ),
     );
@@ -258,105 +236,57 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     try {
       await ApiService.deleteContact(contact.id);
       if (mounted) {
-        _showSuccessMessage('${contact.listName} deleted');
+        _toast('${contact.listName} deleted');
         context.pop();
       }
     } catch (e) {
-      if (mounted) _showErrorMessage('Delete failed: $e');
+      if (mounted) _toast('Delete failed: $e');
     }
   }
 
-  void _showSuccessMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green.shade800,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _showErrorMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade800,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _showUiOnlyMessage(String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label is UI-only for now.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+  void _toast(String message) => showFToast(context: context, title: Text(message));
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
-    if (date.year == now.year && date.month == now.month && date.day == now.day) {
-      return 'Today';
-    }
+    if (date.year == now.year && date.month == now.month && date.day == now.day) return 'Today';
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  String _formatTime(DateTime date) {
-    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
+  String _formatTime(DateTime date) =>
+      '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
   Future<void> _openLinksFiles() async {
     final contact = _contact;
     if (contact == null) return;
-
     final updatedAssets = await showContactLinksFilesSheet(
-      context,
-      contactId: contact.id,
-      initialAssets: contact.assets,
+      context, contactId: contact.id, initialAssets: contact.assets,
     );
-
     if (!mounted || updatedAssets == null) return;
-
     try {
       await ApiService.updateContact(contact.id, {
         'contact_assets': updatedAssets.map((a) => a.toJson()).toList(),
       });
     } catch (_) {}
-
-    if (mounted) {
-      setState(() {
-        _contact = contact.copyWith(assets: updatedAssets);
-      });
-    }
+    if (mounted) setState(() { _contact = contact.copyWith(assets: updatedAssets); });
   }
 
   Future<void> _showLinkEventSheet(ContactProfileData contact) async {
     List<Event> allEvents = [];
-    try {
-      allEvents = await ApiService.getEvents();
-    } catch (_) {}
-
+    try { allEvents = await ApiService.getEvents(); } catch (_) {}
     if (!mounted) return;
-
-    await showModalBottomSheet(
+    await showFSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _EventPickerSheet(
+      side: FLayout.btt,
+      builder: (ctx) => _EventPickerSheet(
         allEvents: allEvents,
         linkedEventIds: contact.linkedEvents.map((e) => e.id).toSet(),
-        colors: _c,
         onLink: (event) async {
           await ApiService.linkContactToEvent(contact.id, event.id);
           if (mounted && _contact?.id == contact.id) {
             final updated = contact.linkedEvents.any((e) => e.id == event.id)
                 ? contact.linkedEvents
                 : [...contact.linkedEvents, event];
-            setState(() {
-              _contact = _contact!.copyWith(linkedEvents: updated);
-            });
+            setState(() { _contact = _contact!.copyWith(linkedEvents: updated); });
           }
         },
       ),
@@ -368,139 +298,90 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
       await ApiService.unlinkContactFromEvent(contact.id, event.id);
       if (mounted) {
         final updated = contact.linkedEvents.where((e) => e.id != event.id).toList();
-        setState(() {
-          _contact = _contact!.copyWith(linkedEvents: updated);
-        });
+        setState(() { _contact = _contact!.copyWith(linkedEvents: updated); });
       }
     } catch (e) {
-      if (mounted) _showErrorMessage('Failed to unlink event');
+      if (mounted) _toast('Failed to unlink event');
     }
   }
 
   Future<void> _generateEmailDraft(ContactProfileData contact) async {
     try {
-      final result = await ApiService.generateEmailDraft(
-        contactId: contact.id,
-        emailType: 'general',
-      );
-
+      final result = await ApiService.generateEmailDraft(contactId: contact.id, emailType: 'general');
       if (mounted) {
-        showDialog(
+        showFDialog<void>(
           context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: _c.surface,
-            title: Text('Email Draft', style: TextStyle(color: _c.textPrimary, fontWeight: FontWeight.w700)),
-            content: SingleChildScrollView(
+          builder: (ctx, style, _) => FDialog(
+            title: const Text('Email Draft'),
+            body: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Subject: ${result['data']['subject']}',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: _c.textPrimary)),
+                  Text('Subject: ${result['data']['subject']}', style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
-                  Text(result['data']['body'], style: TextStyle(color: _c.textSecondary)),
+                  Text(result['data']['body']),
                 ],
               ),
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('DISMISS', style: TextStyle(color: _c.textMuted)),
-              ),
+              FButton(variant: FButtonVariant.ghost, onPress: () => Navigator.pop(ctx), child: const Text('Dismiss')),
             ],
           ),
         );
       }
     } catch (e) {
-      _showErrorMessage('Failed to generate email draft: $e');
+      _toast('Failed to generate email draft: $e');
     }
   }
 
+  // ─── Build ────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _c.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: _isLoading
-                  ? _buildDetailSkeleton()
-                  : _error != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(_error!, style: TextStyle(color: _c.textSecondary), textAlign: TextAlign.center),
-                          ),
-                        )
-                      : _buildDetailBody(_contact!),
-            ),
-          ],
-        ),
-      ),
+    return FScaffold(
+      header: _buildHeader(),
+      childPad: false,
+      child: _isLoading
+          ? _buildSkeleton()
+          : _error != null
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(_error!, textAlign: TextAlign.center),
+                ))
+              : _buildBody(_contact!),
     );
   }
 
   Widget _buildHeader() {
     final contact = _contact;
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        color: _c.background,
-        border: Border(bottom: BorderSide(color: _c.border)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
-            splashRadius: 20,
-            tooltip: 'Back',
-          ),
-          Expanded(
-            child: Text(
-              contact?.listName ?? '',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: _c.textPrimary,
-                letterSpacing: -0.3,
+    return FHeader.nested(
+      title: Text(contact?.listName ?? ''),
+      prefixes: [
+        FHeaderAction(icon: const Icon(Icons.arrow_back_rounded), onPress: () => context.pop()),
+      ],
+      suffixes: contact != null
+          ? [
+              FHeaderAction(icon: const Icon(Icons.edit_outlined), onPress: () => _showEditContactSheet(contact)),
+              FHeaderAction(
+                icon: Icon(Icons.delete_outline_rounded, color: context.theme.colors.error),
+                onPress: () => _deleteContact(contact),
               ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (contact != null) ...[
-            IconButton(
-              onPressed: () => _showEditContactSheet(contact),
-              icon: Icon(Icons.edit_outlined, color: _c.accent, size: 20),
-              splashRadius: 20,
-              tooltip: 'Edit contact',
-            ),
-            IconButton(
-              onPressed: () => _deleteContact(contact),
-              icon: Icon(Icons.delete_outline_rounded, color: _c.destructive, size: 20),
-              splashRadius: 20,
-              tooltip: 'Delete contact',
-            ),
-          ],
-        ],
-      ),
+            ]
+          : [],
     );
   }
 
-  Widget _buildDetailBody(ContactProfileData contact) {
-    if (_isLoadingDetails) return _buildDetailSkeleton();
+  Widget _buildBody(ContactProfileData contact) {
+    if (_isLoadingDetails) return _buildSkeleton();
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildProfileHeroCard(contact),
+          _buildHeroCard(contact),
           const SizedBox(height: 12),
-          _buildAIIntelligenceCard(contact),
+          _buildAICard(contact),
           const SizedBox(height: 12),
           _buildTimelineCard(contact),
           const SizedBox(height: 12),
@@ -512,309 +393,201 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     );
   }
 
-  Widget _buildDetailSkeleton() {
+  // ─── Skeleton ─────────────────────────────────────────────────────────────
+
+  Widget _buildSkeleton() {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _skeletonCard(
-            radius: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SkeletonLoader(width: 72, height: 72, borderRadius: BorderRadius.circular(20)),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SkeletonLoader(width: double.infinity, height: 18, borderRadius: BorderRadius.circular(5)),
-                          const SizedBox(height: 8),
-                          SkeletonLoader(width: 160, height: 13, borderRadius: BorderRadius.circular(4)),
-                          const SizedBox(height: 6),
-                          SkeletonLoader(width: 120, height: 13, borderRadius: BorderRadius.circular(4)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    SkeletonLoader(width: 90, height: 32, borderRadius: BorderRadius.circular(10)),
-                    const SizedBox(width: 8),
-                    SkeletonLoader(width: 110, height: 32, borderRadius: BorderRadius.circular(10)),
-                    const SizedBox(width: 8),
-                    SkeletonLoader(width: 80, height: 32, borderRadius: BorderRadius.circular(10)),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
-                const SizedBox(height: 6),
-                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
-                const SizedBox(height: 6),
-                SkeletonLoader(width: 200, height: 13, borderRadius: BorderRadius.circular(4)),
-              ],
-            ),
+          AppCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SkeletonLoader(width: 72, height: 72, borderRadius: BorderRadius.circular(16)),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SkeletonLoader(width: double.infinity, height: 18, borderRadius: BorderRadius.circular(5)),
+                  const SizedBox(height: 8),
+                  SkeletonLoader(width: 160, height: 13, borderRadius: BorderRadius.circular(4)),
+                  const SizedBox(height: 6),
+                  SkeletonLoader(width: 120, height: 13, borderRadius: BorderRadius.circular(4)),
+                ])),
+              ]),
+              const SizedBox(height: 16),
+              Row(children: [
+                SkeletonLoader(width: 90, height: 32, borderRadius: BorderRadius.circular(8)),
+                const SizedBox(width: 8),
+                SkeletonLoader(width: 110, height: 32, borderRadius: BorderRadius.circular(8)),
+                const SizedBox(width: 8),
+                SkeletonLoader(width: 80, height: 32, borderRadius: BorderRadius.circular(8)),
+              ]),
+              const SizedBox(height: 14),
+              SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+              const SizedBox(height: 6),
+              SkeletonLoader(width: 200, height: 13, borderRadius: BorderRadius.circular(4)),
+            ]),
           ),
           const SizedBox(height: 12),
-          _skeletonCard(
-            accent: true,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    SkeletonLoader(width: 15, height: 15, borderRadius: BorderRadius.circular(4)),
-                    const SizedBox(width: 8),
-                    SkeletonLoader(width: 110, height: 13, borderRadius: BorderRadius.circular(4)),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
-                const SizedBox(height: 6),
-                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
-                const SizedBox(height: 6),
-                SkeletonLoader(width: 220, height: 13, borderRadius: BorderRadius.circular(4)),
-                const SizedBox(height: 12),
-                SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
-                const SizedBox(height: 6),
-                SkeletonLoader(width: 180, height: 13, borderRadius: BorderRadius.circular(4)),
-              ],
-            ),
+          AppCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                SkeletonLoader(width: 15, height: 15, borderRadius: BorderRadius.circular(4)),
+                const SizedBox(width: 8),
+                SkeletonLoader(width: 110, height: 13, borderRadius: BorderRadius.circular(4)),
+              ]),
+              const SizedBox(height: 14),
+              SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+              const SizedBox(height: 6),
+              SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+              const SizedBox(height: 6),
+              SkeletonLoader(width: 220, height: 13, borderRadius: BorderRadius.circular(4)),
+            ]),
           ),
           const SizedBox(height: 12),
-          _skeletonCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SkeletonLoader(width: 140, height: 13, borderRadius: BorderRadius.circular(4)),
-                const SizedBox(height: 16),
-                ...List.generate(3, (i) => Padding(
-                  padding: const EdgeInsets.only(bottom: 18),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SkeletonLoader(width: 10, height: 10, borderRadius: BorderRadius.circular(5)),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SkeletonLoader(width: 100, height: 11, borderRadius: BorderRadius.circular(3)),
-                            const SizedBox(height: 5),
-                            SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
-                            const SizedBox(height: 4),
-                            SkeletonLoader(width: 200, height: 13, borderRadius: BorderRadius.circular(4)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-              ],
-            ),
+          AppCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SkeletonLoader(width: 140, height: 13, borderRadius: BorderRadius.circular(4)),
+              const SizedBox(height: 16),
+              ...List.generate(3, (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 18),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SkeletonLoader(width: 10, height: 10, borderRadius: BorderRadius.circular(5)),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    SkeletonLoader(width: 100, height: 11, borderRadius: BorderRadius.circular(3)),
+                    const SizedBox(height: 5),
+                    SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                    const SizedBox(height: 4),
+                    SkeletonLoader(width: 200, height: 13, borderRadius: BorderRadius.circular(4)),
+                  ])),
+                ]),
+              )),
+            ]),
           ),
         ],
       ),
     );
   }
 
-  Widget _skeletonCard({required Widget child, double radius = 16, bool accent = false}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _c.surface,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-          color: accent ? _c.accent.withValues(alpha: 0.3) : _c.border,
-        ),
-      ),
-      child: child,
-    );
-  }
+  // ─── Hero Card ────────────────────────────────────────────────────────────
 
-  // ─── Profile Hero Card ────────────────────────────────────────────────────
-
-  Widget _buildProfileHeroCard(ContactProfileData contact) {
+  Widget _buildHeroCard(ContactProfileData contact) {
+    final theme = context.theme;
     return AppCard(
       padding: const EdgeInsets.all(20),
-      radius: 20,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
-                onTap: () => _pickAndUploadAvatar(contact),
+              // Avatar
+              FButton(
+                variant: FButtonVariant.ghost,
+                onPress: () => _pickAndUploadAvatar(contact),
                 child: Stack(
                   children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: _c.accentSoft,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _c.border),
-                        image: contact.avatarUrl.isNotEmpty
-                            ? DecorationImage(
-                                image: NetworkImage(contact.avatarUrl),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: ColoredBox(
+                        color: theme.colors.secondary,
+                        child: SizedBox(
+                          width: 72,
+                          height: 72,
+                          child: _isUploadingAvatar
+                              ? const Center(child: FCircularProgress())
+                              : contact.avatarUrl.isNotEmpty
+                                  ? Image.network(contact.avatarUrl, fit: BoxFit.cover)
+                                  : Center(
+                                      child: Text(
+                                        contact.initials,
+                                        style: theme.typography.xl2.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: theme.colors.foreground,
+                                        ),
+                                      ),
+                                    ),
+                        ),
                       ),
-                      alignment: Alignment.center,
-                      child: _isUploadingAvatar
-                          ? SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(_c.textPrimary),
-                              ),
-                            )
-                          : contact.avatarUrl.isEmpty
-                              ? Text(
-                                  contact.initials,
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.5,
-                                    color: _c.textPrimary,
-                                  ),
-                                )
-                              : null,
                     ),
                     Positioned(
                       right: 0,
                       bottom: 0,
-                      child: Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: _c.surface,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: _c.border),
-                        ),
-                        child: Icon(
-                          Icons.camera_alt_outlined,
-                          size: 12,
-                          color: _c.accent,
-                        ),
+                      child: FBadge(
+                        variant: FBadgeVariant.secondary,
+                        child: const Icon(Icons.camera_alt_outlined, size: 10),
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 14),
+              // Name / title / status
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      contact.listName,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _c.textPrimary,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
+                    Text(contact.listName, style: theme.typography.xl.copyWith(fontWeight: FontWeight.w700)),
                     if (contact.title.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(
-                        contact.title,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          color: _c.textSecondary,
-                        ),
-                      ),
+                      Text(contact.title, style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
                     ],
                     if (contact.company.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(
-                        contact.company,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.8,
-                          color: _c.accent,
-                        ),
-                      ),
+                      Text(contact.company, style: theme.typography.sm.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colors.primary,
+                      )),
                     ],
                     const SizedBox(height: 8),
-                    _followUpChip(contact.followUpStatus),
+                    _followUpBadge(contact.followUpStatus),
                   ],
                 ),
               ),
             ],
           ),
 
+          // Contact info rows
           if (contact.email.isNotEmpty || contact.phone.isNotEmpty || contact.linkedin.isNotEmpty || contact.company.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(height: 1, color: _c.border.withValues(alpha: 0.4)),
+            const SizedBox(height: 12),
+            FDivider(),
             if (contact.company.isNotEmpty)
-              _heroInfoRow(Icons.business_outlined, contact.company,
-                  () => _navigateToCompanyDetail(contact)),
+              _infoRow(Icons.business_outlined, contact.company, () => _navigateToCompanyDetail(contact)),
             if (contact.email.isNotEmpty)
-              _heroInfoRow(Icons.mail_outline, contact.email,
-                  () => _launchUrl('mailto:${contact.email}')),
+              _infoRow(Icons.mail_outline, contact.email, () => _launchUrl('mailto:${contact.email}')),
             if (contact.phone.isNotEmpty)
-              _heroInfoRow(Icons.call_outlined, contact.phone,
-                  () => _launchUrl('tel:${contact.phone}')),
+              _infoRow(Icons.call_outlined, contact.phone, () => _launchUrl('tel:${contact.phone}')),
             if (contact.linkedin.isNotEmpty)
-              _heroInfoRow(Icons.link, 'LinkedIn Profile',
-                  () => _launchUrl(contact.linkedin.startsWith('http')
-                      ? contact.linkedin
-                      : 'https://${contact.linkedin}')),
+              _infoRow(Icons.link, 'LinkedIn Profile', () => _launchUrl(
+                contact.linkedin.startsWith('http') ? contact.linkedin : 'https://${contact.linkedin}')),
           ],
 
           const SizedBox(height: 14),
+          // Quick actions
           Row(
             children: [
-              _quickActionBtn(Icons.call_outlined, 'Call',
+              _quickBtn(Icons.call_outlined, 'Call',
                   contact.phone.isNotEmpty ? () => _launchUrl('tel:${contact.phone}') : null),
-              _quickActionBtn(Icons.mail_outline, 'Email',
+              const SizedBox(width: 8),
+              _quickBtn(Icons.mail_outline, 'Email',
                   contact.email.isNotEmpty ? () => _generateEmailDraft(contact) : null),
-              _quickActionBtn(Icons.calendar_month_outlined, 'Schedule',
-                  () => _showUiOnlyMessage('Schedule Meeting')),
+              const SizedBox(width: 8),
+              _quickBtn(Icons.calendar_month_outlined, 'Schedule',
+                  () => _toast('Schedule Meeting is UI-only for now.')),
             ],
           ),
 
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => showLogInteractionSheet(
-                context,
-                contactId: contact.id,
-                onSaved: () => _fetchContactDetails(contact),
-              ),
-              icon: Icon(Icons.chat_bubble_outline_rounded, size: 16, color: _c.accent),
-              label: Text(
-                'LOG INTERACTION',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                  color: _c.accent,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _c.accent,
-                side: BorderSide(color: _c.accent),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+            child: FButton(
+              variant: FButtonVariant.outline,
+              onPress: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
+              prefix: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+              child: const Text('LOG INTERACTION'),
             ),
           ),
         ],
@@ -822,103 +595,64 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     );
   }
 
-  Widget _heroInfoRow(IconData icon, String value, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        child: Row(
+  Widget _infoRow(IconData icon, String value, VoidCallback onTap) {
+    return FButton(
+      variant: FButtonVariant.ghost,
+      onPress: onTap,
+      prefix: Icon(icon, size: 17),
+      suffix: const Icon(Icons.chevron_right, size: 16),
+      child: Expanded(child: Text(value, overflow: TextOverflow.ellipsis)),
+    );
+  }
+
+  Widget _followUpBadge(String status) {
+    switch (status) {
+      case 'urgent':       return FBadge(variant: FBadgeVariant.destructive, child: const Text('URGENT'));
+      case 'contacted':    return FBadge(variant: FBadgeVariant.primary,     child: const Text('CONTACTED'));
+      case 'needs_followup': return FBadge(variant: FBadgeVariant.secondary, child: const Text('FOLLOW UP'));
+      default:             return FBadge(variant: FBadgeVariant.outline,     child: const Text('NOT CONTACTED'));
+    }
+  }
+
+  Widget _quickBtn(IconData icon, String label, VoidCallback? onTap) {
+    return Expanded(
+      child: FButton(
+        variant: FButtonVariant.outline,
+        onPress: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 17, color: _c.accent),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: _c.textPrimary,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Icon(Icons.chevron_right, size: 16, color: _c.accent),
+            Icon(icon, size: 18),
+            const SizedBox(height: 4),
+            Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600)),
           ],
         ),
       ),
     );
   }
 
-  Widget _followUpChip(String status) {
-    switch (status) {
-      case 'urgent':
-        return AppChip.status('URGENT', color: _c.destructive);
-      case 'contacted':
-        return AppChip.status('CONTACTED', color: _c.success);
-      case 'needs_followup':
-        return AppChip.status('FOLLOW UP', color: _c.accent);
-      default:
-        return AppChip.status('NOT CONTACTED', color: _c.textMuted);
-    }
-  }
+  // ─── AI Card ──────────────────────────────────────────────────────────────
 
-  Widget _quickActionBtn(IconData icon, String label, VoidCallback? onTap) {
-    final enabled = onTap != null;
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: _c.surfaceElevated,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _c.border),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: enabled ? _c.accent : _c.textMuted.withValues(alpha: 0.4), size: 18),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.6,
-                    color: enabled ? _c.textMuted : _c.textMuted.withValues(alpha: 0.4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─── AI Intelligence Card ─────────────────────────────────────────────────
-
-  Widget _buildAIIntelligenceCard(ContactProfileData contact) {
+  Widget _buildAICard(ContactProfileData contact) {
+    final theme = context.theme;
     return AppCard(
       padding: const EdgeInsets.all(16),
-      radius: 16,
-      borderColor: _c.accent.withValues(alpha: 0.3),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.auto_awesome, size: 15, color: _c.accent),
+              Icon(Icons.auto_awesome, size: 15, color: theme.colors.primary),
               const SizedBox(width: 8),
-              AppSectionLabel('AI Intelligence', letterSpacing: 1.4, color: _c.accent),
+              Text('AI INTELLIGENCE', style: theme.typography.xs.copyWith(
+                fontWeight: FontWeight.w700, letterSpacing: 1.4, color: theme.colors.primary,
+              )),
               const Spacer(),
               if (_contactInsights != null)
-                GestureDetector(
-                  onTap: () => _fetchInsights(contact.id),
-                  child: Icon(Icons.refresh, size: 15, color: _c.accent),
+                FButton(
+                  variant: FButtonVariant.ghost,
+                  onPress: () => _fetchInsights(contact.id),
+                  child: const Icon(Icons.refresh, size: 15),
                 ),
             ],
           ),
@@ -928,28 +662,26 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
           else if (_contactInsights != null)
             _buildInsightsContent(_contactInsights!)
           else
-            _buildInsightsNeedMoreData(contact),
+            _buildInsightsEmpty(contact),
         ],
       ),
     );
   }
 
-  Widget _buildInsightsNeedMoreData(ContactProfileData contact) {
+  Widget _buildInsightsEmpty(ContactProfileData contact) {
+    final theme = context.theme;
     final hasTitle = contact.title.isNotEmpty;
     final hasCompany = contact.company.isNotEmpty;
     final hasLinkedin = contact.linkedin.isNotEmpty;
     final hasTimeline = contact.timelineItems.isNotEmpty;
     final signalCount = [hasTitle, hasCompany, hasLinkedin, hasTimeline].where((v) => v).length;
-    final hasEnoughData = signalCount >= 2;
 
-    if (hasEnoughData) {
+    if (signalCount >= 2) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'AI insights are being generated and will appear here shortly.',
-            style: TextStyle(fontSize: 13, color: _c.textMuted, fontStyle: FontStyle.italic, height: 1.5),
-          ),
+          Text('AI insights are being generated and will appear here shortly.',
+              style: theme.typography.sm.copyWith(fontStyle: FontStyle.italic, color: theme.colors.mutedForeground)),
           const SizedBox(height: 16),
           const _AiThinkingDots(),
         ],
@@ -957,67 +689,38 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     }
 
     final missing = <_MissingDetail>[];
-    if (!hasTitle) missing.add(_MissingDetail(Icons.work_outline, 'Job title'));
-    if (!hasCompany) missing.add(_MissingDetail(Icons.domain_outlined, 'Company'));
+    if (!hasTitle)    missing.add(_MissingDetail(Icons.work_outline, 'Job title'));
+    if (!hasCompany)  missing.add(_MissingDetail(Icons.domain_outlined, 'Company'));
     if (!hasLinkedin) missing.add(_MissingDetail(Icons.link, 'LinkedIn profile'));
     if (!hasTimeline) missing.add(_MissingDetail(Icons.history, 'Log an interaction'));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Add more details to unlock AI-generated intelligence for this contact.',
-          style: TextStyle(
-            fontSize: 13,
-            color: _c.textSecondary,
-            height: 1.5,
-          ),
-        ),
+        Text('Add more details to unlock AI-generated intelligence for this contact.',
+            style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
         const SizedBox(height: 12),
         ...missing.map((m) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Icon(m.icon, size: 14, color: _c.accent),
-                  const SizedBox(width: 8),
-                  Text(
-                    m.label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _c.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            )),
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(children: [
+            Icon(m.icon, size: 14, color: theme.colors.primary),
+            const SizedBox(width: 8),
+            Text(m.label, style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
+          ]),
+        )),
         const SizedBox(height: 4),
-        OutlinedButton.icon(
-          onPressed: () => showLogInteractionSheet(
-            context,
-            contactId: contact.id,
-            onSaved: () => _fetchContactDetails(contact),
-          ),
-          icon: Icon(Icons.add, size: 14, color: _c.accent),
-          label: Text(
-            'LOG INTERACTION',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: _c.textMuted,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            side: BorderSide(color: _c.border),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+        FButton(
+          variant: FButtonVariant.outline,
+          onPress: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
+          prefix: const Icon(Icons.add, size: 14),
+          child: const Text('LOG INTERACTION'),
         ),
       ],
     );
   }
 
   Widget _buildInsightsContent(Map<String, dynamic> insights) {
+    final theme = context.theme;
     final strategicContext = insights['strategic_context'] as String? ?? '';
     final briefing = (insights['briefing_items'] as List?)?.cast<String>() ?? [];
     final aiInsights = (insights['ai_insights'] as List?)?.cast<String>() ?? [];
@@ -1028,111 +731,66 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (strategicContext.isNotEmpty) ...[
-          Container(
-            width: double.infinity,
+          AppCard(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _c.accentSoft,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              strategicContext,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                fontStyle: FontStyle.italic,
-                color: _c.textSecondary,
-                height: 1.5,
-              ),
-            ),
+            child: Text(strategicContext, style: theme.typography.sm.copyWith(
+              fontStyle: FontStyle.italic, color: theme.colors.mutedForeground, height: 1.5,
+            )),
           ),
           const SizedBox(height: 14),
         ],
-
         if (painPoint.isNotEmpty) ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.warning_amber_outlined, size: 14, color: _c.accent),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Pain point: $painPoint',
-                  style: TextStyle(fontSize: 12, color: _c.textMuted, height: 1.4),
-                ),
-              ),
-            ],
-          ),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.warning_amber_outlined, size: 14, color: theme.colors.primary),
+            const SizedBox(width: 6),
+            Expanded(child: Text('Pain point: $painPoint',
+                style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground, height: 1.4))),
+          ]),
           const SizedBox(height: 12),
         ],
-
         if (briefing.isNotEmpty) ...[
-          AppSectionLabel('Before Your Meeting', letterSpacing: 1.2),
+          Text('BEFORE YOUR MEETING', style: theme.typography.xs.copyWith(
+              fontWeight: FontWeight.w700, letterSpacing: 1.2, color: theme.colors.mutedForeground)),
           const SizedBox(height: 8),
           ...briefing.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 7),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 5,
-                      height: 5,
-                      margin: const EdgeInsets.only(top: 6),
-                      decoration: BoxDecoration(
-                        color: _c.accent,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        item,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _c.textSecondary,
-                          height: 1.45,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
+            padding: const EdgeInsets.only(bottom: 7),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Icon(Icons.circle, size: 5, color: theme.colors.primary),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(item, style: theme.typography.sm.copyWith(
+                  color: theme.colors.mutedForeground, height: 1.45))),
+            ]),
+          )),
           const SizedBox(height: 12),
         ],
-
         if (aiInsights.isNotEmpty) ...[
-          AppSectionLabel('Key Insights', letterSpacing: 1.2),
+          Text('KEY INSIGHTS', style: theme.typography.xs.copyWith(
+              fontWeight: FontWeight.w700, letterSpacing: 1.2, color: theme.colors.mutedForeground)),
           const SizedBox(height: 8),
           ...aiInsights.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 7),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.arrow_right, size: 16, color: _c.accent),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        item,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _c.textSecondary,
-                          height: 1.45,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
+            padding: const EdgeInsets.only(bottom: 7),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.arrow_right, size: 16, color: theme.colors.primary),
+              const SizedBox(width: 6),
+              Expanded(child: Text(item, style: theme.typography.sm.copyWith(
+                  color: theme.colors.mutedForeground, height: 1.45))),
+            ]),
+          )),
           const SizedBox(height: 8),
         ],
-
         if (keyMarkets.isNotEmpty) ...[
-          AppSectionLabel('Key Markets', letterSpacing: 1.2),
+          Text('KEY MARKETS', style: theme.typography.xs.copyWith(
+              fontWeight: FontWeight.w700, letterSpacing: 1.2, color: theme.colors.mutedForeground)),
           const SizedBox(height: 8),
           Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: keyMarkets.map((m) => AppChip(m)).toList(),
+            spacing: 6, runSpacing: 6,
+            children: keyMarkets.map((m) => FBadge(
+              variant: FBadgeVariant.secondary,
+              child: Text(m),
+            )).toList(),
           ),
         ],
       ],
@@ -1142,27 +800,85 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
   // ─── Timeline Card ────────────────────────────────────────────────────────
 
   Widget _buildTimelineCard(ContactProfileData contact) {
+    final theme = context.theme;
     return AppCard(
       padding: const EdgeInsets.all(16),
-      radius: 16,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppSectionLabel('Engagement Timeline', letterSpacing: 1.4),
+          Text('ENGAGEMENT TIMELINE', style: theme.typography.xs.copyWith(
+              fontWeight: FontWeight.w700, letterSpacing: 1.4, color: theme.colors.mutedForeground)),
           const SizedBox(height: 16),
           if (contact.timelineItems.isEmpty)
-            Text('No interactions logged yet.', style: TextStyle(fontSize: 13, color: _c.textMuted))
+            Text('No interactions logged yet.', style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground))
           else
             SizedBox(
-              height: contact.timelineItems.length > 3
-                  ? MediaQuery.of(context).size.height * 0.55
-                  : null,
+              height: contact.timelineItems.length > 3 ? MediaQuery.of(context).size.height * 0.55 : null,
               child: _ScrollableTimeline(
                 items: contact.timelineItems,
                 itemBuilder: _buildTimelineItem,
-                borderColor: _c.border,
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimelineItem(ContactTimelineItem item) {
+    final theme = context.theme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 32),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Dot
+          Container(
+            width: 21, height: 21,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: theme.colors.background,
+              border: Border.all(
+                color: item.isCurrent ? theme.colors.foreground : theme.colors.border,
+                width: 2,
+              ),
+            ),
+            child: item.isCurrent
+                ? Center(child: Container(
+                    width: 6, height: 6,
+                    decoration: BoxDecoration(color: theme.colors.foreground, shape: BoxShape.circle),
+                  ))
+                : null,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.dateLabel, style: theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w600, letterSpacing: 1.0, color: theme.colors.mutedForeground)),
+                const SizedBox(height: 6),
+                Text(item.title, style: theme.typography.sm.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(item.description, style: theme.typography.sm.copyWith(
+                    color: theme.colors.mutedForeground, height: 1.4)),
+                if (item.note != null) ...[
+                  const SizedBox(height: 10),
+                  AppCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.notes_rounded, size: 14, color: theme.colors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(item.note!, style: theme.typography.sm.copyWith(
+                            color: theme.colors.mutedForeground, height: 1.4))),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1172,218 +888,79 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
 
   Widget _buildLinksCard(ContactProfileData contact) {
     final hasAssets = contact.assets.isNotEmpty;
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      radius: 16,
-      child: InkWell(
-        onTap: _openLinksFiles,
-        borderRadius: BorderRadius.circular(8),
+    return FButton(
+      variant: FButtonVariant.outline,
+      onPress: _openLinksFiles,
+      prefix: const Icon(Icons.attachment_outlined, size: 18),
+      suffix: Icon(hasAssets ? Icons.chevron_right : Icons.add, size: 18),
+      child: Expanded(
         child: Row(
           children: [
-            Icon(Icons.attachment_outlined, size: 18, color: _c.accent),
-            const SizedBox(width: 12),
-            Text(
-              'Links & Files',
-              style: TextStyle(fontSize: 14, color: _c.textSecondary),
-            ),
+            const Text('Links & Files'),
             const Spacer(),
-            Text(
-              hasAssets ? '${contact.assets.length} items' : 'None added',
-              style: TextStyle(
-                fontSize: 12,
-                fontStyle: hasAssets ? FontStyle.normal : FontStyle.italic,
-                color: _c.textMuted,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Icon(
-              hasAssets ? Icons.chevron_right : Icons.add,
-              size: 18,
-              color: _c.accent,
-            ),
+            Text(hasAssets ? '${contact.assets.length} items' : 'None added',
+                style: context.theme.typography.xs.copyWith(
+                    fontStyle: hasAssets ? FontStyle.normal : FontStyle.italic,
+                    color: context.theme.colors.mutedForeground)),
           ],
         ),
       ),
     );
   }
 
-  // ─── Events Card ─────────────────────────────────────────────────────────
+  // ─── Events Card ──────────────────────────────────────────────────────────
 
   Widget _buildEventsCard(ContactProfileData contact) {
+    final theme = context.theme;
     return AppCard(
       padding: const EdgeInsets.all(20),
-      radius: 16,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              AppSectionLabel('Events', letterSpacing: 1.4),
+              Text('EVENTS', style: theme.typography.xs.copyWith(
+                  fontWeight: FontWeight.w700, letterSpacing: 1.4, color: theme.colors.mutedForeground)),
               const Spacer(),
-              GestureDetector(
-                onTap: () => _showLinkEventSheet(contact),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _c.accentSoft,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add, size: 14, color: _c.accent),
-                      const SizedBox(width: 4),
-                      Text('Link Event',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _c.accent)),
-                    ],
-                  ),
-                ),
+              FButton(
+                variant: FButtonVariant.secondary,
+                onPress: () => _showLinkEventSheet(contact),
+                prefix: const Icon(Icons.add, size: 14),
+                child: const Text('Link Event'),
               ),
             ],
           ),
           const SizedBox(height: 14),
           if (contact.linkedEvents.isEmpty)
-            Text('No events linked yet.',
-                style: TextStyle(fontSize: 13, color: _c.textMuted))
+            Text('No events linked yet.', style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground))
           else
             ...contact.linkedEvents.map((event) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
                 children: [
-                  Container(
-                    width: 36, height: 36,
-                    decoration: BoxDecoration(
-                      color: _c.accentSoft,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.event_outlined, size: 18, color: _c.accent),
+                  FBadge(
+                    variant: FBadgeVariant.secondary,
+                    child: const Icon(Icons.event_outlined, size: 18),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(event.name,
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+                        Text(event.name, style: theme.typography.sm.copyWith(fontWeight: FontWeight.w600)),
                         if (event.location != null && event.location!.isNotEmpty)
-                          Text(event.location!,
-                              style: TextStyle(fontSize: 11, color: _c.textMuted)),
+                          Text(event.location!, style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground)),
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.link_off_rounded, size: 16, color: _c.accent),
-                    splashRadius: 18,
-                    tooltip: 'Unlink',
-                    onPressed: () => _unlinkEvent(contact, event),
+                  FButton(
+                    variant: FButtonVariant.ghost,
+                    onPress: () => _unlinkEvent(contact, event),
+                    child: const Icon(Icons.link_off_rounded, size: 16),
                   ),
                 ],
               ),
             )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimelineItem(ContactTimelineItem item) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 0, bottom: 32),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 21,
-            height: 21,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _c.background,
-              border: Border.all(
-                color: item.isCurrent
-                    ? _c.textPrimary
-                    : Colors.white.withValues(alpha: 0.20),
-                width: 2,
-              ),
-            ),
-            child: item.isCurrent
-                ? Center(
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: _c.textPrimary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 1),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.dateLabel,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.0,
-                      color: _c.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    item.title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: _c.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: _c.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                  if (item.note != null) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _c.surfaceAlt,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _c.border),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.notes_rounded, size: 14, color: _c.accent),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              item.note!,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: _c.textSecondary,
-                                height: 1.4,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -1401,16 +978,13 @@ class _EditContactSheet extends StatefulWidget {
 }
 
 class _EditContactSheetState extends State<_EditContactSheet> {
-  ExonoColors get _c => AppTheme.colorsOf(context);
-
-  late final _firstNameCtrl  = TextEditingController(text: _splitName(widget.contact.listName).first);
-  late final _lastNameCtrl   = TextEditingController(text: _splitName(widget.contact.listName).last);
-  late final _emailCtrl      = TextEditingController(text: widget.contact.email);
-  late final _phoneCtrl      = TextEditingController(text: widget.contact.phone);
-  late final _jobTitleCtrl   = TextEditingController(text: widget.contact.title);
-  late final _linkedinCtrl   = TextEditingController(text: widget.contact.linkedin);
-  late final _companyCtrl    = TextEditingController(text: widget.contact.company);
-
+  late final _firstNameCtrl = TextEditingController(text: _splitName(widget.contact.listName).first);
+  late final _lastNameCtrl  = TextEditingController(text: _splitName(widget.contact.listName).last);
+  late final _emailCtrl     = TextEditingController(text: widget.contact.email);
+  late final _phoneCtrl     = TextEditingController(text: widget.contact.phone);
+  late final _jobTitleCtrl  = TextEditingController(text: widget.contact.title);
+  late final _linkedinCtrl  = TextEditingController(text: widget.contact.linkedin);
+  late final _companyCtrl   = TextEditingController(text: widget.contact.company);
   bool _isSaving = false;
 
   List<String> _splitName(String fullName) {
@@ -1421,20 +995,14 @@ class _EditContactSheetState extends State<_EditContactSheet> {
 
   @override
   void dispose() {
-    _firstNameCtrl.dispose();
-    _lastNameCtrl.dispose();
-    _emailCtrl.dispose();
-    _phoneCtrl.dispose();
-    _jobTitleCtrl.dispose();
-    _linkedinCtrl.dispose();
-    _companyCtrl.dispose();
+    _firstNameCtrl.dispose(); _lastNameCtrl.dispose(); _emailCtrl.dispose();
+    _phoneCtrl.dispose(); _jobTitleCtrl.dispose(); _linkedinCtrl.dispose(); _companyCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final firstName = _firstNameCtrl.text.trim();
     if (firstName.isEmpty) return;
-
     setState(() => _isSaving = true);
     try {
       final payload = <String, dynamic>{
@@ -1445,20 +1013,16 @@ class _EditContactSheetState extends State<_EditContactSheet> {
         'job_title': _jobTitleCtrl.text.trim(),
         'linkedin_url': _linkedinCtrl.text.trim(),
       };
-
       final newCompany = _companyCtrl.text.trim();
       final originalCompany = widget.contact.company;
       if (newCompany.toUpperCase() != originalCompany.toUpperCase()) {
         payload['company_name'] = newCompany.isEmpty ? 'INDEPENDENT' : newCompany;
       }
-
       await ApiService.updateContact(widget.contact.id, payload);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e'), behavior: SnackBarBehavior.floating),
-        );
+        showFToast(context: context, title: Text('Save failed: $e'));
         setState(() => _isSaving = false);
       }
     }
@@ -1466,126 +1030,72 @@ class _EditContactSheetState extends State<_EditContactSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.theme;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _c.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border(top: BorderSide(color: _c.border)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 48,
-                height: 4,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 48, height: 4,
                 decoration: BoxDecoration(
-                  color: _c.border,
+                  color: theme.colors.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                children: [
+                  Text('Edit Contact', style: theme.typography.lg.copyWith(fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  FButton(variant: FButtonVariant.ghost, onPress: () => Navigator.pop(context), child: const Text('Cancel')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Column(
                   children: [
-                    Text(
-                      'Edit Contact',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _c.textPrimary,
+                    Row(children: [
+                      Expanded(child: AppInput(label: 'First Name', controller: _firstNameCtrl)),
+                      const SizedBox(width: 12),
+                      Expanded(child: AppInput(label: 'Last Name', controller: _lastNameCtrl)),
+                    ]),
+                    const SizedBox(height: 12),
+                    AppInput(label: 'Email', controller: _emailCtrl, keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 12),
+                    AppInput(label: 'Phone', controller: _phoneCtrl, keyboardType: TextInputType.phone),
+                    const SizedBox(height: 12),
+                    AppInput(label: 'Job Title', controller: _jobTitleCtrl),
+                    const SizedBox(height: 12),
+                    AppInput(label: 'Company', controller: _companyCtrl),
+                    const SizedBox(height: 12),
+                    AppInput(label: 'LinkedIn URL', controller: _linkedinCtrl, keyboardType: TextInputType.url),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FButton(
+                        variant: FButtonVariant.primary,
+                        onPress: _isSaving ? null : _save,
+                        child: _isSaving
+                            ? const SizedBox(width: 18, height: 18, child: FCircularProgress())
+                            : const Text('SAVE CHANGES'),
                       ),
-                    ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text('CANCEL', style: TextStyle(color: _c.textMuted, fontSize: 12, letterSpacing: 1.2)),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: _field('First Name', _firstNameCtrl, required: true)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _field('Last Name', _lastNameCtrl)),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _field('Email', _emailCtrl, keyboard: TextInputType.emailAddress),
-                      const SizedBox(height: 12),
-                      _field('Phone', _phoneCtrl, keyboard: TextInputType.phone),
-                      const SizedBox(height: 12),
-                      _field('Job Title', _jobTitleCtrl),
-                      const SizedBox(height: 12),
-                      _field('Company', _companyCtrl),
-                      const SizedBox(height: 12),
-                      _field('LinkedIn URL', _linkedinCtrl, keyboard: TextInputType.url),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: FilledButton(
-                          onPressed: _isSaving ? null : _save,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _c.accent,
-                            foregroundColor: _c.background,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: _isSaving
-                              ? SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation(_c.background),
-                                  ),
-                                )
-                              : const Text('SAVE CHANGES',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _field(String label, TextEditingController ctrl, {
-    bool required = false,
-    TextInputType? keyboard,
-  }) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: keyboard,
-      style: TextStyle(color: _c.textPrimary, fontSize: 14),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: _c.textMuted, fontSize: 13),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _c.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _c.accent, width: 1.6),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
     );
   }
@@ -1609,32 +1119,28 @@ class _AiThinkingDotsState extends State<_AiThinkingDots> with SingleTickerProvi
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _ctrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
-    final c = AppTheme.colorsOf(context);
+    final color = context.theme.colors.primary;
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, __) {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(3, (i) {
-            final phase = (i / 3.0);
+            final phase = i / 3.0;
             final t = ((_ctrl.value - phase) % 1.0 + 1.0) % 1.0;
             final brightness = (Math.sin(t * Math.pi)).clamp(0.0, 1.0);
             final size = 6.0 + brightness * 3.0;
             return Padding(
               padding: const EdgeInsets.only(right: 6),
               child: Container(
-                width: size,
-                height: size,
+                width: size, height: size,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: c.accent.withValues(alpha: 0.3 + brightness * 0.7),
+                  color: color.withValues(alpha: 0.3 + brightness * 0.7),
                 ),
               ),
             );
@@ -1656,13 +1162,11 @@ class _MissingDetail {
 class _EventPickerSheet extends StatefulWidget {
   final List<Event> allEvents;
   final Set<String> linkedEventIds;
-  final ExonoColors colors;
   final Future<void> Function(Event event) onLink;
 
   const _EventPickerSheet({
     required this.allEvents,
     required this.linkedEventIds,
-    required this.colors,
     required this.onLink,
   });
 
@@ -1671,7 +1175,6 @@ class _EventPickerSheet extends StatefulWidget {
 }
 
 class _EventPickerSheetState extends State<_EventPickerSheet> {
-  ExonoColors get _c => widget.colors;
   final _searchCtrl = TextEditingController();
   List<Event> _filtered = [];
   bool _linking = false;
@@ -1688,110 +1191,88 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
     setState(() {
       _filtered = q.isEmpty
           ? widget.allEvents
-          : widget.allEvents.where((e) => e.name.toLowerCase().contains(q) ||
-              (e.location ?? '').toLowerCase().contains(q)).toList();
+          : widget.allEvents.where((e) =>
+              e.name.toLowerCase().contains(q) || (e.location ?? '').toLowerCase().contains(q)).toList();
     });
   }
 
   @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.theme;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
+      child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.7,
-        decoration: BoxDecoration(
-          color: _c.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border(top: BorderSide(color: _c.border)),
-        ),
         child: SafeArea(
           top: false,
           child: Column(
             children: [
               const SizedBox(height: 12),
-              Container(width: 48, height: 4,
-                  decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
+              Center(
+                child: Container(
+                  width: 48, height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.colors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: Row(
                   children: [
-                    Text('Link to Event',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _c.textPrimary)),
+                    Text('Link to Event', style: theme.typography.lg.copyWith(fontWeight: FontWeight.w700)),
                     const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close, color: _c.accent),
-                    ),
+                    FButton(variant: FButtonVariant.ghost, onPress: () => Navigator.pop(context), child: const Icon(Icons.close)),
                   ],
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: TextField(
+                child: AppInput(
                   controller: _searchCtrl,
-                  autofocus: true,
-                  style: TextStyle(color: _c.textPrimary, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Search events...',
-                    hintStyle: TextStyle(color: _c.textMuted, fontSize: 14),
-                    prefixIcon: Icon(Icons.search, color: _c.accent, size: 18),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: _c.border),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: _c.accent, width: 1.6),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
+                  hint: 'Search events...',
+                  prefixIcon: Icon(Icons.search, color: theme.colors.primary, size: 18),
                 ),
               ),
               const SizedBox(height: 12),
               Expanded(
                 child: _filtered.isEmpty
-                    ? Center(child: Text('No events found.', style: TextStyle(color: _c.textMuted)))
+                    ? Center(child: Text('No events found.',
+                        style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)))
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         itemCount: _filtered.length,
                         itemBuilder: (_, i) {
                           final event = _filtered[i];
                           final isLinked = widget.linkedEventIds.contains(event.id);
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
-                            leading: Container(
-                              width: 40, height: 40,
-                              decoration: BoxDecoration(
-                                color: _c.accentSoft,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(Icons.event_outlined, size: 18, color: _c.accent),
-                            ),
-                            title: Text(event.name,
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _c.textPrimary)),
-                            subtitle: event.location != null && event.location!.isNotEmpty
-                                ? Text(event.location!, style: TextStyle(fontSize: 11, color: _c.textMuted))
-                                : null,
-                            trailing: isLinked
-                                ? Icon(Icons.check_circle_rounded, color: _c.accent, size: 20)
-                                : (_linking
-                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                    : Icon(Icons.add_circle_outline, color: _c.accent, size: 20)),
-                            onTap: isLinked ? null : () async {
+                          return FButton(
+                            variant: FButtonVariant.ghost,
+                            onPress: isLinked ? null : () async {
                               setState(() => _linking = true);
-                              try {
-                                await widget.onLink(event);
-                              } finally {
-                                if (mounted) setState(() => _linking = false);
-                              }
+                              try { await widget.onLink(event); }
+                              finally { if (mounted) setState(() => _linking = false); }
                               if (mounted) Navigator.pop(context);
                             },
+                            prefix: FBadge(variant: FBadgeVariant.secondary, child: const Icon(Icons.event_outlined, size: 18)),
+                            suffix: isLinked
+                                ? Icon(Icons.check_circle_rounded, color: theme.colors.primary, size: 20)
+                                : (_linking
+                                    ? const SizedBox(width: 20, height: 20, child: FCircularProgress())
+                                    : Icon(Icons.add_circle_outline, color: theme.colors.primary, size: 20)),
+                            child: Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(event.name, style: theme.typography.sm.copyWith(fontWeight: FontWeight.w600)),
+                                  if (event.location != null && event.location!.isNotEmpty)
+                                    Text(event.location!, style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground)),
+                                ],
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -1809,13 +1290,8 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
 class _ScrollableTimeline extends StatefulWidget {
   final List<ContactTimelineItem> items;
   final Widget Function(ContactTimelineItem) itemBuilder;
-  final Color borderColor;
 
-  const _ScrollableTimeline({
-    required this.items,
-    required this.itemBuilder,
-    required this.borderColor,
-  });
+  const _ScrollableTimeline({required this.items, required this.itemBuilder});
 
   @override
   State<_ScrollableTimeline> createState() => _ScrollableTimelineState();
@@ -1830,24 +1306,14 @@ class _ScrollableTimelineState extends State<_ScrollableTimeline>
   @override
   void initState() {
     super.initState();
-    _bounceCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true);
-
+    _bounceCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600))..repeat(reverse: true);
     _scrollCtrl.addListener(() {
-      final atBottom = _scrollCtrl.position.pixels >=
-          _scrollCtrl.position.maxScrollExtent - 4;
-      if (atBottom && _showIndicator) {
-        setState(() => _showIndicator = false);
-      }
+      final atBottom = _scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 4;
+      if (atBottom && _showIndicator) setState(() => _showIndicator = false);
     });
-
-    // Check after layout whether content overflows
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_scrollCtrl.hasClients &&
-          _scrollCtrl.position.maxScrollExtent > 0) {
+      if (_scrollCtrl.hasClients && _scrollCtrl.position.maxScrollExtent > 0) {
         setState(() => _showIndicator = true);
       }
     });
@@ -1858,53 +1324,36 @@ class _ScrollableTimelineState extends State<_ScrollableTimeline>
     super.didUpdateWidget(old);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_scrollCtrl.hasClients &&
-          _scrollCtrl.position.maxScrollExtent > 0) {
+      if (_scrollCtrl.hasClients && _scrollCtrl.position.maxScrollExtent > 0) {
         setState(() => _showIndicator = true);
       }
     });
   }
 
   @override
-  void dispose() {
-    _bounceCtrl.dispose();
-    _scrollCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _bounceCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
-    final c = AppTheme.colorsOf(context);
+    final color = context.theme.colors.primary;
     return Stack(
       children: [
         SingleChildScrollView(
-            controller: _scrollCtrl,
-            physics: const ClampingScrollPhysics(),
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 10,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 1,
-                    color: widget.borderColor.withValues(alpha: 0.4),
-                  ),
-                ),
-                Column(
-                  children: widget.items
-                      .map((item) => widget.itemBuilder(item))
-                      .toList(),
-                ),
-              ],
-            ),
+          controller: _scrollCtrl,
+          physics: const ClampingScrollPhysics(),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 10, top: 0, bottom: 0,
+                child: Container(width: 1, color: context.theme.colors.border),
+              ),
+              Column(children: widget.items.map((item) => widget.itemBuilder(item)).toList()),
+            ],
           ),
-        // Scroll-down indicator
+        ),
         if (_showIndicator)
           Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
+            bottom: 0, left: 0, right: 0,
             child: IgnorePointer(
               child: Container(
                 height: 48,
@@ -1913,8 +1362,8 @@ class _ScrollableTimelineState extends State<_ScrollableTimeline>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      c.surface.withValues(alpha: 0),
-                      c.surface.withValues(alpha: 0.95),
+                      context.theme.colors.background.withValues(alpha: 0),
+                      context.theme.colors.background,
                     ],
                   ),
                 ),
@@ -1922,17 +1371,10 @@ class _ScrollableTimelineState extends State<_ScrollableTimeline>
                 padding: const EdgeInsets.only(bottom: 6),
                 child: AnimatedBuilder(
                   animation: _bounceCtrl,
-                  builder: (context, _) {
-                    final offset = 3.0 * _bounceCtrl.value;
-                    return Transform.translate(
-                      offset: Offset(0, offset),
-                      child: Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 20,
-                        color: c.accent,
-                      ),
-                    );
-                  },
+                  builder: (context, _) => Transform.translate(
+                    offset: Offset(0, 3.0 * _bounceCtrl.value),
+                    child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: color),
+                  ),
                 ),
               ),
             ),

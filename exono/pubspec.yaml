@@ -34,6 +34,7 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.8
   google_fonts: ^8.1.0
+  forui: ^0.22.3
   
   # State Management
   provider: ^6.1.1

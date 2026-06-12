@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -79,9 +80,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-    );
+    showFToast(context: context, title: Text(msg));
   }
 
   String _greeting() {
@@ -209,15 +208,10 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
         // ── CTA: go to full live floor ──
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => context.push('/live-event'),
-            icon: Icon(Icons.open_in_full_rounded, size: 16, color: _c.accent),
-            label: Text('OPEN LIVE FLOOR', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: _c.accent)),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: _c.accent.withValues(alpha: 0.5)),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
+          child: FButton(variant: FButtonVariant.outline, 
+            onPress: () => context.push('/live-event'),
+            prefix: Icon(Icons.open_in_full_rounded, size: 16, color: _c.accent),
+            child: Text('OPEN LIVE FLOOR', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: _c.accent)),
           ),
         ),
 
@@ -225,12 +219,12 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 24),
           child: Row(children: [
-            Expanded(child: Divider(color: _c.border)),
+            Expanded(child: FDivider()),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text('BACK AT BASE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: _c.textMuted)),
             ),
-            Expanded(child: Divider(color: _c.border)),
+            Expanded(child: FDivider()),
           ]),
         ),
 
@@ -256,16 +250,10 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
           const SizedBox(height: 28),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => showLogInteractionSheet(context),
-              icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
-              label: const Text('LOG INTERACTION', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6), overflow: TextOverflow.fade, softWrap: false),
-              style: FilledButton.styleFrom(
-                backgroundColor: _c.accent,
-                foregroundColor: (_c.isDark ? _c.textPrimary : _c.background),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
+            child: FButton(variant: FButtonVariant.primary, 
+              onPress: () => showLogInteractionSheet(context),
+              prefix: const Icon(Icons.add_circle_outline_rounded, size: 20),
+              child: const Text('LOG INTERACTION', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6), overflow: TextOverflow.fade, softWrap: false),
             ),
           ),
           const SizedBox(height: 28),
@@ -422,11 +410,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> {
                 const SizedBox(height: 4),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: progress, minHeight: 2,
-                    backgroundColor: _c.surfaceElevated,
-                    valueColor: AlwaysStoppedAnimation<Color>(isComplete ? _c.success : _c.accent),
-                  ),
+                  child: LinearProgressIndicator(value: progress),
                 ),
               ],
             ],

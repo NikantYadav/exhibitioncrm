@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -76,6 +77,64 @@ class _ExonoRouterState extends State<_ExonoRouter> {
     }
   }
 
+  FThemeData _buildForuiDark() {
+    const c = AppTheme.darkColors;
+    final colors = FColors(
+      brightness: Brightness.dark,
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Color(0xFF04060E),
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+      barrier: Colors.black54,
+      background: c.background,
+      foreground: c.textPrimary,
+      primary: c.accent,
+      primaryForeground: c.background,
+      secondary: c.surfaceElevated,
+      secondaryForeground: c.textPrimary,
+      muted: c.surfaceAlt,
+      mutedForeground: c.textMuted,
+      destructive: c.destructive,
+      destructiveForeground: Colors.white,
+      error: c.destructive,
+      errorForeground: Colors.white,
+      card: c.surface,
+      border: c.border,
+    );
+    return FThemeData(colors: colors, touch: true);
+  }
+
+  FThemeData _buildForuiLight() {
+    const c = AppTheme.lightColors;
+    final colors = FColors(
+      brightness: Brightness.light,
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Color(0xFFF4F7FF),
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      barrier: Colors.black38,
+      background: c.background,
+      foreground: c.textPrimary,
+      primary: c.accent,
+      primaryForeground: Colors.white,
+      secondary: c.surfaceElevated,
+      secondaryForeground: c.textPrimary,
+      muted: c.surfaceAlt,
+      mutedForeground: c.textMuted,
+      destructive: c.destructive,
+      destructiveForeground: Colors.white,
+      error: c.destructive,
+      errorForeground: Colors.white,
+      card: c.surface,
+      border: c.border,
+    );
+    return FThemeData(colors: colors, touch: true);
+  }
+
   @override
   void dispose() {
     _router.dispose();
@@ -102,6 +161,8 @@ class _ExonoRouterState extends State<_ExonoRouter> {
             ),
     );
 
+    final foruiTheme = isDark ? _buildForuiDark() : _buildForuiLight();
+
     return MaterialApp.router(
       title: 'exono',
       debugShowCheckedModeBanner: false,
@@ -109,6 +170,12 @@ class _ExonoRouterState extends State<_ExonoRouter> {
       darkTheme: AppTheme.darkTheme,
       themeMode: theme.themeMode,
       routerConfig: _router,
+      builder: (context, child) => FTheme(
+        data: foruiTheme,
+        child: FToaster(
+          child: child!,
+        ),
+      ),
     );
   }
 }

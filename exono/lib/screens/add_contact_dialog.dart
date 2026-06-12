@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 import '../services/api_service.dart';
+import '../widgets/app_input.dart';
 
 class AddContactDialog extends StatefulWidget {
   const AddContactDialog({super.key});
@@ -59,8 +61,10 @@ class _AddContactDialogState extends State<AddContactDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+        showFToast(
+          context: context,
+          title: Text('Error: $e'),
+          variant: FToastVariant.destructive,
         );
       }
     } finally {
@@ -111,23 +115,18 @@ class _AddContactDialogState extends State<AddContactDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
+                  FButton(
+                    variant: FButtonVariant.ghost,
+                    onPress: () => Navigator.pop(context),
                     child: Text('CANCEL', style: TextStyle(color: _c.textSecondary)),
                   ),
                   const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _c.accent,
-                      foregroundColor: _c.isDark ? _c.background : Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-                      ),
-                    ),
-                    child: _isLoading 
-                      ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _c.isDark ? _c.background : Colors.white))
-                      : const Text('SAVE'),
+                  FButton(
+                    variant: FButtonVariant.primary,
+                    onPress: _isLoading ? null : _submit,
+                    child: _isLoading
+                        ? SizedBox(width: 20, height: 20, child: FCircularProgress())
+                        : const Text('SAVE'),
                   ),
                 ],
               ),
@@ -139,22 +138,11 @@ class _AddContactDialogState extends State<AddContactDialog> {
   }
 
   Widget _buildTextField(String label, TextEditingController controller, bool required, {TextInputType? keyboardType, int maxLines = 1}) {
-    return TextFormField(
+    return AppInput(
       controller: controller,
+      label: label,
       keyboardType: keyboardType,
       maxLines: maxLines,
-      style: TextStyle(color: _c.textPrimary),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: _c.textSecondary),
-        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: _c.border)),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusInput),
-          borderSide: BorderSide(color: _c.accent, width: 1.6),
-        ),
-        errorBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.red)),
-        focusedErrorBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.red)),
-      ),
       validator: required ? (value) => value == null || value.isEmpty ? 'Required' : null : null,
     );
   }

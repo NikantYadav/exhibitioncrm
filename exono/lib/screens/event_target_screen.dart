@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
+import '../widgets/app_input.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_card.dart';
@@ -136,7 +138,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
         _editingBooth = false;
       });
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to save booth.'), behavior: SnackBarBehavior.floating));
+      if (mounted) showFToast(context: context, title: const Text('Failed to save booth.'), variant: FToastVariant.destructive);
     }
   }
 
@@ -152,7 +154,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
         await _generateBriefing();
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to save notes.'), behavior: SnackBarBehavior.floating));
+      if (mounted) showFToast(context: context, title: const Text('Failed to save notes.'), variant: FToastVariant.destructive);
     }
   }
 
@@ -170,7 +172,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
         if (idx != -1) _contacts[idx] = {..._contacts[idx], 'linked_to_event': !isLinked};
       });
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update contact link.'), behavior: SnackBarBehavior.floating));
+      if (mounted) showFToast(context: context, title: const Text('Failed to update contact link.'), variant: FToastVariant.destructive);
     }
   }
 
@@ -191,8 +193,8 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                   splashRadius: 20,
                 ),
               ),
-              Expanded(
-                child: Center(child: CircularProgressIndicator(color: _c.accent, strokeWidth: 2)),
+              const Expanded(
+                child: Center(child: FCircularProgress()),
               ),
             ],
           ),
@@ -289,7 +291,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                           if (_isEnriching) ...[
                             const SizedBox(height: 14),
                             Row(children: [
-                              SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5, color: _c.accent)),
+                              const SizedBox(width: 12, height: 12, child: FCircularProgress()),
                               const SizedBox(width: 8),
                               Text('Loading company details…', style: TextStyle(fontSize: 12, color: _c.textMuted, fontStyle: FontStyle.italic)),
                             ]),
@@ -366,21 +368,9 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: _editingBooth
-                                    ? TextField(
+                                    ? AppInput(
                                         controller: _boothCtrl,
-                                        autofocus: true,
-                                        style: TextStyle(fontSize: 14, color: _c.textPrimary),
-                                        cursorColor: _c.accent,
-                                        textCapitalization: TextCapitalization.characters,
-                                        decoration: InputDecoration(
-                                          hintText: 'e.g. A-12',
-                                          hintStyle: TextStyle(color: _c.textMuted),
-                                          isDense: true,
-                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _c.border)),
-                                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _c.accent)),
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                          filled: true, fillColor: _c.surface,
-                                        ),
+                                        hint: 'e.g. A-12',
                                       )
                                     : Text(
                                         (booth != null && booth.isNotEmpty) ? booth : 'Booth not set',
@@ -389,8 +379,8 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                               ),
                               if (_editingBooth) ...[
                                 const SizedBox(width: 8),
-                                TextButton(onPressed: _saveBooth, child: Text('Save', style: TextStyle(color: _c.accent, fontWeight: FontWeight.w600))),
-                                TextButton(onPressed: () => setState(() => _editingBooth = false), child: Text('Cancel', style: TextStyle(color: _c.textMuted))),
+                                FButton(variant: FButtonVariant.ghost, onPress: _saveBooth, child: const Text('Save')),
+                                FButton(variant: FButtonVariant.ghost, onPress: () => setState(() => _editingBooth = false), child: const Text('Cancel')),
                               ] else
                                 IconButton(
                                   onPressed: () => setState(() => _editingBooth = true),
@@ -402,7 +392,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Divider(color: _c.border, height: 1),
+                          const FDivider(),
                           const SizedBox(height: 12),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -411,20 +401,10 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: _editingNotes
-                                    ? TextField(
+                                    ? AppInput(
                                         controller: _notesCtrl,
-                                        autofocus: true,
                                         maxLines: 4,
-                                        style: TextStyle(fontSize: 14, color: _c.textPrimary),
-                                        cursorColor: _c.accent,
-                                        decoration: InputDecoration(
-                                          hintText: 'Add notes about this company...',
-                                          hintStyle: TextStyle(color: _c.textMuted),
-                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _c.border)),
-                                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _c.accent)),
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                          filled: true, fillColor: _c.surface,
-                                        ),
+                                        hint: 'Add notes about this company...',
                                       )
                                     : Text(
                                         (_target['notes'] as String?)?.isNotEmpty == true
@@ -438,8 +418,8 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                               if (_editingNotes) ...[
                                 const SizedBox(width: 8),
                                 Column(children: [
-                                  TextButton(onPressed: _saveNotes, child: Text('Save', style: TextStyle(color: _c.accent, fontWeight: FontWeight.w600))),
-                                  TextButton(onPressed: () => setState(() => _editingNotes = false), child: Text('Cancel', style: TextStyle(color: _c.textMuted))),
+                                  FButton(variant: FButtonVariant.ghost, onPress: _saveNotes, child: const Text('Save')),
+                                  FButton(variant: FButtonVariant.ghost, onPress: () => setState(() => _editingNotes = false), child: const Text('Cancel')),
                                 ]),
                               ] else
                                 IconButton(
@@ -583,22 +563,14 @@ class _EventTargetScreenState extends State<EventTargetScreen> {
                           ],
                           SizedBox(
                             width: double.infinity,
-                            height: 48,
-                            child: FilledButton.icon(
-                              onPressed: _isGenerating ? null : _generateBriefing,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _c.accent,
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor: _c.surfaceElevated,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                                elevation: 0,
-                              ),
-                              icon: _isGenerating
-                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            child: FButton(
+                              variant: FButtonVariant.primary,
+                              onPress: _isGenerating ? null : _generateBriefing,
+                              prefix: _isGenerating
+                                  ? const SizedBox(width: 16, height: 16, child: FCircularProgress())
                                   : const Icon(Icons.auto_awesome, size: 16),
-                              label: Text(
+                              child: Text(
                                 _isGenerating ? 'GENERATING...' : (_talkingPoints.isEmpty ? 'GENERATE AI BRIEFING' : 'REGENERATE'),
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.6),
                               ),
                             ),
                           ),

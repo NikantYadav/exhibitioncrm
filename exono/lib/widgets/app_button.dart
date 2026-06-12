@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../config/app_theme.dart';
+import 'package:forui/forui.dart';
 
 enum ButtonVariant { primary, secondary, outline, ghost, destructive }
 
 enum ButtonSize { sm, md, lg }
 
-/// Custom button widget matching CRM's button design
+/// Thin wrapper over [FButton] that preserves existing call-sites unchanged.
 class AppButton extends StatelessWidget {
   final String? label;
   final Widget? child;
@@ -14,7 +14,7 @@ class AppButton extends StatelessWidget {
   final ButtonSize size;
   final IconData? icon;
   final bool loading;
-  final bool isLoading; // Alias for loading
+  final bool isLoading;
   final bool fullWidth;
 
   const AppButton({
@@ -32,173 +32,57 @@ class AppButton extends StatelessWidget {
 
   bool get _isLoading => loading || isLoading;
 
+  FButtonVariant get _variant {
+    switch (variant) {
+      case ButtonVariant.primary:
+        return FButtonVariant.primary;
+      case ButtonVariant.secondary:
+        return FButtonVariant.secondary;
+      case ButtonVariant.outline:
+        return FButtonVariant.outline;
+      case ButtonVariant.ghost:
+        return FButtonVariant.ghost;
+      case ButtonVariant.destructive:
+        return FButtonVariant.destructive;
+    }
+  }
+
+  FButtonSizeVariant get _size {
+    switch (size) {
+      case ButtonSize.sm:
+        return FButtonSizeVariant.sm;
+      case ButtonSize.md:
+        return FButtonSizeVariant.md;
+      case ButtonSize.lg:
+        return FButtonSizeVariant.lg;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final buttonChild = child ??
-        Row(
-          mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_isLoading)
-              SizedBox(
-                width: _getIconSize(),
-                height: _getIconSize(),
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(_getForegroundColor()),
-                ),
-              )
-            else if (icon != null)
-              Icon(icon, size: _getIconSize()),
-            if ((_isLoading || icon != null) && label != null) SizedBox(width: _getGap()),
-            if (label != null)
-              Text(
-                label!,
-                style: TextStyle(
-                  fontSize: _getFontSize(),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-          ],
-        );
+    Widget content;
+    if (child != null) {
+      content = child!;
+    } else if (_isLoading) {
+      content = const SizedBox(
+        width: 16,
+        height: 16,
+        child: FCircularProgress(),
+      );
+    } else {
+      content = Text(label!);
+    }
 
-    return SizedBox(
-      width: fullWidth ? double.infinity : null,
-      height: _getHeight(),
-      child: _buildButton(context, buttonChild),
+    final btn = FButton(
+      variant: _variant,
+      size: _size,
+      onPress: _isLoading ? null : onPressed,
+      child: content,
     );
-  }
 
-  Widget _buildButton(BuildContext context, Widget child) {
-    switch (variant) {
-      case ButtonVariant.primary:
-        return ElevatedButton(
-          onPressed: _isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primary,
-            foregroundColor: Colors.white,
-            elevation: 2,
-            shadowColor: AppTheme.primary.withValues(alpha: 0.3),
-            padding: _getPadding(),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-            ),
-            disabledBackgroundColor: AppTheme.stone300,
-            disabledForegroundColor: AppTheme.stone500,
-          ),
-          child: child,
-        );
-
-      case ButtonVariant.secondary:
-      case ButtonVariant.outline:
-        return OutlinedButton(
-          onPressed: _isLoading ? null : onPressed,
-          style: OutlinedButton.styleFrom(
-            backgroundColor: variant == ButtonVariant.secondary ? AppTheme.cardBackground : null,
-            foregroundColor: AppTheme.stone700,
-            side: BorderSide(color: AppTheme.stone300),
-            padding: _getPadding(),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-            ),
-          ),
-          child: child,
-        );
-
-      case ButtonVariant.ghost:
-        return TextButton(
-          onPressed: _isLoading ? null : onPressed,
-          style: TextButton.styleFrom(
-            foregroundColor: AppTheme.stone600,
-            padding: _getPadding(),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-            ),
-          ),
-          child: child,
-        );
-
-      case ButtonVariant.destructive:
-        return ElevatedButton(
-          onPressed: _isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.destructive,
-            foregroundColor: Colors.white,
-            elevation: 2,
-            padding: _getPadding(),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-            ),
-          ),
-          child: child,
-        );
+    if (fullWidth) {
+      return SizedBox(width: double.infinity, child: btn);
     }
-  }
-
-  EdgeInsets _getPadding() {
-    switch (size) {
-      case ButtonSize.sm:
-        return const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
-      case ButtonSize.md:
-        return const EdgeInsets.symmetric(horizontal: 16, vertical: 10);
-      case ButtonSize.lg:
-        return const EdgeInsets.symmetric(horizontal: 32, vertical: 12);
-    }
-  }
-
-  double _getHeight() {
-    switch (size) {
-      case ButtonSize.sm:
-        return 36;
-      case ButtonSize.md:
-        return 40;
-      case ButtonSize.lg:
-        return 44;
-    }
-  }
-
-  double _getFontSize() {
-    switch (size) {
-      case ButtonSize.sm:
-        return 12;
-      case ButtonSize.md:
-        return 14;
-      case ButtonSize.lg:
-        return 14;
-    }
-  }
-
-  double _getIconSize() {
-    switch (size) {
-      case ButtonSize.sm:
-        return 16;
-      case ButtonSize.md:
-        return 18;
-      case ButtonSize.lg:
-        return 20;
-    }
-  }
-
-  double _getGap() {
-    switch (size) {
-      case ButtonSize.sm:
-        return 6;
-      case ButtonSize.md:
-        return 8;
-      case ButtonSize.lg:
-        return 8;
-    }
-  }
-
-  Color _getForegroundColor() {
-    switch (variant) {
-      case ButtonVariant.primary:
-      case ButtonVariant.destructive:
-        return Colors.white;
-      case ButtonVariant.secondary:
-      case ButtonVariant.outline:
-      case ButtonVariant.ghost:
-        return AppTheme.stone700;
-    }
+    return btn;
   }
 }

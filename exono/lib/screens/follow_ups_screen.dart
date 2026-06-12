@@ -4,8 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
-import '../widgets/app_chip.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_header.dart';
 import '../widgets/skeleton_loader.dart';
@@ -137,13 +138,6 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     } catch (_) { return ''; }
   }
 
-  Color? _urgencyColor(String? urgency) => switch (urgency) {
-    'high' => _c.destructive,
-    'low'  => _c.textMuted,
-    'medium' => _c.accent,
-    _ => null,
-  };
-
   String _urgencyLabel(String? urgency) => switch (urgency) {
     'high'   => 'URGENT',
     'low'    => 'LOW',
@@ -166,10 +160,12 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
       await ApiService.updateContact(id, {'follow_up_status': 'followed_up'});
     } catch (_) {
       // Revert on failure
-      if (mounted) setState(() {
-        _followedUp.removeWhere((c) => c['id'] == id);
-        _needsFollowup.insert(0, contact);
-      });
+      if (mounted) {
+        setState(() {
+          _followedUp.removeWhere((c) => c['id'] == id);
+          _needsFollowup.insert(0, contact);
+        });
+      }
     }
   }
 
@@ -184,10 +180,12 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     try {
       await ApiService.updateContact(id, {'follow_up_status': 'needs_followup'});
     } catch (_) {
-      if (mounted) setState(() {
-        _needsFollowup.removeWhere((c) => c['id'] == id);
-        _followedUp.insert(0, contact);
-      });
+      if (mounted) {
+        setState(() {
+          _needsFollowup.removeWhere((c) => c['id'] == id);
+          _followedUp.insert(0, contact);
+        });
+      }
     }
   }
 
@@ -210,20 +208,16 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
 
   void _showUrgencySheet(Map<String, dynamic> contact) {
     final currentUrgency = contact['follow_up_urgency'] as String? ?? '';
-    showModalBottomSheet(
+    showAppSheet(
       context: context,
-      backgroundColor: _c.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => SafeArea(
+      builder: (ctx) => SafeArea(
+        top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Handle
               Center(
                 child: Container(
                   width: 36, height: 4,
@@ -311,62 +305,54 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
   }
 
   void _showEventFilterSheet() {
-    showModalBottomSheet(
+    showAppSheet(
       context: context,
-      backgroundColor: _c.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSheetState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36, height: 4,
-                    decoration: BoxDecoration(
-                      color: _c.border,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: _c.border,
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text('Filter by Event',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _c.textPrimary)),
-                const SizedBox(height: 12),
-                // All events option
-                _eventOption(
-                  ctx: ctx,
-                  setSheetState: setSheetState,
-                  id: null,
-                  name: 'All Events',
-                  isSelected: _selectedEventId == null,
-                ),
-                const SizedBox(height: 8),
-                if (_events.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text('No completed events yet.',
-                      style: TextStyle(fontSize: 13, color: _c.textMuted)),
-                  )
-                else
-                  ...(_events.map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _eventOption(
-                      ctx: ctx,
-                      setSheetState: setSheetState,
-                      id: e.id,
-                      name: e.name,
-                      isSelected: _selectedEventId == e.id,
-                    ),
-                  ))),
-                const SizedBox(height: 8),
-              ],
-            ),
+              ),
+              const SizedBox(height: 16),
+              Text('Filter by Event',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _c.textPrimary)),
+              const SizedBox(height: 12),
+              _eventOption(
+                ctx: ctx,
+                id: null,
+                name: 'All Events',
+                isSelected: _selectedEventId == null,
+              ),
+              const SizedBox(height: 8),
+              if (_events.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text('No completed events yet.',
+                    style: TextStyle(fontSize: 13, color: _c.textMuted)),
+                )
+              else
+                ...(_events.map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _eventOption(
+                    ctx: ctx,
+                    id: e.id,
+                    name: e.name,
+                    isSelected: _selectedEventId == e.id,
+                  ),
+                ))),
+              const SizedBox(height: 8),
+            ],
           ),
         ),
       ),
@@ -375,7 +361,6 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
 
   Widget _eventOption({
     required BuildContext ctx,
-    required StateSetter setSheetState,
     required String? id,
     required String name,
     required bool isSelected,
@@ -613,7 +598,6 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     final isDone = (contact['follow_up_status'] as String? ?? '') == 'followed_up';
     final urgency = contact['follow_up_urgency'] as String?;
     final hasUrgency = urgency != null && urgency.isNotEmpty;
-    final urgencyColor = _urgencyColor(urgency);
     final urgencyLabel = _urgencyLabel(urgency);
     final company = _company(contact);
     final lastTouched = _lastTouched(contact);
@@ -690,84 +674,37 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  // Followed Up button
                   Expanded(
                     flex: 3,
-                    child: GestureDetector(
-                      onTap: () => _markFollowedUp(contact),
-                      child: Container(
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: _c.accent.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: _c.accent.withValues(alpha: 0.35)),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text('Followed Up',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _c.accent)),
-                      ),
+                    child: AppButton(
+                      label: 'Followed Up',
+                      onPressed: () => _markFollowedUp(contact),
+                      variant: ButtonVariant.secondary,
+                      fullWidth: true,
+                      size: ButtonSize.sm,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Priority / urgency button
                   Expanded(
                     flex: 2,
-                    child: GestureDetector(
-                      onTap: () => _showUrgencySheet(contact),
-                      child: Container(
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: hasUrgency && urgencyColor != null
-                              ? urgencyColor!.withValues(alpha: 0.10)
-                              : _c.surfaceAlt,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: hasUrgency && urgencyColor != null
-                                ? urgencyColor!.withValues(alpha: 0.35)
-                                : _c.border,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.flag_outlined, size: 13,
-                              color: hasUrgency && urgencyColor != null
-                                  ? urgencyColor
-                                  : _c.textMuted),
-                            const SizedBox(width: 4),
-                            Text(
-                              hasUrgency ? urgencyLabel : 'Priority',
-                              style: TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w600,
-                                color: hasUrgency && urgencyColor != null
-                                    ? urgencyColor
-                                    : _c.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    child: AppButton(
+                      label: hasUrgency ? urgencyLabel : 'Priority',
+                      onPressed: () => _showUrgencySheet(contact),
+                      variant: ButtonVariant.outline,
+                      fullWidth: true,
+                      size: ButtonSize.sm,
                     ),
                   ),
                 ],
               ),
             ] else ...[
               const SizedBox(height: 10),
-              GestureDetector(
-                onTap: () => _markNeedsFollowup(contact),
-                child: Container(
-                  height: 36,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: _c.surfaceElevated,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: _c.border),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text('Undo',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _c.textMuted)),
-                ),
+              AppButton(
+                label: 'Undo',
+                onPressed: () => _markNeedsFollowup(contact),
+                variant: ButtonVariant.ghost,
+                fullWidth: true,
+                size: ButtonSize.sm,
               ),
             ],
           ],
@@ -862,14 +799,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
   }
 
   Widget _skeletonCard({required Widget child, double radius = 20}) {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _c.surface,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: _c.border),
-      ),
+      radius: radius,
       child: child,
     );
   }

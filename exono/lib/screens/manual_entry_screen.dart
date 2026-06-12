@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 
 class ManualEntryScreen extends StatefulWidget {
@@ -287,21 +289,9 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
     double fontSize = 14,
     bool bold = false,
   }) {
-    return TextField(
+    return AppInput(
       controller: ctrl,
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
-        color: _c.textPrimary,
-      ),
-      cursorColor: _c.accent,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(fontSize: fontSize, color: _c.textMuted),
-        isDense: true,
-        border: InputBorder.none,
-        contentPadding: EdgeInsets.zero,
-      ),
+      hint: hint,
       onChanged: (_) => setState(() {}),
     );
   }
@@ -316,7 +306,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
       child: Column(
         children: [
           _fieldRow(Icons.business_outlined, _coCtrl, 'Company'),
-          Divider(height: 1, color: _c.border),
+          FDivider(),
           _fieldRow(Icons.work_outline_rounded, _titleCtrl, 'Job title'),
         ],
       ),
@@ -331,9 +321,9 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
       child: Column(
         children: [
           _fieldRow(Icons.email_outlined, _emailCtrl, 'Email', kbd: TextInputType.emailAddress),
-          Divider(height: 1, color: _c.border),
+          FDivider(),
           _fieldRow(Icons.phone_outlined, _phoneCtrl, 'Phone', kbd: TextInputType.phone),
-          Divider(height: 1, color: _c.border),
+          FDivider(),
           _fieldRow(Icons.link_outlined, _linkedinCtrl, 'LinkedIn URL', kbd: TextInputType.url),
         ],
       ),
@@ -353,18 +343,10 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
           Icon(icon, size: 15, color: _c.accent),
           const SizedBox(width: 12),
           Expanded(
-            child: TextField(
+            child: AppInput(
               controller: ctrl,
               keyboardType: kbd,
-              style: TextStyle(fontSize: 14, color: _c.textPrimary),
-              cursorColor: _c.accent,
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: TextStyle(fontSize: 14, color: _c.textMuted),
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
+              hint: hint,
             ),
           ),
         ],
@@ -414,21 +396,10 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
       elevated: true,
       radius: 20,
       padding: const EdgeInsets.all(4),
-      child: TextField(
+      child: AppInput(
         controller: _notesCtrl,
         maxLines: 5,
-        style: TextStyle(
-          fontSize: 14,
-          color: _c.textSecondary,
-          height: 1.6,
-        ),
-        cursorColor: _c.accent,
-        decoration: InputDecoration(
-          hintText: 'Context, talking points, next steps…',
-          hintStyle: TextStyle(fontSize: 14, color: _c.textMuted, height: 1.5),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(16),
-        ),
+        hint: 'Context, talking points, next steps…',
       ),
     );
   }
@@ -456,13 +427,9 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
 
   Future<void> _showAddTagSheet() async {
     final ctrl = TextEditingController();
-    await showModalBottomSheet<void>(
+    await showFSheet<void>(
       context: context,
-      backgroundColor: _c.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
+      side: FLayout.btt,
       builder: (ctx) {
         return Padding(
           padding: EdgeInsets.fromLTRB(
@@ -496,50 +463,30 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
                 ),
               ),
               const SizedBox(height: 14),
-              AppCard(
-                elevated: true,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: TextField(
-                  controller: ctrl,
-                  autofocus: true,
-                  style: TextStyle(fontSize: 14, color: _c.textPrimary),
-                  cursorColor: _c.accent,
-                  decoration: InputDecoration(
-                    hintText: 'e.g. investor, follow-up, warm-lead',
-                    hintStyle: TextStyle(fontSize: 14, color: _c.textMuted),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  onSubmitted: (val) {
-                    final tag = val.trim();
-                    if (tag.isNotEmpty && !_tags.contains(tag)) {
-                      setState(() => _tags.add(tag));
-                    }
-                    Navigator.of(ctx).pop();
-                  },
-                ),
+              AppInput(
+                controller: ctrl,
+                hint: 'e.g. investor, follow-up, warm-lead',
+                onSubmitted: (val) {
+                  final tag = val.trim();
+                  if (tag.isNotEmpty && !_tags.contains(tag)) {
+                    setState(() => _tags.add(tag));
+                  }
+                  Navigator.of(ctx).pop();
+                },
               ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 48,
-                child: FilledButton(
-                  onPressed: () {
+                child: FButton(
+                  variant: FButtonVariant.primary,
+                  onPress: () {
                     final tag = ctrl.text.trim();
                     if (tag.isNotEmpty && !_tags.contains(tag)) {
                       setState(() => _tags.add(tag));
                     }
                     Navigator.of(ctx).pop();
                   },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _c.accent,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
                   child: const Text(
                     'ADD',
                     style: TextStyle(
@@ -572,22 +519,11 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
       child: SizedBox(
         width: double.infinity,
         height: 54,
-        child: FilledButton(
-          onPressed: (_isSaving || _saved) ? null : _save,
-          style: FilledButton.styleFrom(
-            backgroundColor: _saved ? _c.success : _c.accent,
-            disabledBackgroundColor: _saved ? _c.success : _c.surfaceElevated,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-            ),
-            elevation: 0,
-          ),
+        child: FButton(
+          variant: FButtonVariant.primary,
+          onPress: (_isSaving || _saved) ? null : _save,
           child: _isSaving
-              ? const SizedBox(
-                  width: 20, height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
+              ? const FCircularProgress()
               : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -745,8 +681,9 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
                               _resolveDuplicateAndSave(merge: false),
                         ),
                         const SizedBox(height: 10),
-                        TextButton(
-                          onPressed: () =>
+                        FButton(
+                          variant: FButtonVariant.ghost,
+                          onPress: () =>
                               setState(() => _showDedup = false),
                           child: Text(
                             'CANCEL',
@@ -777,16 +714,9 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
     return SizedBox(
       width: double.infinity,
       height: 48,
-      child: FilledButton(
-        onPressed: onTap,
-        style: FilledButton.styleFrom(
-          backgroundColor: primary ? _c.accent : _c.surfaceElevated,
-          foregroundColor: primary ? Colors.white : _c.textSecondary,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999),
-          ),
-        ),
+      child: FButton(
+        variant: primary ? FButtonVariant.primary : FButtonVariant.secondary,
+        onPress: onTap,
         child: Text(
           label,
           style: const TextStyle(
@@ -806,11 +736,10 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
     final ln = _lnCtrl.text.trim();
     final name = '$fn $ln'.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter at least a name'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showFToast(
+        context: context,
+        title: const Text('Enter at least a name'),
+        variant: FToastVariant.destructive,
       );
       return;
     }
@@ -836,11 +765,10 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to save contact'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showFToast(
+        context: context,
+        title: const Text('Failed to save contact'),
+        variant: FToastVariant.destructive,
       );
     }
   }
@@ -881,11 +809,10 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
         _isSaving = false;
         _saved    = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to save contact'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showFToast(
+        context: context,
+        title: const Text('Failed to save contact'),
+        variant: FToastVariant.destructive,
       );
     }
   }

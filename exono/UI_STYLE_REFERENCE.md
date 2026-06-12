@@ -9,10 +9,60 @@ Keep the Flutter UI aligned with the current Exono mobile direction:
 - near-black backgrounds in dark mode with navy gradient card surfaces
 - pill buttons and rounded controls
 - high-contrast dark navy / vibrant blue styling
-- centralized semantic theming
+- centralized semantic theming via forui + Exono token layer
 - day/night mode compatibility
 
 Do **not** introduce isolated one-off palettes or screens that deviate from the token system.
+
+---
+
+## UI library: forui
+
+All shared components are backed by the **forui** package (`forui: ^0.22.3`).
+The `FTheme` widget is placed in `MaterialApp.router`'s `builder` in `main.dart` and receives an `FThemeData` built from `FColors` that maps every Exono semantic token.
+
+**Import**: `import 'package:forui/forui.dart';`
+
+### Component → forui backing
+
+| Exono widget | forui primitive | Notes |
+|---|---|---|
+| `AppButton` | `FButton` | variant maps to `FButtonVariant`, size to `FButtonSizeVariant` |
+| `AppCard` | `FCard.raw` | custom gradient decoration via `FCardStyleDelta.delta(decoration: DecorationDelta.value(...))` |
+| `AppChip` (tag) | `FBadge` `outline` | pill border override via `FBadgeStyleDelta.delta` |
+| `AppChip.label` | `FBadge` `secondary` | rect badge, filled `surfaceElevated` |
+| `AppChip.status` | `FBadge` `primary` | rect badge, custom fill color |
+| `AppInput` | `FTextField` | `FTextFieldControl.managed` with optional `onChange` |
+| `AppBottomNav` | `FBottomNavigationBar` | elevated QR button stays custom via Stack |
+| `AppHeader` | `FHeader` | EXONO title + `FHeaderAction` suffixes + profile avatar |
+| `AppFilterRow` (filled) | `FButton` pills | active = `FButtonVariant.primary`, inactive = ghost |
+| `AppFilterRow` (outline) | custom `InkWell` | border-only active state requires custom decoration |
+| `AppSectionLabel` | plain `Text` | no forui equivalent; kept as-is |
+| `SkeletonLoader` | plain `Container` | shimmer animation; no forui equivalent |
+
+### FTheme setup (main.dart)
+
+```dart
+builder: (context, child) => FTheme(
+  data: isDark ? _buildForuiDark() : _buildForuiLight(),
+  child: FToaster(child: child!),
+),
+```
+
+`_buildForuiDark()` / `_buildForuiLight()` construct `FThemeData(colors: FColors(...), touch: true)` with Exono tokens mapped to forui's `FColors` fields:
+
+| FColors field | Exono token |
+|---|---|
+| `background` | `ExonoColors.background` |
+| `foreground` | `ExonoColors.textPrimary` |
+| `primary` | `ExonoColors.accent` |
+| `primaryForeground` | `ExonoColors.background` (dark) / white (light) |
+| `secondary` | `ExonoColors.surfaceElevated` |
+| `muted` | `ExonoColors.surfaceAlt` |
+| `mutedForeground` | `ExonoColors.textMuted` |
+| `destructive` | `ExonoColors.destructive` |
+| `card` | `ExonoColors.surface` |
+| `border` | `ExonoColors.border` |
 
 ---
 
@@ -472,6 +522,7 @@ For onboarding, auth, and splash screens only. `EntryPanel` and `EntrySoftTile` 
 5. Use `AppTheme.colorsOf(context)` for all colors — no hardcoded `Color(...)` values
 6. Reference `offline_mode_screen.dart` if uncertain
 7. Run `flutter analyze` — zero new warnings
+8. Use forui primitives (`FButton`, `FBadge`, `FTextField`, etc.) when building new widgets outside the existing component library — never use bare Material widgets for interactive elements
 
 ---
 
@@ -497,12 +548,15 @@ For onboarding, auth, and splash screens only. `EntryPanel` and `EntrySoftTile` 
 
 ## Migration status (June 2026)
 
-- `AppCard` replaces all inline `Container + BoxDecoration` card patterns
-- `AppChip` replaces all inline tag / label / status chip containers
+- `AppCard` replaces all inline `Container + BoxDecoration` card patterns — backed by `FCard.raw`
+- `AppChip` replaces all inline tag / label / status chip containers — backed by `FBadge`
 - `AppSectionLabel` replaces all inline uppercase muted `Text` widgets
-- `AppFilterRow` replaces all inline filter pill `ListView` patterns
-- `AppBottomNav` replaces all per-screen `_buildBottomNav()` methods
-- `AppHeader` replaces all per-screen `_buildTopBar()` or custom header methods
+- `AppFilterRow` replaces all inline filter pill `ListView` patterns — filled variant backed by `FButton`
+- `AppBottomNav` replaces all per-screen `_buildBottomNav()` methods — backed by `FBottomNavigationBar`
+- `AppHeader` replaces all per-screen `_buildTopBar()` or custom header methods — backed by `FHeader`
+- `AppButton` backed by `FButton` with variant/size mapping
+- `AppInput` backed by `FTextField` with `FTextFieldControl.managed`
+- `FTheme` wraps `MaterialApp.router` in `main.dart` with Exono-colored `FThemeData`
 - No `static const Color` fields in any screen file
 - No `GoogleFonts` imports in any screen file
 

@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/app_button.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/entry_flow_components.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -98,42 +100,21 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  void _showAccountExistsDialog() {
-    showDialog(
+  Future<void> _showAccountExistsDialog() async {
+    final confirmed = await showAppConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.cardBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Account already exists'),
-        content: Text(
-          'An account with this email already exists. Please log in instead.',
-          style: TextStyle(color: AppTheme.muted),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              setState(() => _isLogin = true);
-            },
-            child: const Text('Go to Login'),
-          ),
-        ],
-      ),
+      title: 'Account already exists',
+      message: 'An account with this email already exists. Please log in instead.',
+      confirmLabel: 'Go to Login',
+      cancelLabel: 'Cancel',
     );
+    if (confirmed == true && mounted) {
+      setState(() => _isLogin = true);
+    }
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppTheme.destructive,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
+    showAppToast(context, message);
   }
 
   void _toggleMode(bool login) {
@@ -247,16 +228,11 @@ class _AuthScreenState extends State<AuthScreen> {
                     _isLogin ? "Don't have an account?" : "Already have an account?",
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  GestureDetector(
-                    onTap: () => _toggleMode(!_isLogin),
-                    child: Text(
-                      _isLogin ? "Create one" : "Sign in",
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: colors.accentStrong,
-                      ),
-                    ),
+                  AppButton(
+                    label: _isLogin ? 'Create one' : 'Sign in',
+                    onPressed: () => _toggleMode(!_isLogin),
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.sm,
                   ),
                 ],
               ),
@@ -267,65 +243,4 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildModeSwitch(ExonoColors colors) {
-    return EntrySoftTile(
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildSwitchChip(
-              label: "Sign In",
-              isSelected: _isLogin,
-              colors: colors,
-              onTap: () => _toggleMode(true),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: _buildSwitchChip(
-              label: "Sign Up",
-              isSelected: !_isLogin,
-              colors: colors,
-              onTap: () => _toggleMode(false),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSwitchChip({
-    required String label,
-    required bool isSelected,
-    required ExonoColors colors,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? LinearGradient(colors: [colors.accent, colors.accentStrong])
-              : null,
-          color: isSelected ? null : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : colors.border.withValues(alpha: 0.3),
-          ),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
-            color: isSelected ? (colors.isDark ? colors.background : Colors.white) : colors.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
 }

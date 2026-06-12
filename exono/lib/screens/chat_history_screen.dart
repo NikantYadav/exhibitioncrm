@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
@@ -47,29 +49,12 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
   }
 
   Future<void> _deleteConversation(ConversationModel convo) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _c.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Delete chat?',
-            style: TextStyle(color: _c.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-        content: Text(
-          'This will permanently remove this conversation.',
-          style: TextStyle(color: _c.textSecondary, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: TextStyle(color: _c.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete',
-                style: TextStyle(color: _c.destructive, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+      title: 'Delete chat?',
+      message: 'This will permanently remove this conversation.',
+      confirmLabel: 'Delete',
+      destructive: true,
     );
     if (confirmed == true && mounted) {
       await context.read<ConversationProvider>().deleteConversation(convo.id);
@@ -81,26 +66,23 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     final convProvider = context.watch<ConversationProvider>();
     final conversations = convProvider.conversations;
 
-    return Scaffold(
-      backgroundColor: _c.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            AppHeader(
-              actionIcon: Icons.refresh_rounded,
-              actionTooltip: 'Refresh',
-              onActionPressed: () => convProvider.loadConversations(),
-            ),
-            Expanded(
-              child: convProvider.isLoading && conversations.isEmpty
-                  ? _skeleton()
-                  : conversations.isEmpty
-                      ? _emptyState()
-                      : _list(conversations),
-            ),
-          ],
-        ),
+    return ColoredBox(
+      color: context.theme.colors.background,
+      child: Column(
+        children: [
+          AppHeader(
+            actionIcon: Icons.refresh_rounded,
+            actionTooltip: 'Refresh',
+            onActionPressed: () => convProvider.loadConversations(),
+          ),
+          Expanded(
+            child: convProvider.isLoading && conversations.isEmpty
+                ? _skeleton()
+                : conversations.isEmpty
+                    ? _emptyState()
+                    : _list(conversations),
+          ),
+        ],
       ),
     );
   }
@@ -176,9 +158,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
       child: AppCard(
         padding: const EdgeInsets.all(16),
         radius: 16,
-        child: InkWell(
+        child: GestureDetector(
           onTap: () => _openChat(convo),
-          borderRadius: BorderRadius.circular(16),
           child: Row(
             children: [
               Container(
@@ -311,13 +292,9 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
   }
 
   Widget _skeletonItem() {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _c.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _c.border),
-      ),
+      radius: 16,
       child: Row(
         children: [
           SkeletonLoader(width: 42, height: 42, borderRadius: BorderRadius.circular(12)),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
@@ -8,6 +9,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/app_header.dart';
+import '../widgets/app_input.dart';
 import '../widgets/skeleton_loader.dart';
 import 'package:go_router/go_router.dart';
 
@@ -65,7 +67,6 @@ class _EventsScreenState extends State<EventsScreen> {
     try {
       final events = await ApiService.getEvents();
       final pastEvents = events.where((e) => e.status == 'completed').toList();
-      // Load stats for all past events in parallel
       final statsResults = await Future.wait(
         pastEvents.map((e) => ApiService.getEventStats(e.id).catchError((_) => <String, dynamic>{})),
       );
@@ -106,15 +107,13 @@ class _EventsScreenState extends State<EventsScreen> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _c.background,
+      color: context.theme.colors.background,
       child: Column(
         children: [
           AppHeader(
-            onNotificationPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Notifications are UI-only for now.'),
-                behavior: SnackBarBehavior.floating,
-              ),
+            onNotificationPressed: () => showFToast(
+              context: context,
+              title: const Text('Notifications are UI-only for now.'),
             ),
             actionIcon: Icons.add_rounded,
             actionTooltip: 'Add Event',
@@ -171,12 +170,12 @@ class _EventsScreenState extends State<EventsScreen> {
         children: [
           Text(
             'Failed to load events.',
-            style: TextStyle(fontSize: 16, color: _c.textSecondary),
+            style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
           ),
           const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _loadEvents,
-            style: FilledButton.styleFrom(backgroundColor: _c.accent),
+          FButton(
+            variant: FButtonVariant.primary,
+            onPress: _loadEvents,
             child: const Text('Retry'),
           ),
         ],
@@ -190,7 +189,7 @@ class _EventsScreenState extends State<EventsScreen> {
       child: Center(
         child: Text(
           message,
-          style: TextStyle(fontSize: 14, color: _c.textMuted),
+          style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
         ),
       ),
     );
@@ -206,21 +205,19 @@ class _EventsScreenState extends State<EventsScreen> {
       children: [
         Text(
           'Network Hub',
-          style: TextStyle(
-            fontSize: 24,
+          style: context.theme.typography.xl2.copyWith(
             fontWeight: FontWeight.w600,
             letterSpacing: -0.48,
-            color: _c.textPrimary,
+            color: context.theme.colors.foreground,
           ),
         ),
         const SizedBox(height: 10),
         Text(
           '${_events.length} TOTAL SCHEDULED EVENTS',
-          style: TextStyle(
-            fontSize: 12,
+          style: context.theme.typography.xs.copyWith(
             fontWeight: FontWeight.w500,
             letterSpacing: 3.2,
-            color: _c.textSecondary,
+            color: context.theme.colors.mutedForeground,
           ),
         ),
       ],
@@ -230,32 +227,16 @@ class _EventsScreenState extends State<EventsScreen> {
   Widget _buildNewEventButton() {
     return SizedBox(
       width: double.infinity,
-      height: 58,
-      child: FilledButton(
-        onPressed: _showNewEventSheet,
-        style: FilledButton.styleFrom(
-          backgroundColor: _c.accent,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
+      child: FButton(
+        variant: FButtonVariant.primary,
+        onPress: _showNewEventSheet,
+        prefix: const Icon(Icons.add, size: 22),
+        child: Text(
+          'NEW EVENT',
+          style: context.theme.typography.xs.copyWith(
+            fontWeight: FontWeight.w500,
+            letterSpacing: 3.2,
           ),
-          elevation: 0,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.add, size: 22),
-            const SizedBox(width: 12),
-            Text(
-              'NEW EVENT',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 3.2,
-                color: Colors.white,
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -267,7 +248,7 @@ class _EventsScreenState extends State<EventsScreen> {
       decoration: BoxDecoration(
         color: _c.surfaceElevated,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _c.border),
+        border: Border.all(color: context.theme.colors.border),
       ),
       child: Row(
         children: [
@@ -280,13 +261,13 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   Widget _buildTabButton({required String label, required bool isActive}) {
-    return InkWell(
+    return GestureDetector(
       onTap: () => setState(() => _showUpcoming = label == 'UPCOMING'),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
-          color: isActive ? _c.surface : Colors.transparent,
+          color: isActive ? context.theme.colors.secondary : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
           boxShadow: isActive
               ? [
@@ -300,11 +281,10 @@ class _EventsScreenState extends State<EventsScreen> {
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
+          style: context.theme.typography.xs.copyWith(
             fontWeight: FontWeight.w600,
             letterSpacing: 1.2,
-            color: isActive ? _c.textPrimary : _c.textMuted,
+            color: isActive ? context.theme.colors.foreground : context.theme.colors.mutedForeground,
           ),
         ),
       ),
@@ -327,18 +307,17 @@ class _EventsScreenState extends State<EventsScreen> {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: _c.destructive,
+                    color: context.theme.colors.error,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   'LIVE FLOOR AVAILABLE',
-                  style: TextStyle(
-                    fontSize: 10,
+                  style: context.theme.typography.xs.copyWith(
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.4,
-                    color: _c.textPrimary,
+                    color: context.theme.colors.foreground,
                   ),
                 ),
               ],
@@ -351,20 +330,20 @@ class _EventsScreenState extends State<EventsScreen> {
               Expanded(
                 child: Text(
                   event.name,
-                  style: TextStyle(
-                    fontSize: 20,
+                  style: context.theme.typography.xl.copyWith(
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.2,
-                    color: _c.textPrimary,
+                    color: context.theme.colors.foreground,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              InkWell(
-                onTap: () => _showEventActionsSheet(event),
+              FButton(
+                variant: FButtonVariant.ghost,
+                onPress: () => _showEventActionsSheet(event),
                 child: Icon(
                   Icons.more_vert,
-                  color: _c.accent,
+                  color: context.theme.colors.primary,
                   size: 22,
                 ),
               ),
@@ -383,24 +362,14 @@ class _EventsScreenState extends State<EventsScreen> {
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            height: 56,
-            child: FilledButton(
-              onPressed: () => isOngoing ? _openEventFloor(event) : _openPrepScreen(event),
-              style: FilledButton.styleFrom(
-                backgroundColor: _c.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                elevation: 0,
-              ),
+            child: FButton(
+              variant: FButtonVariant.primary,
+              onPress: () => isOngoing ? _openEventFloor(event) : _openPrepScreen(event),
               child: Text(
                 isOngoing ? 'ENTER LIVE FLOOR' : 'PREPARE',
-                style: TextStyle(
-                  fontSize: 12,
+                style: context.theme.typography.xs.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: 2.4,
-                  color: Colors.white,
                 ),
               ),
             ),
@@ -428,7 +397,6 @@ class _EventsScreenState extends State<EventsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -438,30 +406,27 @@ class _EventsScreenState extends State<EventsScreen> {
                   children: [
                     Text(
                       event.name,
-                      style: TextStyle(
-                        fontSize: 18,
+                      style: context.theme.typography.lg.copyWith(
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.3,
-                        color: _c.textPrimary,
+                        color: context.theme.colors.foreground,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       dateLocation,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _c.textMuted,
+                      style: context.theme.typography.xs.copyWith(
+                        color: context.theme.colors.mutedForeground,
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              AppChip.status('COMPLETED', color: _c.textSecondary),
+              AppChip.status('COMPLETED', color: context.theme.colors.secondaryForeground),
             ],
           ),
           const SizedBox(height: 16),
-          // Progress bar
           Row(
             children: [
               Expanded(
@@ -469,10 +434,9 @@ class _EventsScreenState extends State<EventsScreen> {
               ),
               Text(
                 '${(followUpPct * 100).round()}%',
-                style: TextStyle(
-                  fontSize: 11,
+                style: context.theme.typography.xs.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: followUpPct >= 1.0 ? _c.success : _c.accent,
+                  color: followUpPct >= 1.0 ? _c.success : context.theme.colors.primary,
                 ),
               ),
             ],
@@ -489,7 +453,7 @@ class _EventsScreenState extends State<EventsScreen> {
                   widthFactor: followUpPct,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: followUpPct >= 1.0 ? _c.success : _c.accent,
+                      color: followUpPct >= 1.0 ? _c.success : context.theme.colors.primary,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -498,44 +462,33 @@ class _EventsScreenState extends State<EventsScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          // Stats row
           AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             radius: 16,
             elevated: true,
             child: Row(
               children: [
-                _buildStatCell('Contacts', '$totalContacts', _c.textPrimary),
+                _buildStatCell('Contacts', '$totalContacts', context.theme.colors.foreground),
                 _buildStatDivider(),
-                _buildStatCell('Pending', '$pending', pending > 0 ? _c.accent : _c.textMuted),
+                _buildStatCell('Pending', '$pending', pending > 0 ? context.theme.colors.primary : context.theme.colors.mutedForeground),
                 _buildStatDivider(),
-                _buildStatCell('Skipped', '$skipped', skipped > 0 ? _c.destructive : _c.textMuted),
+                _buildStatCell('Skipped', '$skipped', skipped > 0 ? context.theme.colors.error : context.theme.colors.mutedForeground),
                 _buildStatDivider(),
-                _buildStatCell('Done', '$done', done > 0 ? _c.success : _c.textMuted),
+                _buildStatCell('Done', '$done', done > 0 ? _c.success : context.theme.colors.mutedForeground),
               ],
             ),
           ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
-            child: FilledButton(
-              onPressed: () => _openFollowUpQueue(event),
-              style: FilledButton.styleFrom(
-                backgroundColor: _c.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                elevation: 0,
-              ),
-              child: const Text(
+            child: FButton(
+              variant: FButtonVariant.primary,
+              onPress: () => _openFollowUpQueue(event),
+              child: Text(
                 'FOLLOW-UP QUEUE',
-                style: TextStyle(
-                  fontSize: 12,
+                style: context.theme.typography.xs.copyWith(
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.6,
-                  color: Colors.white,
                 ),
               ),
             ),
@@ -551,8 +504,7 @@ class _EventsScreenState extends State<EventsScreen> {
         children: [
           Text(
             value,
-            style: TextStyle(
-              fontSize: 18,
+            style: context.theme.typography.lg.copyWith(
               fontWeight: FontWeight.w700,
               color: valueColor,
               letterSpacing: -0.3,
@@ -569,7 +521,7 @@ class _EventsScreenState extends State<EventsScreen> {
     return Container(
       width: 1,
       height: 28,
-      color: _c.border,
+      color: context.theme.colors.border,
       margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
@@ -577,15 +529,14 @@ class _EventsScreenState extends State<EventsScreen> {
   Widget _buildUpcomingMetaRow(IconData icon, String value) {
     return Row(
       children: [
-        Icon(icon, color: _c.accent, size: 18),
+        Icon(icon, color: context.theme.colors.primary, size: 18),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(
-              fontSize: 14,
+            style: context.theme.typography.sm.copyWith(
               fontWeight: FontWeight.w400,
-              color: _c.textSecondary,
+              color: context.theme.colors.mutedForeground,
             ),
           ),
         ),
@@ -602,7 +553,6 @@ class _EventsScreenState extends State<EventsScreen> {
         ),
       ),
     );
-    // Refresh stats for this event when returning so completion % is up to date
     if (!mounted) return;
     final updated = await ApiService.getEventStats(event.id).catchError((_) => <String, dynamic>{});
     if (!mounted) return;
@@ -630,8 +580,9 @@ class _EventsScreenState extends State<EventsScreen> {
     _startDateController.clear();
     _endDateController.clear();
 
-    showModalBottomSheet(
+    showFSheet(
       context: context,
+      side: FLayout.btt,
       builder: (sheetContext) => _NewEventSheet(
         nameController: _eventNameController,
         locationController: _locationController,
@@ -641,23 +592,13 @@ class _EventsScreenState extends State<EventsScreen> {
         onSave: (isOneDay) => _saveEvent(sheetContext, isOneDay),
         onCancel: () => Navigator.of(sheetContext).pop(),
       ),
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
     );
   }
 
   Future<void> _saveEvent(BuildContext sheetContext, bool isOneDay) async {
     final name = _eventNameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(sheetContext).showSnackBar(
-        const SnackBar(
-          content: Text('Event name is required.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFToast(context: sheetContext, title: const Text('Event name is required.'));
       return;
     }
 
@@ -668,12 +609,7 @@ class _EventsScreenState extends State<EventsScreen> {
 
     final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
     if (DateTime.parse(startDate).isBefore(today)) {
-      ScaffoldMessenger.of(sheetContext).showSnackBar(
-        const SnackBar(
-          content: Text('Event start date cannot be in the past.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFToast(context: sheetContext, title: const Text('Event start date cannot be in the past.'));
       return;
     }
 
@@ -697,21 +633,11 @@ class _EventsScreenState extends State<EventsScreen> {
       await _loadEvents();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Event created successfully.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showFToast(context: context, title: const Text('Event created successfully.'));
       }
     } catch (_) {
       if (sheetContext.mounted) {
-        ScaffoldMessenger.of(sheetContext).showSnackBar(
-          const SnackBar(
-            content: Text('Server error — please try again.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showFToast(context: sheetContext, title: const Text('Server error — please try again.'));
       }
     }
   }
@@ -725,8 +651,9 @@ class _EventsScreenState extends State<EventsScreen> {
         ? '${event.endDate!.year}-${event.endDate!.month.toString().padLeft(2, '0')}-${event.endDate!.day.toString().padLeft(2, '0')}'
         : '';
 
-    showModalBottomSheet(
+    showFSheet(
       context: context,
+      side: FLayout.btt,
       builder: (sheetContext) => _NewEventSheet(
         nameController: _eventNameController,
         locationController: _locationController,
@@ -739,20 +666,13 @@ class _EventsScreenState extends State<EventsScreen> {
         onSave: (isOneDay) => _updateEvent(sheetContext, event.id, isOneDay),
         onCancel: () => Navigator.of(sheetContext).pop(),
       ),
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
     );
   }
 
   Future<void> _updateEvent(BuildContext sheetContext, String eventId, bool isOneDay) async {
     final name = _eventNameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(sheetContext).showSnackBar(
-        const SnackBar(content: Text('Event name is required.'), behavior: SnackBarBehavior.floating),
-      );
+      showFToast(context: sheetContext, title: const Text('Event name is required.'));
       return;
     }
     final startText = _startDateController.text;
@@ -760,12 +680,7 @@ class _EventsScreenState extends State<EventsScreen> {
 
     final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
     if (startDate != null && DateTime.parse(startDate).isBefore(today)) {
-      ScaffoldMessenger.of(sheetContext).showSnackBar(
-        const SnackBar(
-          content: Text('Event start date cannot be in the past.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFToast(context: sheetContext, title: const Text('Event start date cannot be in the past.'));
       return;
     }
 
@@ -783,49 +698,43 @@ class _EventsScreenState extends State<EventsScreen> {
       if (sheetContext.mounted) Navigator.of(sheetContext).pop();
       await _loadEvents();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Event updated.'), behavior: SnackBarBehavior.floating),
-        );
+        showFToast(context: context, title: const Text('Event updated.'));
       }
     } catch (_) {
       if (sheetContext.mounted) {
-        ScaffoldMessenger.of(sheetContext).showSnackBar(
-          const SnackBar(content: Text('Server error — please try again.'), behavior: SnackBarBehavior.floating),
-        );
+        showFToast(context: sheetContext, title: const Text('Server error — please try again.'));
       }
     }
   }
 
   void _showEventActionsSheet(Event event) {
-    showModalBottomSheet(
+    showFSheet(
       context: context,
-      builder: (context) => _buildEventActionsSheet(event),
-      backgroundColor: Colors.transparent,
-      isScrollControlled: false,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      side: FLayout.btt,
+      builder: (ctx) => _buildEventActionsContent(ctx, event),
     );
   }
 
-  Widget _buildEventActionsSheet(Event event) {
+  Widget _buildEventActionsContent(BuildContext ctx, Event event) {
     return Container(
       decoration: BoxDecoration(
-        color: _c.surface,
+        color: context.theme.colors.secondary,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(top: BorderSide(color: _c.border)),
+        border: Border(top: BorderSide(color: context.theme.colors.border)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: _c.border,
-                borderRadius: BorderRadius.circular(2),
+            child: Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.theme.colors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
           ),
@@ -837,7 +746,7 @@ class _EventsScreenState extends State<EventsScreen> {
                   icon: Icons.edit_outlined,
                   label: 'Edit Event',
                   onTap: () {
-                    Navigator.of(context).pop();
+                    Navigator.of(ctx).pop();
                     _showEditEventSheet(event);
                   },
                 ),
@@ -846,51 +755,38 @@ class _EventsScreenState extends State<EventsScreen> {
                   icon: Icons.share_outlined,
                   label: 'Share Event',
                   onTap: () {
-                    Navigator.of(context).pop();
-                    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    Navigator.of(ctx).pop();
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                     final start = event.startDate;
                     final dateStr = event.endDate == null
                         ? '${months[start.month - 1]} ${start.day}, ${start.year}'
                         : '${months[start.month - 1]} ${start.day} - ${months[event.endDate!.month - 1]} ${event.endDate!.day}, ${start.year}';
                     final text = '${event.name}\n$dateStr${event.location != null ? '\n${event.location}' : ''}';
                     Clipboard.setData(ClipboardData(text: text));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Event details copied to clipboard.'), behavior: SnackBarBehavior.floating),
-                    );
+                    if (mounted) {
+                      showFToast(context: context, title: const Text('Event details copied to clipboard.'));
+                    }
                   },
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Divider(
-                    color: _c.border.withValues(alpha: 0.5),
-                    height: 1,
-                  ),
+                  child: FDivider(),
                 ),
                 _buildActionButton(
                   icon: Icons.delete_outlined,
                   label: 'Delete Event',
                   isDestructive: true,
                   onTap: () async {
-                    Navigator.of(context).pop();
+                    Navigator.of(ctx).pop();
                     try {
                       await ApiService.deleteEvent(event.id);
                       await _loadEvents();
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Event deleted.'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                        showFToast(context: context, title: const Text('Event deleted.'));
                       }
                     } catch (e) {
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to delete event: $e'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                        showFToast(context: context, title: Text('Failed to delete event: $e'));
                       }
                     }
                   },
@@ -909,26 +805,19 @@ class _EventsScreenState extends State<EventsScreen> {
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
-    final color = isDestructive ? _c.destructive : _c.textPrimary;
+    final color = isDestructive ? context.theme.colors.error : context.theme.colors.foreground;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(width: 16),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-                color: color,
-              ),
-            ),
-          ],
+    return FButton(
+      variant: FButtonVariant.ghost,
+      onPress: onTap,
+      prefix: Icon(icon, size: 20, color: color),
+      child: Expanded(
+        child: Text(
+          label,
+          style: context.theme.typography.lg.copyWith(
+            fontWeight: FontWeight.w400,
+            color: color,
+          ),
         ),
       ),
     );
@@ -938,7 +827,6 @@ class _EventsScreenState extends State<EventsScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
       children: [
-        // Header skeleton
         SkeletonLoader(
           width: 200,
           height: 28,
@@ -951,21 +839,18 @@ class _EventsScreenState extends State<EventsScreen> {
           borderRadius: BorderRadius.circular(4),
         ),
         const SizedBox(height: 18),
-        // New Event Button skeleton
         SkeletonLoader(
           width: double.infinity,
           height: 58,
           borderRadius: BorderRadius.circular(22),
         ),
         const SizedBox(height: 26),
-        // Tabs skeleton
         SkeletonLoader(
           width: double.infinity,
           height: 48,
           borderRadius: BorderRadius.circular(999),
         ),
         const SizedBox(height: 18),
-        // Event cards
         const SkeletonCard(),
         const SizedBox(height: 28),
         const SkeletonCard(),
@@ -1006,7 +891,6 @@ class _NewEventSheet extends StatefulWidget {
 }
 
 class _NewEventSheetState extends State<_NewEventSheet> {
-  ExonoColors get _c => widget.colors;
   bool _isOneDay = false;
 
   @override
@@ -1021,96 +905,42 @@ class _NewEventSheetState extends State<_NewEventSheet> {
     required String placeholder,
     IconData? icon,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 2.4,
-            color: _c.textSecondary,
-            height: 1.33,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          style: TextStyle(fontSize: 14, color: _c.textPrimary),
-          cursorColor: _c.accent,
-          decoration: InputDecoration(
-            hintText: placeholder,
-            hintStyle: TextStyle(fontSize: 14, color: _c.border),
-            prefixIcon: icon != null
-                ? Padding(
-                    padding: const EdgeInsets.only(left: 12, right: 8),
-                    child: Icon(icon, size: 20, color: _c.accent),
-                  )
-                : null,
-            prefixIconConstraints: icon != null ? const BoxConstraints(minWidth: 0) : null,
-            isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            filled: true,
-            fillColor: _c.surface,
-          ),
-        ),
-      ],
+    return AppInput(
+      label: label,
+      hint: placeholder,
+      controller: controller,
+      prefixIcon: icon != null ? Icon(icon, size: 20, color: context.theme.colors.primary) : null,
     );
   }
 
   Widget _buildDateField({required String label, required TextEditingController controller}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 2.4, color: _c.textSecondary, height: 1.33),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          readOnly: true,
-          style: TextStyle(fontSize: 14, color: _c.textPrimary),
-          onTap: () async {
-            final date = await showDatePicker(
-              context: context,
-              initialDate: DateTime.now(),
-              firstDate: DateTime(2024),
-              lastDate: DateTime(2030),
-              builder: (context, child) => Theme(
-                data: Theme.of(context).copyWith(
-                  colorScheme: ColorScheme.dark(primary: _c.accent, surface: _c.surface, onSurface: _c.textPrimary),
-                ),
-                child: child!,
+    return AppInput(
+      label: label,
+      hint: 'YYYY-MM-DD',
+      controller: controller,
+      readOnly: true,
+      onTap: () async {
+        final date = await showDatePicker(
+          context: context,
+          initialDate: DateTime.now(),
+          firstDate: DateTime(2024),
+          lastDate: DateTime(2030),
+          builder: (context, child) => Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: ColorScheme.dark(
+                primary: widget.colors.accent,
+                surface: widget.colors.surface,
+                onSurface: widget.colors.textPrimary,
               ),
-            );
-            if (date != null) {
-              controller.text = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-            }
-          },
-          decoration: InputDecoration(
-            hintText: 'YYYY-MM-DD',
-            hintStyle: TextStyle(fontSize: 14, color: _c.border),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(Icons.calendar_today_outlined, size: 18, color: _c.accent),
             ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 0),
-            isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            filled: true,
-            fillColor: _c.surface,
+            child: child!,
           ),
-          cursorColor: _c.accent,
-        ),
-      ],
+        );
+        if (date != null) {
+          controller.text = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+        }
+      },
+      prefixIcon: Icon(Icons.calendar_today_outlined, size: 18, color: context.theme.colors.primary),
     );
   }
 
@@ -1118,9 +948,9 @@ class _NewEventSheetState extends State<_NewEventSheet> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: _c.background,
+        color: context.theme.colors.background,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(top: BorderSide(color: _c.border)),
+        border: Border(top: BorderSide(color: context.theme.colors.border)),
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -1133,7 +963,10 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                 child: Container(
                   width: 40,
                   height: 4,
-                  decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(
+                    color: context.theme.colors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
             ),
@@ -1144,12 +977,21 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                 children: [
                   Text(
                     widget.title,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, letterSpacing: -0.48, color: _c.textPrimary, height: 1.2),
+                    style: context.theme.typography.xl2.copyWith(
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.48,
+                      color: context.theme.colors.foreground,
+                      height: 1.2,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Fill in the details to schedule a new event.',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: _c.textSecondary, height: 1.5),
+                    style: context.theme.typography.sm.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: context.theme.colors.mutedForeground,
+                      height: 1.5,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   _buildFormField(
@@ -1167,37 +1009,19 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                   const SizedBox(height: 18),
                   _buildDateField(label: 'Start Date', controller: widget.startDateController),
                   const SizedBox(height: 14),
-                  InkWell(
-                    onTap: () => setState(() {
-                      _isOneDay = !_isOneDay;
-                      if (_isOneDay) widget.endDateController.clear();
-                    }),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 160),
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: _isOneDay ? _c.accent : Colors.transparent,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: _isOneDay ? _c.accent : _c.border, width: 1.5),
-                            ),
-                            child: _isOneDay
-                                ? const Icon(Icons.check, size: 14, color: Colors.white)
-                                : null,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'One-day event',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: _c.textSecondary),
-                          ),
-                        ],
+                  FCheckbox(
+                    value: _isOneDay,
+                    label: Text(
+                      'One-day event',
+                      style: context.theme.typography.sm.copyWith(
+                        fontWeight: FontWeight.w400,
+                        color: context.theme.colors.mutedForeground,
                       ),
                     ),
+                    onChange: (val) => setState(() {
+                      _isOneDay = val;
+                      if (_isOneDay) widget.endDateController.clear();
+                    }),
                   ),
                   if (!_isOneDay) ...[
                     const SizedBox(height: 14),
@@ -1206,31 +1030,31 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () => widget.onSave(_isOneDay),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _c.textPrimary,
-                        foregroundColor: _c.background,
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 2.0),
+                    child: FButton(
+                      variant: FButtonVariant.primary,
+                      onPress: () => widget.onSave(_isOneDay),
+                      child: Text(
+                        widget.saveLabel,
+                        style: context.theme.typography.xs.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 2.0,
+                        ),
                       ),
-                      child: Text(widget.saveLabel),
                     ),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: widget.onCancel,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _c.textSecondary,
-                        side: BorderSide(color: _c.border),
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 1.6),
+                    child: FButton(
+                      variant: FButtonVariant.outline,
+                      onPress: widget.onCancel,
+                      child: Text(
+                        'CANCEL',
+                        style: context.theme.typography.xs.copyWith(
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 1.6,
+                        ),
                       ),
-                      child: const Text('CANCEL'),
                     ),
                   ),
                   const SizedBox(height: 24),

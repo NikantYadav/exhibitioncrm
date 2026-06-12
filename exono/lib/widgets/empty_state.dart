@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 
 /// Empty state widget for when there's no data to display
@@ -55,8 +56,9 @@ class EmptyState extends StatelessWidget {
             ],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: onAction,
+              FButton(
+                variant: FButtonVariant.primary,
+                onPress: onAction,
                 child: Text(actionLabel!),
               ),
             ],

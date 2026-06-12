@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 
 enum AppFilterRowStyle {
-  /// Outlined pills — active item gets a white/textPrimary border.
-  /// Used in offline_mode_screen (reference).
+  /// Outlined pills — active item gets textPrimary border.
   outline,
 
   /// Filled pills — active item gets accent background fill.
-  /// Used in dashboard_screen.
   filled,
 }
 
-/// Horizontal scrollable pill-filter row.
-/// Sourced from offline_mode_screen's `_buildFilterRow` pattern.
+/// Horizontal scrollable pill-filter row backed by [FButton].
 ///
 /// AppFilterRow(
 ///   filters: ['All', 'Must Meet', 'Met', 'Remaining'],
@@ -43,14 +41,14 @@ class AppFilterRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: padding,
         itemCount: filters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
+        separatorBuilder: (ctx, i) => const SizedBox(width: 8),
+        itemBuilder: (ctx, index) {
           final filter = filters[index];
           final isActive = filter == selected;
-          return _FilterChip(
+          return _FilterPill(
             label: filter,
             isActive: isActive,
-            style: style,
+            rowStyle: style,
             onTap: () => onSelect(filter),
           );
         },
@@ -59,16 +57,16 @@ class AppFilterRow extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
+class _FilterPill extends StatelessWidget {
   final String label;
   final bool isActive;
-  final AppFilterRowStyle style;
+  final AppFilterRowStyle rowStyle;
   final VoidCallback onTap;
 
-  const _FilterChip({
+  const _FilterPill({
     required this.label,
     required this.isActive,
-    required this.style,
+    required this.rowStyle,
     required this.onTap,
   });
 
@@ -76,57 +74,60 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppTheme.colorsOf(context);
 
+    // For outline style: active = outline variant (bordered), inactive = ghost.
+    // For filled style: active = primary (accent fill), inactive = ghost.
+    final FButtonVariant variant;
+    if (rowStyle == AppFilterRowStyle.filled) {
+      variant = isActive ? FButtonVariant.primary : FButtonVariant.ghost;
+    } else {
+      // outline row: use a custom decorated container for precise pill styling
+      return _outlinePill(context, c);
+    }
+
+    return FButton(
+      variant: variant,
+      size: FButtonSizeVariant.sm,
+      onPress: onTap,
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.9,
+          color: isActive
+              ? (c.isDark ? c.background : Colors.white)
+              : c.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  /// Outline-style pill rendered as an [InkWell] + [AnimatedContainer] so we
+  /// keep the exact Exono look (border-only active state, no fill).
+  Widget _outlinePill(BuildContext context, ExonoColors c) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: _decoration(c),
-        alignment: Alignment.center,
-        child: Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: style == AppFilterRowStyle.filled ? 10 : 11,
-            fontWeight: style == AppFilterRowStyle.filled
-                ? FontWeight.w700
-                : FontWeight.w500,
-            letterSpacing: style == AppFilterRowStyle.filled ? 0.9 : 1.2,
-            color: _textColor(c),
-          ),
-        ),
-      ),
-    );
-  }
-
-  BoxDecoration _decoration(ExonoColors c) {
-    switch (style) {
-      case AppFilterRowStyle.outline:
-        return BoxDecoration(
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: isActive ? c.textPrimary : c.border,
           ),
-        );
-      case AppFilterRowStyle.filled:
-        return BoxDecoration(
-          color: isActive ? c.accent : c.accentSoft,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isActive ? c.accent.withValues(alpha: 0.4) : c.border,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 1.2,
+            color: isActive ? c.textPrimary : c.textMuted,
           ),
-        );
-    }
-  }
-
-  Color _textColor(ExonoColors c) {
-    switch (style) {
-      case AppFilterRowStyle.outline:
-        return isActive ? c.textPrimary : c.textMuted;
-      case AppFilterRowStyle.filled:
-        return isActive
-            ? (c.isDark ? c.background : Colors.white)
-            : c.textSecondary;
-    }
+        ),
+      ),
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -47,10 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load chat: $e'),
-              backgroundColor: AppTheme.destructive),
-        );
+        showFToast(context: context, title: Text('Failed to load chat: $e'));
       }
     } finally {
       if (mounted) {
@@ -84,10 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _scrollToBottom();
       final err = provider.error;
       if (err != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $err'),
-              backgroundColor: AppTheme.destructive),
-        );
+        showFToast(context: context, title: Text('Error: $err'));
       }
     });
     _scrollToBottom();
@@ -308,9 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppTheme.stone400)),
+                      child: FCircularProgress()),
               ],
             ),
           ),
@@ -411,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2)),
+                child: FCircularProgress()),
         ],
       ),
     );
@@ -488,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2))),
+                            child: FCircularProgress())),
                   );
                 }
                 final msgIndex =
@@ -585,9 +578,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white)))
+                              child: FCircularProgress()))
                       : const Icon(Icons.send_rounded,
                           color: Colors.white, size: 20),
                 ),

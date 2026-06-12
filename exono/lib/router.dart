@@ -19,6 +19,7 @@ import 'screens/live_home_screen.dart';
 import 'screens/meetings_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/account_settings_screen.dart';
+import 'screens/voice_contact_capture_screen.dart';
 
 GoRouter buildRouter(AuthProvider auth) {
   return GoRouter(
@@ -43,6 +44,7 @@ GoRouter buildRouter(AuthProvider auth) {
 
       // ── Capture — full-screen modal, no nav shell ─────────────────────────
       GoRoute(path: '/capture', builder: (_, __) => const CaptureScreen()),
+      GoRoute(path: '/voice-capture', builder: (_, __) => const VoiceContactCaptureScreen()),
 
       // ── Live event floor — full-screen (no nav shell) ──────────────────────
       GoRoute(path: '/live-event', builder: (_, __) => const LiveHomeScreen()),

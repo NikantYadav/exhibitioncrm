@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_feedback.dart';
+import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 
@@ -125,14 +129,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   }
 
   void _snack(String message, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: error ? _c.destructive : _c.success,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    showAppToast(context, message);
   }
 
   // ── Build ───────────────────────────────────────────────────────────────────
@@ -142,14 +139,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     final auth = context.watch<AuthProvider>();
     final isLoading = auth.profile == null || auth.user == null;
 
-    return Scaffold(
-      backgroundColor: _c.background,
-      body: DecoratedBox(
-        decoration: AppTheme.appBackground(context),
-        child: SafeArea(
-          bottom: false,
-          child: isLoading ? _buildSkeleton() : _buildBody(auth),
-        ),
+    return DecoratedBox(
+      decoration: AppTheme.appBackground(context),
+      child: SafeArea(
+        bottom: false,
+        child: isLoading ? _buildSkeleton() : _buildBody(auth),
       ),
     );
   }
@@ -164,15 +158,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       ),
       child: Row(
         children: [
-          IconButton(
+          AppButton(
             onPressed: () => context.go('/'),
-            icon: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 20),
-            style: IconButton.styleFrom(
-              backgroundColor: _c.surface,
-              side: BorderSide(color: _c.border),
-              padding: const EdgeInsets.all(10),
-              minimumSize: const Size(40, 40),
-            ),
+            variant: ButtonVariant.outline,
+            size: ButtonSize.sm,
+            child: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -361,21 +351,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ],
 
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _startEditing,
-              icon: Icon(Icons.edit_rounded, size: 15, color: _c.accent),
-              label: Text(
-                hasContent ? 'EDIT PROFILE' : 'COMPLETE PROFILE',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _c.accent),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                side: BorderSide(color: _c.accent.withValues(alpha: 0.5)),
-              ),
-            ),
+          AppButton(
+            label: hasContent ? 'EDIT PROFILE' : 'COMPLETE PROFILE',
+            onPressed: _startEditing,
+            variant: ButtonVariant.outline,
+            fullWidth: true,
           ),
         ],
       ),
@@ -433,7 +413,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             ],
           ),
         ),
-        if (!isLast) Divider(height: 1, thickness: 1, color: _c.border),
+        if (!isLast) FDivider(),
       ],
     );
   }
@@ -489,23 +469,22 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: AppButton(
+                  label: 'CANCEL',
                   onPressed: _isSavingProfile ? null : _cancelEditing,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                    side: BorderSide(color: _c.border),
-                  ),
-                  child: Text(
-                    'CANCEL',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _c.textSecondary),
-                  ),
+                  variant: ButtonVariant.outline,
+                  fullWidth: true,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 flex: 2,
-                child: _primaryButton(label: 'Save Profile', loading: _isSavingProfile, onPressed: _saveProfile),
+                child: AppButton(
+                  label: 'SAVE PROFILE',
+                  onPressed: _isSavingProfile ? null : _saveProfile,
+                  isLoading: _isSavingProfile,
+                  fullWidth: true,
+                ),
               ),
             ],
           ),
@@ -636,18 +615,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              Switch.adaptive(
+              FSwitch(
                 value: value,
-                activeThumbColor: _c.isDark ? _c.background : Colors.white,
-                activeTrackColor: _c.accent.withValues(alpha: 0.5),
-                inactiveThumbColor: _c.textMuted,
-                inactiveTrackColor: _c.border,
-                onChanged: onChanged,
+                onChange: onChanged,
               ),
             ],
           ),
         ),
-        if (!isLast) Divider(height: 1, thickness: 1, color: _c.border, indent: 16, endIndent: 16),
+        if (!isLast) FDivider(),
       ],
     );
   }
@@ -664,9 +639,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     final color = destructive ? _c.destructive : _c.accent;
     return Column(
       children: [
-        InkWell(
+        GestureDetector(
           onTap: loading ? null : onTap,
-          borderRadius: BorderRadius.circular(20),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -683,10 +657,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                       ? SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(color),
-                          ),
+                          child: FCircularProgress(),
                         )
                       : Icon(icon, size: 18, color: color),
                 ),
@@ -707,7 +678,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             ),
           ),
         ),
-        if (!isLast) Divider(height: 1, thickness: 1, color: _c.border, indent: 16, endIndent: 16),
+        if (!isLast) FDivider(),
       ],
     );
   }
@@ -732,62 +703,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: _c.textMuted),
         ),
         const SizedBox(height: 6),
-        TextField(
+        AppInput(
           controller: ctrl,
+          hint: hint,
           maxLines: lines,
           keyboardType: keyboard,
-          style: TextStyle(fontSize: 14, color: _c.textPrimary),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: _c.textMuted, fontSize: 13),
-            filled: true,
-            fillColor: _c.surfaceAlt,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _c.accent, width: 1.5),
-            ),
-          ),
         ),
       ],
-    );
-  }
-
-  Widget _primaryButton({
-    required String label,
-    required bool loading,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton(
-        onPressed: loading ? null : onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: _c.accent,
-          foregroundColor: _c.isDark ? _c.background : Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.6),
-        ),
-        child: loading
-            ? SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(_c.isDark ? _c.background : Colors.white),
-                ),
-              )
-            : Text(label.toUpperCase()),
-      ),
     );
   }
 

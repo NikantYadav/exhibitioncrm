@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 
-/// Three chip variants, all sourced from offline_mode_screen patterns.
+/// Three chip variants backed by [FBadge].
 ///
 /// AppChip('AI & Robotics')                         — outlined pill tag
 /// AppChip.label('BOOTH B-04')                      — filled rect badge
@@ -39,56 +40,76 @@ class AppChip extends StatelessWidget {
 
     switch (_variant) {
       case _AppChipVariant.tag:
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: color ?? c.border),
-          ),
-          child: Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: textColor ?? c.textMuted,
+        return FBadge(
+          variant: FBadgeVariant.outline,
+          style: FBadgeStyleDelta.delta(
+            decoration: DecorationDelta.shapeDelta(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+                side: BorderSide(color: color ?? c.border),
+              ),
+              color: Colors.transparent,
+            ),
+            contentStyle: FBadgeContentStyleDelta.delta(
+              labelTextStyle: TextStyleDelta.delta(
+                color: textColor ?? c.textMuted,
+                fontWeight: FontWeight.w500,
+                fontSize: 10,
+              ),
+              padding: EdgeInsetsGeometryDelta.value(
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              ),
             ),
           ),
+          child: Text(label.toUpperCase()),
         );
 
       case _AppChipVariant.labelBadge:
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: color ?? c.surfaceElevated,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-              color: textColor ?? c.textMuted,
+        return FBadge(
+          variant: FBadgeVariant.secondary,
+          style: FBadgeStyleDelta.delta(
+            decoration: DecorationDelta.boxDelta(
+              color: color ?? c.surfaceElevated,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.transparent),
+            ),
+            contentStyle: FBadgeContentStyleDelta.delta(
+              labelTextStyle: TextStyleDelta.delta(
+                color: textColor ?? c.textMuted,
+                fontWeight: FontWeight.w700,
+                fontSize: 9,
+                letterSpacing: 0.8,
+              ),
+              padding: EdgeInsetsGeometryDelta.value(
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              ),
             ),
           ),
+          child: Text(label.toUpperCase()),
         );
 
       case _AppChipVariant.status:
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: textColor ?? c.surface,
+        return FBadge(
+          variant: FBadgeVariant.primary,
+          style: FBadgeStyleDelta.delta(
+            decoration: DecorationDelta.boxDelta(
+              color: color,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.transparent),
+            ),
+            contentStyle: FBadgeContentStyleDelta.delta(
+              labelTextStyle: TextStyleDelta.delta(
+                color: textColor ?? c.surface,
+                fontWeight: FontWeight.w800,
+                fontSize: 9,
+                letterSpacing: 0.8,
+              ),
+              padding: EdgeInsetsGeometryDelta.value(
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              ),
             ),
           ),
+          child: Text(label.toUpperCase()),
         );
     }
   }

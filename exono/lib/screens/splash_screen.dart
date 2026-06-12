@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
@@ -167,10 +168,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                               SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.colorsOf(context).accentStrong),
-                                ),
+                                child: const FCircularProgress(),
                               ),
                               const SizedBox(width: 12),
                               Expanded(

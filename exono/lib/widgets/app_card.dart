@@ -1,13 +1,6 @@
 import 'package:flutter/material.dart';
-import '../config/app_theme.dart';
+import 'package:forui/forui.dart';
 
-/// Drop-in card component. Wraps [child] in the standard navy-gradient card
-/// decoration. Pass [padding] to avoid a separate Container wrapper.
-///
-/// Usage:
-///   AppCard(padding: EdgeInsets.all(16), child: ...)
-///   AppCard(radius: 28, child: ...)
-///   AppCard(elevated: true, child: ...)   // slightly raised surface
 class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -20,7 +13,7 @@ class AppCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding,
-    this.radius = AppTheme.radiusCard,
+    this.radius = 16,
     this.elevated = false,
     this.borderColor,
     this.extraShadow,
@@ -28,23 +21,26 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    BoxDecoration deco = AppTheme.cardDecoration(
-      context,
-      radius: radius,
-      elevated: elevated,
-    );
-
+    // If caller wants a custom border color or shadow, apply a delta on top of the forui theme style.
     if (borderColor != null || extraShadow != null) {
-      deco = deco.copyWith(
-        border: borderColor != null ? Border.all(color: borderColor!) : deco.border,
-        boxShadow: extraShadow,
+      final baseStyle = context.theme.cardStyle;
+      final baseDeco = baseStyle.decoration as ShapeDecoration?;
+      final newDeco = ShapeDecoration(
+        color: baseDeco?.color,
+        shape: baseDeco?.shape ?? RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radius),
+          side: borderColor != null ? BorderSide(color: borderColor!) : BorderSide.none,
+        ),
+        shadows: extraShadow,
+      );
+      return FCard.raw(
+        style: FCardStyleDelta.delta(decoration: DecorationDelta.value(newDeco)),
+        child: padding != null ? Padding(padding: padding!, child: child) : child,
       );
     }
 
-    return Container(
-      padding: padding,
-      decoration: deco,
-      child: child,
+    return FCard.raw(
+      child: padding != null ? Padding(padding: padding!, child: child) : child,
     );
   }
 }

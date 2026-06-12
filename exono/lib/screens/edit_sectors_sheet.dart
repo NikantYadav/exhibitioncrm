@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
+import '../widgets/app_input.dart';
 
 Future<List<String>?> showEditSectorsSheet(
   BuildContext context, {
   required List<String> initialSelection,
 }) {
-  return showModalBottomSheet<List<String>>(
+  return showFSheet<List<String>>(
     context: context,
-    isScrollControlled: true,
-    useSafeArea: false,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.50),
+    side: FLayout.btt,
     builder: (_) => _EditSectorsSheet(initialSelection: initialSelection),
   );
 }
@@ -132,43 +131,14 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
                   decoration: BoxDecoration(
                     border: Border(bottom: BorderSide(color: _c.border)),
                   ),
-                  child: TextField(
+                  child: AppInput(
                     controller: _searchController,
                     onChanged: (value) => setState(() => _query = value),
-                    cursorColor: _c.textPrimary,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: _c.textPrimary,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search sectors...',
-                      hintStyle: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: _c.textMuted,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: _c.textMuted,
-                        size: 20,
-                      ),
-                      filled: true,
-                      fillColor: _c.surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: _c.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: _c.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.30),
-                        ),
-                      ),
+                    hint: 'Search sectors...',
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: _c.textMuted,
+                      size: 20,
                     ),
                   ),
                 ),
@@ -186,27 +156,11 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
                               .toList(),
                         ),
                         const SizedBox(height: 24),
-                        OutlinedButton.icon(
-                          onPressed: _addCustomSector,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text(
-                            'ADD CUSTOM SECTOR',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 1.8,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _c.textPrimary,
-                            side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.20),
-                            ),
-                            minimumSize: const Size.fromHeight(52),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
+                        FButton(
+                          variant: FButtonVariant.outline,
+                          onPress: _addCustomSector,
+                          prefix: const Icon(Icons.add, size: 18),
+                          child: const Text('ADD CUSTOM SECTOR'),
                         ),
                       ],
                     ),
@@ -220,33 +174,12 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
                   ),
                   child: SizedBox(
                     width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _selected.isEmpty
+                    child: FButton(
+                      variant: FButtonVariant.primary,
+                      onPress: _selected.isEmpty
                           ? null
                           : () => Navigator.of(context).pop(_selected.toList()),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _c.textPrimary,
-                        disabledBackgroundColor: _c.textPrimary.withValues(
-                          alpha: 0.40,
-                        ),
-                        foregroundColor: _c.textPrimary,
-                        minimumSize: const Size.fromHeight(56),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.20),
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        'SAVE',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2.0,
-                          color: _c.textPrimary,
-                        ),
-                      ),
+                      child: const Text('SAVE'),
                     ),
                   ),
                 ),
@@ -295,57 +228,27 @@ class _EditSectorsSheetState extends State<_EditSectorsSheet> {
 
   Future<void> _addCustomSector() async {
     final controller = TextEditingController();
-    final newSector = await showDialog<String>(
+    final newSector = await showFDialog<String>(
       context: context,
-      builder: (context) {
-        final _c = AppTheme.colorsOf(context);
-        return AlertDialog(
-          backgroundColor: _c.background,
-          title: Text(
-            'Add custom sector',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: _c.textPrimary,
-            ),
+      builder: (ctx, style, _) => FDialog(
+        title: const Text('Add custom sector'),
+        body: AppInput(
+          controller: controller,
+          hint: 'e.g. Mobility',
+        ),
+        actions: [
+          FButton(
+            variant: FButtonVariant.ghost,
+            onPress: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
           ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            cursorColor: _c.textPrimary,
-            style: TextStyle(color: _c.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'e.g. Mobility',
-              hintStyle: TextStyle(color: _c.textMuted),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: _c.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.30),
-                ),
-              ),
-            ),
+          FButton(
+            variant: FButtonVariant.primary,
+            onPress: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Add'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(controller.text.trim()),
-              style: FilledButton.styleFrom(
-                backgroundColor: _c.textPrimary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
 
     controller.dispose();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
 import '../widgets/skeleton_loader.dart';
@@ -92,13 +93,7 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
   _IntegrationItem get _selectedIntegration => _integrations[_selectedIndex];
 
   void _showUiOnlyMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    showFToast(context: context, title: Text(message));
   }
 
   @override
@@ -523,18 +518,10 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
                               ),
                             ),
                           ),
-                          Switch.adaptive(
+                          FSwitch(
                             value: autoSync,
-                            activeThumbColor: Colors.white,
-                            activeTrackColor: isSelected
-                                ? Colors.white.withValues(alpha: 0.35)
-                                : AppTheme.stone900.withValues(alpha: 0.35),
-                            inactiveThumbColor: AppTheme.stone400,
-                            inactiveTrackColor: AppTheme.stone200,
-                            onChanged: (value) {
-                              setState(
-                                () => _autoSyncEnabled[integration.id] = value,
-                              );
+                            onChange: (value) {
+                              setState(() => _autoSyncEnabled[integration.id] = value);
                             },
                           ),
                         ],
@@ -667,41 +654,19 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              FilledButton.icon(
-                onPressed: () => _showUiOnlyMessage(
+              FButton(variant: FButtonVariant.primary, 
+                onPress: () => _showUiOnlyMessage(
                   '${integration.title} sync triggered. This is a UI-only preview.',
                 ),
-                icon: Icon(Icons.sync_rounded, size: 18, color: Colors.white),
-                label: const Text('RUN SYNC'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.stone900,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                prefix: Icon(Icons.sync_rounded, size: 18, color: Colors.white),
+                child: const Text('RUN SYNC'),
               ),
-              OutlinedButton.icon(
-                onPressed: () => _showUiOnlyMessage(
+              FButton(variant: FButtonVariant.outline, 
+                onPress: () => _showUiOnlyMessage(
                   '${integration.title} configuration opened. Editing is UI-only for now.',
                 ),
-                icon: Icon(Icons.settings_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
-                label: const Text('CONFIGURE'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.stone800,
-                  side: BorderSide(color: AppTheme.stone300),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                prefix: Icon(Icons.settings_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
+                child: const Text('CONFIGURE'),
               ),
             ],
           ),
@@ -802,13 +767,9 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Switch.adaptive(
+          FSwitch(
             value: value,
-            activeThumbColor: Colors.white,
-            activeTrackColor: AppTheme.stone900.withValues(alpha: 0.35),
-            inactiveThumbColor: AppTheme.stone400,
-            inactiveTrackColor: AppTheme.stone200,
-            onChanged: onChanged,
+            onChange: onChanged,
           ),
         ],
       ),
@@ -994,7 +955,8 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
             color: AppTheme.stone700,
           ),
         ),
-      );
+      ],
+    );
     }
 
     Widget _buildLoadingGrid({required bool isMobile}) {
