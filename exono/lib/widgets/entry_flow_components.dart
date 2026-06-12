@@ -26,7 +26,7 @@ class EntryFlowScaffold extends StatelessWidget {
   final Widget child;
   final bool showGrid;
 
-  const EntryFlowScaffold({super.key, required this.child, this.showGrid = true});
+  const EntryFlowScaffold({super.key, required this.child, this.showGrid = false});
 
   @override
   Widget build(BuildContext context) {
@@ -36,12 +36,7 @@ class EntryFlowScaffold extends StatelessWidget {
       value: entryFlowOverlayStyle(context),
       child: Scaffold(
         backgroundColor: colors.background,
-        body: Stack(
-          children: [
-            if (showGrid) Positioned.fill(child: CustomPaint(painter: _EntryGridPainter(colors))),
-            SafeArea(child: child),
-          ],
-        ),
+        body: SafeArea(child: child),
       ),
     );
   }
