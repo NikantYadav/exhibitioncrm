@@ -560,10 +560,17 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
               const SizedBox(height: 8),
               Container(width: 36, height: 4,
                   decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
-              ListTile(
-                leading: Icon(Icons.delete_outline_rounded, color: _c.destructive),
-                title: Text('Delete goal', style: TextStyle(color: _c.destructive)),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () { Navigator.pop(context); _deleteGoal(goal, event, lep); },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(children: [
+                    Icon(Icons.delete_outline_rounded, color: _c.destructive),
+                    const SizedBox(width: 12),
+                    Text('Delete goal', style: TextStyle(color: _c.destructive, fontSize: 15)),
+                  ]),
+                ),
               ),
             ]),
           ),
@@ -1262,18 +1269,8 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                     final name = '${contact.firstName} ${contact.lastName ?? ''}'.trim();
                     final company = contact.company?.name ?? '';
                     final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
-                      leading: Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(color: c.accentSoft, borderRadius: BorderRadius.circular(8)),
-                        child: Center(child: Text(initials,
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.accent))),
-                      ),
-                      title: Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textPrimary)),
-                      subtitle: company.isNotEmpty
-                          ? Text(company, style: TextStyle(fontSize: 11, color: c.textMuted))
-                          : null,
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: () => Navigator.of(context).pop({
                         'company_id': contact.companyId,
                         'company_name': company,
@@ -1281,6 +1278,27 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                         'contact_name': name,
                         'job_title': contact.jobTitle ?? '',
                       }),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(children: [
+                          Container(
+                            width: 36, height: 36,
+                            decoration: BoxDecoration(color: c.accentSoft, borderRadius: BorderRadius.circular(8)),
+                            child: Center(child: Text(initials,
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.accent))),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textPrimary)),
+                              if (company.isNotEmpty)
+                                Text(company, style: TextStyle(fontSize: 11, color: c.textMuted)),
+                            ],
+                          )),
+                        ]),
+                      ),
                     );
                   },
                 ),

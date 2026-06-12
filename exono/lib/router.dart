@@ -10,13 +10,11 @@ import 'screens/chat_screen.dart';
 import 'screens/company_detail_screen.dart';
 import 'screens/contact_detail_screen.dart';
 import 'screens/contacts_screen.dart';
-import 'screens/event_detail_route.dart';
 import 'screens/events_screen.dart';
 import 'screens/follow_ups_screen.dart';
 import 'screens/home_default_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/live_home_screen.dart';
-import 'screens/meetings_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/account_settings_screen.dart';
 import 'screens/voice_contact_capture_screen.dart';
@@ -48,15 +46,6 @@ GoRouter buildRouter(AuthProvider auth) {
 
       // ── Live event floor — full-screen (no nav shell) ──────────────────────
       GoRoute(path: '/live-event', builder: (_, __) => const LiveHomeScreen()),
-
-      // ── Event detail — full-screen (no nav shell needed) ─────────────────
-      GoRoute(
-        path: '/events/:id',
-        builder: (_, state) {
-          final eventId = state.pathParameters['id']!;
-          return EventDetailRoute(eventId: eventId);
-        },
-      ),
 
       // ── Company detail — full-screen (no nav shell needed) ────────────────
       GoRoute(
@@ -102,10 +91,6 @@ GoRouter buildRouter(AuthProvider auth) {
           GoRoute(
             path: '/profile',
             builder: (_, __) => const AccountSettingsScreen(),
-          ),
-          GoRoute(
-            path: '/meetings',
-            builder: (_, __) => const MeetingsScreen(),
           ),
           GoRoute(
             path: '/chat-history',
