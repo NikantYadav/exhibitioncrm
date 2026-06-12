@@ -100,17 +100,13 @@ class AppBottomNav extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [colors.accent, colors.accentStrong],
-                ),
+                color: colors.isDark ? Colors.white : Colors.black,
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: AppTheme.softShadow(context),
               ),
               child: Icon(
                 Icons.qr_code_scanner_rounded,
-                color: colors.isDark ? colors.background : Colors.white,
+                color: colors.isDark ? Colors.black : Colors.white,
                 size: 26,
               ),
             ),

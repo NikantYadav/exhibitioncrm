@@ -73,10 +73,16 @@ class AppInput extends StatelessWidget {
       onSubmit: onSubmitted,
       onTap: onTap,
       prefixBuilder: prefixIcon != null
-          ? (ctx, _, variants) => prefixIcon!
+          ? (ctx, _, variants) => Padding(
+                padding: const EdgeInsets.only(left: 12, right: 4),
+                child: prefixIcon!,
+              )
           : null,
       suffixBuilder: suffixIcon != null
-          ? (ctx, _, variants) => suffixIcon!
+          ? (ctx, _, variants) => Padding(
+                padding: const EdgeInsets.only(left: 4, right: 12),
+                child: suffixIcon!,
+              )
           : null,
     );
   }

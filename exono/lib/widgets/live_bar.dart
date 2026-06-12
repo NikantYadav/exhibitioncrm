@@ -90,25 +90,13 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
       ),
       child: GestureDetector(
         onTap: widget.onTap,
-        // Extra bottom padding so the QR button floating 14px above the nav
-        // doesn't overlap this bar's content.
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Container(
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: c.accent.withValues(alpha: 0.35),
-                  blurRadius: 16,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-            ),
+        child: PhysicalShape(
+          clipper: _LiveBarNotchClipper(),
+          color: bg,
+          elevation: 8,
+          shadowColor: c.accent.withValues(alpha: 0.45),
+          child: ColoredBox(
+            color: bg,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -184,9 +172,12 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
                 // Thin divider
                 Container(height: 1, color: Colors.white.withValues(alpha: 0.12)),
 
-                // Stats row
+                // Stats row — all three on the same baseline. The bottom edge of
+                // the bar is notched (see _LiveBarNotchClipper) so the scanner
+                // button nests into the centre. Bottom padding clears the notch
+                // depth so the centre label is never clipped.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
                   child: Row(
                     children: [
                       _stat(scanned.toString(), 'Scanned', labelColor, valueColor, context),
@@ -247,4 +238,52 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
   Widget _dividerWidget(Color color) {
     return Container(width: 1, height: 28, color: color);
   }
+}
+
+/// Clips the live bar's bottom edge into a concave notch at the centre, so the
+/// floating scanner button (centred over the nav bar) nests into the bar
+/// instead of overlapping its content or leaving a gap above the nav.
+class _LiveBarNotchClipper extends CustomClipper<Path> {
+  // Geometry of the notch — a wide, shallow concave cradle for the scanner
+  // button (≈56px). Half-width controls how wide it spreads; depth how far it
+  // dips up into the bar. Kept shallow so the centre stat's label clears it.
+  static const double _notchHalfWidth = 56;
+  static const double _notchDepth = 24;
+  static const double _topRadius = 18;
+
+  @override
+  Path getClip(Size size) {
+    final w = size.width;
+    final h = size.height;
+    final cx = w / 2;
+
+    final path = Path();
+    // Start just below the top-left rounded corner.
+    path.moveTo(0, _topRadius);
+    path.quadraticBezierTo(0, 0, _topRadius, 0);
+    path.lineTo(w - _topRadius, 0);
+    path.quadraticBezierTo(w, 0, w, _topRadius);
+    // Down the right edge to the bottom.
+    path.lineTo(w, h);
+    // Along the bottom edge to the right shoulder of the notch.
+    path.lineTo(cx + _notchHalfWidth, h);
+    // Smooth concave dip up to the centre and back down — two mirrored cubics.
+    path.cubicTo(
+      cx + _notchHalfWidth * 0.45, h,
+      cx + _notchHalfWidth * 0.40, h - _notchDepth,
+      cx, h - _notchDepth,
+    );
+    path.cubicTo(
+      cx - _notchHalfWidth * 0.40, h - _notchDepth,
+      cx - _notchHalfWidth * 0.45, h,
+      cx - _notchHalfWidth, h,
+    );
+    // Remaining bottom edge to the left, then up to the start.
+    path.lineTo(0, h);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
