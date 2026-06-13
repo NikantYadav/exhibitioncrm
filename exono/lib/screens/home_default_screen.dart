@@ -221,12 +221,12 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 24),
           child: Row(children: [
-            Expanded(child: FDivider()),
+            Expanded(child: Container(height: 1, color: context.theme.colors.border)),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text('BACK AT BASE', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.4, color: context.theme.colors.mutedForeground)),
             ),
-            Expanded(child: FDivider()),
+            Expanded(child: Container(height: 1, color: context.theme.colors.border)),
           ]),
         ),
 

@@ -13,7 +13,7 @@ import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/conversation_provider.dart';
 import '../widgets/app_button.dart';
-import '../widgets/skeleton_loader.dart';
+import '../widgets/boxes_loader.dart';
 import 'app_shell.dart' show appNavBarHidden;
 import '../utils/screen_logger.dart';
 
@@ -312,7 +312,7 @@ class _ChatScreenState extends State<ChatScreen>
       builder: (context, chat, _) {
         // Full-screen loader only when loading EMPTY history for the first time
         if (chat.isLoadingHistory && chat.messages.isEmpty) {
-          return _buildChatSkeleton();
+          return const Center(child: BoxesLoader(size: 28));
         }
 
         // Error with no messages
@@ -600,15 +600,6 @@ class _ChatScreenState extends State<ChatScreen>
                       color: _c.textMuted,
                     ),
                   ),
-                  if (isUser && isOptimistic) ...[
-                    const SizedBox(width: 4),
-                    Icon(Icons.schedule_rounded,
-                        size: 10, color: _c.textMuted),
-                  ] else if (isUser && !isOptimistic) ...[
-                    const SizedBox(width: 4),
-                    Icon(Icons.done_all_rounded,
-                        size: 11, color: _c.accent),
-                  ],
                 ],
               ),
             ),
@@ -699,64 +690,6 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   // ── Input section ─────────────────────────────────────────────────────────
-
-  // ── Skeleton loading ──────────────────────────────────────────────────────
-
-  Widget _buildChatSkeleton() {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
-      itemCount: 6,
-      itemBuilder: (context, index) {
-        final isUser = index % 2 == 0;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: Align(
-            alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-            child: Column(
-              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                // Sender label skeleton
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
-                  child: SkeletonLoader(
-                    width: 60,
-                    height: 11,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                // Message bubble skeleton
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.82,
-                  ),
-                  child: SkeletonLoader(
-                    width: MediaQuery.of(context).size.width * (isUser ? 0.6 : 0.75),
-                    height: isUser ? 48 : (index % 3 == 0 ? 80 : 64),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isUser ? 16 : 4),
-                      bottomRight: Radius.circular(isUser ? 4 : 16),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Timestamp skeleton
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: SkeletonLoader(
-                    width: 50,
-                    height: 10,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   // ── Input section ─────────────────────────────────────────────────────────
 

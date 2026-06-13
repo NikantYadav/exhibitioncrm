@@ -911,37 +911,25 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                FDivider(),
-                _buildActionButton(
-                  icon: Icons.edit_outlined,
+                AppButton(
                   label: 'Edit Event',
-                  onTap: () {
+                  prefixIcon: const Icon(Icons.edit_outlined, size: 18),
+                  variant: ButtonVariant.secondary,
+                  fullWidth: true,
+                  onPressed: () {
                     Navigator.of(ctx).pop();
                     _showEditEventSheet(event);
                   },
                 ),
-                _buildActionButton(
-                  icon: Icons.share_outlined,
-                  label: 'Copy Event Details',
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    final start = event.startDate;
-                    final dateStr = event.endDate == null
-                        ? '${months[start.month - 1]} ${start.day}, ${start.year}'
-                        : '${months[start.month - 1]} ${start.day} – ${months[event.endDate!.month - 1]} ${event.endDate!.day}, ${start.year}';
-                    final text = '${event.name}\n$dateStr${event.location != null ? '\n${event.location}' : ''}';
-                    Clipboard.setData(ClipboardData(text: text));
-                    if (mounted) { showAppToast(context, 'Event details copied to clipboard.'); }
-                  },
-                ),
-                FDivider(),
-                _buildActionButton(
-                  icon: Icons.delete_outline_rounded,
+                const SizedBox(height: 8),
+                AppButton(
                   label: 'Delete Event',
-                  isDestructive: true,
-                  onTap: () async {
+                  prefixIcon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  variant: ButtonVariant.destructive,
+                  fullWidth: true,
+                  onPressed: () async {
                     Navigator.of(ctx).pop();
                     final confirmed = await showAppConfirmDialog(
                       context: context,
@@ -964,38 +952,6 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isDestructive = false,
-  }) {
-    final color = isDestructive ? context.theme.colors.error : context.theme.colors.foreground;
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                label,
-                style: context.theme.typography.lg.copyWith(
-                  fontWeight: FontWeight.w400,
-                  color: color,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

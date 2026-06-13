@@ -95,9 +95,7 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
           color: bg,
           elevation: 8,
           shadowColor: c.accent.withValues(alpha: 0.45),
-          child: ColoredBox(
-            color: bg,
-            child: Column(
+          child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Top row: dot + LIVE + event name + arrow
@@ -172,12 +170,11 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
                 // Thin divider
                 Container(height: 1, color: Colors.white.withValues(alpha: 0.12)),
 
-                // Stats row — all three on the same baseline. The bottom edge of
-                // the bar is notched (see _LiveBarNotchClipper) so the scanner
-                // button nests into the centre. Bottom padding clears the notch
-                // depth so the centre label is never clipped.
+                // Stats row — all three on the same baseline. Extra bottom
+                // padding keeps the centre stat clear of the raised scanner
+                // button that pokes up over the nav bar below.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 20),
                   child: Row(
                     children: [
                       _stat(scanned.toString(), 'Scanned', labelColor, valueColor, context),
@@ -202,7 +199,6 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
                 ),
               ],
             ),
-          ),
         ),
       ),
     );
@@ -240,43 +236,32 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
   }
 }
 
-/// Clips the live bar's bottom edge into a concave notch at the centre, so the
-/// floating scanner button (centred over the nav bar) nests into the bar
-/// instead of overlapping its content or leaving a gap above the nav.
+/// Clips the live bar with rounded top corners and a straight bottom edge.
 class _LiveBarNotchClipper extends CustomClipper<Path> {
-  static const double _notchHalfWidth = 56;
-  static const double _notchDepth = 24;
-  static const double _topRadius = 18;
+  static const double _topRadius = 28;
 
   @override
   Path getClip(Size size) {
     final w = size.width;
     final h = size.height;
-    final cx = w / 2;
 
     final path = Path();
-    // Top-left rounded corner.
+    // Top-left rounded corner (true quarter-circle arc).
     path.moveTo(0, _topRadius);
-    path.quadraticBezierTo(0, 0, _topRadius, 0);
+    path.arcToPoint(
+      Offset(_topRadius, 0),
+      radius: const Radius.circular(_topRadius),
+      clockwise: true,
+    );
     path.lineTo(w - _topRadius, 0);
     // Top-right rounded corner.
-    path.quadraticBezierTo(w, 0, w, _topRadius);
-    // Down the right edge to the bottom.
+    path.arcToPoint(
+      Offset(w, _topRadius),
+      radius: const Radius.circular(_topRadius),
+      clockwise: true,
+    );
+    // Down the right edge, straight along the bottom, back up the left edge.
     path.lineTo(w, h);
-    // Along the bottom edge to the right shoulder of the notch.
-    path.lineTo(cx + _notchHalfWidth, h);
-    // Smooth concave dip up to the centre and back down — two mirrored cubics.
-    path.cubicTo(
-      cx + _notchHalfWidth * 0.45, h,
-      cx + _notchHalfWidth * 0.40, h - _notchDepth,
-      cx, h - _notchDepth,
-    );
-    path.cubicTo(
-      cx - _notchHalfWidth * 0.40, h - _notchDepth,
-      cx - _notchHalfWidth * 0.45, h,
-      cx - _notchHalfWidth, h,
-    );
-    // Remaining bottom edge to the left, then up to the start.
     path.lineTo(0, h);
     path.close();
     return path;

@@ -105,7 +105,7 @@ class ChatProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    await _loadHistory();
+    await _loadHistory(force: true);
 
     // Set realtime auth
     if (accessToken != null) {
@@ -117,8 +117,8 @@ class ChatProvider extends ChangeNotifier {
     _subscribeRealtime(conversationId);
   }
 
-  Future<void> _loadHistory() async {
-    if (_conversationId == null || _isLoadingHistory) return;
+  Future<void> _loadHistory({bool force = false}) async {
+    if (_conversationId == null || (!force && _isLoadingHistory)) return;
     _isLoadingHistory = true;
     notifyListeners();
 
@@ -289,6 +289,7 @@ class ChatProvider extends ChangeNotifier {
     _hasMore = true;
     _error = null;
     _isTyping = false;
+    _isLoadingHistory = true;
     notifyListeners();
   }
 }

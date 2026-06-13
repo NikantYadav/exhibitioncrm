@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/chat_provider.dart';
-import '../providers/auth_provider.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
@@ -22,6 +21,7 @@ class ChatHistoryScreen extends StatefulWidget {
 
 class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
+  bool _navigating = false;
 
   @override
   void initState() {
@@ -31,16 +31,14 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
     });
   }
 
-  void _openChat(ConversationModel convo) async {
-    final auth = context.read<AuthProvider>();
-    final chatProvider = context.read<ChatProvider>();
+  void _openChat(ConversationModel convo) {
+    if (_navigating) return;
+    _navigating = true;
+    context.read<ChatProvider>().reset();
     context.read<ConversationProvider>().setActive(convo);
-    await chatProvider.loadConversation(convo.id, accessToken: auth.accessToken);
-    if (mounted) {
-      Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute(builder: (context) => const ChatScreen()),
-      );
-    }
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(builder: (context) => const ChatScreen()),
+    ).whenComplete(() => _navigating = false);
   }
 
   void _startNewChat() {
@@ -152,11 +150,12 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
           child: Icon(Icons.delete_outline_rounded, color: _c.destructive, size: 20),
         ),
       ),
-      child: AppCard(
-        padding: const EdgeInsets.all(16),
-        radius: 16,
-        child: GestureDetector(
-          onTap: () => _openChat(convo),
+      child: GestureDetector(
+        onTap: () => _openChat(convo),
+        behavior: HitTestBehavior.opaque,
+        child: AppCard(
+          padding: const EdgeInsets.all(16),
+          radius: 16,
           child: Row(
             children: [
               Container(
@@ -175,9 +174,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
                   children: [
                     Text(
                       convo.displayTitle(),
-                      style: TextStyle(
-                        color: _c.textPrimary,
-                        fontSize: 14,
+                      style: context.theme.typography.sm.copyWith(
+                        color: context.theme.colors.foreground,
                         fontWeight: FontWeight.w600,
                         letterSpacing: -0.2,
                       ),
@@ -187,10 +185,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
                     const SizedBox(height: 3),
                     Text(
                       _formatDate(convo.updatedAt),
-                      style: TextStyle(
-                        color: _c.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w400,
+                      style: context.theme.typography.xs.copyWith(
+                        color: context.theme.colors.mutedForeground,
                       ),
                     ),
                   ],
