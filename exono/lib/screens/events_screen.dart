@@ -13,6 +13,8 @@ import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/skeleton_loader.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../providers/live_event_provider.dart';
 
 import 'event_follow_ups_screen.dart';
 import 'pre_event_prep_screen.dart';
@@ -731,6 +733,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   }
 
   void _openEventFloor(Event event) {
+    context.read<LiveEventProvider>().refresh();
     context.go('/live-event');
   }
 

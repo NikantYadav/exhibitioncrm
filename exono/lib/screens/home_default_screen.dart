@@ -211,8 +211,8 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         // ── CTA: go to full live floor ──
         AppButton(
           label: 'OPEN LIVE FLOOR',
-          prefixIcon: Icon(Icons.open_in_full_rounded, size: 16, color: _c.accent),
-          variant: ButtonVariant.outline,
+          prefixIcon: const Icon(Icons.open_in_full_rounded, size: 16, color: Colors.white),
+          variant: ButtonVariant.primary,
           fullWidth: true,
           onPressed: () => context.push('/live-event'),
         ),
