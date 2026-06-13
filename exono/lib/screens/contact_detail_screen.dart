@@ -16,6 +16,8 @@ import '../widgets/app_button.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_input.dart';
+import '../config/app_theme.dart';
+import '../widgets/app_chip.dart';
 import '../widgets/skeleton_loader.dart';
 import 'contact_links_files_sheet.dart';
 import 'log_interaction_screen.dart';
@@ -636,11 +638,12 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   }
 
   Widget _followUpBadge(String status) {
+    final c = AppTheme.colorsOf(context);
     switch (status) {
-      case 'urgent':       return FBadge(variant: FBadgeVariant.destructive, child: const Text('URGENT'));
-      case 'contacted':    return FBadge(variant: FBadgeVariant.primary,     child: const Text('CONTACTED'));
-      case 'needs_followup': return FBadge(variant: FBadgeVariant.secondary, child: const Text('FOLLOW UP'));
-      default:             return FBadge(variant: FBadgeVariant.outline,     child: const Text('NOT CONTACTED'));
+      case 'urgent':         return AppChip.status('URGENT',        color: c.destructive);
+      case 'contacted':      return AppChip.status('CONTACTED',     color: c.success);
+      case 'needs_followup': return AppChip.status('FOLLOW UP',     color: c.accent);
+      default:               return AppChip.status('NOT CONTACTED', color: c.textMuted);
     }
   }
 
@@ -826,10 +829,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           const SizedBox(height: 8),
           Wrap(
             spacing: 6, runSpacing: 6,
-            children: keyMarkets.map((m) => FBadge(
-              variant: FBadgeVariant.secondary,
-              child: Text(m),
-            )).toList(),
+            children: keyMarkets.map((m) => AppChip.label(m)).toList(),
           ),
         ],
       ],

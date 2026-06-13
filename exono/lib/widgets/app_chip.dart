@@ -3,10 +3,11 @@ import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 
 /// Three chip variants backed by [FBadge].
+/// All share the same visual style: filled rect, borderRadius 4, bold small-caps.
 ///
-/// AppChip('AI & Robotics')                         — outlined pill tag
-/// AppChip.label('BOOTH B-04')                      — filled rect badge
-/// AppChip.status('MET', color: c.textSecondary)    — filled status badge
+/// AppChip('AI & Robotics')                         — filled neutral tag
+/// AppChip.label('BOOTH B-04')                      — filled neutral badge
+/// AppChip.status('MET', color: c.success)          — filled colored status badge
 class AppChip extends StatelessWidget {
   final String label;
   final _AppChipVariant _variant;
@@ -41,20 +42,19 @@ class AppChip extends StatelessWidget {
     switch (_variant) {
       case _AppChipVariant.tag:
         return FBadge(
-          variant: FBadgeVariant.outline,
+          variant: FBadgeVariant.secondary,
           style: FBadgeStyleDelta.delta(
-            decoration: DecorationDelta.shapeDelta(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
-                side: BorderSide(color: color ?? c.border),
-              ),
-              color: Colors.transparent,
+            decoration: DecorationDelta.boxDelta(
+              color: color ?? c.surfaceElevated,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.transparent),
             ),
             contentStyle: FBadgeContentStyleDelta.delta(
               labelTextStyle: TextStyleDelta.delta(
                 color: textColor ?? c.textMuted,
-                fontWeight: FontWeight.w500,
-                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                fontSize: 9,
+                letterSpacing: 0.8,
               ),
               padding: EdgeInsetsGeometryDelta.value(
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -76,7 +76,7 @@ class AppChip extends StatelessWidget {
             contentStyle: FBadgeContentStyleDelta.delta(
               labelTextStyle: TextStyleDelta.delta(
                 color: textColor ?? c.textMuted,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
                 fontSize: 9,
                 letterSpacing: 0.8,
               ),

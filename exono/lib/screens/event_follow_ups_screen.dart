@@ -895,11 +895,14 @@ class _ContactFollowUpCard extends StatelessWidget {
                     Icon(Icons.check_circle_rounded, color: _c.success, size: 22),
                   ] else if (isSkipped) ...[
                     const SizedBox(width: 8),
-                    AppButton(
-                      label: 'UNSKIP',
-                      onPressed: onUnskip,
-                      variant: ButtonVariant.secondary,
-                      size: ButtonSize.sm,
+                    SizedBox(
+                      width: 80,
+                      child: AppButton(
+                        label: 'UNSKIP',
+                        onPressed: onUnskip,
+                        variant: ButtonVariant.secondary,
+                        size: ButtonSize.sm,
+                      ),
                     ),
                   ] else ...[
                     const SizedBox(width: 8),
@@ -931,7 +934,6 @@ class _ContactFollowUpCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FDivider(),
         // Quick action buttons (Followed Up + Skip)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
@@ -958,7 +960,7 @@ class _ContactFollowUpCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: Row(
             children: [
-              const Expanded(child: FDivider()),
+              Expanded(child: FDivider(style: FDividerStyleDelta.delta(color: context.theme.colors.border, padding: EdgeInsetsGeometryDelta.value(EdgeInsets.zero)))),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(
@@ -970,7 +972,7 @@ class _ContactFollowUpCard extends StatelessWidget {
                       color: _c.textMuted),
                 ),
               ),
-              const Expanded(child: FDivider()),
+              Expanded(child: FDivider(style: FDividerStyleDelta.delta(color: context.theme.colors.border, padding: EdgeInsetsGeometryDelta.value(EdgeInsets.zero)))),
             ],
           ),
         ),
