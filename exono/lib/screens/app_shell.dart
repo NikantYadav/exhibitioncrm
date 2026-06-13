@@ -161,7 +161,7 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
           borderRadius: BorderRadius.circular(10),
         ),
         alignment: Alignment.center,
-        child: Text('E', style: TextStyle(color: _c.isDark ? _c.background : Colors.white,
+        child: Text('E', style: TextStyle(color: Colors.white,
             fontSize: 18, fontWeight: FontWeight.w800)),
       );
     }
@@ -176,7 +176,7 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
-            child: Text('E', style: TextStyle(color: _c.isDark ? _c.background : Colors.white,
+            child: Text('E', style: TextStyle(color: Colors.white,
                 fontSize: 15, fontWeight: FontWeight.w800)),
           ),
           const SizedBox(width: 10),
@@ -297,7 +297,7 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
                   alignment: Alignment.center,
                   child: Text(name[0].toUpperCase(),
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                          color: _c.isDark ? _c.background : Colors.white)),
+                          color: Colors.white)),
                 ),
                 const SizedBox(width: 8),
                 Text(name, style: TextStyle(fontSize: 13, color: _c.textPrimary, fontWeight: FontWeight.w500)),

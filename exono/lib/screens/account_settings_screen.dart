@@ -34,7 +34,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
   late TextEditingController _websiteCtrl;
   late TextEditingController _linkedinCtrl;
   late TextEditingController _productsCtrl;
-  late TextEditingController _aboutCtrl;
   late TextEditingController _contextCtrl;
   String _aiTone = 'professional';
   bool _isSavingProfile = false;
@@ -50,7 +49,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     _websiteCtrl = TextEditingController();
     _linkedinCtrl = TextEditingController();
     _productsCtrl = TextEditingController();
-    _aboutCtrl = TextEditingController();
     _contextCtrl = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
   }
@@ -62,7 +60,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     _websiteCtrl.dispose();
     _linkedinCtrl.dispose();
     _productsCtrl.dispose();
-    _aboutCtrl.dispose();
     _contextCtrl.dispose();
     super.dispose();
   }
@@ -75,7 +72,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     _websiteCtrl.text = p?['website'] as String? ?? '';
     _linkedinCtrl.text = p?['linkedin_url'] as String? ?? '';
     _productsCtrl.text = p?['products_services'] as String? ?? '';
-    _aboutCtrl.text = p?['value_proposition'] as String? ?? '';
     _contextCtrl.text = p?['additional_context'] as String? ?? '';
     setState(() => _aiTone = p?['ai_tone'] as String? ?? 'professional');
   }
@@ -105,7 +101,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
             website: _websiteCtrl.text.trim(),
             linkedinUrl: _linkedinCtrl.text.trim(),
             productsServices: _productsCtrl.text.trim(),
-            valueProposition: _aboutCtrl.text.trim(),
             additionalContext: _contextCtrl.text.trim(),
             aiTone: _aiTone,
           );
@@ -245,7 +240,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: _c.isDark ? _c.background : Colors.white,
+                color: Colors.white,
               ),
             ),
           ),
@@ -300,13 +295,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     final website = p?['website'] as String? ?? '';
     final linkedin = p?['linkedin_url'] as String? ?? '';
     final products = p?['products_services'] as String? ?? '';
-    final valueProposition = p?['value_proposition'] as String? ?? '';
     final additionalContext = p?['additional_context'] as String? ?? '';
     final tone = p?['ai_tone'] as String? ?? 'professional';
 
     final hasContent = designation.isNotEmpty || website.isNotEmpty ||
         linkedin.isNotEmpty || products.isNotEmpty ||
-        valueProposition.isNotEmpty || additionalContext.isNotEmpty;
+        additionalContext.isNotEmpty;
 
     return AppCard(
       radius: 20,
@@ -346,7 +340,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
             if (website.isNotEmpty) _viewRow('Website', website, isLink: true),
             if (linkedin.isNotEmpty) _viewRow('LinkedIn', linkedin, isLink: true),
             if (products.isNotEmpty) _viewRow('Products & Services', products, multiLine: true),
-            if (valueProposition.isNotEmpty) _viewRow('Value Proposition', valueProposition, multiLine: true),
             if (additionalContext.isNotEmpty) _viewRow('Additional AI Context', additionalContext, multiLine: true),
             _viewRow('AI Tone', tone[0].toUpperCase() + tone.substring(1), isLast: true),
           ],
@@ -355,7 +348,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
           AppButton(
             label: hasContent ? 'EDIT PROFILE' : 'COMPLETE PROFILE',
             onPressed: _startEditing,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             fullWidth: true,
           ),
         ],
@@ -414,7 +407,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
             ],
           ),
         ),
-        if (!isLast) FDivider(),
       ],
     );
   }
@@ -460,8 +452,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
           _field(label: 'LinkedIn URL', ctrl: _linkedinCtrl, hint: 'https://linkedin.com/in/...', keyboard: TextInputType.url),
           _gap(),
           _field(label: 'Products & Services', ctrl: _productsCtrl, hint: 'What you offer...', lines: 3),
-          _gap(),
-          _field(label: 'Value Proposition', ctrl: _aboutCtrl, hint: 'Your elevator pitch...', lines: 3),
           _gap(),
           _field(label: 'Additional Context for AI', ctrl: _contextCtrl, hint: 'Extra context for personalised AI responses...', lines: 3),
           _gap(),
@@ -529,7 +519,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: active ? (_c.isDark ? _c.background : Colors.white) : _c.textSecondary,
+                        color: active ? Colors.white : _c.textSecondary,
                       ),
                     ),
                   ),
@@ -619,11 +609,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
               FSwitch(
                 value: value,
                 onChange: onChanged,
+                style: FSwitchStyleDelta.delta(
+                  trackColor: FVariantsValueDelta.delta([
+                    FVariantValueDeltaOperation.base(_c.border),
+                  ]),
+                ),
               ),
             ],
           ),
         ),
-        if (!isLast) FDivider(),
       ],
     );
   }
@@ -679,7 +673,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
             ),
           ),
         ),
-        if (!isLast) FDivider(),
       ],
     );
   }

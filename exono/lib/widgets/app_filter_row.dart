@@ -95,7 +95,7 @@ class _FilterPill extends StatelessWidget {
           fontWeight: FontWeight.w700,
           letterSpacing: 0.9,
           color: isActive
-              ? (c.isDark ? c.background : Colors.white)
+              ? Colors.white
               : c.textSecondary,
         ),
       ),
