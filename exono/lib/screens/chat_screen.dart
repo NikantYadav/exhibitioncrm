@@ -111,12 +111,6 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
 
-  Future<void> _startNewChat() async {
-    context.read<ConversationProvider>().setActive(null);
-    context.read<ChatProvider>().reset();
-    _messageController.clear();
-    setState(() => _isComposing = false);
-  }
 
   @override
   void dispose() {
@@ -248,15 +242,11 @@ class _ChatScreenState extends State<ChatScreen>
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [_c.accent, _c.accentStrong],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: _c.accent,
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.auto_awesome_rounded,
-                size: 16, color: _c.background),
+                size: 16, color: Colors.white),
           ),
           const SizedBox(width: 10),
           // Title — reactive to conversation + chat updates
@@ -309,12 +299,6 @@ class _ChatScreenState extends State<ChatScreen>
                 );
               },
             ),
-          ),
-          // New chat
-          IconButton(
-            onPressed: _startNewChat,
-            icon: Icon(Icons.edit_rounded, color: _c.accent, size: 20),
-            tooltip: 'New Chat',
           ),
         ],
       ),
@@ -406,43 +390,16 @@ class _ChatScreenState extends State<ChatScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Glowing AI orb
+            // AI orb
             Container(
-              width: 72,
-              height: 72,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [
-                    _c.accent.withValues(alpha: 0.25),
-                    _c.accentGlow.withValues(alpha: 0.1),
-                    Colors.transparent,
-                  ],
-                ),
+                color: _c.accent,
                 shape: BoxShape.circle,
               ),
-              child: Center(
-                child: Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [_c.accent, _c.accentStrong],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: _c.accentGlow.withValues(alpha: 0.6),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Icon(Icons.auto_awesome_rounded,
-                      size: 24, color: _c.background),
-                ),
-              ),
+              child: Icon(Icons.auto_awesome_rounded,
+                  size: 24, color: Colors.white),
             ),
             const SizedBox(height: 24),
             Text(
@@ -539,15 +496,11 @@ class _ChatScreenState extends State<ChatScreen>
                       width: 16,
                       height: 16,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [_c.accent, _c.accentStrong],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        color: _c.accent,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(Icons.auto_awesome_rounded,
-                          size: 9, color: _c.background),
+                          size: 9, color: Colors.white),
                     ),
                     const SizedBox(width: 5),
                     Text(
@@ -577,17 +530,7 @@ class _ChatScreenState extends State<ChatScreen>
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  gradient: isUser
-                      ? LinearGradient(
-                          colors: [_c.accent, _c.accentStrong],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : LinearGradient(
-                          colors: [_c.surface, _c.surfaceAlt],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                  color: isUser ? _c.accent : _c.surface,
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
@@ -715,15 +658,11 @@ class _ChatScreenState extends State<ChatScreen>
                     width: 16,
                     height: 16,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [_c.accent, _c.accentStrong],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: _c.accent,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(Icons.auto_awesome_rounded,
-                        size: 9, color: _c.background),
+                        size: 9, color: Colors.white),
                   ),
                   const SizedBox(width: 5),
                   Text(
@@ -739,11 +678,7 @@ class _ChatScreenState extends State<ChatScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_c.surface, _c.surfaceAlt],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: _c.surface,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),
@@ -1029,11 +964,7 @@ class _LinkedEntityCard extends StatelessWidget {
         constraints: const BoxConstraints(minWidth: 180, maxWidth: 260),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [colors.surface, colors.surfaceAlt],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: colors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colors.accent.withValues(alpha: 0.35)),
         ),

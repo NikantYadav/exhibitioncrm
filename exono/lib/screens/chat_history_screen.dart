@@ -110,11 +110,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
       child: Container(
         height: 52,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_c.accent, _c.accentStrong],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
+          color: _c.accent,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
