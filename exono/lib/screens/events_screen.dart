@@ -139,7 +139,6 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
       child: Column(
         children: [
           AppHeader(
-            onNotificationPressed: () => showAppToast(context, 'Notifications are UI-only for now.'),
             actionIcon: Icons.add_rounded,
             actionTooltip: 'Add Event',
             onActionPressed: _showNewEventSheet,

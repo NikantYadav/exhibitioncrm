@@ -293,17 +293,6 @@ router.get('/:id/timeline', async (req, res, next) => {
       notes = notesData || [];
     }
 
-    // Fetch meetings
-    let meetings: any[] = [];
-    if (!type || type === 'all' || type === 'meeting') {
-      const { data: meetingsData } = await supabase
-        .from('meeting_briefs')
-        .select('*, event:events(*)')
-        .eq('contact_id', id)
-        .order('meeting_date', { ascending: false });
-      meetings = meetingsData || [];
-    }
-
     // Fetch captures
     const { data: captures } = await supabase
       .from('captures')
@@ -311,18 +300,9 @@ router.get('/:id/timeline', async (req, res, next) => {
       .eq('contact_id', id)
       .order('created_at', { ascending: false });
 
-    // Filter duplicates
-    const meetingIds = new Set(meetings.map(m => m.id));
-    const filteredInteractions = (interactions || []).filter(i => {
-      if (i.interaction_type === 'meeting' && i.details?.meeting_id && meetingIds.has(i.details.meeting_id)) {
-        return false;
-      }
-      return true;
-    });
-
     // Combine timeline
     const timeline = [
-      ...filteredInteractions.map((i: any) => {
+      ...(interactions || []).map((i: any) => {
         const item = {
           ...i,
           type: 'interaction',
@@ -353,11 +333,6 @@ router.get('/:id/timeline', async (req, res, next) => {
         type: 'note',
         date: n.created_at
       })),
-      ...(meetings || []).map((m: any) => ({
-        ...m,
-        type: 'meeting',
-        date: m.meeting_date
-      }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     res.json({ data: timeline });
@@ -412,12 +387,10 @@ router.get('/:id/insights', async (req, res, next) => {
     console.log(`[insights] ${contactName} (${id}) — checking cache`);
 
     // ── Cache validity check ─────────────────────────────────────────────────
-    const [latestInteraction, latestNote, latestMeeting] = await Promise.all([
+    const [latestInteraction, latestNote] = await Promise.all([
       supabase.from('interactions').select('updated_at').eq('contact_id', id)
         .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('notes').select('updated_at').eq('contact_id', id)
-        .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('meeting_briefs').select('updated_at').eq('contact_id', id)
         .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
 
@@ -425,14 +398,12 @@ router.get('/:id/insights', async (req, res, next) => {
     const contactTs = new Date(contact.updated_at).getTime();
     const interactionTs = latestInteraction.data ? new Date(latestInteraction.data.updated_at).getTime() : 0;
     const noteTs = latestNote.data ? new Date(latestNote.data.updated_at).getTime() : 0;
-    const meetingTs = latestMeeting.data ? new Date(latestMeeting.data.updated_at).getTime() : 0;
-    const latestActivityTime = Math.max(contactTs, interactionTs, noteTs, meetingTs);
+    const latestActivityTime = Math.max(contactTs, interactionTs, noteTs);
 
     console.log(`[insights]   ai_insights_generated_at : ${contact.ai_insights_generated_at ?? 'none'}`);
     console.log(`[insights]   contact.updated_at       : ${contact.updated_at}${contactTs > insightsTs ? '  ← NEWER' : ''}`);
     console.log(`[insights]   latest interaction       : ${latestInteraction.data?.updated_at ?? 'none'}${interactionTs > insightsTs ? '  ← NEWER' : ''}`);
     console.log(`[insights]   latest note              : ${latestNote.data?.updated_at ?? 'none'}${noteTs > insightsTs ? '  ← NEWER' : ''}`);
-    console.log(`[insights]   latest meeting           : ${latestMeeting.data?.updated_at ?? 'none'}${meetingTs > insightsTs ? '  ← NEWER' : ''}`);
 
     if (
       contact.ai_insights &&
@@ -451,7 +422,7 @@ router.get('/:id/insights', async (req, res, next) => {
     console.log(`[insights] ✗ CACHE MISS — calling AI (reason: ${reason})`);
 
     // ── Fetch full timeline (no artificial limit) ────────────────────────────
-    const [interactionsRes, notesRes, meetingsRes] = await Promise.all([
+    const [interactionsRes, notesRes] = await Promise.all([
       supabase.from('interactions')
         .select('interaction_type, summary, details, interaction_date')
         .eq('contact_id', id)
@@ -460,10 +431,6 @@ router.get('/:id/insights', async (req, res, next) => {
         .select('content, created_at')
         .eq('contact_id', id)
         .order('created_at', { ascending: true }),
-      supabase.from('meeting_briefs')
-        .select('interaction_summary, pre_meeting_notes, post_meeting_notes, meeting_date')
-        .eq('contact_id', id)
-        .order('meeting_date', { ascending: true }),
     ]);
 
     type TimelineEntry = { text: string; date: string };
@@ -479,10 +446,6 @@ router.get('/:id/insights', async (req, res, next) => {
       ...(notesRes.data || []).map((n: any) => ({
         text: `[note] ${(n.content || '').slice(0, 1000)} (${n.created_at?.slice(0, 10)})`,
         date: n.created_at || '',
-      })),
-      ...(meetingsRes.data || []).map((m: any) => ({
-        text: `[meeting] ${(m.interaction_summary || m.pre_meeting_notes || '').slice(0, 1000)} (${m.meeting_date?.slice(0, 10)})`,
-        date: m.meeting_date || '',
       })),
     ]
       .filter(item => item.text.trim() && item.date)

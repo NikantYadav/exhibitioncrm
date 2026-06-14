@@ -156,17 +156,16 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
         child: Column(
           children: [
             AppHeader(
-              onNotificationPressed: () {},
               actionWidget: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (_isMet)
+                  if (_isMet) ...[
                     AppChip.status('MET', color: _c.success),
-                  const SizedBox(width: 4),
-                  IconButton(
+                    const SizedBox(width: 8),
+                  ],
+                  AppHeaderActionButton(
+                    icon: Icons.arrow_back_rounded,
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
-                    splashRadius: 20,
                   ),
                 ],
               ),

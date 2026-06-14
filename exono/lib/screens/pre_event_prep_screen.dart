@@ -5,11 +5,13 @@ import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
+import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import 'event_target_screen.dart';
@@ -29,6 +31,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   List<Map<String, dynamic>> _targets = [];
+  List<Map<String, dynamic>> _targetContacts = [];
   List<Map<String, dynamic>> _goals = [];
   bool _isLoading = true;
 
@@ -39,7 +42,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   }
 
   Future<void> _loadAll() async {
-    await Future.wait([_loadTargets(), _loadGoals()]);
+    await Future.wait([_loadTargets(), _loadTargetContacts(), _loadGoals()]);
   }
 
   Future<void> _loadGoals() async {
@@ -52,7 +55,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   Future<void> _addGoal() async {
     final labelCtrl = TextEditingController();
     final totalCtrl = TextEditingController(text: '1');
-    final c = _c;
     bool isCheckbox = false;
 
     await showAppSheet(
@@ -63,26 +65,20 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
           child: Padding(
             padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Add Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
+              Text('Add Goal', style: context.theme.typography.lg.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground)),
               const SizedBox(height: 20),
-              TextField(
-                controller: labelCtrl, autofocus: true,
-                style: TextStyle(color: c.textPrimary),
-                decoration: InputDecoration(
-                  hintText: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
-                  hintStyle: TextStyle(color: c.textMuted),
-                  filled: true, fillColor: c.surfaceAlt,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                ),
+              AppInput(
+                controller: labelCtrl,
+                autofocus: true,
+                hintText: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
               ),
               const SizedBox(height: 16),
               Container(
                 height: 40,
                 decoration: BoxDecoration(
-                  color: c.surfaceAlt,
+                  color: _c.surfaceAlt,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: c.border),
+                  border: Border.all(color: context.theme.colors.border),
                 ),
                 child: Stack(children: [
                   AnimatedAlign(
@@ -93,7 +89,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                       widthFactor: 0.5,
                       child: Container(
                         margin: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(999)),
+                        decoration: BoxDecoration(color: _c.accent, borderRadius: BorderRadius.circular(999)),
                       ),
                     ),
                   ),
@@ -103,8 +99,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                         onTap: () => setModalState(() => isCheckbox = true),
                         behavior: HitTestBehavior.opaque,
                         child: Center(child: Text('Checkbox',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                color: isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
+                            style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600,
+                                color: isCheckbox ? (context.theme.colors.primaryForeground) : context.theme.colors.mutedForeground))),
                       ),
                     ),
                     Expanded(
@@ -112,8 +108,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                         onTap: () => setModalState(() => isCheckbox = false),
                         behavior: HitTestBehavior.opaque,
                         child: Center(child: Text('Counted',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                color: !isCheckbox ? (c.isDark ? c.textPrimary : Colors.white) : c.textMuted))),
+                            style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600,
+                                color: !isCheckbox ? (context.theme.colors.primaryForeground) : context.theme.colors.mutedForeground))),
                       ),
                     ),
                   ]),
@@ -121,16 +117,10 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               ),
               if (!isCheckbox) ...[
                 const SizedBox(height: 12),
-                TextField(
-                  controller: totalCtrl, keyboardType: TextInputType.number,
-                  style: TextStyle(color: c.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'Target count',
-                    hintStyle: TextStyle(color: c.textMuted),
-                    filled: true, fillColor: c.surfaceAlt,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.border)),
-                  ),
+                AppInput(
+                  controller: totalCtrl,
+                  keyboardType: TextInputType.number,
+                  hintText: 'Target count',
                 ),
               ],
               const SizedBox(height: 20),
@@ -154,6 +144,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         ),
       ),
     );
+    labelCtrl.dispose();
+    totalCtrl.dispose();
   }
 
   Future<void> _deleteGoalPrep(Map<String, dynamic> goal) async {
@@ -177,14 +169,21 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     }
   }
 
+  Future<void> _loadTargetContacts() async {
+    try {
+      final contacts = await ApiService.getEventTargetContacts(widget.event.id);
+      if (mounted) setState(() => _targetContacts = contacts);
+    } catch (_) {}
+  }
+
   String _daysUntil(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final eventDay = DateTime(date.year, date.month, date.day);
     final diff = eventDay.difference(today).inDays;
-    if (diff < 0) return 'Past';
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Tomorrow';
+    if (diff < 0) { return 'Past'; }
+    if (diff == 0) { return 'Today'; }
+    if (diff == 1) { return 'Tomorrow'; }
     return 'In $diff Days';
   }
 
@@ -193,7 +192,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
-    if (end == null) return '${months[start.month - 1]} ${start.day}';
+    if (end == null) { return '${months[start.month - 1]} ${start.day}'; }
     return '${months[start.month - 1]} ${start.day} — ${months[end.month - 1]} ${end.day}';
   }
 
@@ -203,11 +202,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         builder: (context) => EventTargetScreen(event: widget.event, targetId: target['id'] as String),
       ),
     );
-    // Reload this target's data since it may have been edited
     try {
       final data = await ApiService.getEventTarget(widget.event.id, target['id'] as String);
       if (mounted) setState(() => _targets[index] = data);
     } catch (_) {}
+    await _loadTargetContacts();
   }
 
   Future<void> _importTargets() async {
@@ -253,13 +252,14 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         bottom: false,
         child: Column(
           children: [
-            AppHeader(
-              onNotificationPressed: () {},
-              actionWidget: IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
-                splashRadius: 20,
-              ),
+            FHeader.nested(
+              title: const SizedBox.shrink(),
+              prefixes: [
+                AppHeaderActionButton(
+                  icon: Icons.arrow_back_rounded,
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
             ),
             Expanded(
               child: _isLoading
@@ -275,6 +275,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                               _buildHeaderSection(),
                               const SizedBox(height: 32),
                               _buildGoalsPanel(),
+                              const SizedBox(height: 24),
+                              _buildTargetContactsPanel(),
                               const SizedBox(height: 24),
                               _buildTargetListPanel(),
                             ],
@@ -296,7 +298,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: _c.textPrimary,
+            color: context.theme.colors.foreground,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(
@@ -306,8 +308,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               const SizedBox(width: 8),
               Text(
                 _daysUntil(widget.event.startDate).toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 12,
+                style: context.theme.typography.xs.copyWith(
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.4,
                   color: Colors.white,
@@ -319,11 +320,10 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         const SizedBox(height: 16),
         Text(
           widget.event.name,
-          style: TextStyle(
-            fontSize: 32,
+          style: context.theme.typography.xl2.copyWith(
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
-            color: _c.textPrimary,
+            color: context.theme.colors.foreground,
             height: 1.15,
           ),
         ),
@@ -339,11 +339,10 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                 const SizedBox(width: 8),
                 Text(
                   (widget.event.location ?? 'Location TBD').toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: context.theme.typography.xs.copyWith(
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.1,
-                    color: _c.textMuted,
+                    color: context.theme.colors.mutedForeground,
                   ),
                 ),
               ],
@@ -355,11 +354,10 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                 const SizedBox(width: 8),
                 Text(
                   _formatDateRange(widget.event.startDate, widget.event.endDate).toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: context.theme.typography.xs.copyWith(
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.1,
-                    color: _c.textMuted,
+                    color: context.theme.colors.mutedForeground,
                   ),
                 ),
               ],
@@ -379,20 +377,15 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         children: [
           Row(children: [
             Expanded(child: AppSectionLabel('Event Goals')),
-            GestureDetector(
-              onTap: _addGoal,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: _c.accent.withValues(alpha: 0.5)),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.add_rounded, size: 12, color: _c.accent),
-                  const SizedBox(width: 4),
-                  Text('ADD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: _c.accent)),
-                ]),
-              ),
+            AppButton(
+              variant: ButtonVariant.outline,
+              size: ButtonSize.sm,
+              onPressed: _addGoal,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.add_rounded, size: 12, color: _c.accent),
+                const SizedBox(width: 4),
+                Text('ADD', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.0, color: _c.accent)),
+              ]),
             ),
           ]),
           const SizedBox(height: 16),
@@ -401,15 +394,13 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               Icon(Icons.flag_outlined, size: 18, color: _c.accent),
               const SizedBox(width: 10),
               Expanded(child: Text('No goals yet. Set targets to stay focused during the event.',
-                  style: TextStyle(fontSize: 13, color: _c.textMuted, height: 1.4))),
+                  style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4))),
             ])
           else
             for (int i = 0; i < _goals.length; i++) ...[
               _buildPrepGoalRow(_goals[i]),
-              if (i < _goals.length - 1) ...[
-                FDivider(),
+              if (i < _goals.length - 1)
                 const SizedBox(height: 4),
-              ],
             ],
         ],
       ),
@@ -431,7 +422,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
             top: false,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               const SizedBox(height: 8),
-              Container(width: 36, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
+              Container(width: 36, height: 4, decoration: BoxDecoration(color: context.theme.colors.border, borderRadius: BorderRadius.circular(2))),
               ListTile(
                 leading: Icon(Icons.delete_outline_rounded, color: _c.destructive),
                 title: Text('Delete goal', style: TextStyle(color: _c.destructive)),
@@ -450,21 +441,21 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isComplete ? _c.success : Colors.transparent,
-                border: Border.all(color: isComplete ? _c.success : _c.border, width: 1.5),
+                border: Border.all(color: isComplete ? _c.success : context.theme.colors.border, width: 1.5),
               ),
-              child: isComplete ? Icon(Icons.check_rounded, size: 10, color: _c.isDark ? _c.textPrimary : _c.background) : null,
+              child: isComplete ? Icon(Icons.check_rounded, size: 10, color: _c.isDark ? context.theme.colors.foreground : context.theme.colors.background) : null,
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text(goal['label'] as String? ?? '', style: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w500,
-                color: isComplete ? _c.success : _c.textPrimary,
+            Expanded(child: Text(goal['label'] as String? ?? '', style: context.theme.typography.sm.copyWith(
+                fontWeight: FontWeight.w500,
+                color: isComplete ? _c.success : context.theme.colors.foreground,
                 decoration: isComplete ? TextDecoration.lineThrough : null,
                 decorationColor: _c.success))),
             const SizedBox(width: 8),
             if (!isCheckbox)
-              Text('$current / $total', style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w700,
-                  color: isComplete ? _c.success : _c.textMuted)),
+              Text('$current / $total', style: context.theme.typography.xs.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: isComplete ? _c.success : context.theme.colors.mutedForeground)),
           ]),
           if (!isCheckbox) ...[
             const SizedBox(height: 7),
@@ -482,9 +473,10 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     );
   }
 
-  Widget _buildTargetListPanel() {
-    return _buildGlassPanel(
+  Widget _buildTargetContactsPanel() {
+    return AppCard(
       padding: const EdgeInsets.all(24),
+      radius: 16,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -492,40 +484,256 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
             children: [
               Expanded(
                 child: Text(
-                  'Target List',
-                  style: TextStyle(
-                    fontSize: 20,
+                  'Target Contacts',
+                  style: context.theme.typography.xl.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: _c.textPrimary,
+                    color: context.theme.colors.foreground,
                   ),
                 ),
               ),
-              _buildHeaderAction(
-                icon: Icons.upload,
-                label: 'Import',
-                filled: false,
-                onTap: () => _importTargets(),
-              ),
-              const SizedBox(width: 8),
-              _buildHeaderAction(
-                icon: Icons.add,
+              AppButton(
+                prefixIcon: const Icon(Icons.person_add_outlined, size: 16),
                 label: 'Add',
-                filled: true,
-                onTap: () => _showAddTargetDialog(),
+                variant: ButtonVariant.primary,
+                size: ButtonSize.sm,
+                onPressed: _showAddTargetContactSheet,
               ),
             ],
           ),
           const SizedBox(height: 20),
-          Container(height: 1, color: _c.border),
+          Container(height: 1, color: context.theme.colors.border),
+          if (_targetContacts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Text(
+                'No target contacts yet. Add people you want to meet.',
+                style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+              ),
+            )
+          else
+            ..._targetContacts.asMap().entries.map((entry) {
+              return _buildTargetContactRow(entry.value, entry.key);
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTargetContactRow(Map<String, dynamic> contact, int index) {
+    final name = contact['name'] as String? ?? 'Unknown';
+    final jobTitle = contact['job_title'] as String? ?? '';
+    final companyName = contact['company_name'] as String? ?? '';
+    final contactId = contact['contact_id'] as String? ?? '';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    final initials = parts.take(2).map((p) => p.isNotEmpty ? p[0] : '').join().toUpperCase();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.theme.colors.border)),
+      ),
+      child: Row(
+        children: [
+          AppAvatar(initials: initials.isNotEmpty ? initials : '?', size: 40),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+                if (jobTitle.isNotEmpty || companyName.isNotEmpty)
+                  Text(
+                    [if (jobTitle.isNotEmpty) jobTitle, if (companyName.isNotEmpty) companyName].join(' · '),
+                    style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
+                  ),
+              ],
+            ),
+          ),
+          AppButton(
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.sm,
+            onPressed: () => _removeTargetContact(contactId, index),
+            child: Icon(Icons.delete_outline, color: _c.destructive, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddTargetContactSheet() async {
+    String searchQuery = '';
+    List<dynamic> contacts = [];
+    bool isSearching = true;
+    bool initialLoaded = false;
+    final searchCtrl = TextEditingController();
+
+    final existingIds = _targetContacts.map((c) => c['contact_id'] as String?).whereType<String>().toSet();
+
+    await showAppSheet(
+      context: context,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          if (!initialLoaded) {
+            initialLoaded = true;
+            ApiService.getContacts().then((results) {
+              final eligible = results.where((c) => !existingIds.contains(c.id)).toList()
+                ..sort((a, b) => '${a.firstName} ${a.lastName ?? ''}'.compareTo('${b.firstName} ${b.lastName ?? ''}'));
+              setModalState(() { contacts = eligible; isSearching = false; });
+            }).catchError((_) { setModalState(() => isSearching = false); });
+          }
+
+          final filtered = contacts.where((c) {
+            final cname = '${c.firstName} ${c.lastName ?? ''}'.toLowerCase();
+            final company = (c.company?.name ?? '').toLowerCase();
+            final q = searchQuery.toLowerCase();
+            return q.isEmpty || cname.contains(q) || company.contains(q);
+          }).toList();
+
+          return SafeArea(
+            top: false,
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Add Target Contact',
+                            style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+                        const SizedBox(height: 16),
+                        AppInput(
+                          controller: searchCtrl,
+                          autofocus: true,
+                          hintText: 'Search contacts...',
+                          prefixIcon: Icon(Icons.search, color: _c.accent),
+                          onChanged: (val) => setModalState(() => searchQuery = val),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: isSearching
+                        ? _buildSearchingState()
+                        : filtered.isEmpty
+                            ? Center(child: Text('No contacts found', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)))
+                            : ListView.builder(
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                                itemCount: filtered.length,
+                                itemBuilder: (_, i) {
+                                  final c = filtered[i];
+                                  final cname = '${c.firstName} ${c.lastName ?? ''}'.trim();
+                                  final company = c.company?.name ?? '';
+                                  final initials = cname.isNotEmpty ? cname.split(' ').take(2).map((p) => p.isNotEmpty ? p[0] : '').join().toUpperCase() : '?';
+                                  return GestureDetector(
+                                    onTap: () async {
+                                      Navigator.of(sheetCtx).pop();
+                                      await _addTargetContact(c.id, cname, c.jobTitle ?? '', company);
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      child: Row(
+                                        children: [
+                                          AppAvatar(initials: initials, size: 40),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                              Text(cname, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
+                                              if (company.isNotEmpty)
+                                                Text(company, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                                            ]),
+                                          ),
+                                          Icon(Icons.add_circle_outline, color: _c.accent, size: 22),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    searchCtrl.dispose();
+  }
+
+  Future<void> _addTargetContact(String contactId, String name, String jobTitle, String companyName) async {
+    try {
+      await ApiService.addContactToEvent(widget.event.id, contactId);
+      setState(() => _targetContacts.add({
+        'contact_id': contactId,
+        'name': name,
+        'job_title': jobTitle,
+        'company_name': companyName,
+        'status': 'not_contacted',
+      }));
+      if (mounted) showAppToast(context, '$name added to target contacts.');
+    } catch (_) {
+      if (mounted) showAppToast(context, 'Failed to add contact.');
+    }
+  }
+
+  Future<void> _removeTargetContact(String contactId, int index) async {
+    final removed = _targetContacts[index];
+    setState(() => _targetContacts.removeAt(index));
+    try {
+      await ApiService.removeContactFromEvent(widget.event.id, contactId);
+    } catch (_) {
+      if (mounted) setState(() => _targetContacts.insert(index, removed));
+    }
+  }
+
+  Widget _buildTargetListPanel() {
+    return AppCard(
+      padding: const EdgeInsets.all(24),
+      radius: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Target Companies',
+                  style: context.theme.typography.xl.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: context.theme.colors.foreground,
+                  ),
+                ),
+              ),
+              AppButton(
+                prefixIcon: const Icon(Icons.upload, size: 16),
+                label: 'Import',
+                variant: ButtonVariant.outline,
+                size: ButtonSize.sm,
+                onPressed: _importTargets,
+              ),
+              const SizedBox(width: 8),
+              AppButton(
+                prefixIcon: const Icon(Icons.add, size: 16),
+                label: 'Add',
+                variant: ButtonVariant.primary,
+                size: ButtonSize.sm,
+                onPressed: _showAddTargetDialog,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(height: 1, color: context.theme.colors.border),
           if (_targets.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: Text(
-                'No target companies yet. Add or import some.',
-                style: TextStyle(
-                  fontSize: 14,
+                'No target companies yet. Add or import.',
+                style: context.theme.typography.sm.copyWith(
                   fontWeight: FontWeight.w400,
-                  color: _c.textMuted,
+                  color: context.theme.colors.mutedForeground,
                 ),
               ),
             )
@@ -538,83 +746,38 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     );
   }
 
-  Widget _buildHeaderAction({
-    required IconData icon,
-    required String label,
-    required bool filled,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: filled ? _c.accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: filled ? _c.accent : _c.border),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: filled ? Colors.white : _c.accent),
-            const SizedBox(width: 8),
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 1.2,
-                color: filled ? Colors.white : _c.textMuted,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildTargetRow(Map<String, dynamic> target, int globalIndex) {
     final company = target['company'] as Map<String, dynamic>? ?? {};
     final companyName = company['name'] as String? ?? 'Unknown';
     final booth = target['booth_location'] as String?;
-    final rawTags = target['tags'] as List?;
-    final industryStr = company['industry'] as String?;
-    final tags = rawTags != null && rawTags.isNotEmpty
-        ? rawTags.cast<String>()
-        : (industryStr != null ? [industryStr] : <String>[]);
     return GestureDetector(
       onTap: () => _openTargetDetail(target, globalIndex),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: _c.border)),
+          border: Border(bottom: BorderSide(color: context.theme.colors.border)),
         ),
         child: Row(
           children: [
-            // Company info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(companyName, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+                  Text(companyName, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
                   if (booth != null && booth.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     AppChip.label('BOOTH $booth'),
-                  ],
-                  if (tags.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Wrap(spacing: 6, runSpacing: 4, children: tags.map((t) => AppChip(t)).toList()),
                   ],
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            // Manage button
             GestureDetector(
               onTap: () => _openTargetDetail(target, globalIndex),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  border: Border.all(color: _c.borderStrong),
+                  border: Border.all(color: context.theme.colors.border),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -622,18 +785,16 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   children: [
                     Icon(Icons.open_in_new_rounded, size: 14, color: _c.accent),
                     const SizedBox(width: 4),
-                    Text('MANAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: _c.textSecondary)),
+                    Text('MANAGE', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.2, color: context.theme.colors.mutedForeground)),
                   ],
                 ),
               ),
             ),
-            // Delete button
-            IconButton(
+            AppButton(
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.sm,
               onPressed: () => _deleteTarget(target, globalIndex),
-              icon: Icon(Icons.delete_outline, color: _c.destructive, size: 20),
-              splashRadius: 18,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              child: Icon(Icons.delete_outline, color: _c.destructive, size: 20),
             ),
           ],
         ),
@@ -646,6 +807,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     List<Map<String, dynamic>> companies = [];
     bool isSearching = true;
     bool initialLoaded = false;
+    final searchCtrl = TextEditingController();
 
     await showAppSheet(
       context: context,
@@ -666,33 +828,17 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Center(
-                      child: Container(width: 40, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2))),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Add Target Company', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+                        Text('Add Target Company', style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
                         const SizedBox(height: 16),
-                        TextField(
+                        AppInput(
+                          controller: searchCtrl,
                           autofocus: true,
-                          style: TextStyle(fontSize: 14, color: _c.textPrimary),
-                          cursorColor: _c.accent,
-                          decoration: InputDecoration(
-                            hintText: 'Search companies...',
-                            hintStyle: TextStyle(color: _c.textMuted),
-                            prefixIcon: Icon(Icons.search, color: _c.accent),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
-                            filled: true,
-                            fillColor: _c.surface,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
+                          hintText: 'Search companies...',
+                          prefixIcon: Icon(Icons.search, color: _c.accent),
                           onChanged: (val) async {
                             setModalState(() { searchQuery = val; isSearching = true; });
                             try {
@@ -711,7 +857,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                     child: isSearching
                               ? _buildSearchingState()
                               : companies.isEmpty
-                            ? Center(child: Text('No companies found', style: TextStyle(color: _c.textMuted)))
+                            ? Center(child: Text('No companies found', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)))
                             : ListView.builder(
                                 padding: const EdgeInsets.symmetric(horizontal: 16),
                                 itemCount: companies.length + (searchQuery.isNotEmpty ? 1 : 0),
@@ -719,8 +865,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                                   if (searchQuery.isNotEmpty && i == companies.length) {
                                     return ListTile(
                                       leading: Icon(Icons.add_circle_outline, color: _c.accent),
-                                      title: Text('Create "$searchQuery"', style: TextStyle(color: _c.textPrimary, fontWeight: FontWeight.w500)),
-                                      subtitle: Text('Add as new company', style: TextStyle(color: _c.textMuted, fontSize: 12)),
+                                      title: Text('Create "$searchQuery"', style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w500)),
+                                      subtitle: Text('Add as new company', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
                                       onTap: () {
                                         Navigator.of(sheetCtx).pop();
                                         _showCreateCompanyDialog(searchQuery);
@@ -728,6 +874,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                                     );
                                   }
                                   final co = companies[i];
+                                  final coName = co['name'] as String;
+                                  final initials = coName.length >= 2 ? coName.substring(0, 2).toUpperCase() : coName.toUpperCase();
                                   return GestureDetector(
                                     onTap: () async {
                                       Navigator.of(sheetCtx).pop();
@@ -737,23 +885,15 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                                       padding: const EdgeInsets.symmetric(vertical: 12),
                                       child: Row(
                                         children: [
-                                          Container(
-                                            width: 40, height: 40,
-                                            alignment: Alignment.center,
-                                            decoration: BoxDecoration(color: _c.surfaceAlt, borderRadius: BorderRadius.circular(8), border: Border.all(color: _c.border)),
-                                            child: Text(
-                                              (co['name'] as String).length >= 2 ? (co['name'] as String).substring(0, 2).toUpperCase() : (co['name'] as String).toUpperCase(),
-                                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _c.textPrimary),
-                                            ),
-                                          ),
+                                          AppAvatar(initials: initials, size: 40),
                                           const SizedBox(width: 12),
                                           Expanded(
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text(co['name'] as String, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: _c.textPrimary)),
+                                                Text(coName, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
                                                 if (co['industry'] != null)
-                                                  Text(co['industry'] as String, style: TextStyle(fontSize: 13, color: _c.textMuted)),
+                                                  Text(co['industry'] as String, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
                                               ],
                                             ),
                                           ),
@@ -772,6 +912,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         );
       },
     );
+    searchCtrl.dispose();
   }
 
   Future<void> _showBoothInputDialog(Map<String, dynamic> company) async {
@@ -787,30 +928,19 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2)))),
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: context.theme.colors.border, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              Text(company['name'] as String, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+              Text(company['name'] as String, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
               const SizedBox(height: 4),
-              Text('Adding to target list', style: TextStyle(fontSize: 14, color: _c.textMuted)),
+              Text('Adding to target list', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
               const SizedBox(height: 20),
-              TextField(
+              AppInput(
                 controller: boothCtrl,
                 autofocus: true,
-                style: TextStyle(fontSize: 14, color: _c.textPrimary),
-                cursorColor: _c.accent,
+                hintText: 'e.g. A-12, Hall 3 B04',
+                labelText: 'Booth Number (optional)',
+                prefixIcon: Icon(Icons.location_on_outlined, color: _c.accent),
                 textCapitalization: TextCapitalization.characters,
-                decoration: InputDecoration(
-                  labelText: 'Booth Number (optional)',
-                  hintText: 'e.g. A-12, Hall 3 B04',
-                  labelStyle: TextStyle(color: _c.textMuted),
-                  hintStyle: TextStyle(color: _c.textMuted),
-                  prefixIcon: Icon(Icons.location_on_outlined, color: _c.accent),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
-                  filled: true,
-                  fillColor: _c.surface,
-                ),
               ),
               const SizedBox(height: 16),
               Row(
@@ -819,9 +949,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                     child: AppButton(
                       label: 'SKIP',
                       variant: ButtonVariant.outline,
-                      onPressed: () async {
+                      onPressed: () {
                         Navigator.of(ctx).pop();
-                        await _addCompanyAsTarget(company, null);
+                        _addCompanyAsTarget(company, null);
                       },
                     ),
                   ),
@@ -831,10 +961,10 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                     child: AppButton(
                       label: 'ADD TO LIST',
                       variant: ButtonVariant.primary,
-                      onPressed: () async {
+                      onPressed: () {
                         final booth = boothCtrl.text.trim();
                         Navigator.of(ctx).pop();
-                        await _addCompanyAsTarget(company, booth.isEmpty ? null : booth);
+                        _addCompanyAsTarget(company, booth.isEmpty ? null : booth);
                       },
                     ),
                   ),
@@ -861,6 +991,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   Future<void> _showCreateCompanyDialog(String initialName) async {
     final nameCtrl = TextEditingController(text: initialName);
     final industryCtrl = TextEditingController();
+    Map<String, dynamic>? createdCompany;
 
     await showAppSheet(
       context: context,
@@ -872,39 +1003,19 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: _c.border, borderRadius: BorderRadius.circular(2)))),
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: context.theme.colors.border, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              Text('New Company', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _c.textPrimary)),
+              Text('New Company', style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
               const SizedBox(height: 20),
-              TextField(
+              AppInput(
                 controller: nameCtrl,
                 autofocus: true,
-                style: TextStyle(fontSize: 14, color: _c.textPrimary),
-                cursorColor: _c.accent,
-                decoration: InputDecoration(
-                  labelText: 'Company Name',
-                  labelStyle: TextStyle(color: _c.textMuted),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
-                  filled: true,
-                  fillColor: _c.surface,
-                ),
+                labelText: 'Company Name',
               ),
               const SizedBox(height: 12),
-              TextField(
+              AppInput(
                 controller: industryCtrl,
-                style: TextStyle(fontSize: 14, color: _c.textPrimary),
-                cursorColor: _c.accent,
-                decoration: InputDecoration(
-                  labelText: 'Industry (optional)',
-                  labelStyle: TextStyle(color: _c.textMuted),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.border)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _c.accent)),
-                  filled: true,
-                  fillColor: _c.surface,
-                ),
+                labelText: 'Industry (optional)',
               ),
               const SizedBox(height: 20),
               AppButton(
@@ -914,20 +1025,13 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                 onPressed: () async {
                   final name = nameCtrl.text.trim();
                   if (name.isEmpty) return;
+                  final industry = industryCtrl.text.trim();
                   Navigator.of(sheetCtx).pop();
                   try {
                     final companyData = <String, dynamic>{'name': name};
-                    final industryText = industryCtrl.text.trim();
-                    if (industryText.isNotEmpty) {
-                      companyData['industry'] = industryText;
-                    }
-                    final company = await ApiService.createCompany(companyData);
-                    nameCtrl.dispose();
-                    industryCtrl.dispose();
-                    await _showBoothInputDialog(company);
+                    if (industry.isNotEmpty) { companyData['industry'] = industry; }
+                    createdCompany = await ApiService.createCompany(companyData);
                   } catch (_) {
-                    nameCtrl.dispose();
-                    industryCtrl.dispose();
                     if (mounted) showAppToast(context, 'Failed to add company.');
                   }
                 },
@@ -937,6 +1041,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         ),
       ),
     );
+    nameCtrl.dispose();
+    industryCtrl.dispose();
+    if (createdCompany != null && mounted) {
+      await _showBoothInputDialog(createdCompany!);
+    }
   }
 
   Future<void> _deleteTarget(Map<String, dynamic> target, int index) async {
@@ -951,17 +1060,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     }
   }
 
-  Widget _buildGlassPanel({
-    required EdgeInsets padding,
-    required Widget child,
-  }) {
-    return AppCard(
-      padding: padding,
-      radius: 16,
-      child: child,
-    );
-  }
-
   Widget _buildLoadingState() {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
@@ -971,7 +1069,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header skeleton
               SkeletonLoader(
                 width: 100,
                 height: 28,
@@ -1000,7 +1097,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                 ],
               ),
               const SizedBox(height: 32),
-              // Goals panel skeleton
               AppCard(
                 padding: const EdgeInsets.all(20),
                 radius: AppTheme.radiusCard,
@@ -1039,7 +1135,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                 ),
               ),
               const SizedBox(height: 24),
-              // Target list panel skeleton
               AppCard(
                 padding: const EdgeInsets.all(24),
                 radius: 16,
@@ -1069,7 +1164,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                       ],
                     ),
                     const SizedBox(height: 20),
-                    Container(height: 1, color: _c.border),
+                    Container(height: 1, color: context.theme.colors.border),
                     const SizedBox(height: 16),
                     for (int i = 0; i < 3; i++) ...[
                       Row(
@@ -1109,7 +1204,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                       if (i < 2)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          child: Container(height: 1, color: _c.border),
+                          child: Container(height: 1, color: context.theme.colors.border),
                         ),
                     ],
                   ],

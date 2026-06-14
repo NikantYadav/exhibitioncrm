@@ -7,7 +7,6 @@ class ApiConfig {
   static const String notes = '/notes';
   static const String captures = '/captures';
   static const String companies = '/companies';
-  static const String meetings = '/meetings';
   static const String followUps = '/follow-ups';
   static const String ai = '/ai';
 

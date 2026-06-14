@@ -43,14 +43,12 @@ class MessageLink {
   final String id;
   final String? contactId;
   final String? eventId;
-  final String? reminderId;
   final String? emailDraftId;
 
   MessageLink({
     required this.id,
     this.contactId,
     this.eventId,
-    this.reminderId,
     this.emailDraftId,
   });
 
@@ -59,7 +57,6 @@ class MessageLink {
       id: json['id'] as String,
       contactId: json['contact_id'] as String?,
       eventId: json['event_id'] as String?,
-      reminderId: json['reminder_id'] as String?,
       emailDraftId: json['email_draft_id'] as String?,
     );
   }
@@ -67,7 +64,6 @@ class MessageLink {
   bool get hasAnyLink =>
       contactId != null ||
       eventId != null ||
-      reminderId != null ||
       emailDraftId != null;
 }
 
@@ -279,7 +275,7 @@ class ChatProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  void reset() {
+  void reset({bool loading = true}) {
     _channel?.unsubscribe();
     _channel = null;
     _conversationId = null;
@@ -289,7 +285,7 @@ class ChatProvider extends ChangeNotifier {
     _hasMore = true;
     _error = null;
     _isTyping = false;
-    _isLoadingHistory = true;
+    _isLoadingHistory = loading;
     notifyListeners();
   }
 }

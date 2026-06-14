@@ -19,7 +19,6 @@ import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import 'app_shell.dart';
 import 'event_target_screen.dart';
-import 'live_target_person_screen.dart';
 import 'log_interaction_screen.dart';
 import '../utils/screen_logger.dart';
 
@@ -36,7 +35,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   // Local overrides & UI state
-  final Map<String, bool> _targetMetOverrides = {};
+  final Map<String, bool> _targetContactMetOverrides = {};
   final Set<String> _expandedTargetIds = {};
   final Set<String> _expandedScannedIds = {};
   final TextEditingController _targetSearchCtrl = TextEditingController();
@@ -66,31 +65,29 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     showAppToast(context, msg);
   }
 
-  bool _isTargetMet(Map<String, dynamic> t) {
-    final id = t['id'] as String? ?? '';
-    return _targetMetOverrides.containsKey(id)
-        ? _targetMetOverrides[id]!
+  bool _isTargetContactMet(Map<String, dynamic> t) {
+    final contactId = t['contact_id'] as String? ?? '';
+    return _targetContactMetOverrides.containsKey(contactId)
+        ? _targetContactMetOverrides[contactId]!
         : (t['status'] as String?) == 'met';
   }
 
-  List<Map<String, dynamic>> _filteredTargets(List<Map<String, dynamic>> targets) {
+  List<Map<String, dynamic>> _filteredTargetContacts(List<Map<String, dynamic>> contacts) {
     final q = _targetSearch.toLowerCase();
-    return targets.where((t) {
-      if ((t['contact_id'] as String?) == null) return false;
+    return contacts.where((t) {
       final name = (t['name'] as String? ?? '').toLowerCase();
       final company = (t['company_name'] as String? ?? '').toLowerCase();
-      final booth = (t['booth'] as String? ?? '').toLowerCase();
-      final matchesSearch = q.isEmpty || name.contains(q) || company.contains(q) || booth.contains(q);
+      final matchesSearch = q.isEmpty || name.contains(q) || company.contains(q);
       final matchesFilter = switch (_targetFilter) {
-        'Met' => _isTargetMet(t),
-        'Not Met' => !_isTargetMet(t),
+        'Met' => _isTargetContactMet(t),
+        'Not Met' => !_isTargetContactMet(t),
         _ => true,
       };
       return matchesSearch && matchesFilter;
     }).toList()
       ..sort((a, b) {
-        final aName = (a['name'] as String? ?? a['company_name'] as String? ?? '').toLowerCase();
-        final bName = (b['name'] as String? ?? b['company_name'] as String? ?? '').toLowerCase();
+        final aName = (a['name'] as String? ?? '').toLowerCase();
+        final bName = (b['name'] as String? ?? '').toLowerCase();
         return aName.compareTo(bName);
       });
   }
@@ -232,22 +229,41 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
 
   // ── Target actions ─────────────────────────────────────────────────────────
 
-  Future<void> _toggleTargetMet(Map<String, dynamic> target, Event event, LiveEventProvider lep) async {
-    final id = target['id'] as String? ?? '';
-    if (id.isEmpty) return;
-    final nowMet = !_isTargetMet(target);
+  Future<void> _toggleTargetContactMet(Map<String, dynamic> target, Event event, LiveEventProvider lep) async {
+    final contactId = target['contact_id'] as String? ?? '';
+    if (contactId.isEmpty) return;
+    final nowMet = !_isTargetContactMet(target);
     setState(() {
-      _targetMetOverrides[id] = nowMet;
-      if (nowMet) _expandedTargetIds.remove(id);
+      _targetContactMetOverrides[contactId] = nowMet;
+      if (nowMet) _expandedTargetIds.remove(contactId);
     });
     try {
-      await ApiService.updateTargetStatus(event.id, id, nowMet ? 'met' : 'not_contacted');
-      lep.updateTargetStatusLocally(id, nowMet ? 'met' : 'not_contacted');
+      await ApiService.updateTargetContactStatus(event.id, contactId, nowMet ? 'met' : 'not_contacted');
+      lep.updateTargetContactStatusLocally(contactId, nowMet ? 'met' : 'not_contacted');
     } catch (_) {
       if (mounted) {
-        setState(() => _targetMetOverrides.remove(id));
+        setState(() => _targetContactMetOverrides.remove(contactId));
         _toast('Failed to update target status');
       }
+    }
+  }
+
+  Future<void> _markTargetContactMet(String contactId, Event event, LiveEventProvider lep) async {
+    final isAlreadyTarget = lep.targetContacts.any((t) => t['contact_id'] == contactId);
+    if (!isAlreadyTarget) return;
+    final alreadyMet = _targetContactMetOverrides[contactId] ??
+        (lep.targetContacts.firstWhere((t) => t['contact_id'] == contactId,
+            orElse: () => {})['status'] as String?) == 'met';
+    if (alreadyMet) return;
+    setState(() {
+      _targetContactMetOverrides[contactId] = true;
+      _expandedTargetIds.remove(contactId);
+    });
+    try {
+      await ApiService.updateTargetContactStatus(event.id, contactId, 'met');
+      lep.updateTargetContactStatusLocally(contactId, 'met');
+    } catch (_) {
+      if (mounted) setState(() => _targetContactMetOverrides.remove(contactId));
     }
   }
 
@@ -255,13 +271,13 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     final contacts = await ApiService.getContacts();
     if (!mounted) return;
 
-    final existingCompanyIds = lep.liveTargets
-        .map((t) => t['company_id'] as String?)
+    final existingContactIds = lep.targetContacts
+        .map((t) => t['contact_id'] as String?)
         .whereType<String>()
         .toSet();
 
     final eligible = contacts
-        .where((c) => c.companyId != null && c.companyId!.isNotEmpty && !existingCompanyIds.contains(c.companyId))
+        .where((c) => !existingContactIds.contains(c.id))
         .toList();
 
     if (eligible.isEmpty) {
@@ -275,10 +291,9 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     );
 
     if (picked == null || !mounted) return;
-    final companyId = picked['company_id'] as String;
-    final companyName = picked['company_name'] as String;
     final contactId = picked['contact_id'] as String?;
     final contactName = picked['contact_name'] as String?;
+    final companyName = picked['company_name'] as String? ?? '';
 
     if (contactId == null) {
       _toast('Contact has no ID — cannot add.');
@@ -287,18 +302,14 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
 
     try {
       await ApiService.addContactToEvent(event.id, contactId);
-      lep.addTargetLocally({
-        'id': contactId,
-        'name': contactName ?? companyName,
+      lep.addTargetContactLocally({
+        'contact_id': contactId,
+        'name': contactName ?? '',
         'job_title': picked['job_title'] ?? '',
         'company_name': companyName,
-        'company_id': companyId,
-        'contact_id': contactId,
-        'booth': '',
         'status': 'not_contacted',
-        'priority': 'medium',
-        'talking_points': '',
         'notes': '',
+        'talking_points': '',
       });
       _toast('${contactName ?? companyName} added to targets.');
     } catch (_) {
@@ -306,9 +317,8 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     }
   }
 
-  Future<void> _deleteTarget(Map<String, dynamic> target, Event event, LiveEventProvider lep) async {
-    final id = target['id'] as String? ?? '';
-    final contactId = target['contact_id'] as String?;
+  Future<void> _deleteTargetContact(Map<String, dynamic> target, Event event, LiveEventProvider lep) async {
+    final contactId = target['contact_id'] as String? ?? '';
     final name = target['name'] as String? ?? 'Target';
 
     final confirmed = await showAppConfirmDialog(
@@ -321,16 +331,9 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     if (confirmed != true || !mounted) return;
 
     try {
-      if (contactId != null && contactId == id) {
-        await ApiService.removeContactFromEvent(event.id, contactId);
-      } else {
-        await ApiService.deleteEventTarget(event.id, id);
-        if (contactId != null) {
-          try { await ApiService.removeContactFromEvent(event.id, contactId); } catch (_) {}
-        }
-      }
-      lep.removeTargetLocally(id);
-      _expandedTargetIds.remove(id);
+      await ApiService.removeContactFromEvent(event.id, contactId);
+      lep.removeTargetContactLocally(contactId);
+      _expandedTargetIds.remove(contactId);
     } catch (_) {
       _toast('Failed to remove target.');
     }
@@ -372,11 +375,9 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             child: Column(
               children: [
                 AppHeader(
-                  onNotificationPressed: () => _toast('Notifications coming soon.'),
-                  actionWidget: IconButton(
+                  actionWidget: AppHeaderActionButton(
+                    icon: Icons.arrow_back_rounded,
                     onPressed: () => context.go('/'),
-                    icon: Icon(Icons.arrow_back_rounded, color: context.theme.colors.foreground, size: 22),
-                    tooltip: 'Back',
                   ),
                 ),
                 Expanded(child: _buildBody(event, lep)),
@@ -390,9 +391,8 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
 
   Widget _buildBody(Event event, LiveEventProvider lep) {
     final scanned = lep.scannedContacts.length;
-    final targetsLeft = lep.liveTargets.where((t) => !_isTargetMet(t)).length;
-    final metTargets = lep.liveTargets.where((t) => _isTargetMet(t)).length;
-    final totalTargets = scanned + metTargets;
+    final targetsLeft = lep.targetContacts.where((t) => !_isTargetContactMet(t)).length;
+    final goalsLeft = lep.liveGoals.where((g) => (g['status'] as String?) != 'completed').length;
 
     final location = [event.venue, event.hall]
         .whereType<String>()
@@ -411,7 +411,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           children: [
             _buildLiveBanner(event, location),
             const SizedBox(height: 12),
-            _buildStatGrid(scanned, targetsLeft, totalTargets),
+            _buildStatGrid(scanned, targetsLeft, goalsLeft),
             const SizedBox(height: 24),
             _buildGoalsSection(event, lep),
             const SizedBox(height: 24),
@@ -455,7 +455,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildStatGrid(int scanned, int targetsLeft, int totalTargets) {
+  Widget _buildStatGrid(int scanned, int targetsLeft, int goalsLeft) {
     return AppCard(
       elevated: true,
       padding: const EdgeInsets.all(16),
@@ -465,7 +465,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
         Expanded(child: _statColumn(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT')),
         Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
-        Expanded(child: _statColumn(Icons.flag_outlined, '$totalTargets', 'TOTAL')),
+        Expanded(child: _statColumn(Icons.flag_outlined, '$goalsLeft', 'GOALS LEFT')),
       ]),
     );
   }
@@ -690,8 +690,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   ),
                 ),
                 Row(children: [
-                  _tabItem('targets', 'Targets',
-                      '${lep.liveTargets.where((t) => (t['contact_id'] as String?) != null).length}'),
+                  _tabItem('targets', 'Targets', '${lep.targetContacts.length}'),
                   _tabItem('scanned', 'Scanned', '${lep.scannedContacts.length}'),
                   _tabItem('companies', 'Companies', '${lep.liveTargets.length}'),
                 ]),
@@ -716,9 +715,9 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         ]),
         const SizedBox(height: 16),
         if (_activeTab == 'targets')
-          _buildLiveTargetsList(event, lep)
+          _buildLiveTargetContactsList(event, lep)
         else if (_activeTab == 'scanned')
-          _buildScannedList(lep)
+          _buildScannedList(event, lep)
         else
           _buildCompaniesList(event, lep),
       ],
@@ -753,15 +752,15 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildLiveTargetsList(Event event, LiveEventProvider lep) {
-    final visible = _filteredTargets(lep.liveTargets);
+  Widget _buildLiveTargetContactsList(Event event, LiveEventProvider lep) {
+    final visible = _filteredTargetContacts(lep.targetContacts);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 12),
         AppInput(
           controller: _targetSearchCtrl,
-          hint: 'Search companies, people, booths…',
+          hint: 'Search people, companies…',
           onChanged: (v) => setState(() => _targetSearch = v),
           prefixIcon: Icon(Icons.search_rounded, size: 18, color: _c.accent),
         ),
@@ -773,13 +772,13 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           style: AppFilterRowStyle.filled,
         ),
         const SizedBox(height: 14),
-        if (lep.liveTargets.isEmpty)
+        if (lep.targetContacts.isEmpty)
           AppCard(
             padding: const EdgeInsets.all(20),
             child: Center(child: Column(children: [
               Icon(Icons.people_outline_rounded, color: _c.accent, size: 32),
               const SizedBox(height: 10),
-              Text('No targets yet for this event.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+              Text('No target contacts yet.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
             ])),
           )
         else if (visible.isEmpty)
@@ -794,7 +793,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         else
           Column(children: [
             for (int i = 0; i < visible.length; i++) ...[
-              _buildTargetCard(visible[i], i + 1, event, lep),
+              _buildTargetContactCard(visible[i], i + 1, event, lep),
               if (i < visible.length - 1) const SizedBox(height: 8),
             ],
           ]),
@@ -802,52 +801,37 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildTargetCard(Map<String, dynamic> target, int rank, Event event, LiveEventProvider lep) {
-    final id = target['id'] as String? ?? '';
+  Widget _buildTargetContactCard(Map<String, dynamic> target, int rank, Event event, LiveEventProvider lep) {
+    final contactId = target['contact_id'] as String? ?? '';
     final name = target['name'] as String? ?? '';
     final jobTitle = target['job_title'] as String? ?? '';
     final companyName = target['company_name'] as String? ?? '';
-    final booth = target['booth'] as String? ?? '';
-    final priority = target['priority'] as String? ?? 'low';
-    final contactId = target['contact_id'] as String?;
-    final isMet = _isTargetMet(target);
-    final isExpanded = _expandedTargetIds.contains(id);
+    final isMet = _isTargetContactMet(target);
+    final isExpanded = _expandedTargetIds.contains(contactId);
+    final initials = name.trim().split(RegExp(r'\s+')).take(2).map((p) => p.isNotEmpty ? p[0] : '').join().toUpperCase();
 
     return AppCard(
       radius: AppTheme.radiusCard,
       elevated: isExpanded,
-      borderColor: priority == 'high'
-          ? _c.destructive.withValues(alpha: 0.40)
-          : priority == 'medium'
-              ? _c.accent.withValues(alpha: 0.22)
-              : null,
       child: Column(children: [
         GestureDetector(
-          onTap: id.isEmpty ? null : () => setState(() {
-            if (isExpanded) { _expandedTargetIds.remove(id); }
-            else { _expandedTargetIds.add(id); }
+          onTap: contactId.isEmpty ? null : () => setState(() {
+            if (isExpanded) { _expandedTargetIds.remove(contactId); }
+            else { _expandedTargetIds.add(contactId); }
           }),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(rank.toString().padLeft(2, '0'),
-                    style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.mutedForeground)),
-              ),
+              AppAvatar(initials: initials.isNotEmpty ? initials : '?', size: 40, done: isMet),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name.isNotEmpty ? name : companyName, style: context.theme.typography.lg.copyWith(
+                  Text(name.isNotEmpty ? name : 'Unknown', style: context.theme.typography.lg.copyWith(
                       fontWeight: FontWeight.w700, letterSpacing: -0.2,
                       color: isMet ? context.theme.colors.mutedForeground : context.theme.colors.foreground)),
                   const SizedBox(height: 3),
                   Text([if (jobTitle.isNotEmpty) jobTitle, if (companyName.isNotEmpty) companyName].join(', '),
                       style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground), overflow: TextOverflow.ellipsis),
-                  if (booth.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    AppChip.label('BOOTH $booth'),
-                  ],
                 ]),
               ),
               const SizedBox(width: 8),
@@ -855,7 +839,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   size: 18, color: context.theme.colors.mutedForeground),
               const SizedBox(width: 10),
               GestureDetector(
-                onTap: () => _toggleTargetMet(target, event, lep),
+                onTap: () => _toggleTargetContactMet(target, event, lep),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
@@ -893,30 +877,22 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
                   variant: ButtonVariant.branded,
                   onPressed: () => showLogInteractionSheet(context,
-                      contactId: contactId, initialMode: event.name,
-                      onSaved: () => lep.refresh()),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: AppButton(
-                  label: 'PROFILE',
-                  prefixIcon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
-                  variant: ButtonVariant.outline,
-                  onPressed: () {
-                    if (contactId != null && contactId.isNotEmpty) {
-                      context.push('/contacts/$contactId');
-                    } else {
-                      Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => LiveTargetPersonScreen(event: event, target: target)));
-                    }
-                  },
+                      contactId: contactId.isNotEmpty ? contactId : null,
+                      initialMode: event.name,
+                      onSaved: () => lep.refresh(),
+                      onMarkedMet: () => _markTargetContactMet(contactId, event, lep)),
                 ),
               ),
               const SizedBox(width: 8),
               AppButton(
                 variant: ButtonVariant.outline,
-                onPressed: () => _deleteTarget(target, event, lep),
+                onPressed: contactId.isNotEmpty ? () => context.push('/contacts/$contactId') : null,
+                child: Icon(Icons.person_outline_rounded, size: 18, color: _c.accent),
+              ),
+              const SizedBox(width: 8),
+              AppButton(
+                variant: ButtonVariant.outline,
+                onPressed: () => _deleteTargetContact(target, event, lep),
                 child: Icon(Icons.delete_outline_rounded, size: 18, color: _c.destructive),
               ),
             ]),
@@ -927,7 +903,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
 
   // ── Scanned contacts ───────────────────────────────────────────────────────
 
-  Widget _buildScannedList(LiveEventProvider lep) {
+  Widget _buildScannedList(Event event, LiveEventProvider lep) {
     final filtered = lep.scannedContacts.where((c) {
       if (_scannedSearch.isEmpty) return true;
       final contact = c['contact'] as Map<String, dynamic>?;
@@ -975,12 +951,12 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             ]),
           )
         else
-          ...filtered.map((capture) => _buildScannedCard(capture)),
+          ...filtered.map((capture) => _buildScannedCard(capture, event, lep)),
       ],
     );
   }
 
-  Widget _buildScannedCard(Map<String, dynamic> capture) {
+  Widget _buildScannedCard(Map<String, dynamic> capture, Event event, LiveEventProvider lep) {
     final contact = capture['contact'] as Map<String, dynamic>? ?? {};
     final contactId = contact['id'] as String? ?? '';
     final firstName = contact['first_name'] as String? ?? '';
@@ -1069,23 +1045,20 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                 ],
                 Row(children: [
                   Expanded(
-                    flex: 3,
                     child: AppButton(
                       label: 'LOG INTERACTION',
                       prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
                       variant: ButtonVariant.branded,
-                      onPressed: () => showLogInteractionSheet(context, contactId: contactId),
+                      onPressed: () => showLogInteractionSheet(context,
+                          contactId: contactId,
+                          onMarkedMet: () => _markTargetContactMet(contactId, event, lep)),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: AppButton(
-                      label: 'PROFILE',
-                      prefixIcon: Icon(Icons.person_outline_rounded, size: 14, color: _c.accent),
-                      variant: ButtonVariant.outline,
-                      onPressed: contactId.isEmpty ? null : () => context.push('/contacts/$contactId'),
-                    ),
+                  AppButton(
+                    variant: ButtonVariant.outline,
+                    onPressed: contactId.isEmpty ? null : () => context.push('/contacts/$contactId'),
+                    child: Icon(Icons.person_outline_rounded, size: 18, color: _c.accent),
                   ),
                 ]),
               ]),

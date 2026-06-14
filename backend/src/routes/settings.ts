@@ -33,7 +33,6 @@ router.get('/', async (req: Request, res: Response) => {
           email_signature: '',
           push_notifications: true,
           daily_digest: true,
-          compact_meeting_cards: false,
         }
       });
     }

@@ -44,6 +44,8 @@ DEV-1480 changes:
 
 from __future__ import annotations
 
+import sys
+from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
 
 from slayer.core.enums import DataType
@@ -563,17 +565,32 @@ async def refresh_all_table_backed_sampled(
     engine: SlayerQueryEngine,
     storage: StorageBackend,
     data_source: str,
+    only_models: Optional[Set[str]] = None,
 ) -> List[str]:
     """Refresh ``Column.sampled`` for every table-backed model in
-    ``data_source``. Best-effort across all models."""
+    ``data_source``. Best-effort across all models.
+
+    When ``only_models`` is given, restrict profiling to those model
+    names. Callers pass the freshly-introspected table set so stale
+    stored models (whose DB table was dropped) are never profiled —
+    querying a dropped table would otherwise hang."""
     errors: List[str] = []
     identities = await storage._list_all_model_identities()
-    for ds, name in identities:
-        if ds != data_source:
-            continue
+    in_scope = [
+        (ds, name) for ds, name in identities
+        if ds == data_source and (only_models is None or name in only_models)
+    ]
+    total = len(in_scope)
+    for i, (ds, name) in enumerate(in_scope, 1):
         model = await storage.get_model(name, data_source=ds)
         if model is None:
             continue
+        eligible = [c for c in model.columns if not c.hidden and not c.primary_key]
+        cached = sum(1 for c in eligible if _is_sample_cached(c))
+        needs_profile = len(eligible) - cached
+        status = f"profiling {needs_profile} col(s)" if needs_profile else "cached"
+        ts = datetime.now().strftime("%H:%M:%S")
+        print(f"  {ts} [{i}/{total}] {name}: {status}", file=sys.stderr, flush=True)
         errors.extend(
             await refresh_table_backed_model_sampled(
                 model=model, engine=engine, storage=storage,

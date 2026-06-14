@@ -10,6 +10,7 @@ Flow:
 import asyncio
 import logging
 import sys
+from datetime import datetime
 from collections import defaultdict, deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, TextIO, Tuple
 
@@ -970,7 +971,11 @@ async def ingest_datasource_idempotent(
     fresh_by_name = {m.name: m for m in fresh_models}
     in_scope_table_names: Set[str] = set(fresh_by_name.keys())
 
-    for table_name, fresh in fresh_by_name.items():
+    table_list = list(fresh_by_name.items())
+    n_tables = len(table_list)
+    print(f"  {datetime.now().strftime('%H:%M:%S')} Introspecting {n_tables} table(s)…", file=sys.stderr, flush=True)
+    for idx, (table_name, fresh) in enumerate(table_list, 1):
+        print(f"  {datetime.now().strftime('%H:%M:%S')} [{idx}/{n_tables}] {table_name}", file=sys.stderr, flush=True)
         try:
             addition = await _process_one_table(
                 table_name=table_name,
@@ -1002,12 +1007,14 @@ async def ingest_datasource_idempotent(
     # table-backed model in this datasource. Best-effort: per-column
     # failures are accumulated as IngestionError entries; an unexpected
     # raise is also caught so ingestion's idempotent contract holds.
+    print(f"  {datetime.now().strftime('%H:%M:%S')} Profiling column sample values…", file=sys.stderr, flush=True)
     refresh_engine = SlayerQueryEngine(storage=storage)
     try:
         refresh_errors = await refresh_all_table_backed_sampled(
             engine=refresh_engine,
             storage=storage,
             data_source=datasource.name,
+            only_models=in_scope_table_names,
         )
     except Exception as exc:
         refresh_errors = [f"{datasource.name}: {exc}"]
@@ -1022,6 +1029,7 @@ async def ingest_datasource_idempotent(
     # every visible model + its visible children. Best-effort: per-entity
     # failures are surfaced as IngestionError entries, never aborts
     # ingestion. When the `embedding_search` extra is not installed,
+    print(f"  {datetime.now().strftime('%H:%M:%S')} Refreshing embeddings…", file=sys.stderr, flush=True)
     # EmbeddingService returns a single warning and does no work.
     embedding_errors = await _refresh_datasource_embeddings(
         datasource_name=datasource.name, storage=storage,

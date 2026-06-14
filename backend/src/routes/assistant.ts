@@ -86,11 +86,11 @@ function stripImmutable(data: Record<string, unknown>): Record<string, unknown> 
 const SLAYER_QUERY_TOOL = {
   name: 'query_crm',
   description: `Query CRM data using the semantic layer. Use this for ANY read operation:
-listing contacts, events, notes, reminders, email drafts, captures, companies,
-meetings, interactions, dashboard stats, or searching messages.
+listing contacts, events, notes, email drafts, captures, companies,
+interactions, dashboard stats, or searching messages.
 The semantic layer handles SQL generation — you just describe what you want.
-Available source_models: contacts, events, notes, reminders, email_drafts,
-captures, companies, meeting_briefs, interactions, messages, conversations,
+Available source_models: contacts, events, notes, email_drafts,
+captures, companies, interactions, messages, conversations,
 documents, attachments.`,
   parameters: {
     type: 'object',
@@ -229,23 +229,6 @@ const WRITE_TOOLS = [
         note_type: { type: 'string', enum: ['text', 'voice', 'ai'] },
       },
       required: ['content'],
-    },
-  },
-  {
-    name: 'create_reminder',
-    description: 'Create a reminder for a contact or event',
-    parameters: {
-      type: 'object',
-      properties: {
-        title: { type: 'string' },
-        reminder_date: { type: 'string', description: 'ISO 8601 datetime' },
-        reminder_type: { type: 'string' },
-        message: { type: 'string' },
-        priority: { type: 'string', enum: ['low', 'medium', 'high'] },
-        contact_id: { type: 'string' },
-        event_id: { type: 'string' },
-      },
-      required: ['title', 'reminder_date', 'reminder_type'],
     },
   },
   {
@@ -450,34 +433,6 @@ async function execCreateNote(args: Record<string, unknown>, userId: string) {
   return data;
 }
 
-async function execCreateReminder(args: Record<string, unknown>, userId: string) {
-  const a = z.object({
-    title: z.string().trim().min(1),
-    reminder_date: z.any(),
-    reminder_type: z.string().trim().min(1),
-    message: z.string().trim().optional(),
-    priority: z.enum(['low', 'medium', 'high']).optional(),
-    contact_id: z.string().uuid().optional(),
-    event_id: z.string().uuid().optional(),
-  }).parse(args);
-
-  if (a.contact_id) {
-    const { data: c } = await supabaseAdmin.from('contacts').select('id').eq('id', a.contact_id).eq('user_id', userId).maybeSingle();
-    if (!c) throw new Error('Contact not found or access denied');
-  }
-  if (a.event_id) {
-    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).maybeSingle();
-    if (!ev) throw new Error('Event not found or access denied');
-  }
-
-  const { data, error } = await supabaseAdmin.from('reminders').insert({
-    title: a.title, reminder_date: toIso(a.reminder_date, 'reminder_date'),
-    reminder_type: a.reminder_type, message: a.message ?? null,
-    priority: a.priority ?? 'medium', contact_id: a.contact_id ?? null, event_id: a.event_id ?? null,
-  }).select('*').single();
-  if (error) throw new Error(error.message);
-  return data;
-}
 
 async function execDraftEmail(args: Record<string, unknown>, userId: string) {
   const a = z.object({
@@ -550,7 +505,6 @@ async function executeTool(
         case 'create_event': result = await execCreateEvent(call.args, userId); break;
         case 'update_event': result = await execUpdateEvent(call.args, userId); break;
         case 'create_note': result = await execCreateNote(call.args, userId); break;
-        case 'create_reminder': result = await execCreateReminder(call.args, userId); break;
         case 'draft_email': result = await execDraftEmail(call.args, userId); break;
         default:
           throw new Error(`Unknown tool: ${call.name}`);
@@ -608,12 +562,12 @@ function buildSystemPrompt(entityContext: string, userProfile?: UserProfile): st
 You have access to tools to READ and WRITE CRM data.
 
 READ: Use query_crm for any data retrieval — listing contacts, events, notes,
-reminders, email drafts, captures, companies, meetings, or searching messages.
+email drafts, captures, companies, or searching messages.
 The semantic layer handles SQL — just describe what you want with source_model,
 dimensions, filters, and optional measures.
 
 WRITE: Use create_contact, update_contact, create_event, update_event,
-create_note, create_reminder, draft_email for mutations.
+create_note, draft_email for mutations.
 
 Rules:
 - ALWAYS call query_crm FIRST before any write operation to look up the record's ID. Never assume you know an ID.
@@ -728,7 +682,7 @@ router.post('/respond', async (req, res) => {
     const MAX_ITERATIONS = 6;
     let assistantText = '';
     const allToolResults: ToolResult[] = [];
-    const linksToInsert: Array<{ contact_id?: string; event_id?: string; reminder_id?: string; email_draft_id?: string }> = [];
+    const linksToInsert: Array<{ contact_id?: string; event_id?: string; email_draft_id?: string }> = [];
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const llmResult = await litellm.generateWithTools(systemPrompt, history, ALL_TOOLS);
@@ -745,6 +699,12 @@ router.post('/respond', async (req, res) => {
         const toolResult = await executeTool(call, userId, supabaseUser, run.id);
         allToolResults.push(toolResult);
 
+        // If query_crm failed (slayer down or query error), abort immediately.
+        // Don't let the LLM proceed to write tools with incomplete or missing data.
+        if (call.name === 'query_crm' && !toolResult.ok) {
+          throw new Error('CRM query service is unavailable. Please try again in a moment.');
+        }
+
         iterResults.push({
           id: call.id,
           name: call.name,
@@ -756,7 +716,6 @@ router.post('/respond', async (req, res) => {
           const r = toolResult.result as Record<string, unknown>;
           if (call.name === 'create_contact' && r.id) linksToInsert.push({ contact_id: r.id as string });
           if (call.name === 'create_event' && r.id) linksToInsert.push({ event_id: r.id as string });
-          if (call.name === 'create_reminder' && r.id) linksToInsert.push({ reminder_id: r.id as string });
           if (call.name === 'draft_email' && r.id) linksToInsert.push({ email_draft_id: r.id as string });
         }
       }
@@ -790,7 +749,6 @@ router.post('/respond', async (req, res) => {
           message_id: assistantMessage.id,
           contact_id: l.contact_id ?? null,
           event_id: l.event_id ?? null,
-          reminder_id: l.reminder_id ?? null,
           email_draft_id: l.email_draft_id ?? null,
         }))
       );
@@ -814,8 +772,6 @@ router.post('/respond', async (req, res) => {
         linkedEntitiesMap.set(id, { type: 'contact', id, first_name: r.first_name, last_name: r.last_name });
       } else if (tr.name === 'create_event' || tr.name === 'update_event') {
         linkedEntitiesMap.set(id, { type: 'event', id, name: r.name, start_date: r.start_date, location: r.location });
-      } else if (tr.name === 'create_reminder') {
-        linkedEntitiesMap.set(id, { type: 'reminder', id, title: r.title, reminder_date: r.reminder_date });
       } else if (tr.name === 'draft_email') {
         linkedEntitiesMap.set(id, { type: 'email_draft', id, subject: r.subject });
       }

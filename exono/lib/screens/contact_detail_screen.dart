@@ -14,13 +14,16 @@ import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_input.dart';
 import '../config/app_theme.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/skeleton_loader.dart';
+import 'package:provider/provider.dart';
 import 'contact_links_files_sheet.dart';
 import 'log_interaction_screen.dart';
+import '../providers/live_event_provider.dart';
 import '../utils/screen_logger.dart';
 
 class ContactDetailScreen extends StatefulWidget {
@@ -103,6 +106,18 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     }
   }
 
+  Future<void> _markMetIfTarget(String contactId, String eventId, LiveEventProvider lep) async {
+    final isTarget = lep.targetContacts.any((t) => t['contact_id'] == contactId);
+    if (!isTarget) return;
+    final alreadyMet = (lep.targetContacts.firstWhere(
+          (t) => t['contact_id'] == contactId, orElse: () => {})['status'] as String?) == 'met';
+    if (alreadyMet) return;
+    try {
+      await ApiService.updateTargetContactStatus(eventId, contactId, 'met');
+      lep.updateTargetContactStatusLocally(contactId, 'met');
+    } catch (_) {}
+  }
+
   Future<void> _fetchContactDetails(ContactProfileData profile) async {
     _fetchInsights(profile.id);
     try {
@@ -122,28 +137,16 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         final details = item['details'] as Map<String, dynamic>?;
         final mode = details?['mode'] as String?;
         String title = item['title'] ?? (type == 'note' ? 'Note Added' : 'Interaction');
-        if (type == 'meeting') title = 'Meeting: ${item['subject'] ?? 'Strategy Session'}';
-        else if (type == 'interaction' && item['interaction_type'] == 'capture') title = 'Scanner Capture';
-        else if (type == 'interaction' && mode != null && mode.isNotEmpty) title = mode;
-        else if (type == 'interaction' && item['interaction_type'] == 'voice_note') title = 'Voice Note';
+        if (type == 'interaction' && item['interaction_type'] == 'capture') { title = 'Scanner Capture'; }
+        else if (type == 'interaction' && mode != null && mode.isNotEmpty) { title = mode; }
+        else if (type == 'interaction' && item['interaction_type'] == 'voice_note') { title = 'Voice Note'; }
         final captureNote = details?['note'] as String?;
         final eventName = (item['event'] as Map<String, dynamic>?)?['name'] as String?;
-        final isMeeting = type == 'interaction' && item['interaction_type'] == 'meeting';
-        final rawSummary = (item['summary'] as String? ?? '').trim();
-
-        final String description;
-        final String? note;
-        if (isMeeting) {
-          description = eventName ?? '';
-          final summaryText = rawSummary.isNotEmpty && rawSummary != 'Met at event' ? rawSummary : null;
-          note = summaryText;
-        } else {
-          final rawDescription = item['summary'] ?? item['content'] ?? 'No additional details.';
-          description = (eventName != null && eventName.isNotEmpty)
-              ? '$rawDescription\n$eventName'
-              : rawDescription as String;
-          note = (captureNote != null && captureNote.isNotEmpty) ? captureNote : null;
-        }
+        final rawDescription = item['summary'] ?? item['content'] ?? 'No additional details.';
+        final description = (eventName != null && eventName.isNotEmpty)
+            ? '$rawDescription\n$eventName'
+            : rawDescription as String;
+        final note = (captureNote != null && captureNote.isNotEmpty) ? captureNote : null;
 
         return ContactTimelineItem(
           dateLabel: '${_formatDate(date)} • ${_formatTime(date)}',
@@ -361,9 +364,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   Widget _buildHeader() {
     final contact = _contact;
     return FHeader.nested(
-      title: Text(contact?.listName ?? ''),
+      title: const SizedBox.shrink(),
       prefixes: [
-        FHeaderAction(icon: const Icon(Icons.arrow_back_rounded), onPress: () => context.pop()),
+        AppHeaderActionButton(icon: Icons.arrow_back_rounded, onPressed: () => context.pop()),
       ],
       suffixes: contact != null
           ? [
@@ -588,16 +591,28 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               const SizedBox(width: 8),
               _quickBtn(Icons.mail_outline, 'Email',
                   contact.email.isNotEmpty ? () => _generateEmailDraft(contact) : null),
-              const SizedBox(width: 8),
-              _quickBtn(Icons.calendar_month_outlined, 'Schedule',
-                  () => _toast('Schedule Meeting is UI-only for now.')),
             ],
           ),
 
           const SizedBox(height: 12),
           AppButton(
             variant: ButtonVariant.branded,
-            onPressed: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
+            onPressed: () {
+                final lep = context.read<LiveEventProvider>();
+                showLogInteractionSheet(
+                  context,
+                  contactId: contact.id,
+                  onSaved: () => _fetchContactDetails(contact),
+                  onMarkedMet: lep.isLive
+                      ? () async {
+                          final eventId = lep.liveEvent?.id;
+                          if (eventId != null) {
+                            await _markMetIfTarget(contact.id, eventId, lep);
+                          }
+                        }
+                      : null,
+                );
+              },
             prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
             label: 'LOG INTERACTION',
             fullWidth: true,
@@ -753,7 +768,22 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         const SizedBox(height: 4),
         AppButton(
           variant: ButtonVariant.branded,
-          onPressed: () => showLogInteractionSheet(context, contactId: contact.id, onSaved: () => _fetchContactDetails(contact)),
+          onPressed: () {
+                final lep = context.read<LiveEventProvider>();
+                showLogInteractionSheet(
+                  context,
+                  contactId: contact.id,
+                  onSaved: () => _fetchContactDetails(contact),
+                  onMarkedMet: lep.isLive
+                      ? () async {
+                          final eventId = lep.liveEvent?.id;
+                          if (eventId != null) {
+                            await _markMetIfTarget(contact.id, eventId, lep);
+                          }
+                        }
+                      : null,
+                );
+              },
           prefixIcon: const Icon(Icons.add, size: 14),
           label: 'LOG INTERACTION',
         ),

@@ -1,5 +1,5 @@
 class LinkedEntity {
-  final String type; // contact | event | reminder | email_draft
+  final String type; // contact | event | email_draft
   final String id;
   final String displayName;
   final String? subtitle;
@@ -27,11 +27,6 @@ class LinkedEntity {
         displayName = (json['name'] as String?) ?? 'Event';
         final startDate = json['start_date'] as String?;
         subtitle = startDate != null ? _formatDate(startDate) : (json['location'] as String?);
-        break;
-      case 'reminder':
-        displayName = (json['title'] as String?) ?? 'Reminder';
-        final reminderDate = json['reminder_date'] as String?;
-        subtitle = reminderDate != null ? _formatDate(reminderDate) : null;
         break;
       case 'email_draft':
         displayName = (json['subject'] as String?) ?? 'Email Draft';

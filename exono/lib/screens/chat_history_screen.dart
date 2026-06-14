@@ -69,11 +69,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
       color: context.theme.colors.background,
       child: Column(
         children: [
-          AppHeader(
-            actionIcon: Icons.refresh_rounded,
-            actionTooltip: 'Refresh',
-            onActionPressed: () => convProvider.loadConversations(),
-          ),
+          const AppHeader(),
           Expanded(
             child: convProvider.isLoading && conversations.isEmpty
                 ? _skeleton()

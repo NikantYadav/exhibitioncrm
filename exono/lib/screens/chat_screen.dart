@@ -74,7 +74,7 @@ class _ChatScreenState extends State<ChatScreen>
     final auth = context.read<AuthProvider>();
 
     if (widget.isNewChat) {
-      chatProvider.reset();
+      chatProvider.reset(loading: false);
       convProvider.setActive(null);
     }
 
@@ -232,7 +232,7 @@ class _ChatScreenState extends State<ChatScreen>
         children: [
           // Back
           IconButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
             icon: Icon(Icons.arrow_back_ios_new_rounded,
                 color: _c.accent, size: 19),
             tooltip: 'Back',
@@ -855,8 +855,6 @@ class _LinkedEntityCard extends StatelessWidget {
         return Icons.person_rounded;
       case 'event':
         return Icons.event_rounded;
-      case 'reminder':
-        return Icons.alarm_rounded;
       case 'email_draft':
         return Icons.mail_outline_rounded;
       default:
@@ -868,7 +866,6 @@ class _LinkedEntityCard extends StatelessWidget {
     switch (entity.type) {
       case 'contact': return 'Contact';
       case 'event': return 'Event';
-      case 'reminder': return 'Reminder';
       case 'email_draft': return 'Draft';
       default: return 'Item';
     }

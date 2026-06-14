@@ -645,6 +645,27 @@ class ApiService {
     if (response.statusCode != 200) throw Exception('Failed to link contact to event');
   }
 
+  static Future<List<Map<String, dynamic>>> getEventTargetContacts(String eventId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/contacts'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return (data['data'] as List).cast<Map<String, dynamic>>();
+    }
+    throw Exception('Failed to load target contacts');
+  }
+
+  static Future<void> updateTargetContactStatus(String eventId, String contactId, String status) async {
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/contacts/$contactId'),
+      headers: await _headers(),
+      body: json.encode({'status': status}),
+    );
+    if (response.statusCode != 200) throw Exception('Failed to update target contact status');
+  }
+
   static Future<Map<String, dynamic>> addEventTarget(String eventId, String companyId, {String priority = 'medium', String? boothLocation}) async {
     final body = <String, dynamic>{'company_id': companyId, 'priority': priority};
     if (boothLocation != null && boothLocation.isNotEmpty) body['booth_location'] = boothLocation;

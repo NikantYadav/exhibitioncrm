@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../router.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/live_bar.dart';
 import '../utils/screen_logger.dart';
@@ -15,7 +16,6 @@ int tabIndexForPath(String location) {
   if (location.startsWith('/contacts'))  return 3;
   if (location.startsWith('/follow-ups')) return 4;
   if (location.startsWith('/profile'))   return 5;
-  if (location.startsWith('/meetings'))  return 6;
   if (location.startsWith('/chat-history')) return 7;
   if (location.startsWith('/chat'))        return 7;
   return 0; // '/'
@@ -27,7 +27,6 @@ const _tabPaths = {
   3: '/contacts',
   4: '/follow-ups',
   5: '/profile',
-  6: '/meetings',
   7: '/chat-history',
 };
 
@@ -65,6 +64,12 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
         captureReturnSignal.value++;
       });
       return;
+    }
+    // Pop any imperatively-pushed routes (e.g. PreEventPrepScreen, EventFollowUpsScreen)
+    // off the shell's nested navigator before go_router navigates.
+    final shellNav = shellNavigatorKey.currentState;
+    if (shellNav != null) {
+      shellNav.popUntil((route) => route.isFirst);
     }
     final path = _tabPaths[index] ?? '/';
     context.go(path);
@@ -220,7 +225,6 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
       _NavEntry(3, Icons.group_outlined, 'Contacts', '/contacts'),
       _NavEntry(1, Icons.calendar_today_outlined, 'Events', '/events'),
       _NavEntry(4, Icons.mail_outlined, 'Follow-Ups', '/follow-ups'),
-      _NavEntry(6, Icons.event_note_rounded, 'Meetings', '/meetings'),
     ];
     return ListView(
       padding: EdgeInsets.symmetric(horizontal: _sidebarCollapsed ? 12 : 12),
@@ -341,7 +345,6 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
     if (loc.startsWith('/contacts'))   return 'Contacts';
     if (loc.startsWith('/follow-ups')) return 'Follow-Ups';
     if (loc.startsWith('/profile'))    return 'Profile';
-    if (loc.startsWith('/meetings'))   return 'Meetings';
     return 'Home';
   }
 }

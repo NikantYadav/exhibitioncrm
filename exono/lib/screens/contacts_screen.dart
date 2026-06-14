@@ -115,7 +115,6 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
   Widget build(BuildContext context) {
     return FScaffold(
       header: AppHeader(
-        onNotificationPressed: () => showAppToast(context, 'Notifications is UI-only for now.'),
         actionIcon: Icons.add_rounded,
         actionTooltip: 'Add Contact',
         onActionPressed: _showAddContactSheet,

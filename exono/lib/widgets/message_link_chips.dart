@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:forui/forui.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/chat_provider.dart';
 
 /// Renders tappable chips for records created/linked by the assistant.
@@ -19,7 +19,7 @@ class MessageLinkChips extends StatelessWidget {
           icon: Icons.person_rounded,
           label: 'Contact',
           color: const Color(0xFF2563EB),
-          onTap: () => _showInfo(context, 'Contact', link.contactId!),
+          onTap: () => context.push('/contacts/${link.contactId}'),
         ));
       }
       if (link.eventId != null) {
@@ -28,16 +28,7 @@ class MessageLinkChips extends StatelessWidget {
           icon: Icons.event_rounded,
           label: 'Event',
           color: const Color(0xFF2563EB),
-          onTap: () => _showInfo(context, 'Event', link.eventId!),
-        ));
-      }
-      if (link.reminderId != null) {
-        chips.add(_chip(
-          context,
-          icon: Icons.alarm_rounded,
-          label: 'Reminder',
-          color: const Color(0xFFD97706),
-          onTap: () => _showInfo(context, 'Reminder', link.reminderId!),
+          onTap: () => context.push('/events/${link.eventId}'),
         ));
       }
       if (link.emailDraftId != null) {
@@ -46,7 +37,7 @@ class MessageLinkChips extends StatelessWidget {
           icon: Icons.mail_rounded,
           label: 'Email Draft',
           color: const Color(0xFF059669),
-          onTap: () => _showInfo(context, 'Email Draft', link.emailDraftId!),
+          onTap: () {},
         ));
       }
     }
@@ -92,7 +83,4 @@ class MessageLinkChips extends StatelessWidget {
     );
   }
 
-  void _showInfo(BuildContext context, String type, String id) {
-    showFToast(context: context, title: Text('$type created (id: ${id.substring(0, 8)}...)'));
-  }
 }

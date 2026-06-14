@@ -11,6 +11,7 @@ class LiveEventProvider extends ChangeNotifier {
   Map<String, dynamic>? _liveStats;
   List<Map<String, dynamic>> _liveGoals = [];
   List<Map<String, dynamic>> _liveTargets = [];
+  List<Map<String, dynamic>> _targetContacts = [];
   List<Map<String, dynamic>> _scannedContacts = [];
 
   bool _isLoadingLive = false;
@@ -23,13 +24,14 @@ class LiveEventProvider extends ChangeNotifier {
   Map<String, dynamic>? get liveStats => _liveStats;
   List<Map<String, dynamic>> get liveGoals => List.unmodifiable(_liveGoals);
   List<Map<String, dynamic>> get liveTargets => List.unmodifiable(_liveTargets);
+  List<Map<String, dynamic>> get targetContacts => List.unmodifiable(_targetContacts);
   List<Map<String, dynamic>> get scannedContacts => List.unmodifiable(_scannedContacts);
 
   bool get isLive => _liveEvent != null;
   bool get isLoadingLive => _isLoadingLive;
   bool get initialized => _initialized;
 
-  int get targetsLeft => _liveTargets.where((t) => (t['status'] as String?) != 'met').length;
+  int get targetsLeft => _targetContacts.where((t) => (t['status'] as String?) != 'met').length;
 
   /// Call once after login. Starts polling.
   Future<void> init() async {
@@ -54,6 +56,7 @@ class LiveEventProvider extends ChangeNotifier {
       _liveStats = data['stats'] as Map<String, dynamic>?;
       _liveGoals = List<Map<String, dynamic>>.from(data['goals'] as List? ?? []);
       _liveTargets = List<Map<String, dynamic>>.from(data['targets'] as List? ?? []);
+      _targetContacts = List<Map<String, dynamic>>.from(data['target_contacts'] as List? ?? []);
       _scannedContacts = captures;
     } catch (_) {
       // No live event
@@ -61,6 +64,7 @@ class LiveEventProvider extends ChangeNotifier {
       _liveStats = null;
       _liveGoals = [];
       _liveTargets = [];
+      _targetContacts = [];
       _scannedContacts = [];
     }
 
@@ -118,6 +122,26 @@ class LiveEventProvider extends ChangeNotifier {
   void removeTargetLocally(String targetId) {
     _liveTargets = _liveTargets.where((t) => t['id'] != targetId).toList();
     notifyListeners();
+  }
+
+  void addTargetContactLocally(Map<String, dynamic> contact) {
+    _targetContacts = [..._targetContacts, contact];
+    notifyListeners();
+  }
+
+  void removeTargetContactLocally(String contactId) {
+    _targetContacts = _targetContacts.where((c) => c['contact_id'] != contactId).toList();
+    notifyListeners();
+  }
+
+  void updateTargetContactStatusLocally(String contactId, String status) {
+    final idx = _targetContacts.indexWhere((c) => c['contact_id'] == contactId);
+    if (idx != -1) {
+      final updated = List<Map<String, dynamic>>.from(_targetContacts);
+      updated[idx] = {...updated[idx], 'status': status};
+      _targetContacts = updated;
+      notifyListeners();
+    }
   }
 
   @override

@@ -21,6 +21,8 @@ Future<bool> showLogInteractionSheet(
   String? contactId,
   String? initialMode,
   VoidCallback? onSaved,
+  // When set, auto-marks the contact as met in the event after saving
+  Future<void> Function()? onMarkedMet,
 }) async {
   if (contactId == null || contactId.isEmpty) {
     showFToast(
@@ -37,6 +39,7 @@ Future<bool> showLogInteractionSheet(
   );
   if (saved == true) {
     onSaved?.call();
+    onMarkedMet?.call();
     return true;
   }
   return false;
@@ -263,107 +266,87 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
 
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
-      child: SafeArea(
-        top: false,
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: 420, maxHeight: mediaQuery.size.height * 0.92),
-            child: Container(
-              decoration: BoxDecoration(
-                color: _c.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                border: Border(
-                  top: BorderSide(color: _c.border),
-                  left: BorderSide(color: _c.border),
-                  right: BorderSide(color: _c.border),
+    return SafeArea(
+      top: false,
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.theme.colors.border,
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
                 children: [
-                  const SizedBox(height: 12),
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: _c.border,
-                        borderRadius: BorderRadius.circular(999),
+                  Expanded(
+                    child: Text(
+                      'Log Interaction',
+                      style: context.theme.typography.xl.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.4,
+                        color: context.theme.colors.foreground,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Log Interaction',
-                            style: TextStyle(
-                              fontSize: 20,
+                  GestureDetector(
+                    onTap: () {
+                      if (_isRecording) return;
+                      setState(() => _isVoiceMode = !_isVoiceMode);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _isVoiceMode ? _c.accent : _c.surfaceElevated,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: _isVoiceMode ? _c.accent : context.theme.colors.border),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isVoiceMode ? Icons.mic : Icons.mic_none_outlined,
+                            size: 14,
+                            color: _isVoiceMode ? Colors.white : context.theme.colors.mutedForeground,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'VOICE',
+                            style: context.theme.typography.xs.copyWith(
                               fontWeight: FontWeight.w700,
-                              letterSpacing: -0.4,
-                              color: _c.textPrimary,
+                              letterSpacing: 1.2,
+                              color: _isVoiceMode ? Colors.white : context.theme.colors.mutedForeground,
                             ),
                           ),
-                        ),
-                        // Voice / text toggle
-                        GestureDetector(
-                          onTap: () {
-                            if (_isRecording) return;
-                            setState(() => _isVoiceMode = !_isVoiceMode);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _isVoiceMode ? _c.accent : _c.surfaceElevated,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: _isVoiceMode ? _c.accent : _c.border),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _isVoiceMode ? Icons.mic : Icons.mic_none_outlined,
-                                  size: 14,
-                                  color: _isVoiceMode ? Colors.white : _c.textMuted,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'VOICE',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.2,
-                                    color: _isVoiceMode ? Colors.white : _c.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                      child: _isVoiceMode ? _buildVoiceContent() : _buildTextContent(),
-                    ),
-                  ),
-                  _buildSaveButton(),
                 ],
               ),
             ),
-          ),
+            const SizedBox(height: 20),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                child: _isVoiceMode ? _buildVoiceContent() : _buildTextContent(),
+              ),
+            ),
+            _buildSaveButton(),
+          ],
         ),
       ),
     );

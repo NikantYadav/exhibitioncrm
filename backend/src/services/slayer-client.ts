@@ -24,8 +24,8 @@ const SLAYER_URL = (process.env.SLAYER_URL || 'http://127.0.0.1:5143').replace(/
 // The LLM can only query these tables. Anything else (pg_catalog, auth.users,
 // etc.) is blocked at validation time before the request reaches Slayer.
 const ALLOWED_MODELS = [
-  'contacts', 'events', 'notes', 'reminders', 'email_drafts',
-  'captures', 'companies', 'meeting_briefs', 'interactions',
+  'contacts', 'events', 'notes', 'email_drafts',
+  'captures', 'companies', 'interactions',
   'messages', 'conversations', 'documents', 'attachments',
   'contact_documents', 'enrichment_queue', 'user_profiles',
   'target_companies', 'company_research', 'marketing_assets',
@@ -36,8 +36,8 @@ type AllowedModel = typeof ALLOWED_MODELS[number];
 
 // Tables that carry owner_user_id
 const OWNER_USER_ID_TABLES = new Set<string>([
-  'notes', 'captures', 'reminders', 'email_drafts',
-  'meeting_briefs', 'conversations', 'messages', 'assistant_runs',
+  'notes', 'captures', 'email_drafts',
+  'conversations', 'messages', 'assistant_runs',
   'tool_calls', 'documents', 'attachments', 'contact_documents',
   'enrichment_queue',
 ]);

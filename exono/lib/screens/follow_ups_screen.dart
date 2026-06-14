@@ -433,14 +433,16 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
         bottom: false,
         child: Column(
           children: [
-            AppHeader(
-              onNotificationPressed: () {},
-              actionWidget: IconButton(
-                onPressed: () => widget.event != null || widget.eventId != null
-                    ? Navigator.of(context).pop()
-                    : context.go('/'),
-                icon: Icon(Icons.arrow_back_rounded, color: context.theme.colors.foreground),
-              ),
+            FHeader(
+              title: const SizedBox.shrink(),
+              suffixes: [
+                AppHeaderActionButton(
+                  icon: Icons.arrow_back_rounded,
+                  onPressed: () => widget.event != null || widget.eventId != null
+                      ? Navigator.of(context).pop()
+                      : context.go('/'),
+                ),
+              ],
             ),
             Expanded(
               child: RefreshIndicator(
@@ -805,3 +807,4 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
     );
   }
 }
+

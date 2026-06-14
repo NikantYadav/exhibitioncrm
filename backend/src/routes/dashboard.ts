@@ -73,25 +73,6 @@ router.get('/summary', async (req, res, next) => {
       .eq('status', 'sent')
       .limit(3);
 
-    // Get Upcoming Meetings
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const { data: upcomingMeetings } = await supabase
-      .from('meeting_briefs')
-      .select(`
-        id,
-        meeting_date,
-        meeting_type,
-        meeting_location,
-        status,
-        contact:contacts!inner(id, first_name, last_name, avatar_url, user_id, company:companies(name))
-      `)
-      .eq('contact.user_id', userId)
-      .gte('meeting_date', todayStart.toISOString())
-      .order('meeting_date', { ascending: true })
-      .limit(20);
-
     // Get Recent Activity
     const { data: recentActivity } = await supabase
       .from('interactions')
@@ -168,7 +149,6 @@ router.get('/summary', async (req, res, next) => {
           };
         }) || [],
       },
-      upcomingMeetings: upcomingMeetings || [],
       recentActivity: recentActivity || [],
       activeContacts: activeContacts || []
     });

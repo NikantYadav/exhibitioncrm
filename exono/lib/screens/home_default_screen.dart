@@ -10,11 +10,12 @@ import '../providers/live_event_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
-import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
+import 'event_follow_ups_screen.dart';
 import 'log_interaction_screen.dart';
+import 'pre_event_prep_screen.dart';
 import '../utils/screen_logger.dart';
 
 class HomeDefaultScreen extends StatefulWidget {
@@ -65,6 +66,21 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     }
   }
 
+  void _openEvent(Event event) {
+    if (event.status == 'ongoing') {
+      context.read<LiveEventProvider>().refresh();
+      context.go('/live-event');
+    } else if (event.status == 'completed') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => EventFollowUpsScreen(event: event)),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => PreEventPrepScreen(event: event)),
+      );
+    }
+  }
+
   Future<void> _loadUpcomingEvents() async {
     try {
       final all = await ApiService.getEvents();
@@ -82,9 +98,6 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     }
   }
 
-  void _toast(String msg) {
-    showAppToast(context, msg);
-  }
 
   String _greeting() {
     final hour = DateTime.now().hour;
@@ -116,7 +129,6 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         child: Column(
           children: [
             AppHeader(
-              onNotificationPressed: () => _toast('Notifications coming soon.'),
             ),
             // While live status is resolving, show a skeleton to avoid flash
             if (!lep.initialized)
@@ -187,9 +199,8 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         .where((s) => s.isNotEmpty)
         .join(' • ');
     final scanned = lep.scannedContacts.length;
-    final targetsLeft = lep.liveTargets.where((t) => (t['status'] as String?) != 'met').length;
-    final metTargets = lep.liveTargets.where((t) => (t['status'] as String?) == 'met').length;
-    final totalContacted = scanned + metTargets;
+    final targetsLeft = lep.targetContacts.where((t) => (t['status'] as String?) != 'met').length;
+    final goalsLeft = lep.liveGoals.where((g) => (g['status'] as String?) != 'completed').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,7 +210,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         const SizedBox(height: 12),
 
         // ── Stat strip ──
-        _buildStatStrip(scanned, targetsLeft, totalContacted),
+        _buildStatStrip(scanned, targetsLeft, goalsLeft),
         const SizedBox(height: 20),
 
         // ── Goals (compact) ──
@@ -318,7 +329,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
 
   // ── Stat strip ────────────────────────────────────────────────────────────
 
-  Widget _buildStatStrip(int scanned, int targetsLeft, int totalContacted) {
+  Widget _buildStatStrip(int scanned, int targetsLeft, int goalsLeft) {
     return AppCard(
       elevated: true,
       padding: const EdgeInsets.all(16),
@@ -328,7 +339,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
         Expanded(child: _statCol(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT')),
         Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
-        Expanded(child: _statCol(Icons.flag_outlined, '$totalContacted', 'TOTAL')),
+        Expanded(child: _statCol(Icons.flag_outlined, '$goalsLeft', 'GOALS LEFT')),
       ]),
     );
   }
@@ -431,7 +442,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     final next = lep.nextEvent;
     if (next != null) {
       return GestureDetector(
-        onTap: () => context.push('/events/${next.id}'),
+        onTap: () => _openEvent(next),
         child: Row(children: [
           Container(width: 6, height: 6, decoration: BoxDecoration(color: _c.accent, shape: BoxShape.circle)),
           const SizedBox(width: 8),
@@ -455,7 +466,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         child: Row(children: [
           Container(
             width: 40, height: 40,
-            decoration: BoxDecoration(color: context.theme.colors.foreground.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: _c.accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
             child: Icon(icon, color: _c.accent, size: 20),
           ),
           const SizedBox(width: 12),
@@ -484,7 +495,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         .firstOrNull ?? '';
 
     return GestureDetector(
-      onTap: () => context.push('/events/${event.id}'),
+      onTap: () => _openEvent(event),
       child: AppCard(
         padding: const EdgeInsets.all(16),
         radius: 12,

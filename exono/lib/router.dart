@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'models/event.dart';
 import 'providers/auth_provider.dart';
 import 'screens/app_shell.dart';
 import 'screens/auth_screen.dart';
@@ -10,6 +12,7 @@ import 'screens/chat_screen.dart';
 import 'screens/company_detail_screen.dart';
 import 'screens/contact_detail_screen.dart';
 import 'screens/contacts_screen.dart';
+import 'screens/event_router_screen.dart';
 import 'screens/events_screen.dart';
 import 'screens/follow_ups_screen.dart';
 import 'screens/home_default_screen.dart';
@@ -18,6 +21,11 @@ import 'screens/live_home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/account_settings_screen.dart';
 import 'screens/voice_contact_capture_screen.dart';
+
+/// Navigator key for the app shell's nested navigator. Lets the bottom nav
+/// pop any imperatively-pushed routes (PreEventPrepScreen, EventFollowUpsScreen)
+/// that were pushed onto the shell navigator before switching tabs.
+final shellNavigatorKey = GlobalKey<NavigatorState>();
 
 GoRouter buildRouter(AuthProvider auth) {
   return GoRouter(
@@ -56,6 +64,16 @@ GoRouter buildRouter(AuthProvider auth) {
         },
       ),
 
+      // ── Event detail — routes to prep/follow-up/live based on status ────────
+      GoRoute(
+        path: '/events/:id',
+        builder: (_, state) {
+          final eventId = state.pathParameters['id']!;
+          final event = state.extra is Event ? state.extra as Event : null;
+          return EventRouterScreen(eventId: eventId, event: event);
+        },
+      ),
+
       // ── Contact detail — full-screen (no nav shell needed) ────────────────
       GoRoute(
         path: '/contacts/:id',
@@ -67,6 +85,7 @@ GoRouter buildRouter(AuthProvider auth) {
 
       // ── App shell — all tab routes render inside AppShell ─────────────────
       ShellRoute(
+        navigatorKey: shellNavigatorKey,
         builder: (context, state, child) => AppShell(
           location: state.matchedLocation,
           child: child,

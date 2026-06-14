@@ -118,7 +118,7 @@ class ExonoColors extends ThemeExtension<ExonoColors> {
 /// the codebase can consume semantic tokens instead of hardcoded palette values.
 class AppTheme {
   // Legacy palette kept for older screens still migrating to semantic tokens.
-  static const Color background = Color(0xFFF5F8FF);
+  static const Color background = Color(0xFFEBF3FF);
   static const Color foreground = Color(0xFF152238);
   static const Color cardBackground = Color(0xFFFFFFFF);
   static const Color primary = Color(0xFF3A67C7);
@@ -146,11 +146,11 @@ class AppTheme {
 
   static const ExonoColors lightColors = ExonoColors(
     isDark: false,
-    background: Color(0xFFF4F7FF),
-    backgroundAlt: Color(0xFFE8F0FF),
-    surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFF0F5FF),
-    surfaceElevated: Color(0xFFE5EEFF),
+    background: Color(0xFFEBF3FF),
+    backgroundAlt: Color(0xFFD6E8FF),
+    surface: Color(0xFFF5F9FF),
+    surfaceAlt: Color(0xFFE0EEFF),
+    surfaceElevated: Color(0xFFD0E4FF),
     border: Color(0xFFD4E0F7),
     borderStrong: Color(0xFFB9C9EA),
     textPrimary: Color(0xFF18253B),
@@ -160,7 +160,7 @@ class AppTheme {
     accentStrong: Color(0xFF0559C2),
     accentSoft: Color(0xFFD6EAFD),
     accentGlow: Color(0xFFB0D6FB),
-    navBackground: Color(0xFFF7FAFF),
+    navBackground: Color(0xFFEBF3FF),
     destructive: Color(0xFFDB5B68),
     success: Color(0xFF3AAE7A),
   );

@@ -23,6 +23,9 @@ class AppInput extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   final String? Function(String?)? validator;
   final bool autofocus;
+  final String? labelText;
+  final String? hintText;
+  final TextCapitalization textCapitalization;
 
   const AppInput({
     super.key,
@@ -46,6 +49,9 @@ class AppInput extends StatelessWidget {
     this.onSubmitted,
     this.validator,
     this.autofocus = false,
+    this.labelText,
+    this.hintText,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -55,11 +61,15 @@ class AppInput extends StatelessWidget {
       onChange: onChanged != null ? (val) => onChanged!(val.text) : null,
     );
 
+    final resolvedLabel = labelText ?? label;
+    final resolvedHint = hintText ?? hint;
+
     return FTextField(
       autofocus: autofocus,
       control: control,
-      label: label != null ? Text(label!) : null,
-      hint: hint,
+      label: resolvedLabel != null ? Text(resolvedLabel) : null,
+      hint: resolvedHint,
+      textCapitalization: textCapitalization,
       description: helperText != null ? Text(helperText!) : null,
       error: error != null ? Text(error!) : null,
       keyboardType: keyboardType,

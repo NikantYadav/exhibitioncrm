@@ -17,15 +17,17 @@ fi
 STORAGE="$SCRIPT_DIR/slayer_data"
 SCHEMA_HASH_FILE="$STORAGE/.schema_hash"
 
-# Query column fingerprint from live DB (table+column+type, sorted).
+# Hash only table names — column-level changes don't require a full re-ingest
+# because ingest is additive (new columns get appended) and sample profiling
+# is cached per-column (only new/uncached columns are profiled).
+# Re-ingest only when tables are added or dropped.
 DB_HOST="aws-1-ap-northeast-2.pooler.supabase.com"
 DB_USER="slayer_readonly.ezammzqvbjgpuzleqmla"
 DB_NAME="postgres"
 CURRENT_HASH=$(PGPASSWORD="$SLAYER_READONLY_PASSWORD" psql \
   -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -A \
-  -c "SELECT table_name||'.'||column_name||':'||data_type
-      FROM information_schema.columns
-      WHERE table_schema='public'
+  -c "SELECT table_name FROM information_schema.tables
+      WHERE table_schema='public' AND table_type='BASE TABLE'
       ORDER BY 1;" 2>/dev/null | sha256sum | cut -d' ' -f1)
 
 STORED_HASH=""
@@ -33,7 +35,7 @@ STORED_HASH=""
 
 echo "→ Starting Slayer on http://localhost:5143 (storage: $STORAGE)"
 if [[ "$CURRENT_HASH" != "$STORED_HASH" ]]; then
-  echo "   Schema changed — re-ingesting datasource 'exono'…"
+  echo "   Table list changed — re-ingesting datasource 'exono'…"
   "$SCRIPT_DIR/env/bin/python" -m slayer ingest --datasource exono --storage "$STORAGE"
   echo "$CURRENT_HASH" > "$SCHEMA_HASH_FILE"
 else
