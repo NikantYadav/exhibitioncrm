@@ -43,38 +43,40 @@ class LiveEventProvider extends ChangeNotifier {
   Future<void> refresh() => _refresh();
 
   Future<void> _refresh() async {
-    // Try to fetch live event
+    _isLoadingLive = true;
+    if (!_initialized) notifyListeners();
+
     try {
-      _isLoadingLive = true;
-      if (!_initialized) notifyListeners();
+      final session = await ApiService.getLiveSession();
+      final event = session?['event'] as Event?;
 
-      final event = await ApiService.getOngoingEvent();
-      final data = await ApiService.getLiveEventData(event.id);
-      final captures = await ApiService.getEventCaptures(event.id);
-
-      _liveEvent = event;
-      _liveStats = data['stats'] as Map<String, dynamic>?;
-      _liveGoals = List<Map<String, dynamic>>.from(data['goals'] as List? ?? []);
-      _liveTargets = List<Map<String, dynamic>>.from(data['targets'] as List? ?? []);
-      _targetContacts = List<Map<String, dynamic>>.from(data['target_contacts'] as List? ?? []);
-      _scannedContacts = captures;
+      if (event != null) {
+        final liveData = session!['liveData'] as Map<String, dynamic>;
+        final captures = session['captures'] as List<Map<String, dynamic>>;
+        _liveEvent = event;
+        _liveStats = liveData['stats'] as Map<String, dynamic>?;
+        _liveGoals = List<Map<String, dynamic>>.from(liveData['goals'] as List? ?? []);
+        _liveTargets = List<Map<String, dynamic>>.from(liveData['targets'] as List? ?? []);
+        _targetContacts = List<Map<String, dynamic>>.from(liveData['target_contacts'] as List? ?? []);
+        _scannedContacts = captures;
+        _nextEvent = null;
+      } else {
+        _liveEvent = null;
+        _liveStats = null;
+        _liveGoals = [];
+        _liveTargets = [];
+        _targetContacts = [];
+        _scannedContacts = [];
+        _nextEvent = session?['nextEvent'] as Event?;
+      }
     } catch (_) {
-      // No live event
       _liveEvent = null;
       _liveStats = null;
       _liveGoals = [];
       _liveTargets = [];
       _targetContacts = [];
       _scannedContacts = [];
-    }
-
-    // Try to fetch next upcoming event (only when not live)
-    if (_liveEvent == null) {
-      try {
-        _nextEvent = await ApiService.getNextUpcomingEvent();
-      } catch (_) {
-        _nextEvent = null;
-      }
+      _nextEvent = null;
     }
 
     _isLoadingLive = false;

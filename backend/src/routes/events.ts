@@ -105,6 +105,133 @@ router.get('/ongoing/current', async (req, res, next) => {
   }
 });
 
+// GET /api/events/live-session
+// Single endpoint for LiveEventProvider: finds ongoing event then returns live data + captures in parallel.
+// Replaces 3 sequential calls (ongoing/current → /:id/live → /:id/captures) with one round trip.
+router.get('/live-session', async (req, res, next) => {
+  try {
+    const userId = req.user!.id;
+
+    // 1. Find ongoing event (same query as /ongoing/current)
+    const { data: events, error: eventsError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('user_id', userId)
+      .order('start_date', { ascending: false });
+
+    if (eventsError) throw eventsError;
+
+    const ongoingEvent = (events || []).find(event => getEventStatus(event) === 'ongoing');
+
+    if (!ongoingEvent) {
+      // Also look up next upcoming event so Flutter doesn't need a second call
+      const upcomingEvent = (events || []).find(event => getEventStatus(event) === 'upcoming');
+      res.status(404).json({ error: 'No ongoing event found', nextEvent: upcomingEvent ? { ...upcomingEvent, status: 'upcoming' } : null });
+      return;
+    }
+
+    const eventId = ongoingEvent.id;
+
+    // 2. Fetch live data and captures in parallel
+    const [
+      { count: capturesCount },
+      { count: targetsCount },
+      { data: goalsData },
+      { data: targetsRaw, error: targetsError },
+      { data: contactEventRows, error: contactEventsError },
+      { data: captures, error: capturesError },
+    ] = await Promise.all([
+      supabase.from('captures').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
+      supabase.from('target_companies').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
+      supabase.from('event_goals').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
+      supabase
+        .from('target_companies')
+        .select(`id, priority, booth_location, status, company_id, talking_points, notes, use_notes_for_briefing, company:companies(id, name)`)
+        .eq('event_id', eventId)
+        .limit(50),
+      supabase
+        .from('contact_events')
+        .select(`id, contact_id, status, notes, talking_points, created_at, contact:contacts(id, first_name, last_name, job_title, company_id, company_name:companies(name))`)
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('captures')
+        .select('*, contact:contacts(*)')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: false }),
+    ]);
+
+    if (targetsError) throw targetsError;
+    if (contactEventsError) throw contactEventsError;
+    if (capturesError) throw capturesError;
+
+    const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    const sortedTargets = (targetsRaw || []).sort((a: any, b: any) =>
+      (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3)
+    );
+
+    const priorityTargets = sortedTargets.map((target: any, index: number) => ({
+      id: target.id,
+      rank: index + 1,
+      company_id: target.company_id ?? null,
+      company_name: target.company?.name ?? '',
+      booth: target.booth_location || '',
+      status: target.status || 'not_contacted',
+      priority: target.priority || 'medium',
+      talking_points: target.talking_points || '',
+      notes: target.notes || '',
+      use_notes_for_briefing: target.use_notes_for_briefing ?? false,
+    }));
+
+    const targetContacts = (contactEventRows || []).map((row: any) => {
+      const c = row.contact;
+      const companyName = c?.company_name?.name ?? '';
+      return {
+        id: row.id,
+        contact_id: row.contact_id,
+        name: c ? `${c.first_name} ${c.last_name ?? ''}`.trim() : '',
+        job_title: c?.job_title ?? '',
+        company_name: companyName,
+        status: row.status || 'not_contacted',
+        notes: row.notes || '',
+        talking_points: row.talking_points || '',
+      };
+    });
+
+    const tc = targetsCount || 0;
+    const cc = (contactEventRows || []).length;
+    const followUpsCount = targetContacts.filter((t: any) => t.status !== 'met').length;
+    const targetReach = tc > 0 ? Math.round((cc / tc) * 100) : 0;
+
+    res.json({
+      data: {
+        event: { ...ongoingEvent, status: 'ongoing' },
+        liveData: {
+          event: {
+            id: ongoingEvent.id,
+            title: ongoingEvent.name,
+            venue: ongoingEvent.venue || ongoingEvent.location || '',
+            hall: ongoingEvent.hall || '',
+          },
+          stats: {
+            target_reach: targetReach,
+            scanned: capturesCount || 0,
+            targets_left: Math.max(0, tc - cc),
+            pending_follow_ups: followUpsCount,
+            total_targets: tc,
+          },
+          goals: (goalsData || []).map((g: any) => ({ id: g.id, label: g.label, current: g.current, total: g.total })),
+          targets: priorityTargets,
+          target_contacts: targetContacts,
+        },
+        captures: captures || [],
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/events/upcoming/next
 // Returns the next upcoming event (soonest start_date in the future)
 router.get('/upcoming/next', async (req, res, next) => {

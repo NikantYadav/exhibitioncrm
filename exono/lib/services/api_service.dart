@@ -889,6 +889,32 @@ class ApiService {
     throw Exception('No ongoing event found');
   }
 
+  /// Single-round-trip replacement for getOngoingEvent + getLiveEventData + getEventCaptures.
+  /// Returns null if no ongoing event. On success, returns a map with keys:
+  ///   'event' (Event), 'liveData' (Map), 'captures' (List), 'nextEvent' (Event?)
+  static Future<Map<String, dynamic>?> getLiveSession() async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/live-session'),
+      headers: await _headers(),
+    );
+    checkUnauthorized(response);
+    if (response.statusCode == 404) {
+      final body = json.decode(response.body);
+      final nextRaw = body['nextEvent'];
+      return {'event': null, 'nextEvent': nextRaw != null ? Event.fromJson(nextRaw) : null};
+    }
+    if (response.statusCode == 200) {
+      final body = json.decode(response.body)['data'] as Map<String, dynamic>;
+      return {
+        'event': Event.fromJson(body['event'] as Map<String, dynamic>),
+        'liveData': body['liveData'] as Map<String, dynamic>,
+        'captures': (body['captures'] as List).cast<Map<String, dynamic>>(),
+        'nextEvent': null,
+      };
+    }
+    throw Exception('Failed to load live session');
+  }
+
   static Future<Event> getNextUpcomingEvent() async {
     final response = await http.get(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/upcoming/next'),
