@@ -196,8 +196,8 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
       }
       return result;
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
+    } catch (_) {
+      return {'success': false, 'error': 'Unable to connect. Please check your internet connection and try again.'};
     }
   }
 

@@ -288,10 +288,10 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
           _uploading = false;
         });
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _uploading = false);
-        showAppToast(context, 'Upload failed: $e');
+        showAppToast(context, 'Upload failed. Please try again.');
       }
     }
   }

@@ -55,7 +55,6 @@ dependencies:
   permission_handler: ^12.0.3
   
   # QR & Barcode
-  qr_code_scanner: ^1.0.1
   mobile_scanner: ^7.2.0
   
   # Audio
@@ -72,7 +71,7 @@ dependencies:
 
   # Offline support
   connectivity_plus: ^6.1.4
-  workmanager: ^0.5.2
+  workmanager: ^0.9.0
   path: ^1.9.0
 
   # Supabase (Realtime for chat)

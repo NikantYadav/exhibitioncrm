@@ -52,8 +52,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
       setState(() { _company = company; _isLoading = false; });
       _loadContacts();
       _autoEnrich(company);
-    } on UnauthorizedException { rethrow; } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
+    } on UnauthorizedException { rethrow; } catch (_) {
+      if (mounted) setState(() { _error = 'Unable to load company details. Please try again.'; _isLoading = false; });
     }
   }
 

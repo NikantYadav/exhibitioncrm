@@ -147,8 +147,8 @@ class ChatProvider extends ChangeNotifier {
 
       _nextBefore = nextBefore;
       _hasMore = msgs.length >= 50 && nextBefore != null;
-    } catch (e) {
-      _error = e.toString();
+    } catch (_) {
+      _error = 'Unable to load messages. Please try again.';
     } finally {
       _isLoadingHistory = false;
       notifyListeners();
@@ -259,9 +259,9 @@ class ChatProvider extends ChangeNotifier {
           linkedEntities: parsedLinkedEntities);
 
       return resp['conversation'] as Map<String, dynamic>?;
-    } catch (e) {
+    } catch (_) {
       // Keep optimistic message visible but mark error
-      _error = e.toString();
+      _error = 'Failed to send message. Please try again.';
       return null;
     } finally {
       _isTyping = false;

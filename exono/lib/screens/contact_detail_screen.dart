@@ -211,10 +211,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         setState(() => _isUploadingAvatar = false);
         _reloadContact();
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
-        _toast('Failed to upload photo: $e');
+        _toast('Failed to upload photo. Please try again.');
       }
     }
   }
@@ -247,8 +247,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         _toast('${contact.listName} deleted');
         context.pop();
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
-      if (mounted) _toast('Delete failed: $e');
+    } on UnauthorizedException { rethrow; } catch (_) {
+      if (mounted) _toast('Delete failed. Please try again.');
     }
   }
 
@@ -338,8 +338,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           ),
         );
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
-      _toast('Failed to generate email draft: $e');
+    } on UnauthorizedException { rethrow; } catch (_) {
+      _toast('Failed to generate email draft. Please try again.');
     }
   }
 
@@ -1097,9 +1097,9 @@ class _EditContactSheetState extends State<_EditContactSheet> {
       }
       await ApiService.updateContact(widget.contact.id, payload);
       if (mounted) Navigator.pop(context, true);
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
-        showFToast(context: context, title: Text('Save failed: $e'));
+        showFToast(context: context, title: const Text('Save failed. Please try again.'));
         setState(() => _isSaving = false);
       }
     }

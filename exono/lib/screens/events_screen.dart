@@ -82,9 +82,9 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         _eventStats = statsMap;
         _isLoading = false;
       });
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       setState(() {
-        _error = e.toString();
+        _error = 'Unable to load events. Please try again.';
         _isLoading = false;
       });
     }

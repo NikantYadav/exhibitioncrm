@@ -49,13 +49,13 @@ Future<void> main() async {
 
   // Register background sync (mobile only).
   if (!kIsWeb) {
-    await Workmanager().initialize(_callbackDispatcher, isInDebugMode: false);
+    await Workmanager().initialize(_callbackDispatcher);
     await Workmanager().registerPeriodicTask(
       _kSyncTaskName,
       _kSyncTaskName,
       frequency: const Duration(minutes: 15),
       constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingWorkPolicy.keep,
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
     );
   }
 

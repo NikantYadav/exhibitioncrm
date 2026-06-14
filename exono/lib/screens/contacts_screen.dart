@@ -61,10 +61,10 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
           _isLoading = false;
         });
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = 'Unable to load contacts. Please try again.';
           _isLoading = false;
         });
       }

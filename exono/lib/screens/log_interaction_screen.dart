@@ -160,12 +160,12 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
       if (interactionId != null) {
         _transcribeInBackground(interactionId, base64Audio);
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _isSaving = false);
         showFToast(
           context: context,
-          title: Text('Failed to save: $e'),
+          title: const Text('Failed to save. Please try again.'),
           variant: FToastVariant.destructive,
         );
       }
@@ -208,12 +208,12 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
       );
 
       if (mounted) Navigator.of(context).pop(true);
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _isSaving = false);
         showFToast(
           context: context,
-          title: Text('Failed to save: $e'),
+          title: const Text('Failed to save. Please try again.'),
           variant: FToastVariant.destructive,
         );
       }

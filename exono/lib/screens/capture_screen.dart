@@ -1300,7 +1300,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   void _onFilesError(Object e) {
     if (!mounted) return;
     setState(() => _isCapturing = false);
-    showAppToast(context, 'Failed to analyze image: $e');
+    showAppToast(context, 'Failed to analyze image. Please try again.');
   }
 
   Future<void> _onManual() async {

@@ -31,25 +31,20 @@ app.use('/api', routes);
 // Error handling
 app.use(errorHandler);
 
-app.listen(PORT, async () => {
-  console.log('\n' + '='.repeat(60));
-  console.log('🚀 Server Started Successfully');
-  console.log('='.repeat(60));
-  console.log(`📍 Port:        ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🤖 AI Provider: ${AI_PROVIDER}`);
-  console.log(`📡 API Base:    http://localhost:${PORT}/api`);
-  console.log(`💚 Health:      http://localhost:${PORT}/health`);
-  console.log('='.repeat(60) + '\n');
+// Export app for Vercel serverless
+export default app;
 
-  logInfo('Server is ready to accept requests');
+// Start local server when not running in a serverless environment
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, async () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`AI Provider: ${AI_PROVIDER}`);
 
-  // Reload PostgREST schema cache so FK-based embeds (e.g. company:companies(*))
-  // are always up to date, even if schema changed while the server was down.
-  const { error: schemaError } = await supabase.rpc('pgrst_reload_schema');
-  if (schemaError) {
-    console.warn('⚠️  PostgREST schema reload failed:', schemaError.message);
-  } else {
-    console.log('🔄 PostgREST schema cache reloaded');
-  }
-});
+    logInfo('Server is ready to accept requests');
+
+    const { error: schemaError } = await supabase.rpc('pgrst_reload_schema');
+    if (schemaError) {
+      console.warn('PostgREST schema reload failed:', schemaError.message);
+    }
+  });
+}

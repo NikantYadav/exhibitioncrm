@@ -97,10 +97,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           }
         }
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showError('An error occurred: $e');
+      _showError('Something went wrong. Please try again.');
     }
   }
 

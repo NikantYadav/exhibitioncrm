@@ -167,10 +167,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
       } else {
         _showError(result['error']?.toString() ?? 'Failed to complete profile');
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showError('An error occurred: $e');
+      _showError('Something went wrong. Please try again.');
     }
   }
 

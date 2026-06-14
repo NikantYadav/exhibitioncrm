@@ -37,10 +37,10 @@ class AuthService {
           'error': data['error'] ?? 'Signup failed',
         };
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': 'Unable to connect. Please check your internet connection and try again.',
       };
     }
   }
@@ -75,10 +75,10 @@ class AuthService {
           'error': data['error'] ?? 'Login failed',
         };
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': 'Unable to connect. Please check your internet connection and try again.',
       };
     }
   }
@@ -129,10 +129,10 @@ class AuthService {
           'error': data['error'] ?? 'Profile update failed',
         };
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': 'Unable to connect. Please check your internet connection and try again.',
       };
     }
   }
@@ -161,10 +161,10 @@ class AuthService {
           'error': data['error'] ?? 'Session invalid',
         };
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': 'Unable to connect. Please check your internet connection and try again.',
       };
     }
   }
@@ -187,10 +187,10 @@ class AuthService {
           'error': data['error'] ?? 'Logout failed',
         };
       }
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': 'Unable to connect. Please check your internet connection and try again.',
       };
     }
   }

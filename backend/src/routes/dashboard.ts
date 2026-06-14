@@ -127,7 +127,7 @@ router.get('/summary', async (req, res, next) => {
             initials: contact?.first_name?.[0]
           };
         }) || [],
-        enriched: enrichedLeads?.map(e => ({ id: e.id, name: e.name, initials: e.name?.[0] })) || [],
+        enriched: enrichedLeads?.map(e => { const name = `${e.first_name || ''} ${e.last_name || ''}`.trim(); return { id: e.id, name, initials: name[0] }; }) || [],
         drafts: draftLeads?.map(d => {
           const contact = getFirst(d.contact);
           const company = getFirst(contact?.company);
