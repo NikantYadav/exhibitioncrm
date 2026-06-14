@@ -11,8 +11,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
+import 'package:provider/provider.dart';
+
 import '../config/app_theme.dart';
 import '../models/event.dart';
+import '../providers/offline_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
@@ -145,6 +148,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = context.watch<OfflineProvider>().isOnline;
     return Scaffold(
       backgroundColor: _c.background,
       body: Stack(
@@ -155,6 +159,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             child: Column(
               children: [
                 _buildHeader(),
+                if (!isOnline) _buildOfflineBanner(context),
                 Expanded(
                   child: _phase == _Phase.review
                       ? _buildReviewBody()
@@ -172,6 +177,29 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   // ════════════════════════════════════════════════════════════
   // HEADER
   // ════════════════════════════════════════════════════════════
+
+  Widget _buildOfflineBanner(BuildContext context) {
+    return ColoredBox(
+      color: context.theme.colors.muted,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 14, color: context.theme.colors.mutedForeground),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Voice capture requires an internet connection. Use manual entry instead.',
+                style: context.theme.typography.sm.copyWith(
+                  color: context.theme.colors.mutedForeground,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildHeader() {
     final theme = context.theme;
@@ -1047,6 +1075,11 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   // ════════════════════════════════════════════════════════════
 
   Future<void> _toggleRecording() async {
+    // Voice transcription requires internet; block recording when offline.
+    if (!context.read<OfflineProvider>().isOnline) {
+      showAppToast(context, 'Voice capture requires an internet connection');
+      return;
+    }
     try {
       if (_isRecording) {
         _recTimer?.cancel();

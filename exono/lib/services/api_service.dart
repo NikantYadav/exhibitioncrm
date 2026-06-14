@@ -23,6 +23,12 @@ class ApiService {
     return headers;
   }
 
+  static Future<Map<String, String>> _headersWithKey(String? idempotencyKey) async {
+    final h = await _headers();
+    if (idempotencyKey != null) h['Idempotency-Key'] = idempotencyKey;
+    return h;
+  }
+
   static Future<List<Contact>> getContacts() async {
     final response = await http.get(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}'),
@@ -50,14 +56,21 @@ class ApiService {
     throw Exception('Failed to load contact');
   }
 
-  static Future<Contact> createContact(Map<String, dynamic> contactData) async {
+  static Future<Contact> createContact(
+    Map<String, dynamic> contactData, {
+    String? idempotencyKey,
+  }) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}'),
-      headers: await _headers(),
+      headers: await _headersWithKey(idempotencyKey),
       body: json.encode(contactData),
     );
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = json.decode(response.body);
+      return Contact.fromJson(data['data']);
+    } else if (response.statusCode == 409) {
+      // Idempotent replay — return existing contact.
       final data = json.decode(response.body);
       return Contact.fromJson(data['data']);
     } else {
@@ -121,10 +134,13 @@ class ApiService {
     }
   }
 
-  static Future<Event> createEvent(Map<String, dynamic> eventData) async {
+  static Future<Event> createEvent(
+    Map<String, dynamic> eventData, {
+    String? idempotencyKey,
+  }) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}'),
-      headers: await _headers(),
+      headers: await _headersWithKey(idempotencyKey),
       body: json.encode(eventData),
     );
 
@@ -536,10 +552,11 @@ class ApiService {
     required String summary,
     String? interactionDate,
     Map<String, dynamic>? details,
+    String? idempotencyKey,
   }) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}/interactions'),
-      headers: await _headers(),
+      headers: await _headersWithKey(idempotencyKey),
       body: json.encode({
         'contact_id': contactId,
         if (eventId != null) 'event_id': eventId,
@@ -890,6 +907,7 @@ class ApiService {
     String? rawText,
     Map<String, dynamic>? extractedData,
     String? eventId,
+    String? idempotencyKey,
   }) async {
     final body = <String, dynamic>{'capture_type': captureType};
     if (imageData != null) body['image'] = imageData;
@@ -899,10 +917,14 @@ class ApiService {
 
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.captures}'),
-      headers: await _headers(),
+      headers: await _headersWithKey(idempotencyKey),
       body: json.encode(body),
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    if (response.statusCode == 409) {
+      // Idempotent replay — return existing record.
       return json.decode(response.body) as Map<String, dynamic>;
     }
     throw Exception('Failed to create capture');

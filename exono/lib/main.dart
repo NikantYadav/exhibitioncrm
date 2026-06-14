@@ -1,17 +1,39 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:workmanager/workmanager.dart';
 import 'config/app_theme.dart';
 import 'config/supabase_config.dart';
+import 'services/offline/connectivity_service.dart';
+import 'services/offline/sync_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/conversation_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/live_event_provider.dart';
+import 'providers/offline_provider.dart';
 import 'providers/theme_provider.dart';
 import 'router.dart';
+
+/// Background task name for periodic sync.
+const _kSyncTaskName = 'exono.background_sync';
+
+/// Called by workmanager in a background isolate.
+@pragma('vm:entry-point')
+void _callbackDispatcher() {
+  Workmanager().executeTask((taskName, inputData) async {
+    try {
+      await ConnectivityService().initialize();
+      if (ConnectivityService().isOnline) {
+        await SyncService().sync();
+      }
+    } catch (_) {}
+    return true;
+  });
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +46,18 @@ Future<void> main() async {
 
   final themeProvider = ThemeProvider();
   await themeProvider.load();
+
+  // Register background sync (mobile only).
+  if (!kIsWeb) {
+    await Workmanager().initialize(_callbackDispatcher, isInDebugMode: false);
+    await Workmanager().registerPeriodicTask(
+      _kSyncTaskName,
+      _kSyncTaskName,
+      frequency: const Duration(minutes: 15),
+      constraints: Constraints(networkType: NetworkType.connected),
+      existingWorkPolicy: ExistingWorkPolicy.keep,
+    );
+  }
 
   runApp(ExonoApp(themeProvider: themeProvider));
 }
@@ -42,6 +76,7 @@ class ExonoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ConversationProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => LiveEventProvider()),
+        ChangeNotifierProvider(create: (_) => OfflineProvider()..initialize()),
       ],
       child: _ExonoRouter(),
     );

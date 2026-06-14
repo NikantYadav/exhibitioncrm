@@ -16,9 +16,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
+import 'package:provider/provider.dart';
+
 import '../config/app_theme.dart';
 import '../models/event.dart';
+import '../providers/offline_provider.dart';
 import '../services/api_service.dart';
+import '../services/offline/write_gateway.dart';
 import '../services/web_file_picker.dart' if (dart.library.io) '../services/web_file_picker_stub.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
@@ -96,6 +100,9 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   // ── Last capture ───────────────────────────────────────────
   String? _lastCapture;
+
+  // ── Offline: raw image bytes held until save ────────────────
+  Uint8List? _pendingImageBytes;
 
   @override
   void initState() {
@@ -1223,11 +1230,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       final img = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
       if (img == null) { setState(() => _isCapturing = false); return; }
       final bytes = await img.readAsBytes();
-      final b64 = base64Encode(bytes);
-      final result = await ApiService.analyzeCard(b64);
-      _applyExtracted(result['data'] as Map<String, dynamic>? ?? {});
-      if (!mounted) return;
-      setState(() { _isCapturing = false; _stage = _Stage.notes; });
+      await _processImageBytes(bytes);
     } catch (_) {
       if (!mounted) return;
       setState(() { _isCapturing = false; _stage = _Stage.notes; });
@@ -1274,15 +1277,24 @@ class _CaptureScreenState extends State<CaptureScreen>
     _analyzeBytes(bytes).catchError(_onFilesError);
   }
 
-  Future<void> _analyzeBytes(Uint8List bytes) async {
-    final b64 = base64Encode(bytes);
-    final res = await ApiService.analyzeCard(b64);
-    _applyExtracted(res['data'] as Map<String, dynamic>? ?? {});
-    if (!mounted) return;
-    setState(() {
-      _isCapturing = false;
-      _stage = _Stage.notes;
-    });
+  Future<void> _analyzeBytes(Uint8List bytes) => _processImageBytes(bytes);
+
+  /// Online: calls AI immediately. Offline: saves bytes for deferred analysis at sync.
+  Future<void> _processImageBytes(Uint8List bytes) async {
+    final isOnline = context.read<OfflineProvider>().isOnline;
+    if (isOnline) {
+      final b64 = base64Encode(bytes);
+      final res = await ApiService.analyzeCard(b64);
+      _applyExtracted(res['data'] as Map<String, dynamic>? ?? {});
+      if (!mounted) return;
+      setState(() { _isCapturing = false; _stage = _Stage.notes; });
+    } else {
+      // Defer AI; hold bytes until user saves.
+      _pendingImageBytes = bytes;
+      if (!mounted) return;
+      setState(() { _isCapturing = false; _stage = _Stage.notes; });
+      showAppToast(context, 'Offline - fill in details and save. Card will be analyzed when online.');
+    }
   }
 
   void _onFilesError(Object e) {
@@ -1410,27 +1422,44 @@ class _CaptureScreenState extends State<CaptureScreen>
       final rawText = [_notesCtrl.text, _voiceCtrl.text]
           .where((s) => s.isNotEmpty)
           .join('\n\n');
-      await ApiService.createCapture(
-        captureType: 'manual',
+      final extractedData = {
+        'first_name': _fnCtrl.text.trim(),
+        'last_name':  _lnCtrl.text.trim(),
+        'name': '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim(),
+        'company':    _coCtrl.text.trim(),
+        'email':      _emailCtrl.text.trim(),
+        'phone':      _phoneCtrl.text.trim(),
+        'job_title':  _titleCtrl.text.trim(),
+      };
+
+      // Use WriteGateway so offline scans get queued with their image bytes.
+      final captureType = _pendingImageBytes != null ? 'card_scan' : 'manual';
+      final result = await WriteGateway().createCapture(
+        captureType: captureType,
+        imageBytes: _pendingImageBytes,
         rawText: rawText.isEmpty ? null : rawText,
         eventId: _eventId,
-        extractedData: {
-          'first_name': _fnCtrl.text.trim(),
-          'last_name':  _lnCtrl.text.trim(),
-          'name': '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim(),
-          'company':    _coCtrl.text.trim(),
-          'email':      _emailCtrl.text.trim(),
-          'phone':      _phoneCtrl.text.trim(),
-          'job_title':  _titleCtrl.text.trim(),
-        },
+        extractedData: extractedData,
       );
+
       if (!mounted) return;
+
+      if (result.savedOffline) {
+        if (!mounted) return;
+        context.read<OfflineProvider>().refreshPendingCount();
+        showAppToast(context, 'Saved offline - will be processed when online');
+        setState(() { _isSaving = false; _showDedup = false; _pendingImageBytes = null; _stage = _Stage.scan; });
+        captureReturnSignal.value++;
+        return;
+      }
+
       final captureName = '${_fnCtrl.text.trim()} (${_coCtrl.text.trim()})'.trim();
       setState(() {
         _saved = true;
         _isSaving = false;
         _showDedup = false;
         _lastCapture = captureName;
+        _pendingImageBytes = null;
       });
       captureReturnSignal.value++;
       await Future<void>.delayed(const Duration(milliseconds: 1800));
@@ -1465,7 +1494,7 @@ class _CaptureScreenState extends State<CaptureScreen>
           .trim();
       final summary = rawNotes.isNotEmpty ? rawNotes : 'Met at event';
 
-      await ApiService.logInteraction(
+      await WriteGateway().logInteraction(
         contactId: existingId,
         eventId: _eventId,
         type: 'meeting',

@@ -48,6 +48,7 @@ router.get('/', async (req, res, next) => {
 router.post('/', requireAuth, async (req, res, next) => {
   try {
     const { image, capture_type, event_id, extracted_data, raw_text } = req.body;
+    const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     const userId = req.user!.id;
 
     const type = capture_type || 'card_scan';
@@ -66,6 +67,18 @@ router.post('/', requireAuth, async (req, res, next) => {
       }
     }
 
+    // Idempotency: if a capture with this client_op_id already exists, return it.
+    if (idempotencyKey) {
+      const { data: existing } = await supabase
+        .from('captures')
+        .select()
+        .eq('client_op_id', idempotencyKey)
+        .maybeSingle();
+      if (existing) {
+        return res.json({ data: existing });
+      }
+    }
+
     // Create capture record
     const { data: capture, error } = await supabase
       .from('captures')
@@ -76,6 +89,7 @@ router.post('/', requireAuth, async (req, res, next) => {
         raw_data: { ocr_text: raw_text || '' },
         extracted_data: extracted_data || {},
         status: 'completed',
+        ...(idempotencyKey ? { client_op_id: idempotencyKey } : {}),
       })
       .select()
       .single();

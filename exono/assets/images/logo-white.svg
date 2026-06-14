@@ -1,15 +1,15 @@
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  viewBox="84 74 274 274"
+  viewBox="69 59 304 304"
   role="img"
   aria-label="Logo"
 >
   <!-- Blue square with 30 units of padding -->
   <rect
-    x="84"
-    y="74"
-    width="274"
-    height="274"
+    x="69"
+    y="59"
+    width="304"
+    height="304"
     fill="#0672EF"
   />
 

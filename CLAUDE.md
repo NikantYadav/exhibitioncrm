@@ -17,6 +17,7 @@ The wrappers already exist in `exono/lib/widgets/`. They wrap forui correctly an
 | Card surface | `AppCard` (`lib/widgets/app_card.dart`) | `Container`+`BoxDecoration` used as a card |
 | Text input | `AppInput` (`lib/widgets/app_input.dart`) | `TextField`, `TextFormField`. Has `readOnly:` for date/picker fields |
 | Chip / status badge | `AppChip` (`lib/widgets/app_chip.dart`) | `Chip`, `FilterChip`, custom badge `Container` |
+| Status badge (icon/spinner) | `AppStatusBadge` (`lib/widgets/app_status_badge.dart`) | hand-rolled `Row`+badge for offline/syncing indicators; use `leading:` for icon, `spinner: true` for inline spinner |
 | Header / app bar | `AppHeader` (`lib/widgets/app_header.dart`) | `AppBar`, custom header rows |
 | Section label | `AppSectionLabel` (`lib/widgets/app_section_label.dart`) | small uppercase label text |
 | Checkbox | `AppCheckbox` (`lib/widgets/app_checkbox.dart`) | custom `GestureDetector`+`AnimatedContainer` checkbox |

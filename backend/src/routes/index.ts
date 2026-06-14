@@ -22,6 +22,11 @@ import interactionsRouter from './interactions';
 
 const router = Router();
 
+// Lightweight reachability probe — no auth required.
+router.get('/health', (_req, res) => {
+  res.json({ ok: true });
+});
+
 router.use('/auth', authRouter);
 router.use('/contacts', contactsRouter);
 router.use('/events', eventsRouter);

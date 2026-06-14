@@ -70,6 +70,11 @@ dependencies:
   uuid: ^4.3.3
   url_launcher: ^6.2.5
 
+  # Offline support
+  connectivity_plus: ^6.1.4
+  workmanager: ^0.5.2
+  path: ^1.9.0
+
   # Supabase (Realtime for chat)
   supabase_flutter: ^2.6.1
   flutter_markdown: ^0.7.7+1

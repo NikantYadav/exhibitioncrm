@@ -1,15 +1,15 @@
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  viewBox="84 74 274 274"
+  viewBox="69 59 304 304"
   role="img"
   aria-label="Logo"
 >
   <!-- White square with 35 units of padding -->
   <rect
-    x="84"
-    y="74"
-    width="274"
-    height="274"
+    x="69"
+    y="59"
+    width="304"
+    height="304"
     fill="#FFFFFF"
   />
 
@@ -59,4 +59,3 @@
     C127.809998,218.155319 131.385223,217.257156 135.405884,216.487396z"
   />
 </svg>
-

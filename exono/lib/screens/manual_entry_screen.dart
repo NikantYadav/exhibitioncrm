@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
+import '../providers/offline_provider.dart';
 import '../services/api_service.dart';
+import '../services/offline/write_gateway.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
@@ -725,7 +728,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     try {
       final fn = _fnCtrl.text.trim();
       final ln = _lnCtrl.text.trim();
-      await ApiService.createCapture(
+      final result = await WriteGateway().createCapture(
         captureType: 'manual',
         rawText: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
         eventId: _eventId,
@@ -741,6 +744,14 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
         },
       );
       if (!mounted) return;
+
+      if (result.savedOffline) {
+        context.read<OfflineProvider>().refreshPendingCount();
+        showAppToast(context, 'Saved offline - will sync when online');
+        Navigator.of(context).pop(ManualEntryResult('$fn $ln'.trim()));
+        return;
+      }
+
       setState(() {
         _saved     = true;
         _isSaving  = false;

@@ -99,7 +99,20 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const body = req.body;
+    const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     let company_id = body.company_id;
+
+    // Idempotency: if a contact with this client_op_id already exists, return it.
+    if (idempotencyKey) {
+      const { data: existing } = await supabase
+        .from('contacts')
+        .select()
+        .eq('client_op_id', idempotencyKey)
+        .maybeSingle();
+      if (existing) {
+        return res.json({ data: existing });
+      }
+    }
 
     // Find or create company
     const companyName = body.company_name || 'INDEPENDENT';
@@ -140,6 +153,7 @@ router.post('/', async (req, res, next) => {
         company_id,
         notes: body.notes,
         user_id: req.user!.id,
+        ...(idempotencyKey ? { client_op_id: idempotencyKey } : {}),
       })
       .select()
       .single();

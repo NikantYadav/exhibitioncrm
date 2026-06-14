@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/offline_provider.dart';
+import 'app_status_badge.dart';
 
 class AppHeader extends StatelessWidget {
   final VoidCallback? onActionPressed;
@@ -31,9 +33,13 @@ class AppHeader extends StatelessWidget {
     final auth = context.read<AuthProvider>();
     final name = auth.displayName.trim();
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
+    final offline = context.watch<OfflineProvider>();
 
     // Build suffix children, then wrap in a Row with consistent 8px gaps.
     final suffixChildren = <Widget>[
+      // Offline / syncing badge — first so it appears left of action/profile.
+      if (offline.state != SyncState.online || offline.pendingCount > 0)
+        _buildStatusBadge(context, offline, colors),
       if (actionWidget != null)
         actionWidget!
       else if (actionIcon != null)
@@ -57,14 +63,10 @@ class AppHeader extends StatelessWidget {
           );
 
     final logo = SvgPicture.asset(
-      isDark ? 'assets/images/logo-white.svg' : 'assets/images/logo-black.svg',
+      isDark ? 'assets/images/logo-black.svg' : 'assets/images/logo-white.svg',
       width: 28,
       height: 28,
       fit: BoxFit.contain,
-      colorFilter: ColorFilter.mode(
-        isDark ? Colors.white : const Color(0xFF0A0A0A),
-        BlendMode.srcIn,
-      ),
     );
 
     if (onBack != null) {
@@ -83,6 +85,39 @@ class AppHeader extends StatelessWidget {
       prefixes: [logo],
       suffixes: [suffixRow],
     );
+  }
+
+  Widget _buildStatusBadge(
+    BuildContext context,
+    OfflineProvider offline,
+    ExonoColors c,
+  ) {
+    switch (offline.state) {
+      case SyncState.offline:
+        return AppStatusBadge(
+          label: 'OFFLINE',
+          color: context.theme.colors.muted,
+          textColor: context.theme.colors.mutedForeground,
+          leading: const Icon(Icons.cloud_off_rounded, size: 10),
+        );
+      case SyncState.syncing:
+        return AppStatusBadge(
+          label: offline.pendingCount > 0
+              ? 'SYNCING ${offline.pendingCount}'
+              : 'SYNCING',
+          spinner: true,
+          color: c.accentGlow,
+          textColor: c.accent,
+        );
+      case SyncState.online:
+        // pendingCount > 0 but not yet syncing (queued ops waiting).
+        return AppStatusBadge(
+          label: 'PENDING ${offline.pendingCount}',
+          color: context.theme.colors.muted,
+          textColor: context.theme.colors.mutedForeground,
+          leading: const Icon(Icons.schedule_rounded, size: 10),
+        );
+    }
   }
 }
 
