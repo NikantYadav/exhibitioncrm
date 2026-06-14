@@ -7,6 +7,7 @@ import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../providers/auth_provider.dart';
 import '../providers/live_event_provider.dart';
+import '../providers/offline_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -16,6 +17,7 @@ import '../widgets/skeleton_loader.dart';
 import 'event_follow_ups_screen.dart';
 import 'log_interaction_screen.dart';
 import 'pre_event_prep_screen.dart';
+import 'sync_issues_screen.dart';
 import '../utils/screen_logger.dart';
 
 class HomeDefaultScreen extends StatefulWidget {
@@ -129,6 +131,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         child: Column(
           children: [
             AppHeader(
+              showNotifications: true,
             ),
             // While live status is resolving, show a skeleton to avoid flash
             if (!lep.initialized)
@@ -270,6 +273,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           ),
           const SizedBox(height: 28),
         ],
+
+        // Sync status (only shown when there's offline activity)
+        const _SyncSection(),
 
         // Priorities
         AppSectionLabel("Today's Priorities"),
@@ -589,6 +595,174 @@ class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderState
     return FadeTransition(
       opacity: _opacity,
       child: Container(width: 7, height: 7, decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle)),
+    );
+  }
+}
+
+// ── Sync section ──────────────────────────────────────────────────────────────
+
+/// Home-screen card showing offline sync progress. Renders nothing when there's
+/// no offline activity (online, no pending, no failed). Tapping opens the full
+/// sync-issues screen; while online with pending ops, offers a manual retry.
+class _SyncSection extends StatelessWidget {
+  const _SyncSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final offline = context.watch<OfflineProvider>();
+    final c = AppTheme.colorsOf(context);
+
+    final hasActivity = offline.state != SyncState.online ||
+        offline.pendingCount > 0 ||
+        offline.failedCount > 0;
+    if (hasActivity == false) return const SizedBox.shrink();
+
+    final (IconData icon, Color tint, String title, String subtitle) = switch (offline.state) {
+      SyncState.offline => (
+        Icons.cloud_off_rounded,
+        c.textMuted,
+        'Offline',
+        offline.pendingCount > 0
+            ? '${offline.pendingCount} change${offline.pendingCount == 1 ? '' : 's'} waiting to sync'
+            : 'Changes will sync when you reconnect',
+      ),
+      SyncState.syncing => (
+        Icons.sync_rounded,
+        c.accent,
+        'Syncing…',
+        '${offline.pendingCount} item${offline.pendingCount == 1 ? '' : 's'} remaining',
+      ),
+      SyncState.online => offline.failedCount > 0
+          ? (
+              Icons.error_outline_rounded,
+              c.destructive,
+              'Sync issues',
+              '${offline.failedCount} item${offline.failedCount == 1 ? '' : 's'} failed to sync',
+            )
+          : (
+              Icons.schedule_rounded,
+              c.textMuted,
+              'Pending sync',
+              '${offline.pendingCount} item${offline.pendingCount == 1 ? '' : 's'} queued',
+            ),
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSectionLabel('Sync'),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const SyncIssuesScreen()),
+          ),
+          child: AppCard(
+            elevated: true,
+            padding: const EdgeInsets.all(16),
+            radius: 14,
+            child: Row(
+              children: [
+                _SyncIcon(icon: icon, tint: tint, spinning: offline.isSyncing),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: context.theme.typography.sm.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: context.theme.colors.foreground,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: context.theme.typography.xs.copyWith(
+                          color: context.theme.colors.mutedForeground,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (offline.state == SyncState.online && offline.pendingCount > 0)
+                  AppButton(
+                    label: 'RETRY',
+                    variant: ButtonVariant.secondary,
+                    size: ButtonSize.sm,
+                    onPressed: () => context.read<OfflineProvider>().triggerSync(),
+                  )
+                else if (offline.isSyncing)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: FittedBox(fit: BoxFit.contain, child: FCircularProgress()),
+                  )
+                else
+                  Icon(Icons.chevron_right_rounded, color: context.theme.colors.mutedForeground),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 28),
+      ],
+    );
+  }
+}
+
+/// Sync status icon. Rotates continuously while [spinning].
+class _SyncIcon extends StatefulWidget {
+  final IconData icon;
+  final Color tint;
+  final bool spinning;
+  const _SyncIcon({required this.icon, required this.tint, required this.spinning});
+
+  @override
+  State<_SyncIcon> createState() => _SyncIconState();
+}
+
+class _SyncIconState extends State<_SyncIcon> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    if (widget.spinning) _ctrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_SyncIcon old) {
+    super.didUpdateWidget(old);
+    if (widget.spinning && !_ctrl.isAnimating) {
+      _ctrl.repeat();
+    } else if (!widget.spinning && _ctrl.isAnimating) {
+      _ctrl.stop();
+      _ctrl.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final iconWidget = Icon(widget.icon, size: 20, color: widget.tint);
+    return Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: widget.tint.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      // Only the icon rotates; the tinted box stays still.
+      child: widget.spinning
+          ? RotationTransition(turns: _ctrl, child: iconWidget)
+          : iconWidget,
     );
   }
 }

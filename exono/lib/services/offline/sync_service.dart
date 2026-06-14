@@ -73,12 +73,13 @@ class SyncService {
     } on _PermanentError catch (e) {
       await OfflineQueue.markFailed(op.id, e.message);
     } catch (e) {
-      // Transient error — reset to pending so it retries next sync.
-      final db = await _incrementAttempts(op.id, e.toString());
-      if (db >= _maxAttempts) {
+      // Transient error. The op's attempts counter was already checked at the
+      // top of this method; bumping past the cap marks it failed, otherwise it
+      // returns to pending (with attempts incremented) for the next sync pass.
+      if (op.attempts + 1 >= _maxAttempts) {
         await OfflineQueue.markFailed(op.id, e.toString());
       } else {
-        await OfflineQueue.resetToPending(op.id);
+        await OfflineQueue.resetToPending(op.id, error: e.toString());
       }
     }
   }
@@ -155,16 +156,6 @@ class SyncService {
     return event.id;
   }
 
-  Future<int> _incrementAttempts(String id, String error) async {
-    final db = await _getAttempts(id);
-    return db + 1;
-  }
-
-  Future<int> _getAttempts(String id) async {
-    final ops = await OfflineQueue.pending();
-    final op = ops.where((o) => o.id == id).firstOrNull;
-    return op?.attempts ?? 0;
-  }
 }
 
 class _PermanentError {

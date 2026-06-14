@@ -18,6 +18,8 @@ class AppHeader extends StatelessWidget {
   final bool showProfile;
   final VoidCallback? onBack;
 
+  final bool showNotifications;
+
   const AppHeader({
     super.key,
     this.onActionPressed,
@@ -25,6 +27,7 @@ class AppHeader extends StatelessWidget {
     this.actionTooltip,
     this.actionWidget,
     this.showProfile = true,
+    this.showNotifications = false,
     this.onBack,
   });
 
@@ -43,7 +46,7 @@ class AppHeader extends StatelessWidget {
       // Offline / syncing badge — first so it appears left of action/profile.
       if (offline.state != SyncState.online || offline.pendingCount > 0)
         _buildStatusBadge(context, offline, colors),
-      _NotificationBell(count: notifications.count),
+      if (showNotifications) _NotificationBell(count: notifications.count),
       if (actionWidget != null)
         actionWidget!
       else if (actionIcon != null)

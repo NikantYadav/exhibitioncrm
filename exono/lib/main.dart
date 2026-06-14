@@ -8,7 +8,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:workmanager/workmanager.dart';
 import 'config/app_theme.dart';
 import 'config/supabase_config.dart';
+import 'services/offline/background_sync.dart';
 import 'services/offline/connectivity_service.dart';
+import 'services/offline/offline_queue.dart';
 import 'services/offline/sync_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/conversation_provider.dart';
@@ -19,19 +21,27 @@ import 'providers/offline_provider.dart';
 import 'providers/theme_provider.dart';
 import 'router.dart';
 
-/// Background task name for periodic sync.
-const _kSyncTaskName = 'exono.background_sync';
-
-/// Called by workmanager in a background isolate.
+/// Entry point for the workmanager background isolate. Runs detached from the
+/// UI isolate, so it must initialise its own bindings and rebuild any state it
+/// needs (here: just SharedPreferences-backed auth + the SQLite outbox).
 @pragma('vm:entry-point')
 void _callbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
+    // executeTask already calls WidgetsFlutterBinding.ensureInitialized(), so
+    // plugins (SharedPreferences, sqflite, path_provider) are usable here.
     try {
-      await ConnectivityService().initialize();
-      if (ConnectivityService().isOnline) {
-        await SyncService().sync();
-      }
-    } catch (_) {}
+      // One-shot reachability probe — no stream/timer in a background task.
+      final online = await ConnectivityService().checkNow();
+      if (!online) return true;
+
+      // Nothing queued -> succeed immediately so the OS doesn't back off.
+      if (await OfflineQueue.retryableCount() == 0) return true;
+
+      await SyncService().sync();
+    } catch (_) {
+      // Returning false asks the OS to retry with backoff.
+      return false;
+    }
     return true;
   });
 }
@@ -51,13 +61,7 @@ Future<void> main() async {
   // Register background sync (mobile only).
   if (!kIsWeb) {
     await Workmanager().initialize(_callbackDispatcher);
-    await Workmanager().registerPeriodicTask(
-      _kSyncTaskName,
-      _kSyncTaskName,
-      frequency: const Duration(minutes: 15),
-      constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
-    );
+    await BackgroundSync.registerPeriodic();
   }
 
   runApp(ExonoApp(themeProvider: themeProvider));

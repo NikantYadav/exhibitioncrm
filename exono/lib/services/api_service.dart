@@ -91,7 +91,9 @@ class ApiService {
       final data = json.decode(response.body);
       return Contact.fromJson(data['data']);
     } else {
-      throw Exception('Failed to create contact');
+      throw Exception(
+        'Failed to create contact (${response.statusCode}): ${response.body}',
+      );
     }
   }
 
@@ -166,11 +168,13 @@ class ApiService {
     );
 
     checkUnauthorized(response);
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       final data = json.decode(response.body);
       return Event.fromJson(data['data']);
     } else {
-      throw Exception('Failed to create event');
+      throw Exception(
+        'Failed to create event (${response.statusCode}): ${response.body}',
+      );
     }
   }
 
@@ -185,7 +189,9 @@ class ApiService {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to analyze card');
+      throw Exception(
+        'Failed to analyze card (${response.statusCode}): ${response.body}',
+      );
     }
   }
 
@@ -618,10 +624,12 @@ class ApiService {
     );
 
     checkUnauthorized(response);
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body) as Map<String, dynamic>;
     }
-    throw Exception('Failed to log interaction');
+    throw Exception(
+      'Failed to log interaction (${response.statusCode}): ${response.body}',
+    );
   }
 
   static Future<void> updateInteraction(String id, Map<String, dynamic> updates) async {
@@ -1003,12 +1011,13 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body) as Map<String, dynamic>;
     }
-    checkUnauthorized(response);
     if (response.statusCode == 409) {
       // Idempotent replay — return existing record.
       return json.decode(response.body) as Map<String, dynamic>;
     }
-    throw Exception('Failed to create capture');
+    throw Exception(
+      'Failed to create capture (${response.statusCode}): ${response.body}',
+    );
   }
 
   static Future<Map<String, dynamic>> checkDuplicateContacts({

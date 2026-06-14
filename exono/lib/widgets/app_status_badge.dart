@@ -51,9 +51,12 @@ class AppStatusBadge extends StatelessWidget {
     Widget? leadingWidget;
     if (spinner) {
       leadingWidget = SizedBox(
-        width: 10,
-        height: 10,
-        child: FCircularProgress(),
+        width: 11,
+        height: 11,
+        child: FittedBox(
+          fit: BoxFit.contain,
+          child: FCircularProgress(),
+        ),
       );
     } else if (leading != null) {
       leadingWidget = IconTheme(
@@ -66,9 +69,10 @@ class AppStatusBadge extends StatelessWidget {
         ? labelWidget
         : Row(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               leadingWidget,
-              const SizedBox(width: 4),
+              const SizedBox(width: 5),
               labelWidget,
             ],
           );

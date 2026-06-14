@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/chat_provider.dart';
+import '../providers/offline_provider.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/app_offline_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import 'chat_screen.dart';
 import '../utils/screen_logger.dart';
@@ -62,6 +64,9 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
 
   @override
   Widget build(BuildContext context) {
+    if (!context.watch<OfflineProvider>().isOnline) {
+      return const AppOfflineScreen(title: 'Chat History');
+    }
     final convProvider = context.watch<ConversationProvider>();
     final conversations = convProvider.conversations;
 

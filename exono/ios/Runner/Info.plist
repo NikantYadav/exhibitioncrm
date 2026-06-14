@@ -53,6 +53,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>exono.background_sync</string>
+		<string>exono.background_sync_oneoff</string>
 	</array>
 </dict>
 </plist>

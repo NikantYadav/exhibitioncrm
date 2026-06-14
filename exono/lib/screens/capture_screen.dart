@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:io' show File;
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
@@ -46,26 +48,23 @@ class CaptureScreen extends StatefulWidget {
 
 enum _Stage { scan, notes }
 
-enum _ScanMode { qr, card }
-
 class _CaptureScreenState extends State<CaptureScreen>
     with TickerProviderStateMixin, ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   // ── Scanner ────────────────────────────────────────────────
-  final MobileScannerController _scanner = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    returnImage: true,
-  );
-  Uint8List? _latestFrame;
+  final MobileScannerController _scanner = MobileScannerController();
+  // Repaint boundary around the live camera preview, used to grab a still
+  // frame on demand (mobile_scanner has no on-demand capture API).
+  final GlobalKey _previewKey = GlobalKey();
+  final GlobalKey _finderKey = GlobalKey();
 
   // ── Animations ─────────────────────────────────────────────
   late final AnimationController _lineCtrl;
   late final AnimationController _pulseCtrl;
 
-  // ── Stage & mode ───────────────────────────────────────────
+  // ── Stage ──────────────────────────────────────────────────
   _Stage _stage = _Stage.scan;
-  _ScanMode _scanMode = _ScanMode.card;
   String _notesMode = 'Manual';
 
   // ── Loading states ─────────────────────────────────────────
@@ -164,10 +163,12 @@ class _CaptureScreenState extends State<CaptureScreen>
       children: [
         // Live camera
         Positioned.fill(
-          child: MobileScanner(
-            controller: _scanner,
-            onDetect: _onQrDetected,
-            fit: BoxFit.cover,
+          child: RepaintBoundary(
+            key: _previewKey,
+            child: MobileScanner(
+              controller: _scanner,
+              fit: BoxFit.cover,
+            ),
           ),
         ),
         // Top-dark + bottom-dark gradient vignette
@@ -263,14 +264,10 @@ class _CaptureScreenState extends State<CaptureScreen>
                 _savedPill(),
                 const SizedBox(height: 20),
               ],
-              _scanModeTabs(),
-              const SizedBox(height: 28),
               _buildFinder(),
               const SizedBox(height: 22),
               Text(
-                _scanMode == _ScanMode.qr
-                    ? 'ALIGN QR CODE IN FRAME'
-                    : 'ALIGN BUSINESS CARD IN FRAME',
+                'ALIGN BUSINESS CARD IN FRAME',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),
                   fontSize: 11,
@@ -280,9 +277,7 @@ class _CaptureScreenState extends State<CaptureScreen>
               ),
               const SizedBox(height: 5),
               Text(
-                _scanMode == _ScanMode.qr
-                    ? 'Auto-detection active'
-                    : 'Tap capture when ready',
+                'Tap capture when ready',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.42),
                   fontSize: 12,
@@ -317,54 +312,16 @@ class _CaptureScreenState extends State<CaptureScreen>
     );
   }
 
-  Widget _scanModeTabs() {
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _scanModeTab('QR CODE', _ScanMode.qr),
-          _scanModeTab('BUSINESS CARD', _ScanMode.card),
-        ],
-      ),
-    );
-  }
-
-  Widget _scanModeTab(String label, _ScanMode mode) {
-    final active = _scanMode == mode;
-    return GestureDetector(
-      onTap: () => setState(() => _scanMode = mode),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? _c.accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? Colors.white : Colors.white.withValues(alpha: 0.5),
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.4,
-          ),
-        ),
-      ),
-    );
-  }
+  // Finder dimensions — also used to crop the captured frame.
+  static const double _finderW = 300.0;
+  static const double _finderH = 188.0;
 
   Widget _buildFinder() {
-    final isCard = _scanMode == _ScanMode.card;
-    final w = isCard ? 300.0 : 250.0;
-    final h = isCard ? 188.0 : 250.0;
+    const w = _finderW;
+    const h = _finderH;
 
     return AnimatedContainer(
+      key: _finderKey,
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeInOut,
       width: w, height: h,
@@ -386,30 +343,6 @@ class _CaptureScreenState extends State<CaptureScreen>
               ),
               // Accent corner brackets
               ..._bracketCorners(),
-              // Scan line — QR mode only
-              if (_scanMode == _ScanMode.qr)
-                AnimatedBuilder(
-                  animation: _lineCtrl,
-                  builder: (ctx, _) {
-                    final y = 10.0 + _lineCtrl.value * (h - 20);
-                    return Positioned(
-                      top: y, left: 12, right: 12,
-                      child: Container(
-                        height: 2,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              _c.accent.withValues(alpha: 0.9),
-                              Colors.transparent,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                    );
-                  },
-                ),
             ],
           );
         },
@@ -491,47 +424,37 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Widget _centerCaptureBtn() {
-    final isQr = _scanMode == _ScanMode.qr;
     return GestureDetector(
-      onTap: (_isCapturing || isQr) ? null : _capturePhoto,
+      onTap: _isCapturing ? null : _capturePhoto,
       child: AnimatedScale(
         scale: _isCapturing ? 0.88 : 1.0,
         duration: const Duration(milliseconds: 150),
-        child: AnimatedBuilder(
-          animation: _pulseCtrl,
-          builder: (context, _) {
-            final alpha = isQr ? (0.25 + _pulseCtrl.value * 0.25) : 1.0;
-            return Container(
-              width: 76, height: 76,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    _c.accent.withValues(alpha: alpha),
-                    _c.accentStrong.withValues(alpha: alpha),
-                  ],
-                ),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: isQr ? 0.15 : 0.3),
-                  width: 2,
-                ),
-                boxShadow: isQr ? null : [
-                  BoxShadow(
-                    color: _c.accent.withValues(alpha: 0.5),
-                    blurRadius: 24,
-                    spreadRadius: 2,
-                  ),
-                ],
+        child: Container(
+          width: 76, height: 76,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_c.accent, _c.accentStrong],
+            ),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.3),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _c.accent.withValues(alpha: 0.5),
+                blurRadius: 24,
+                spreadRadius: 2,
               ),
-              child: Icon(
-                isQr ? Icons.qr_code_scanner_rounded : Icons.camera_alt_rounded,
-                color: Colors.white.withValues(alpha: isQr ? 0.5 : 1.0),
-                size: 30,
-              ),
-            );
-          },
+            ],
+          ),
+          child: const Icon(
+            Icons.camera_alt_rounded,
+            color: Colors.white,
+            size: 30,
+          ),
         ),
       ),
     );
@@ -765,7 +688,7 @@ class _CaptureScreenState extends State<CaptureScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.qr_code_scanner, size: 12, color: _c.accent),
+                  Icon(Icons.camera_alt_rounded, size: 12, color: _c.accent),
                   const SizedBox(width: 5),
                   Text(
                     'RESCAN',
@@ -1077,22 +1000,12 @@ class _CaptureScreenState extends State<CaptureScreen>
     }
   }
 
-  void _onQrDetected(BarcodeCapture capture) {
-    if (capture.image != null) _latestFrame = capture.image;
-    if (_stage != _Stage.scan || _isCapturing || _scanMode != _ScanMode.qr) return;
-    final raw = capture.barcodes.firstOrNull?.rawValue ?? '';
-    if (raw.isEmpty) return;
-    _applyQrData(raw);
-    setState(() => _stage = _Stage.notes);
-  }
-
   Future<void> _capturePhoto() async {
     setState(() => _isCapturing = true);
     try {
-      // Use the latest frame captured by the live scanner feed.
-      // If no frame yet, fall back to pausing and grabbing on next detect.
-      final bytes = _latestFrame;
+      final bytes = await _grabFinderFrame();
       if (bytes == null) {
+        if (!mounted) return;
         setState(() => _isCapturing = false);
         return;
       }
@@ -1100,6 +1013,47 @@ class _CaptureScreenState extends State<CaptureScreen>
     } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() { _isCapturing = false; _stage = _Stage.notes; });
+    }
+  }
+
+  // Grabs a still from the live camera preview and crops it to the finder
+  // frame so only the business card region is sent to the backend / stored
+  // offline (not the full preview).
+  Future<Uint8List?> _grabFinderFrame() async {
+    final boundary =
+        _previewKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    final finder =
+        _finderKey.currentContext?.findRenderObject() as RenderBox?;
+    if (boundary == null || finder == null) return null;
+
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    final ui.Image full = await boundary.toImage(pixelRatio: dpr);
+    try {
+      // Finder position relative to the preview boundary's top-left.
+      final Offset topLeft = finder.localToGlobal(
+        Offset.zero,
+        ancestor: boundary,
+      );
+      final Size fs = finder.size;
+      final Rect src = Rect.fromLTWH(
+        topLeft.dx * dpr, topLeft.dy * dpr, fs.width * dpr, fs.height * dpr,
+      );
+      final Rect dst = Rect.fromLTWH(0, 0, src.width, src.height);
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawImageRect(full, src, dst, Paint());
+      final cropped = await recorder
+          .endRecording()
+          .toImage(src.width.round(), src.height.round());
+      try {
+        final data = await cropped.toByteData(format: ui.ImageByteFormat.png);
+        return data?.buffer.asUint8List();
+      } finally {
+        cropped.dispose();
+      }
+    } finally {
+      full.dispose();
     }
   }
 
@@ -1155,11 +1109,24 @@ class _CaptureScreenState extends State<CaptureScreen>
       if (!mounted) return;
       setState(() { _isCapturing = false; _stage = _Stage.notes; });
     } else {
-      // Defer AI; hold bytes until user saves.
-      _pendingImageBytes = bytes;
+      // Offline: queue the image immediately — no manual entry required.
+      // AI extraction runs at sync time.
       if (!mounted) return;
-      setState(() { _isCapturing = false; _stage = _Stage.notes; });
-      showAppToast(context, 'Offline - fill in details and save. Card will be analyzed when online.');
+      setState(() => _isCapturing = true);
+      try {
+        await WriteGateway().createCapture(
+          captureType: 'card_scan',
+          imageBytes: bytes,
+        );
+        if (!mounted) return;
+        context.read<OfflineProvider>().refreshPendingCount();
+        showAppToast(context, 'Image saved — will be processed when online');
+      } catch (_) {
+        if (!mounted) return;
+        showAppToast(context, 'Failed to save image offline');
+      } finally {
+        if (mounted) { setState(() => _isCapturing = false); }
+      }
     }
   }
 
@@ -1369,25 +1336,6 @@ class _CaptureScreenState extends State<CaptureScreen>
     _emailCtrl.text = (d['email']     as String?)?.trim() ?? '';
     _phoneCtrl.text = (d['phone']     as String?)?.trim() ?? '';
     _titleCtrl.text = (d['job_title'] as String?)?.trim() ?? (d['title'] as String?)?.trim() ?? '';
-  }
-
-  void _applyQrData(String raw) {
-    if (raw.startsWith('BEGIN:VCARD')) {
-      for (final line in raw.split('\n')) {
-        if (line.startsWith('FN:'))    _fnCtrl.text    = line.substring(3).trim();
-        if (line.startsWith('ORG:'))   _coCtrl.text    = line.substring(4).trim();
-        if (line.startsWith('TITLE:')) _titleCtrl.text = line.substring(6).trim();
-        if (line.startsWith('EMAIL:')) _emailCtrl.text = line.replaceAll(RegExp(r'EMAIL[^:]*:'), '').trim();
-        if (line.startsWith('TEL:'))   _phoneCtrl.text = line.replaceAll(RegExp(r'TEL[^:]*:'), '').trim();
-      }
-    } else {
-      final emailRe = RegExp(r'\b[\w.+-]+@[\w-]+\.\w+\b');
-      final phoneRe = RegExp(r'\+?[\d\s\-().]{7,}');
-      final em = emailRe.firstMatch(raw);
-      final ph = phoneRe.firstMatch(raw);
-      if (em != null) _emailCtrl.text = em.group(0)!;
-      if (ph != null) _phoneCtrl.text = ph.group(0)!.trim();
-    }
   }
 
   String _fmtDur(Duration d) {

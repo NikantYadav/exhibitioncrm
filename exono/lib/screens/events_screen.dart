@@ -15,7 +15,9 @@ import '../widgets/skeleton_loader.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/live_event_provider.dart';
+import '../providers/offline_provider.dart';
 
+import '../widgets/app_offline_screen.dart';
 import 'event_follow_ups_screen.dart';
 import 'pre_event_prep_screen.dart';
 import '../utils/screen_logger.dart';
@@ -134,6 +136,9 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = context.watch<OfflineProvider>().isOnline;
+    if (!isOnline) return const AppOfflineScreen(title: 'Events');
+
     return ColoredBox(
       color: context.theme.colors.background,
       child: Column(

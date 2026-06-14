@@ -10,6 +10,8 @@ import '../../config/api_config.dart';
 ///
 /// connectivity_plus only reports interface (wifi/cellular), not actual
 /// reachability. We do a lightweight GET /health before declaring online.
+/// While offline, a 15-second timer re-probes so we catch the case where
+/// the interface stays connected but the server was temporarily unreachable.
 class ConnectivityService {
   static final ConnectivityService _instance = ConnectivityService._();
   factory ConnectivityService() => _instance;
@@ -18,6 +20,7 @@ class ConnectivityService {
   bool _isOnline = true;
   final _controller = StreamController<bool>.broadcast();
   StreamSubscription<List<ConnectivityResult>>? _sub;
+  Timer? _retryTimer;
 
   bool get isOnline => kIsWeb ? true : _isOnline;
   Stream<bool> get onStatusChange => _controller.stream;
@@ -28,6 +31,7 @@ class ConnectivityService {
     // Check initial state.
     final results = await Connectivity().checkConnectivity();
     _isOnline = await _probe(results);
+    _updateRetryTimer();
 
     _sub = Connectivity().onConnectivityChanged.listen((results) async {
       final wasOnline = _isOnline;
@@ -35,13 +39,38 @@ class ConnectivityService {
       if (_isOnline != wasOnline) {
         _controller.add(_isOnline);
       }
+      _updateRetryTimer();
     });
+  }
+
+  /// While offline, poll every 15 s so we detect server recovery even when
+  /// the network interface never changes (e.g. captive portal becomes routable).
+  void _updateRetryTimer() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    if (!_isOnline) {
+      _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+        final results = await Connectivity().checkConnectivity();
+        final nowOnline = await _probe(results);
+        if (nowOnline && !_isOnline) {
+          _isOnline = true;
+          _retryTimer?.cancel();
+          _retryTimer = null;
+          _controller.add(true);
+        }
+      });
+    }
   }
 
   Future<bool> checkNow() async {
     if (kIsWeb) return true;
     final results = await Connectivity().checkConnectivity();
+    final wasOnline = _isOnline;
     _isOnline = await _probe(results);
+    if (_isOnline != wasOnline) {
+      _controller.add(_isOnline);
+    }
+    _updateRetryTimer();
     return _isOnline;
   }
 
@@ -59,6 +88,7 @@ class ConnectivityService {
   }
 
   void dispose() {
+    _retryTimer?.cancel();
     _sub?.cancel();
     _controller.close();
   }

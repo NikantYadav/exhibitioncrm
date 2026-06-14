@@ -13,7 +13,9 @@ import '../models/linked_entity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/conversation_provider.dart';
+import '../providers/offline_provider.dart';
 import '../widgets/app_button.dart';
+import '../widgets/app_offline_screen.dart';
 import '../widgets/boxes_loader.dart';
 import 'app_shell.dart' show appNavBarHidden;
 import '../utils/screen_logger.dart';
@@ -201,6 +203,9 @@ class _ChatScreenState extends State<ChatScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = context.watch<OfflineProvider>().isOnline;
+    if (!isOnline) return const AppOfflineScreen(title: 'AI Chat');
+
     return Scaffold(
       backgroundColor: _c.background,
       body: DecoratedBox(

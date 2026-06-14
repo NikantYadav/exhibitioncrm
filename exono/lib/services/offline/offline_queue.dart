@@ -88,6 +88,16 @@ class OfflineQueue {
     return (result.first['c'] as int?) ?? 0;
   }
 
+  /// Ops still eligible to sync (not done, not permanently failed). Used to
+  /// decide whether another sync pass is worthwhile.
+  static Future<int> retryableCount() async {
+    final db = await LocalDb.db;
+    final result = await db.rawQuery(
+      "SELECT COUNT(*) as c FROM outbox WHERE status NOT IN ('done', 'failed')",
+    );
+    return (result.first['c'] as int?) ?? 0;
+  }
+
   static Future<void> markSyncing(String id) async {
     final db = await LocalDb.db;
     await db.update(
@@ -125,13 +135,30 @@ class OfflineQueue {
     );
   }
 
-  static Future<void> resetToPending(String id) async {
+  /// Resets an op to pending and increments its attempt counter so transient
+  /// failures eventually hit [_maxAttempts] instead of retrying forever.
+  static Future<void> resetToPending(String id, {String? error}) async {
     final db = await LocalDb.db;
+    final rows = await db.query('outbox', where: 'id = ?', whereArgs: [id]);
+    if (rows.isEmpty) return;
+    final current = rows.first['attempts'] as int? ?? 0;
     await db.update(
       'outbox',
-      {'status': 'pending', 'last_error': null},
+      {'status': 'pending', 'attempts': current + 1, 'last_error': error},
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  /// Requeues every failed op: status -> pending, attempts -> 0, error cleared.
+  /// Used by the manual "Retry" action so ops that exhausted their automatic
+  /// retries get a fresh chance. Returns the number of ops requeued.
+  static Future<int> retryAllFailed() async {
+    final db = await LocalDb.db;
+    return db.update(
+      'outbox',
+      {'status': 'pending', 'attempts': 0, 'last_error': null},
+      where: "status = 'failed'",
     );
   }
 

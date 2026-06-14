@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
+import '../providers/offline_provider.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
@@ -12,6 +14,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
 import '../widgets/app_header.dart';
+import '../widgets/app_offline_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
 
@@ -427,6 +430,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = context.watch<OfflineProvider>().isOnline;
+    if (!isOnline) return const AppOfflineScreen(title: 'Follow-ups');
+
     return ColoredBox(
       color: context.theme.colors.background,
       child: SafeArea(

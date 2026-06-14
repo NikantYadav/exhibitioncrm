@@ -34,11 +34,8 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Workmanager background sync -->
-        <service
-            android:name="androidx.work.impl.background.systemalarm.SystemAlarmService"
-            android:enabled="@bool/enable_system_alarm_service_default"
-            android:exported="false" />
+        <!-- Workmanager (0.9.x) registers its own WorkManager services/receivers
+             via manifest merging; no manual service declaration needed. -->
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
