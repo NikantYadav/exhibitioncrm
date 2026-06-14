@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { supabase } from '../config/supabase';
 import { LiteLLMService } from '../services/litellm-service';
 import { TavilyService } from '../services/tavily-service';
@@ -11,6 +11,30 @@ const router = Router();
 router.use(requireAuth);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+// Verify the event identified by :id belongs to the authenticated user.
+// Runs automatically before any handler that has an :id param.
+router.param('id', async (req: Request, res: Response, next: NextFunction, id: string) => {
+  try {
+    const { data: event } = await supabase
+      .from('events')
+      .select('id, user_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (event.user_id !== req.user!.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    next();
+  } catch {
+    res.status(500).json({ error: 'Failed to verify event ownership' });
+  }
+});
 
 // Supabase returns timestamps as "2026-06-08 00:00:00+00" (space, no colon in offset).
 // new Date() requires ISO 8601 ("T" separator, "+00:00" offset) — fix both.
@@ -171,6 +195,7 @@ router.patch('/:id', async (req, res, next) => {
       .from('events')
       .update(req.body)
       .eq('id', req.params.id)
+      .eq('user_id', req.user!.id)
       .select()
       .single();
 
@@ -188,6 +213,7 @@ router.put('/:id', async (req, res, next) => {
       .from('events')
       .update(req.body)
       .eq('id', req.params.id)
+      .eq('user_id', req.user!.id)
       .select()
       .single();
 
@@ -1217,7 +1243,8 @@ router.delete('/:id', async (req, res, next) => {
     const { error } = await supabase
       .from('events')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('user_id', req.user!.id);
 
     if (error) throw error;
 

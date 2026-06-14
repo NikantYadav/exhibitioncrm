@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -166,7 +167,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
       } else {
         _showError(result['error']?.toString() ?? 'Failed to complete profile');
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       _showError('An error occurred: $e');

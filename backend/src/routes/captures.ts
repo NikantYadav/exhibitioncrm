@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase';
 import { litellm } from '../services/litellm-service';
-import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
 
@@ -23,10 +22,12 @@ router.post('/voice-transcribe', async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const { event_id } = req.query;
+    const userId = req.user!.id;
 
     let query = supabase
       .from('captures')
-      .select('*');
+      .select('*')
+      .eq('user_id', userId);
 
     if (event_id) {
       query = query.eq('event_id', event_id);
@@ -45,7 +46,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.post('/', requireAuth, async (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
     const { image, capture_type, event_id, extracted_data, raw_text } = req.body;
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
@@ -73,6 +74,7 @@ router.post('/', requireAuth, async (req, res, next) => {
         .from('captures')
         .select()
         .eq('client_op_id', idempotencyKey)
+        .eq('user_id', userId)
         .maybeSingle();
       if (existing) {
         return res.json({ data: existing });
@@ -83,6 +85,7 @@ router.post('/', requireAuth, async (req, res, next) => {
     const { data: capture, error } = await supabase
       .from('captures')
       .insert({
+        user_id: userId,
         capture_type: type,
         event_id: event_id || null,
         image_url: image,
@@ -244,7 +247,8 @@ router.delete('/:id', async (req, res, next) => {
     const { error } = await supabase
       .from('captures')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('user_id', req.user!.id);
 
     if (error) {
       return res.status(400).json({ error: error.message });

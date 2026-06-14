@@ -49,7 +49,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     try {
       final goals = await ApiService.getEventGoals(widget.event.id);
       if (mounted) setState(() => _goals = goals);
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   Future<void> _addGoal() async {
@@ -136,7 +136,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   try {
                     final newGoal = await ApiService.createEventGoal(widget.event.id, label, total);
                     if (mounted) setState(() => _goals.add(newGoal));
-                  } catch (_) {}
+                  } on UnauthorizedException { rethrow; } catch (_) {}
                 },
               ),
             ]),
@@ -152,7 +152,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     setState(() => _goals.removeWhere((g) => g['id'] == goal['id']));
     try {
       await ApiService.deleteEventGoal(widget.event.id, goal['id'] as String);
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) setState(() => _goals.add(goal));
     }
   }
@@ -164,7 +164,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         _targets = targets;
         _isLoading = false;
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       setState(() => _isLoading = false);
     }
   }
@@ -173,7 +173,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     try {
       final contacts = await ApiService.getEventTargetContacts(widget.event.id);
       if (mounted) setState(() => _targetContacts = contacts);
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   String _daysUntil(DateTime date) {
@@ -205,7 +205,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     try {
       final data = await ApiService.getEventTarget(widget.event.id, target['id'] as String);
       if (mounted) setState(() => _targets[index] = data);
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
     await _loadTargetContacts();
   }
 
@@ -216,7 +216,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         type: FileType.any,
         withData: true,
       );
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Could not open file picker.');
       return;
     }
@@ -239,7 +239,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
       if (mounted) {
         showAppToast(context, 'Import complete: ${imported['added']} added, ${imported['skipped']} skipped.');
       }
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Upload failed. Check the file and try again.');
     }
   }
@@ -674,7 +674,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         'status': 'not_contacted',
       }));
       if (mounted) showAppToast(context, '$name added to target contacts.');
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to add contact.');
     }
   }
@@ -684,7 +684,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     setState(() => _targetContacts.removeAt(index));
     try {
       await ApiService.removeContactFromEvent(widget.event.id, contactId);
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) setState(() => _targetContacts.insert(index, removed));
     }
   }
@@ -845,7 +845,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                               final results = await ApiService.getCompanies(query: val);
                               results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
                               setModalState(() { companies = results; isSearching = false; });
-                            } catch (_) {
+                            } on UnauthorizedException { rethrow; } catch (_) {
                               setModalState(() => isSearching = false);
                             }
                           },
@@ -983,7 +983,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
       final newTarget = await ApiService.addEventTarget(widget.event.id, company['id'] as String, boothLocation: booth);
       setState(() => _targets.add(newTarget));
       if (mounted) showAppToast(context, '${company['name']} added to target list.');
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to add target.');
     }
   }
@@ -1031,7 +1031,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                     final companyData = <String, dynamic>{'name': name};
                     if (industry.isNotEmpty) { companyData['industry'] = industry; }
                     createdCompany = await ApiService.createCompany(companyData);
-                  } catch (_) {
+                  } on UnauthorizedException { rethrow; } catch (_) {
                     if (mounted) showAppToast(context, 'Failed to add company.');
                   }
                 },
@@ -1055,7 +1055,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
       setState(() {
         _targets.removeAt(index);
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to remove target.');
     }
   }

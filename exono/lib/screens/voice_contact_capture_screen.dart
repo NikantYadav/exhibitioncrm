@@ -139,7 +139,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         _events = events;
         if (events.isNotEmpty) _eventId = events.first.id;
       });
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   // ════════════════════════════════════════════════════════════
@@ -1143,7 +1143,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         if (!mounted) return;
         setState(() => _recDuration += const Duration(seconds: 1));
       });
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (!mounted) return;
       setState(() {
         _isRecording = false;
@@ -1170,7 +1170,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       _transcript = transcript;
       _parseTranscript(transcript);
       setState(() => _phase = _Phase.review);
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (!mounted) return;
       setState(() => _phase = _Phase.recording);
       showAppToast(context, 'Transcription failed');
@@ -1258,7 +1258,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         return;
       }
       await _doSave();
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
     }
@@ -1292,7 +1292,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       await Future<void>.delayed(const Duration(milliseconds: 1600));
       if (!mounted) return;
       Navigator.of(context).pop(VoiceContactResult(savedName));
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() {
         _isSaving = false;

@@ -3,9 +3,23 @@ import { supabase } from '../config/supabase';
 
 const router = Router();
 
+async function ownsContact(userId: string, contactId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('contacts')
+    .select('id')
+    .eq('id', contactId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data !== null;
+}
+
 router.post('/', async (req, res, next) => {
   try {
     const { contact_id, file_url, file_name, file_type } = req.body;
+
+    if (contact_id && !(await ownsContact(req.user!.id, contact_id))) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     const { data, error } = await supabase
       .from('attachments')
@@ -35,6 +49,10 @@ router.get('/', async (req, res, next) => {
 
     if (!contact_id) {
       return res.status(400).json({ error: 'Contact ID required' });
+    }
+
+    if (!(await ownsContact(req.user!.id, contact_id as string))) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     const { data, error } = await supabase

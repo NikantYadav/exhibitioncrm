@@ -68,7 +68,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
       } else {
         if (mounted) setState(() { _isLoading = false; _error = 'Contact not found'; });
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) setState(() { _isLoading = false; _error = e.toString(); });
     }
   }
@@ -87,7 +87,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         });
         _fetchContactDetails(profile);
       }
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   Future<void> _fetchInsights(String contactId) async {
@@ -101,7 +101,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           _isLoadingInsights = false;
         });
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) setState(() => _isLoadingInsights = false);
     }
   }
@@ -115,7 +115,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     try {
       await ApiService.updateTargetContactStatus(eventId, contactId, 'met');
       lep.updateTargetContactStatusLocally(contactId, 'met');
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   Future<void> _fetchContactDetails(ContactProfileData profile) async {
@@ -168,7 +168,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           );
         });
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       debugPrint('Error fetching contact details: $e');
       if (mounted) setState(() => _isLoadingDetails = false);
     }
@@ -211,7 +211,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         setState(() => _isUploadingAvatar = false);
         _reloadContact();
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
         _toast('Failed to upload photo: $e');
@@ -247,7 +247,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         _toast('${contact.listName} deleted');
         context.pop();
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) _toast('Delete failed: $e');
     }
   }
@@ -274,13 +274,13 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
       await ApiService.updateContact(contact.id, {
         'contact_assets': updatedAssets.map((a) => a.toJson()).toList(),
       });
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
     if (mounted) setState(() { _contact = contact.copyWith(assets: updatedAssets); });
   }
 
   Future<void> _showLinkEventSheet(ContactProfileData contact) async {
     List<Event> allEvents = [];
-    try { allEvents = await ApiService.getEvents(); } catch (_) {}
+    try { allEvents = await ApiService.getEvents(); } on UnauthorizedException { rethrow; } catch (_) {}
     if (!mounted) return;
     await showAppSheet(
       context: context,
@@ -308,7 +308,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         final updated = contact.linkedEvents.where((e) => e.id != event.id).toList();
         setState(() { _contact = _contact!.copyWith(linkedEvents: updated); });
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) _toast('Failed to unlink event');
     }
   }
@@ -338,7 +338,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           ),
         );
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       _toast('Failed to generate email draft: $e');
     }
   }
@@ -1097,7 +1097,7 @@ class _EditContactSheetState extends State<_EditContactSheet> {
       }
       await ApiService.updateContact(widget.contact.id, payload);
       if (mounted) Navigator.pop(context, true);
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         showFToast(context: context, title: Text('Save failed: $e'));
         setState(() => _isSaving = false);

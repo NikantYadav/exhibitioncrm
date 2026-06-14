@@ -6,7 +6,21 @@ import '../config/api_config.dart';
 import '../models/contact.dart';
 import '../models/event.dart';
 
+class UnauthorizedException implements Exception {
+  const UnauthorizedException();
+}
+
 class ApiService {
+  /// Called when any request receives a 401. Set by AuthProvider on init.
+  static void Function()? onUnauthorized;
+
+  static void checkUnauthorized(http.Response response) {
+    if (response.statusCode == 401) {
+      onUnauthorized?.call();
+      throw const UnauthorizedException();
+    }
+  }
+
   static Future<Map<String, String>> _headers({bool withAuth = true}) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -35,6 +49,7 @@ class ApiService {
       headers: await _headers(),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List)
@@ -50,6 +65,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$id'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     }
@@ -66,6 +82,7 @@ class ApiService {
       body: json.encode(contactData),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = json.decode(response.body);
       return Contact.fromJson(data['data']);
@@ -84,6 +101,7 @@ class ApiService {
       headers: await _headers(),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List)
@@ -99,6 +117,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return Event.fromJson(data['data']);
@@ -113,6 +132,7 @@ class ApiService {
       headers: await _headers(),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -127,6 +147,7 @@ class ApiService {
       headers: await _headers(),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -144,6 +165,7 @@ class ApiService {
       body: json.encode(eventData),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return Event.fromJson(data['data']);
@@ -159,6 +181,7 @@ class ApiService {
       body: json.encode({'image': imageData}),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -172,6 +195,7 @@ class ApiService {
       headers: await _headers(),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -184,6 +208,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}/follow-ups'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     }
@@ -195,6 +220,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}/dashboard/priorities'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -221,6 +247,7 @@ class ApiService {
       headers: await _headers(),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body) as Map<String, dynamic>;
       return {
@@ -240,6 +267,7 @@ class ApiService {
       Uri.parse(url),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body) as Map<String, dynamic>;
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -263,6 +291,7 @@ class ApiService {
       Uri.parse(url),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body) as Map<String, dynamic>;
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -286,6 +315,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode(body),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body) as Map<String, dynamic>;
     }
@@ -302,6 +332,7 @@ class ApiService {
       body: json.encode({'conversation_id': conversationId, 'text': text}),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body) as Map<String, dynamic>;
     }
@@ -315,6 +346,7 @@ class ApiService {
       headers: await _headers(),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to delete conversation');
     }
@@ -337,6 +369,7 @@ class ApiService {
       }),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body) as Map<String, dynamic>;
     }
@@ -349,6 +382,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode(data),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to update contact');
     }
@@ -359,6 +393,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId/events'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return List<Map<String, dynamic>>.from(data['data'] as List);
@@ -372,6 +407,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({'event_id': eventId}),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to link event');
   }
 
@@ -380,6 +416,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId/events/$eventId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to unlink event');
   }
 
@@ -388,6 +425,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/stats'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return data['data'] as Map<String, dynamic>;
@@ -400,6 +438,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body)['data'] as Map<String, dynamic>;
     }
@@ -411,6 +450,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -423,6 +463,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/captures'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -435,6 +476,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/follow-ups'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -457,6 +499,7 @@ class ApiService {
         if (body != null) 'body': body,
       }),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to mark follow-up as sent');
     }
@@ -468,6 +511,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({'action': 'unskip'}),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to unskip follow-up');
     }
@@ -479,6 +523,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({'action': 'skip'}),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to skip follow-up');
     }
@@ -491,6 +536,7 @@ class ApiService {
           '${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/follow-ups/$contactId/draft'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body) as Map<String, dynamic>;
       return {
@@ -506,6 +552,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to delete event');
     }
@@ -517,6 +564,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode(data),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final body = json.decode(response.body);
       return Event.fromJson(body['data']);
@@ -529,6 +577,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to delete contact');
     }
@@ -539,6 +588,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId/insights'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body) as Map<String, dynamic>;
     }
@@ -567,6 +617,7 @@ class ApiService {
       }),
     );
 
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body) as Map<String, dynamic>;
     }
@@ -579,6 +630,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode(updates),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to update interaction');
     }
@@ -589,6 +641,7 @@ class ApiService {
         ? '${ApiConfig.baseUrl}${ApiConfig.companies}?q=${Uri.encodeComponent(query)}'
         : '${ApiConfig.baseUrl}${ApiConfig.companies}';
     final response = await http.get(Uri.parse(url), headers: await _headers());
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -601,6 +654,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.companies}/$companyId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return data['data'] as Map<String, dynamic>;
@@ -614,6 +668,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({'force': force}),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body)['data'] as Map<String, dynamic>;
     }
@@ -626,6 +681,7 @@ class ApiService {
       headers: await _headers(),
       body: notes != null && notes.trim().isNotEmpty ? json.encode({'notes': notes.trim()}) : null,
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body)['data'];
       return (data['talking_points'] as List).cast<String>();
@@ -638,6 +694,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}?company_id=${Uri.encodeComponent(companyId)}'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -650,6 +707,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/contacts/$contactId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to remove contact from event');
   }
 
@@ -659,6 +717,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({'contact_id': contactId}),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to link contact to event');
   }
 
@@ -667,6 +726,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/contacts'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -680,6 +740,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({'status': status}),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to update target contact status');
   }
 
@@ -691,6 +752,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode(body),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return data['data'] as Map<String, dynamic>;
@@ -703,6 +765,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to remove target');
   }
 
@@ -712,6 +775,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode(data),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200 || response.statusCode == 201) {
       final body = json.decode(response.body);
       return body['data'] as Map<String, dynamic>;
@@ -741,6 +805,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId/briefing'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return data['data'] as Map<String, dynamic>;
@@ -754,6 +819,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode(data),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to update target');
   }
 
@@ -762,6 +828,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId/contacts'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return (data['data'] as List).cast<Map<String, dynamic>>();
@@ -775,6 +842,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({'contact_id': contactId}),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to link contact');
   }
 
@@ -783,6 +851,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId/contacts/$contactId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to unlink contact');
   }
 
@@ -791,6 +860,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/live'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return data['data'] as Map<String, dynamic>;
@@ -803,6 +873,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/ongoing/current'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return Event.fromJson(data['data']);
@@ -815,6 +886,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/upcoming/next'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return Event.fromJson(data['data']);
@@ -829,6 +901,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({'label': label, 'total': total}),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return (json.decode(response.body) as Map<String, dynamic>)['data']
           as Map<String, dynamic>;
@@ -843,6 +916,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode(data),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return (json.decode(response.body) as Map<String, dynamic>)['data']
           as Map<String, dynamic>;
@@ -855,6 +929,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/goals/$goalId'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to delete goal');
   }
 
@@ -864,6 +939,7 @@ class ApiService {
       headers: await _headers(),
       body: jsonEncode({'status': status}),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to update target status');
   }
 
@@ -872,6 +948,7 @@ class ApiService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/goals'),
       headers: await _headers(),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to load goals');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     return List<Map<String, dynamic>>.from(body['data'] as List);
@@ -883,6 +960,7 @@ class ApiService {
       headers: await _headers(),
       body: jsonEncode({'question': question}),
     );
+    checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to get AI answer');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     return body['answer'] as String? ?? '';
@@ -894,6 +972,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({'audio_data': base64Audio}),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       final data = json.decode(response.body) as Map<String, dynamic>;
       return data['transcript'] as String? ?? '';
@@ -920,9 +999,11 @@ class ApiService {
       headers: await _headersWithKey(idempotencyKey),
       body: json.encode(body),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body) as Map<String, dynamic>;
     }
+    checkUnauthorized(response);
     if (response.statusCode == 409) {
       // Idempotent replay — return existing record.
       return json.decode(response.body) as Map<String, dynamic>;
@@ -945,6 +1026,7 @@ class ApiService {
       headers: await _headers(),
       body: json.encode(body),
     );
+    checkUnauthorized(response);
     if (response.statusCode == 200) {
       return json.decode(response.body) as Map<String, dynamic>;
     }

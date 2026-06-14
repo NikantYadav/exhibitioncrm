@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
+import 'api_service.dart';
 
 class SettingsService {
   static Future<Map<String, String>> _headers() async {
@@ -19,11 +20,14 @@ class SettingsService {
         Uri.parse('${ApiConfig.baseUrl}/settings'),
         headers: await _headers(),
       );
+      ApiService.checkUnauthorized(response);
       final data = jsonDecode(response.body);
       if (response.statusCode == 200) {
         return {'success': true, 'data': data['data']};
       }
       return {'success': false, 'error': data['error'] ?? 'Failed to fetch settings'};
+    } on UnauthorizedException {
+      rethrow;
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
@@ -36,11 +40,14 @@ class SettingsService {
         headers: await _headers(),
         body: jsonEncode(settings),
       );
+      ApiService.checkUnauthorized(response);
       final data = jsonDecode(response.body);
       if (response.statusCode == 200) {
         return {'success': true, 'data': data['data']};
       }
       return {'success': false, 'error': data['error'] ?? 'Failed to update settings'};
+    } on UnauthorizedException {
+      rethrow;
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }

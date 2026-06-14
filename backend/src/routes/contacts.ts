@@ -47,6 +47,7 @@ router.post('/check-duplicate', async (req, res, next) => {
     let query = supabase
       .from('contacts')
       .select('*, company:companies(*)')
+      .eq('user_id', req.user!.id)
       .limit(5);
 
     if (email && phone) {
@@ -102,12 +103,13 @@ router.post('/', async (req, res, next) => {
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     let company_id = body.company_id;
 
-    // Idempotency: if a contact with this client_op_id already exists, return it.
+    // Idempotency: if a contact with this client_op_id already exists for this user, return it.
     if (idempotencyKey) {
       const { data: existing } = await supabase
         .from('contacts')
         .select()
         .eq('client_op_id', idempotencyKey)
+        .eq('user_id', req.user!.id)
         .maybeSingle();
       if (existing) {
         return res.json({ data: existing });
@@ -240,6 +242,7 @@ router.patch('/:id', async (req, res, next) => {
       .from('contacts')
       .update(contactFields)
       .eq('id', req.params.id)
+      .eq('user_id', req.user!.id)
       .select()
       .single();
 
@@ -258,6 +261,7 @@ router.put('/:id', async (req, res, next) => {
       .from('contacts')
       .update(req.body)
       .eq('id', req.params.id)
+      .eq('user_id', req.user!.id)
       .select(`
         *,
         company:companies(*)
@@ -361,7 +365,8 @@ router.delete('/:id', async (req, res, next) => {
     const { error } = await supabase
       .from('contacts')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('user_id', req.user!.id);
 
     if (error) throw error;
 
@@ -386,11 +391,12 @@ router.get('/:id/insights', async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Fetch contact with company (including AI context state)
+    // Fetch contact with company — scoped to this user
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*, company:companies(*)')
       .eq('id', id)
+      .eq('user_id', req.user!.id)
       .single();
 
     if (contactError || !contact) {
@@ -637,6 +643,11 @@ router.get('/:id/insights', async (req, res, next) => {
 // Returns distinct events this contact has been linked to (via interactions OR contact_events).
 router.get('/:id/events', async (req, res, next) => {
   try {
+    // Verify contact ownership first.
+    const { data: contactCheck } = await supabase
+      .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).maybeSingle();
+    if (!contactCheck) return res.status(403).json({ error: 'Forbidden' });
+
     const [interactionsRes, contactEventsRes] = await Promise.all([
       supabase.from('interactions').select('event:events(*)').eq('contact_id', req.params.id).not('event_id', 'is', null),
       supabase.from('contact_events').select('event:events(*)').eq('contact_id', req.params.id),
@@ -663,6 +674,11 @@ router.post('/:id/events', async (req, res, next) => {
   try {
     const { event_id } = req.body;
     if (!event_id) return res.status(400).json({ error: 'event_id required' });
+
+    // Verify contact ownership.
+    const { data: contactCheck } = await supabase
+      .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).maybeSingle();
+    if (!contactCheck) return res.status(403).json({ error: 'Forbidden' });
 
     // Upsert: if already linked via event_link interaction, skip.
     const { data: existing } = await supabase
@@ -698,6 +714,11 @@ router.post('/:id/events', async (req, res, next) => {
 // Unlinks a contact from an event (removes event_link interaction).
 router.delete('/:id/events/:event_id', async (req, res, next) => {
   try {
+    // Verify contact ownership.
+    const { data: contactCheck } = await supabase
+      .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).maybeSingle();
+    if (!contactCheck) return res.status(403).json({ error: 'Forbidden' });
+
     const { error } = await supabase
       .from('interactions')
       .delete()
@@ -722,11 +743,12 @@ router.post('/:id/enrich', async (req, res, next) => {
     const force = req.body.force === true;
     const { EnrichmentService } = await import('../services/enrichment-service');
 
-    // Fetch contact with company data
+    // Fetch contact with company data — scoped to this user
     const { data: contact, error: fetchError } = await supabase
       .from('contacts')
       .select('*, company:companies(*)')
       .eq('id', id)
+      .eq('user_id', req.user!.id)
       .single();
 
     if (fetchError || !contact) {

@@ -81,7 +81,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
           ..sort((a, b) => b.startDate.compareTo(a.startDate));
         _loading = false;
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -139,7 +139,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
       if (diff.inDays < 7)  return '${diff.inDays}d ago';
       if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
       return '${(diff.inDays / 30).floor()}mo ago';
-    } catch (_) { return ''; }
+    } on UnauthorizedException { rethrow; } catch (_) { return ''; }
   }
 
   String _urgencyLabel(String? urgency) => switch (urgency) {
@@ -162,7 +162,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
     });
     try {
       await ApiService.updateContact(id, {'follow_up_status': 'followed_up'});
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       // Revert on failure
       if (mounted) {
         setState(() {
@@ -183,7 +183,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
     });
     try {
       await ApiService.updateContact(id, {'follow_up_status': 'needs_followup'});
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() {
           _needsFollowup.removeWhere((c) => c['id'] == id);
@@ -207,7 +207,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
     });
     try {
       await ApiService.updateContact(id, {'follow_up_urgency': urgency});
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   void _showUrgencySheet(Map<String, dynamic> contact) {

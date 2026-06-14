@@ -61,7 +61,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
       setState(() {
         _followUpsDue = (data['followUpsDue'] as num?)?.toInt() ?? 0;
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) setState(() { _followUpsDue = 0; });
     }
   }
@@ -93,7 +93,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         _upcomingEvents = upcoming.take(3).toList();
         _eventsLoaded = true;
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) setState(() => _eventsLoaded = true);
     }
   }

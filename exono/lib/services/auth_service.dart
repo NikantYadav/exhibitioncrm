@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../services/api_service.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 
@@ -36,7 +37,7 @@ class AuthService {
           'error': data['error'] ?? 'Signup failed',
         };
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       return {
         'success': false,
         'error': 'Network error: $e',
@@ -74,7 +75,7 @@ class AuthService {
           'error': data['error'] ?? 'Login failed',
         };
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       return {
         'success': false,
         'error': 'Network error: $e',
@@ -128,7 +129,7 @@ class AuthService {
           'error': data['error'] ?? 'Profile update failed',
         };
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       return {
         'success': false,
         'error': 'Network error: $e',
@@ -160,7 +161,7 @@ class AuthService {
           'error': data['error'] ?? 'Session invalid',
         };
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       return {
         'success': false,
         'error': 'Network error: $e',
@@ -186,7 +187,7 @@ class AuthService {
           'error': data['error'] ?? 'Logout failed',
         };
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       return {
         'success': false,
         'error': 'Network error: $e',

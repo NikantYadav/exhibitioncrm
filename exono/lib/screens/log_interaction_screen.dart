@@ -160,7 +160,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
       if (interactionId != null) {
         _transcribeInBackground(interactionId, base64Audio);
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
         showFToast(
@@ -208,7 +208,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
       );
 
       if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
         showFToast(

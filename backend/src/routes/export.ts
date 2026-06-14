@@ -11,6 +11,7 @@ router.get('/', async (req, res, next) => {
       const { data: contacts } = await supabase
         .from('contacts')
         .select('*, company:companies(*)')
+        .eq('user_id', req.user!.id)
         .order('created_at', { ascending: false });
 
       // Simplified - return JSON instead of Excel
@@ -47,6 +48,7 @@ router.get('/csv', async (req, res, next) => {
         *,
         company:companies(name)
       `)
+      .eq('user_id', req.user!.id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -84,6 +86,7 @@ router.get('/excel', async (req, res, next) => {
         *,
         company:companies(name, industry, website)
       `)
+      .eq('user_id', req.user!.id)
       .order('created_at', { ascending: false });
 
     if (error) {

@@ -17,6 +17,7 @@ import 'screens/events_screen.dart';
 import 'screens/follow_ups_screen.dart';
 import 'screens/home_default_screen.dart';
 import 'screens/landing_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/live_home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/account_settings_screen.dart';
@@ -29,14 +30,15 @@ final shellNavigatorKey = GlobalKey<NavigatorState>();
 
 GoRouter buildRouter(AuthProvider auth) {
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: kIsWeb ? '/' : '/splash',
     refreshListenable: auth,
     redirect: (context, state) {
       final loggedIn = auth.isAuthenticated;
       final onboarded = auth.onboardingCompleted;
       final loc = state.matchedLocation;
-      final onPublic = loc == '/auth' || loc == '/landing' || loc == '/onboarding';
+      final onPublic = loc == '/auth' || loc == '/landing' || loc == '/onboarding' || loc == '/splash';
 
+      if (loc == '/splash') return null;
       if (!loggedIn && !onPublic) return kIsWeb ? '/landing' : '/auth';
       if (loggedIn && !onboarded && loc != '/onboarding') return '/onboarding';
       if (loggedIn && onboarded && onPublic) return '/';
@@ -44,6 +46,7 @@ GoRouter buildRouter(AuthProvider auth) {
     },
     routes: [
       // ── Public / auth routes (no shell) ──────────────────────────────────
+      GoRoute(path: '/splash',     builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/landing',    builder: (_, __) => const LandingScreen()),
       GoRoute(path: '/auth',       builder: (_, __) => const AuthScreen()),
       GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingScreen()),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../services/api_service.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -95,7 +97,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           }
         }
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       _showError('An error occurred: $e');
@@ -345,18 +347,12 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // brand mark
-          Container(
+          SvgPicture.asset(
+            colors.isDark
+                ? 'assets/images/logo-white.svg'
+                : 'assets/images/logo-black.svg',
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [colors.accent, colors.accentStrong],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.hub_rounded, color: Colors.white, size: 20),
           ),
           const SizedBox(height: 16),
           Text(
@@ -416,18 +412,12 @@ class _BrandPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // logo mark
-                Container(
+                SvgPicture.asset(
+                  colors.isDark
+                      ? 'assets/images/logo-white.svg'
+                      : 'assets/images/logo-black.svg',
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [colors.accent, colors.accentStrong],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.hub_rounded, color: Colors.white, size: 22),
                 ),
                 const SizedBox(height: 12),
                 Text(

@@ -36,7 +36,7 @@ class _EventRouterScreenState extends State<EventRouterScreen> {
   Future<Event?> _fetch() async {
     try {
       return await ApiService.getEvent(widget.eventId);
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) context.go('/events');
       return null;
     }

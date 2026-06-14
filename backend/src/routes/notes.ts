@@ -3,10 +3,26 @@ import { supabase } from '../config/supabase';
 
 const router = Router();
 
+async function ownsContact(userId: string, contactId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('contacts')
+    .select('id')
+    .eq('id', contactId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data !== null;
+}
+
 router.post('/', async (req, res, next) => {
   try {
     const body = req.body;
     const noteData = { ...body };
+
+    if (noteData.contact_id) {
+      if (!(await ownsContact(req.user!.id, noteData.contact_id))) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
 
     if (body.note_type === 'voice' && body.audio_data) {
       noteData.source_url = body.audio_data;
@@ -47,12 +63,28 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const { id, ...updateData } = req.body;
+    const noteId = id || req.params.id;
 
-    if (!id && !req.params.id) {
+    if (!noteId) {
       return res.status(400).json({ error: 'Note ID required' });
     }
 
-    const noteId = id || req.params.id;
+    // Verify the note belongs to the current user via its contact.
+    const { data: existing, error: lookupError } = await supabase
+      .from('notes')
+      .select('id, contact_id')
+      .eq('id', noteId)
+      .maybeSingle();
+
+    if (lookupError || !existing) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+
+    if (existing.contact_id) {
+      if (!(await ownsContact(req.user!.id, existing.contact_id))) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
 
     const { data: note, error } = await supabase
       .from('notes')
@@ -65,7 +97,6 @@ router.patch('/:id', async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    // Trigger intelligent status analysis for updated notes with content
     if (note.contact_id && note.content) {
       const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
       fetch(`${backendUrl}/api/ai/analyze-note`, {
@@ -88,6 +119,23 @@ router.patch('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // Verify ownership before deleting.
+    const { data: existing, error: lookupError } = await supabase
+      .from('notes')
+      .select('id, contact_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (lookupError || !existing) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+
+    if (existing.contact_id) {
+      if (!(await ownsContact(req.user!.id, existing.contact_id))) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
 
     const { error } = await supabase
       .from('notes')

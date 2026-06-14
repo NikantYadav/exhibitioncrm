@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import 'package:forui/forui.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -287,7 +288,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
           _uploading = false;
         });
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         setState(() => _uploading = false);
         showAppToast(context, 'Upload failed: $e');

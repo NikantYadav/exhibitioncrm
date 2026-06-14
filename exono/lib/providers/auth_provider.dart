@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -55,6 +56,14 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> initialize() async {
     if (_initialized) return;
+
+    // Ensure any 401 response from the API triggers an immediate logout.
+    ApiService.onUnauthorized = () async {
+      final prefs = await SharedPreferences.getInstance();
+      await _clearSession(prefs);
+      notifyListeners();
+    };
+
     _isLoading = true;
     notifyListeners();
 

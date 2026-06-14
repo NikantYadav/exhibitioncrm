@@ -139,7 +139,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         _events = events;
         if (events.isNotEmpty) _eventId = events.first.id;
       });
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   // ── Build ───────────────────────────────────────────────────
@@ -1231,7 +1231,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       if (img == null) { setState(() => _isCapturing = false); return; }
       final bytes = await img.readAsBytes();
       await _processImageBytes(bytes);
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() { _isCapturing = false; _stage = _Stage.notes; });
     }
@@ -1265,7 +1265,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       final file = picked.files.first;
       final bytes = file.bytes ?? await File(file.path!).readAsBytes();
       await _analyzeBytes(bytes);
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       _onFilesError(e);
     }
   }
@@ -1329,7 +1329,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       _applyExtracted(res['data'] as Map<String, dynamic>? ?? {});
       if (!mounted) return;
       setState(() => _isAnalyzing = false);
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() => _isAnalyzing = false);
     }
@@ -1382,7 +1382,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       final transcript = await ApiService.transcribeAudio(b64);
       if (!mounted) return;
       setState(() { _voiceCtrl.text = transcript; _isTranscribing = false; });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() => _isTranscribing = false);
     }
@@ -1411,7 +1411,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         return;
       }
       await _doSave();
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
     }
@@ -1465,7 +1465,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       await Future<void>.delayed(const Duration(milliseconds: 1800));
       if (!mounted) return;
       setState(() { _saved = false; _stage = _Stage.scan; });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() { _isSaving = false; _saved = false; });
     }
@@ -1506,7 +1506,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       if (_eventId != null) {
         try {
           await ApiService.linkContactToEvent(existingId, _eventId!);
-        } catch (_) {}
+        } on UnauthorizedException { rethrow; } catch (_) {}
       }
 
       if (!mounted) return;
@@ -1521,7 +1521,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       await Future<void>.delayed(const Duration(milliseconds: 1800));
       if (!mounted) return;
       setState(() { _saved = false; _stage = _Stage.scan; });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() { _isSaving = false; _saved = false; });
     }

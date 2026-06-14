@@ -61,7 +61,7 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         setState(() {
           _error = e.toString();

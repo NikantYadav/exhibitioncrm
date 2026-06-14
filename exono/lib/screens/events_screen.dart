@@ -82,7 +82,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         _eventStats = statsMap;
         _isLoading = false;
       });
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -794,7 +794,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
       await _loadEvents();
 
       if (mounted) { showAppToast(context, 'Event created successfully.'); }
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (sheetContext.mounted) { showAppToast(sheetContext, 'Server error — please try again.'); }
     }
   }
@@ -854,7 +854,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
       if (sheetContext.mounted) { Navigator.of(sheetContext).pop(); }
       await _loadEvents();
       if (mounted) { showAppToast(context, 'Event updated.'); }
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (sheetContext.mounted) { showAppToast(sheetContext, 'Server error — please try again.'); }
     }
   }
@@ -942,7 +942,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                       await ApiService.deleteEvent(event.id);
                       await _loadEvents();
                       if (mounted) { showAppToast(context, 'Event deleted.'); }
-                    } catch (e) {
+                    } on UnauthorizedException { rethrow; } catch (e) {
                       if (mounted) { showAppToast(context, 'Failed to delete event.'); }
                     }
                   },

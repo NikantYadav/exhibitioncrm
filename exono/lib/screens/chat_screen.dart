@@ -1,4 +1,5 @@
 import 'dart:ui';
+import '../services/api_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -107,7 +108,7 @@ class _ChatScreenState extends State<ChatScreen>
         _initialMessageSent = true;
         await _sendMessage(widget.initialMessage!);
       }
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
 
@@ -163,7 +164,7 @@ class _ChatScreenState extends State<ChatScreen>
           convo.id,
           accessToken: auth.accessToken,
         );
-      } catch (e) {
+      } on UnauthorizedException { rethrow; } catch (e) {
         debugPrint('Failed to create conversation: $e');
         if (mounted) setState(() => _isSending = false);
         return;

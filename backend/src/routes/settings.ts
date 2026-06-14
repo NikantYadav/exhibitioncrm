@@ -1,27 +1,22 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../config/supabase';
-import { supabaseAuth } from '../config/supabaseClients';
 
 const router = Router();
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'No authorization header' });
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
-    if (authError || !user) return res.status(401).json({ error: 'Invalid session' });
+    const userId = req.user!.id;
 
     const { data: settings, error } = await supabase
       .from('user_settings')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (error || !settings) {
       return res.json({
         data: {
-          user_id: user.id,
+          user_id: userId,
           ai_provider: 'gemini',
           ai_model: 'gemini-2.0-flash-lite',
           ai_api_key: '',
@@ -46,13 +41,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.put('/', async (req: Request, res: Response) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'No authorization header' });
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
-    if (authError || !user) return res.status(401).json({ error: 'Invalid session' });
-
-    const body = { ...req.body, user_id: user.id };
+    const body = { ...req.body, user_id: req.user!.id };
 
     const { data, error } = await supabase
       .from('user_settings')

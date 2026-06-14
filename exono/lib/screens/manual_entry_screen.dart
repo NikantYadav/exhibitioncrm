@@ -76,7 +76,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
         _events = events;
         if (events.isNotEmpty) _eventId = events.first.id;
       });
-    } catch (_) {}
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   // ── Build ───────────────────────────────────────────────────
@@ -717,7 +717,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
         return;
       }
       await _doSave();
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
       showAppToast(context, 'Failed to save contact');
@@ -762,7 +762,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
       Navigator.of(context).pop(
         ManualEntryResult('$fn $ln'.trim()),
       );
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() {
         _isSaving = false;

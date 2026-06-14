@@ -67,7 +67,7 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> with ScreenLogger 
       if (mounted) {
         Navigator.pop(context, true);
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         showAppToast(context, 'Failed to save contact');
       }

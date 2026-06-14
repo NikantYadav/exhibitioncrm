@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireAuth } from '../middleware/requireAuth';
 import authRouter from './auth';
 import contactsRouter from './contacts';
 import eventsRouter from './events';
@@ -27,7 +28,12 @@ router.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+// Auth routes are public by design.
 router.use('/auth', authRouter);
+
+// All remaining routes require a valid session.
+router.use(requireAuth);
+
 router.use('/contacts', contactsRouter);
 router.use('/events', eventsRouter);
 router.use('/notes', notesRouter);

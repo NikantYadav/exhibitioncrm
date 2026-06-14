@@ -93,7 +93,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
     try {
       await ApiService.updateTargetStatus(
           eventId, id, nowMet ? 'met' : 'not_contacted');
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _isMet = !nowMet);
         _toast('Failed to update status');
@@ -113,7 +113,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
         _target = {..._target, 'notes': notes.isEmpty ? null : notes};
         _editingNotes = false;
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       _toast('Failed to save notes');
     }
   }
@@ -130,7 +130,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
         };
         _isGenerating = false;
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       setState(() => _isGenerating = false);
       _toast('Failed to generate briefing');
     }

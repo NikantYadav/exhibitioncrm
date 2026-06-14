@@ -5,6 +5,29 @@ import { requireAuth } from '../middleware/requireAuth';
 const router = Router();
 router.use(requireAuth);
 
+async function ownsContact(userId: string, contactId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('contacts')
+    .select('id')
+    .eq('id', contactId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data !== null;
+}
+
+async function ownsInteraction(userId: string, interactionId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('interactions')
+    .select('contact_id, contacts!inner(user_id)')
+    .eq('id', interactionId)
+    .maybeSingle();
+  if (!data) return false;
+  const contact = (data as any).contacts;
+  return Array.isArray(contact)
+    ? contact.some((c: any) => c.user_id === userId)
+    : contact?.user_id === userId;
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const { event_id, status } = req.query;
@@ -13,7 +36,6 @@ router.get('/', async (req, res, next) => {
     let query;
 
     if (event_id) {
-      // Filter contacts who have interactions at this event
       query = supabase
         .from('contacts')
         .select(`
@@ -44,7 +66,6 @@ router.get('/', async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    // Categorize contacts by follow-up status
     const categorized = {
       not_contacted: [] as any[],
       followed_up: [] as any[],
@@ -57,7 +78,6 @@ router.get('/', async (req, res, next) => {
         d.status === 'sent' && (!event_id || d.event_id === event_id)
       );
 
-      // Calculate last interaction date
       const interactionList = (contact.interactions as any[]) || [];
       const noteList = (contact.notes as any[]) || [];
 
@@ -99,6 +119,10 @@ router.post('/', async (req, res, next) => {
   try {
     const body = req.body;
 
+    if (body.contact_id && !(await ownsContact(req.user!.id, body.contact_id))) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const { data, error } = await supabase
       .from('interactions')
       .insert({
@@ -124,11 +148,14 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const body = req.body;
+
+    if (!(await ownsInteraction(req.user!.id, id))) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     const { data, error } = await supabase
       .from('interactions')
-      .update(body)
+      .update(req.body)
       .eq('id', id)
       .select()
       .single();
@@ -146,6 +173,10 @@ router.put('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    if (!(await ownsInteraction(req.user!.id, id))) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     const { error } = await supabase
       .from('interactions')

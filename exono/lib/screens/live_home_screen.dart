@@ -100,7 +100,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     lep.updateGoalLocally(updated);
     try {
       await ApiService.updateEventGoal(event.id, goal['id'] as String, {'current': newVal});
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       lep.revertGoal(goal);
     }
   }
@@ -111,7 +111,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     lep.updateGoalLocally(updated);
     try {
       await ApiService.updateEventGoal(event.id, goal['id'] as String, {'current': newVal});
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       lep.revertGoal(goal);
     }
   }
@@ -120,7 +120,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     lep.removeGoalLocally(goal['id'] as String);
     try {
       await ApiService.deleteEventGoal(event.id, goal['id'] as String);
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       lep.addGoalLocally(goal);
       _toast('Failed to delete goal');
     }
@@ -214,7 +214,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   try {
                     final newGoal = await ApiService.createEventGoal(event.id, label, total);
                     if (mounted) lep.addGoalLocally(newGoal);
-                  } catch (_) {
+                  } on UnauthorizedException { rethrow; } catch (_) {
                     if (mounted) _toast('Failed to add goal');
                   }
                 },
@@ -240,7 +240,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     try {
       await ApiService.updateTargetContactStatus(event.id, contactId, nowMet ? 'met' : 'not_contacted');
       lep.updateTargetContactStatusLocally(contactId, nowMet ? 'met' : 'not_contacted');
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _targetContactMetOverrides.remove(contactId));
         _toast('Failed to update target status');
@@ -262,7 +262,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     try {
       await ApiService.updateTargetContactStatus(event.id, contactId, 'met');
       lep.updateTargetContactStatusLocally(contactId, 'met');
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) setState(() => _targetContactMetOverrides.remove(contactId));
     }
   }
@@ -312,7 +312,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         'talking_points': '',
       });
       _toast('${contactName ?? companyName} added to targets.');
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       _toast('Failed to add target.');
     }
   }
@@ -334,7 +334,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
       await ApiService.removeContactFromEvent(event.id, contactId);
       lep.removeTargetContactLocally(contactId);
       _expandedTargetIds.remove(contactId);
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       _toast('Failed to remove target.');
     }
   }
@@ -979,7 +979,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         else if (diff.inMinutes < 60) { timeAgo = '${diff.inMinutes}m ago'; }
         else if (diff.inHours < 24) { timeAgo = '${diff.inHours}h ago'; }
         else { timeAgo = '${diff.inDays}d ago'; }
-      } catch (_) {}
+      } on UnauthorizedException { rethrow; } catch (_) {}
     }
 
     return Padding(

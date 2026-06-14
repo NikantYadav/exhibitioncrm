@@ -133,7 +133,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
           ..addAll(seededSkipped);
         _isLoading = false;
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -278,7 +278,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
             _isDraftLoading = false;
           });
         }
-      } catch (_) {
+      } on UnauthorizedException { rethrow; } catch (_) {
         if (mounted) setState(() => _isDraftLoading = false);
       }
     }

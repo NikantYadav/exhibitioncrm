@@ -68,7 +68,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> with ScreenLogger
       });
       _loadContacts();
       _autoEnrich();
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) setState(() => _isLoadingTarget = false);
     }
   }
@@ -98,7 +98,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> with ScreenLogger
         _target = {..._target, 'company': updated};
         _isEnriching = false;
       }); }
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) { setState(() {
         _isEnriching = false;
         _enrichError = 'Could not load company details. Will retry next visit.';
@@ -113,7 +113,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> with ScreenLogger
       final notes = _useNotesForBriefing ? (_target['notes'] as String?) : null;
       final points = await ApiService.generateCompanyBriefing(_companyId, notes: notes);
       if (mounted) { setState(() { _talkingPoints = List<String>.from(points); _isGenerating = false; }); }
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) { setState(() {
         _isGenerating = false;
         _briefingError = 'Could not generate talking points. Please try again.';
@@ -131,7 +131,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> with ScreenLogger
         'is_target_contact': targetContactIds.contains(c['id'] as String?),
       }).toList();
       setState(() { _contacts = tagged; _isLoadingContacts = false; });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       setState(() => _isLoadingContacts = false);
     }
   }
@@ -144,7 +144,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> with ScreenLogger
         _target = {..._target, 'booth_location': booth.isEmpty ? null : booth};
         _editingBooth = false;
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to save booth.');
     }
   }
@@ -160,7 +160,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> with ScreenLogger
       if (_useNotesForBriefing && notes.isNotEmpty) {
         await _generateBriefing();
       }
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to save notes.');
     }
   }
@@ -178,7 +178,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> with ScreenLogger
         final idx = _contacts.indexWhere((c) => c['id'] == contactId);
         if (idx != -1) { _contacts[idx] = {..._contacts[idx], 'is_target_contact': !isTarget}; }
       });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to update target contact.');
     }
   }
@@ -492,7 +492,7 @@ class _EventTargetScreenState extends State<EventTargetScreen> with ScreenLogger
                                 _target = {..._target, 'use_notes_for_briefing': newVal};
                                 try {
                                   await ApiService.updateEventTarget(widget.event.id, _target['id'] as String, {'use_notes_for_briefing': newVal});
-                                } catch (_) {}
+                                } on UnauthorizedException { rethrow; } catch (_) {}
                               },
                               behavior: HitTestBehavior.opaque,
                               child: Container(

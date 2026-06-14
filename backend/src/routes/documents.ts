@@ -4,9 +4,23 @@ import { AIService } from '../config/ai';
 
 const router = Router();
 
+async function ownsContact(userId: string, contactId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('contacts')
+    .select('id')
+    .eq('id', contactId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data !== null;
+}
+
 router.post('/', async (req, res, next) => {
   try {
     const { contact_id, name, file_url, description } = req.body;
+
+    if (contact_id && !(await ownsContact(req.user!.id, contact_id))) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     // Save document record
     const { data: doc, error } = await supabase
@@ -61,6 +75,10 @@ router.get('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Contact ID required' });
     }
 
+    if (!(await ownsContact(req.user!.id, contact_id as string))) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const { data: documents, error } = await supabase
       .from('contact_documents')
       .select('*')
@@ -84,6 +102,23 @@ router.post('/summarize', async (req, res, next) => {
 
     if (!content) {
       return res.status(400).json({ error: 'Content required' });
+    }
+
+    // Verify ownership when a document_id is provided.
+    if (document_id) {
+      const { data: doc } = await supabase
+        .from('contact_documents')
+        .select('contact_id')
+        .eq('id', document_id)
+        .maybeSingle();
+
+      if (!doc) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      if (doc.contact_id && !(await ownsContact(req.user!.id, doc.contact_id))) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
     }
 
     const prompt = `Summarize this document in 2-3 sentences:\n\n${content}`;

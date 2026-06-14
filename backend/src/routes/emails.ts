@@ -15,33 +15,36 @@ router.post('/draft', async (req, res, next) => {
       return res.status(400).json({ error: 'contact_id and email_type are required' });
     }
 
-    // Fetch contact with company
+    const userId = req.user!.id;
+
+    // Fetch contact with company — scoped to this user
     const { data: contact } = await supabase
       .from('contacts')
       .select('*, company:companies(*)')
       .eq('id', contact_id)
+      .eq('user_id', userId)
       .single();
 
     if (!contact) {
       return res.status(404).json({ error: 'Contact not found' });
     }
 
-    // Fetch event if provided
+    // Fetch event if provided — scoped to this user
     let event = null;
     if (event_id) {
       const { data } = await supabase
         .from('events')
         .select('*')
         .eq('id', event_id)
+        .eq('user_id', userId)
         .single();
       event = data;
     }
 
     // Fetch notes and user profile in parallel
-    const userId = (req as any).user?.id;
     const [{ data: notes }, { data: userProfile }] = await Promise.all([
       supabase.from('notes').select('content').eq('contact_id', contact_id).order('created_at', { ascending: false }).limit(5),
-      userId ? supabase.from('user_profiles').select('name, designation, products_services, value_proposition, additional_context, ai_tone').eq('user_id', userId).maybeSingle() : Promise.resolve({ data: null }),
+      supabase.from('user_profiles').select('name, designation, products_services, value_proposition, additional_context, ai_tone').eq('user_id', userId).maybeSingle(),
     ]);
 
     const tone = userProfile?.ai_tone ?? 'professional';
@@ -117,10 +120,11 @@ ${instructions ? `Instructions: ${instructions}` : 'Make it more professional an
 
 Return the improved version.`;
 
-    const improveUserId = (req as any).user?.id;
-    const { data: improveProfile } = improveUserId
-      ? await supabase.from('user_profiles').select('ai_tone, name, designation').eq('user_id', improveUserId).maybeSingle()
-      : { data: null };
+    const { data: improveProfile } = await supabase
+      .from('user_profiles')
+      .select('ai_tone, name, designation')
+      .eq('user_id', req.user!.id)
+      .maybeSingle();
     const improveTone = improveProfile?.ai_tone ?? 'professional';
 
     const result = await AIService.generateCompletion([
@@ -142,6 +146,23 @@ Return the improved version.`;
 router.delete('/drafts/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // Verify ownership via the linked contact.
+    const { data: draft } = await supabase
+      .from('email_drafts')
+      .select('contact_id, contacts!inner(user_id)')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (!draft) {
+      return res.status(404).json({ error: 'Draft not found' });
+    }
+
+    const contact = (draft as any).contacts;
+    const contactUserId = Array.isArray(contact) ? contact[0]?.user_id : contact?.user_id;
+    if (contactUserId !== req.user!.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     const { error } = await supabase
       .from('email_drafts')

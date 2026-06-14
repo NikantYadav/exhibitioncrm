@@ -52,7 +52,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
       setState(() { _company = company; _isLoading = false; });
       _loadContacts();
       _autoEnrich(company);
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
     }
   }
@@ -61,7 +61,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
     try {
       final contacts = await ApiService.getCompanyContacts(widget.companyId);
       if (mounted) setState(() { _contacts = contacts; _isLoadingContacts = false; });
-    } catch (_) {
+    } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) setState(() => _isLoadingContacts = false);
     }
   }
@@ -76,7 +76,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
     try {
       final updated = await ApiService.enrichCompany(widget.companyId);
       if (mounted) setState(() { _company = updated; _isEnriching = false; });
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         setState(() {
           _isEnriching = false;
@@ -96,7 +96,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
           _isGenerating = false;
         });
       }
-    } catch (e) {
+    } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         setState(() {
           _isGenerating = false;
