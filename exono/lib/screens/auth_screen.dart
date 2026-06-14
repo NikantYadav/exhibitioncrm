@@ -196,7 +196,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
 
   Widget _themeToggle(ExonoColors colors) {
     return Positioned(
-      top: 12,
+      bottom: 16,
       right: 16,
       child: Consumer<ThemeProvider>(
         builder: (context, theme, _) => IconButton(

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
+import '../providers/notification_provider.dart';
 import '../providers/offline_provider.dart';
 import '../services/api_service.dart';
 import '../services/offline/write_gateway.dart';
@@ -45,8 +46,6 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
   String?     _eventId;
   bool        _isSaving  = false;
   bool        _saved     = false;
-  bool        _showDedup = false;
-  List<Map<String, dynamic>> _dupes = [];
   final List<String> _tags = [];
 
   @override
@@ -160,7 +159,6 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
             bottom: 0, left: 0, right: 0,
             child: _buildSaveButton(),
           ),
-          if (_showDedup) _buildDedupSheet(),
         ],
       ),
     );
@@ -522,172 +520,6 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     );
   }
 
-  // ── Dedup sheet ────────────────────────────────────────────
-
-  Widget _buildDedupSheet() {
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () {},
-              child: ColoredBox(
-                color: Colors.black.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              child: ColoredBox(
-              color: _c.surface,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: _c.border,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding:
-                          const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.warning_amber_rounded,
-                                color: _c.accent,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Possible duplicate detected',
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w700,
-                                    color: _c.textPrimary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_dupes.isNotEmpty) ...[
-                            const SizedBox(height: 18),
-                            AppSectionLabel('Existing record'),
-                            const SizedBox(height: 10),
-                            AppCard(
-                              elevated: true,
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${_dupes.first['first_name'] ?? ''} ${_dupes.first['last_name'] ?? ''}'
-                                        .trim(),
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: _c.textPrimary,
-                                    ),
-                                  ),
-                                  if (_dupes.first['email'] != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _dupes.first['email'] as String,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: _c.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                  if (_dupes.first['company'] != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      (_dupes.first['company']
-                                                  as Map?)?['name'] ??
-                                              '',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: _c.textMuted,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      20,
-                      0,
-                      20,
-                      MediaQuery.of(context).padding.bottom + 16,
-                    ),
-                    child: Column(
-                      children: [
-                        _dedupAction(
-                          'MERGE WITH EXISTING',
-                          primary: true,
-                          onTap: () =>
-                              _resolveDuplicateAndSave(merge: true),
-                        ),
-                        const SizedBox(height: 10),
-                        _dedupAction(
-                          'CREATE AS NEW CONTACT',
-                          onTap: () =>
-                              _resolveDuplicateAndSave(merge: false),
-                        ),
-                        const SizedBox(height: 10),
-                        AppButton(
-                          label: 'CANCEL',
-                          variant: ButtonVariant.ghost,
-                          fullWidth: true,
-                          onPressed: () => setState(() => _showDedup = false),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _dedupAction(
-    String label, {
-    required VoidCallback onTap,
-    bool primary = false,
-  }) {
-    return AppButton(
-      label: label,
-      fullWidth: true,
-      variant: primary ? ButtonVariant.primary : ButtonVariant.secondary,
-      onPressed: onTap,
-    );
-  }
-
   // ── Actions ────────────────────────────────────────────────
 
   Future<void> _save() async {
@@ -700,22 +532,47 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     }
     setState(() => _isSaving = true);
     try {
-      final dupResult = await ApiService.checkDuplicateContacts(
-        name: name,
-        email: _emailCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
-      );
-      if (!mounted) return;
-      if (dupResult['has_duplicates'] == true) {
-        setState(() {
-          _dupes = List<Map<String, dynamic>>.from(
-            dupResult['data'] as List? ?? [],
+      // Skip duplicate check when offline — go straight to queue.
+      if (context.read<OfflineProvider>().isOnline) {
+        try {
+          final dupResult = await ApiService.checkDuplicateContacts(
+            name: name,
+            email: _emailCtrl.text.trim(),
+            phone: _phoneCtrl.text.trim(),
           );
-          _isSaving = false;
-          _showDedup = true;
-        });
-        return;
+          if (!mounted) return;
+          if (dupResult['has_duplicates'] == true) {
+            final dupes = List<Map<String, dynamic>>.from(
+              dupResult['data'] as List? ?? [],
+            );
+            if (!mounted) return;
+            context.read<NotificationProvider>().add(DedupNotification(
+              id: DateTime.now().microsecondsSinceEpoch.toString(),
+              createdAt: DateTime.now(),
+              dupes: dupes,
+              pendingContact: {
+                'first_name':   fn,
+                'last_name':    ln,
+                'name':         '$fn $ln'.trim(),
+                'company':      _coCtrl.text.trim(),
+                'email':        _emailCtrl.text.trim(),
+                'phone':        _phoneCtrl.text.trim(),
+                'job_title':    _titleCtrl.text.trim(),
+                'linkedin_url': _linkedinCtrl.text.trim(),
+              },
+              eventId: _eventId,
+              rawText: _notesCtrl.text.isNotEmpty ? _notesCtrl.text : null,
+              source: 'manual',
+            ));
+            setState(() => _isSaving = false);
+            showAppToast(context, 'Duplicate detected — check notifications');
+            return;
+          }
+        } catch (_) {
+          // Duplicate check failed — proceed to save anyway.
+        }
       }
+      if (!mounted) return;
       await _doSave();
     } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
@@ -755,7 +612,6 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
       setState(() {
         _saved     = true;
         _isSaving  = false;
-        _showDedup = false;
       });
       await Future<void>.delayed(const Duration(milliseconds: 1800));
       if (!mounted) return;
@@ -772,11 +628,4 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     }
   }
 
-  Future<void> _resolveDuplicateAndSave({required bool merge}) async {
-    setState(() {
-      _showDedup = false;
-      _isSaving  = true;
-    });
-    await _doSave();
-  }
 }

@@ -10,7 +10,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -20,6 +19,7 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
+import '../providers/notification_provider.dart';
 import '../providers/offline_provider.dart';
 import '../services/api_service.dart';
 import '../services/offline/write_gateway.dart';
@@ -55,7 +55,9 @@ class _CaptureScreenState extends State<CaptureScreen>
   // ── Scanner ────────────────────────────────────────────────
   final MobileScannerController _scanner = MobileScannerController(
     detectionSpeed: DetectionSpeed.noDuplicates,
+    returnImage: true,
   );
+  Uint8List? _latestFrame;
 
   // ── Animations ─────────────────────────────────────────────
   late final AnimationController _lineCtrl;
@@ -93,10 +95,6 @@ class _CaptureScreenState extends State<CaptureScreen>
   // ── Events ─────────────────────────────────────────────────
   List<Event> _events = [];
   String? _eventId;
-
-  // ── Dedup ──────────────────────────────────────────────────
-  bool _showDedup = false;
-  List<Map<String, dynamic>> _dupes = [];
 
   // ── Last capture ───────────────────────────────────────────
   String? _lastCapture;
@@ -152,7 +150,6 @@ class _CaptureScreenState extends State<CaptureScreen>
         fit: StackFit.expand,
         children: [
           _stage == _Stage.scan ? _buildScanPage() : _buildNotesPage(),
-          if (_showDedup) _buildDedupSheet(),
         ],
       ),
     );
@@ -1035,142 +1032,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     );
   }
 
-  // ── Dedup sheet ────────────────────────────────────────────
-
-  Widget _buildDedupSheet() {
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () {},
-              child: ColoredBox(color: Colors.black.withValues(alpha: 0.6)),
-            ),
-          ),
-          Positioned(
-            left: 0, right: 0, bottom: 0,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              child: ColoredBox(
-              color: _c.surface,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                      color: _c.border,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.warning_amber_rounded, color: _c.accent, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Possible duplicate detected',
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w700,
-                                    color: _c.textPrimary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-                          if (_dupes.isNotEmpty) ...[
-                            AppSectionLabel('Existing record'),
-                            const SizedBox(height: 10),
-                            AppCard(
-                              elevated: true,
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${_dupes.first['first_name'] ?? ''} ${_dupes.first['last_name'] ?? ''}'.trim(),
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: _c.textPrimary,
-                                    ),
-                                  ),
-                                  if (_dupes.first['email'] != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _dupes.first['email'] as String,
-                                      style: TextStyle(fontSize: 13, color: _c.textSecondary),
-                                    ),
-                                  ],
-                                  if (_dupes.first['company'] != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      (_dupes.first['company'] as Map?)?['name'] ?? '',
-                                      style: TextStyle(fontSize: 12, color: _c.textMuted),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      20, 0, 20, MediaQuery.of(context).padding.bottom + 16,
-                    ),
-                    child: Column(
-                      children: [
-                        _dedupAction(
-                          'MERGE WITH EXISTING',
-                          primary: true,
-                          onTap: () => _resolveDuplicateAndSave(merge: true),
-                        ),
-                        const SizedBox(height: 10),
-                        _dedupAction(
-                          'CREATE AS NEW CONTACT',
-                          onTap: () => _resolveDuplicateAndSave(merge: false),
-                        ),
-                        const SizedBox(height: 10),
-                        AppButton(
-                          label: 'CANCEL',
-                          onPressed: () => setState(() => _showDedup = false),
-                          variant: ButtonVariant.ghost,
-                          fullWidth: true,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _dedupAction(String label, {required VoidCallback onTap, bool primary = false}) {
-    return AppButton(
-      label: label,
-      onPressed: onTap,
-      variant: primary ? ButtonVariant.primary : ButtonVariant.outline,
-      fullWidth: true,
-    );
-  }
+  // (dedup is now handled via NotificationProvider — no inline sheet)
 
   Widget _outlineBtn({required IconData icon, required String label, required VoidCallback onTap}) {
     return AppButton(
@@ -1216,6 +1078,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   void _onQrDetected(BarcodeCapture capture) {
+    if (capture.image != null) _latestFrame = capture.image;
     if (_stage != _Stage.scan || _isCapturing || _scanMode != _ScanMode.qr) return;
     final raw = capture.barcodes.firstOrNull?.rawValue ?? '';
     if (raw.isEmpty) return;
@@ -1226,10 +1089,13 @@ class _CaptureScreenState extends State<CaptureScreen>
   Future<void> _capturePhoto() async {
     setState(() => _isCapturing = true);
     try {
-      final picker = ImagePicker();
-      final img = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
-      if (img == null) { setState(() => _isCapturing = false); return; }
-      final bytes = await img.readAsBytes();
+      // Use the latest frame captured by the live scanner feed.
+      // If no frame yet, fall back to pausing and grabbing on next detect.
+      final bytes = _latestFrame;
+      if (bytes == null) {
+        setState(() => _isCapturing = false);
+        return;
+      }
       await _processImageBytes(bytes);
     } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
@@ -1396,20 +1262,46 @@ class _CaptureScreenState extends State<CaptureScreen>
     }
     setState(() => _isSaving = true);
     try {
-      final dupResult = await ApiService.checkDuplicateContacts(
-        name: name,
-        email: _emailCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
-      );
-      if (!mounted) return;
-      if (dupResult['has_duplicates'] == true) {
-        setState(() {
-          _dupes = List<Map<String, dynamic>>.from(dupResult['data'] as List? ?? []);
-          _isSaving = false;
-          _showDedup = true;
-        });
-        return;
+      // Skip duplicate check when offline — go straight to queue.
+      if (context.read<OfflineProvider>().isOnline) {
+        try {
+          final dupResult = await ApiService.checkDuplicateContacts(
+            name: name,
+            email: _emailCtrl.text.trim(),
+            phone: _phoneCtrl.text.trim(),
+          );
+          if (!mounted) return;
+          if (dupResult['has_duplicates'] == true) {
+            final dupes = List<Map<String, dynamic>>.from(dupResult['data'] as List? ?? []);
+            if (!mounted) return;
+            context.read<NotificationProvider>().add(DedupNotification(
+              id: DateTime.now().microsecondsSinceEpoch.toString(),
+              createdAt: DateTime.now(),
+              dupes: dupes,
+              pendingContact: {
+                'first_name': _fnCtrl.text.trim(),
+                'last_name':  _lnCtrl.text.trim(),
+                'name': '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim(),
+                'company':    _coCtrl.text.trim(),
+                'email':      _emailCtrl.text.trim(),
+                'phone':      _phoneCtrl.text.trim(),
+                'job_title':  _titleCtrl.text.trim(),
+              },
+              eventId: _eventId,
+              rawText: [_notesCtrl.text, _voiceCtrl.text]
+                  .where((s) => s.isNotEmpty)
+                  .join('\n\n'),
+              source: 'capture',
+            ));
+            setState(() => _isSaving = false);
+            showAppToast(context, 'Duplicate detected — check notifications');
+            return;
+          }
+        } catch (_) {
+          // Duplicate check failed — proceed to save anyway.
+        }
       }
+      if (!mounted) return;
       await _doSave();
     } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
@@ -1448,7 +1340,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         if (!mounted) return;
         context.read<OfflineProvider>().refreshPendingCount();
         showAppToast(context, 'Saved offline - will be processed when online');
-        setState(() { _isSaving = false; _showDedup = false; _pendingImageBytes = null; _stage = _Stage.scan; });
+        setState(() { _isSaving = false; _pendingImageBytes = null; _stage = _Stage.scan; });
         captureReturnSignal.value++;
         return;
       }
@@ -1457,7 +1349,6 @@ class _CaptureScreenState extends State<CaptureScreen>
       setState(() {
         _saved = true;
         _isSaving = false;
-        _showDedup = false;
         _lastCapture = captureName;
         _pendingImageBytes = null;
       });
@@ -1469,123 +1360,6 @@ class _CaptureScreenState extends State<CaptureScreen>
       if (!mounted) return;
       setState(() { _isSaving = false; _saved = false; });
     }
-  }
-
-  Future<void> _resolveDuplicateAndSave({required bool merge}) async {
-    if (!merge) {
-      await _promptRenameAndSave();
-      return;
-    }
-    setState(() { _showDedup = false; _isSaving = true; });
-    await _doMerge();
-  }
-
-  Future<void> _doMerge() async {
-    try {
-      final existingId = _dupes.first['id'] as String?;
-      if (existingId == null) {
-        await _doSave();
-        return;
-      }
-
-      final rawNotes = [_notesCtrl.text, _voiceCtrl.text]
-          .where((s) => s.isNotEmpty)
-          .join('\n')
-          .trim();
-      final summary = rawNotes.isNotEmpty ? rawNotes : 'Met at event';
-
-      await WriteGateway().logInteraction(
-        contactId: existingId,
-        eventId: _eventId,
-        type: 'meeting',
-        summary: summary,
-        interactionDate: DateTime.now().toIso8601String(),
-      );
-
-      // Explicitly link the contact to the event so it shows in Events tab
-      if (_eventId != null) {
-        try {
-          await ApiService.linkContactToEvent(existingId, _eventId!);
-        } on UnauthorizedException { rethrow; } catch (_) {}
-      }
-
-      if (!mounted) return;
-      final captureName = '${_fnCtrl.text.trim()} (${_coCtrl.text.trim()})'.trim();
-      setState(() {
-        _saved = true;
-        _isSaving = false;
-        _showDedup = false;
-        _lastCapture = captureName;
-      });
-      captureReturnSignal.value++;
-      await Future<void>.delayed(const Duration(milliseconds: 1800));
-      if (!mounted) return;
-      setState(() { _saved = false; _stage = _Stage.scan; });
-    } on UnauthorizedException { rethrow; } catch (_) {
-      if (!mounted) return;
-      setState(() { _isSaving = false; _saved = false; });
-    }
-  }
-
-  Future<void> _promptRenameAndSave() async {
-    final fnTemp = TextEditingController(text: _fnCtrl.text);
-    final lnTemp = TextEditingController(text: _lnCtrl.text);
-
-    final confirmed = await showAppDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx, style, _) {
-        final c = AppTheme.colorsOf(ctx);
-        return FDialog(
-          title: Text(
-            'Rename new contact',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
-          ),
-          body: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Update the name to distinguish this contact from the existing one.',
-                style: TextStyle(fontSize: 13, color: c.textMuted, height: 1.5),
-              ),
-              const SizedBox(height: 16),
-              _dialogField(fnTemp, 'First name', c),
-              const SizedBox(height: 10),
-              _dialogField(lnTemp, 'Last name', c),
-            ],
-          ),
-          actions: [
-            AppButton(
-              label: 'CANCEL',
-              onPressed: () => Navigator.of(ctx).pop(false),
-              variant: ButtonVariant.ghost,
-            ),
-            AppButton(
-              label: 'SAVE',
-              onPressed: () => Navigator.of(ctx).pop(true),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) return;
-
-    _fnCtrl.text = fnTemp.text.trim();
-    _lnCtrl.text = lnTemp.text.trim();
-    fnTemp.dispose();
-    lnTemp.dispose();
-
-    setState(() { _showDedup = false; _isSaving = true; });
-    await _doSave();
-  }
-
-  Widget _dialogField(TextEditingController ctrl, String hint, ExonoColors c) {
-    return AppInput(
-      controller: ctrl,
-      hint: hint,
-    );
   }
 
   void _applyExtracted(Map<String, dynamic> d) {

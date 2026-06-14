@@ -471,8 +471,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   }
 
   Widget _statColumn(IconData icon, String value, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return SizedBox(
+      height: 80,
+      child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
           width: 28, height: 28,
@@ -482,13 +484,13 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           ),
           child: Icon(icon, size: 14, color: _c.accent),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, color: context.theme.colors.foreground, height: 1)),
         const SizedBox(height: 3),
-        Text(label, style: context.theme.typography.xs.copyWith(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.7, color: context.theme.colors.mutedForeground),
-            textAlign: TextAlign.center),
+        Text(label, style: context.theme.typography.xs.copyWith(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: context.theme.colors.mutedForeground),
+            textAlign: TextAlign.center, maxLines: 2),
       ],
-    );
+    ));
   }
 
   // ── Goals ──────────────────────────────────────────────────────────────────
@@ -663,56 +665,15 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          Expanded(
-            child: Container(
-              height: 38,
-              decoration: BoxDecoration(
-                color: _c.surfaceAlt,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: context.theme.colors.border),
-              ),
-              child: Stack(children: [
-                AnimatedAlign(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  alignment: _activeTab == 'targets'
-                      ? Alignment.centerLeft
-                      : _activeTab == 'scanned'
-                          ? Alignment.center
-                          : Alignment.centerRight,
-                  child: FractionallySizedBox(
-                    widthFactor: 1 / 3,
-                    child: Container(
-                      margin: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(color: _c.accent, borderRadius: BorderRadius.circular(999)),
-                    ),
-                  ),
-                ),
-                Row(children: [
-                  _tabItem('targets', 'Targets', '${lep.targetContacts.length}'),
-                  _tabItem('scanned', 'Scanned', '${lep.scannedContacts.length}'),
-                  _tabItem('companies', 'Companies', '${lep.liveTargets.length}'),
-                ]),
-              ]),
-            ),
-          ),
-          if (_activeTab == 'targets') ...[
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: () => _addContactAsTarget(event, lep),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                decoration: BoxDecoration(color: _c.accentSoft, borderRadius: BorderRadius.circular(999)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.person_add_outlined, size: 13, color: _c.accent),
-                  const SizedBox(width: 5),
-                  Text('ADD', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.8, color: _c.accent)),
-                ]),
-              ),
-            ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _tabItem('targets', 'Targets', '${lep.targetContacts.length}'),
+            _tabItem('scanned', 'Scanned', '${lep.scannedContacts.length}'),
+            _tabItem('companies', 'Companies', '${lep.liveTargets.length}'),
           ],
-        ]),
+        ),
+        Container(height: 1, color: context.theme.colors.border),
         const SizedBox(height: 16),
         if (_activeTab == 'targets')
           _buildLiveTargetContactsList(event, lep)
@@ -726,28 +687,44 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
 
   Widget _tabItem(String tab, String label, String count) {
     final isActive = _activeTab == tab;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _activeTab = tab),
-        behavior: HitTestBehavior.opaque,
-        child: Center(
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(label, style: context.theme.typography.xs.copyWith(
-                fontWeight: FontWeight.w700,
-                color: isActive ? (_c.isDark ? context.theme.colors.foreground : Colors.white) : context.theme.colors.mutedForeground)),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: isActive ? Colors.white.withValues(alpha: 0.25) : _c.accentSoft,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(count, style: context.theme.typography.xs.copyWith(
-                  fontSize: 9, fontWeight: FontWeight.w700,
-                  color: isActive ? (_c.isDark ? context.theme.colors.foreground : Colors.white) : _c.accent)),
+    return GestureDetector(
+      onTap: () => setState(() => _activeTab = tab),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isActive ? _c.accent : Colors.transparent,
+              width: 2,
             ),
-          ]),
+          ),
         ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(
+            label,
+            style: context.theme.typography.sm.copyWith(
+              fontWeight: FontWeight.w700,
+              color: isActive ? _c.accent : context.theme.colors.mutedForeground,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isActive ? _c.accent : _c.surfaceAlt,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              count,
+              style: context.theme.typography.xs.copyWith(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: isActive ? Colors.white : context.theme.colors.mutedForeground,
+              ),
+            ),
+          ),
+        ]),
       ),
     );
   }
@@ -757,7 +734,6 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 12),
         AppInput(
           controller: _targetSearchCtrl,
           hint: 'Search people, companies…',
@@ -765,11 +741,34 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           prefixIcon: Icon(Icons.search_rounded, size: 18, color: _c.accent),
         ),
         const SizedBox(height: 10),
-        AppFilterRow(
-          filters: const ['All', 'Not Met', 'Met'],
-          selected: _targetFilter,
-          onSelect: (f) => setState(() => _targetFilter = f),
-          style: AppFilterRowStyle.filled,
+        Row(
+          children: [
+            Expanded(
+              child: AppFilterRow(
+                filters: const ['All', 'Not Met', 'Met'],
+                selected: _targetFilter,
+                onSelect: (f) => setState(() => _targetFilter = f),
+                style: AppFilterRowStyle.filled,
+              ),
+            ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () => _addContactAsTarget(event, lep),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: _c.accentSoft,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.person_add_outlined, size: 13, color: _c.accent),
+                  const SizedBox(width: 5),
+                  Text('ADD', style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w700, letterSpacing: 0.8, color: _c.accent)),
+                ]),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 14),
         if (lep.targetContacts.isEmpty)

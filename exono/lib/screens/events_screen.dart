@@ -940,8 +940,12 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                     if (confirmed != true) return;
                     try {
                       await ApiService.deleteEvent(event.id);
-                      await _loadEvents();
-                      if (mounted) { showAppToast(context, 'Event deleted.'); }
+                      if (mounted) {
+                        setState(() {
+                          _events.removeWhere((e) => e.id == event.id);
+                        });
+                        showAppToast(context, 'Event deleted.');
+                      }
                     } on UnauthorizedException { rethrow; } catch (e) {
                       if (mounted) { showAppToast(context, 'Failed to delete event.'); }
                     }

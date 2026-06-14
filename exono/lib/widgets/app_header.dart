@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/notification_provider.dart';
 import '../providers/offline_provider.dart';
+import 'app_notification_sheet.dart';
 import 'app_status_badge.dart';
 
 class AppHeader extends StatelessWidget {
@@ -34,12 +36,14 @@ class AppHeader extends StatelessWidget {
     final name = auth.displayName.trim();
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
     final offline = context.watch<OfflineProvider>();
+    final notifications = context.watch<NotificationProvider>();
 
     // Build suffix children, then wrap in a Row with consistent 8px gaps.
     final suffixChildren = <Widget>[
       // Offline / syncing badge — first so it appears left of action/profile.
       if (offline.state != SyncState.online || offline.pendingCount > 0)
         _buildStatusBadge(context, offline, colors),
+      _NotificationBell(count: notifications.count),
       if (actionWidget != null)
         actionWidget!
       else if (actionIcon != null)
@@ -172,6 +176,63 @@ class _HeaderActionFHeaderAction extends StatelessWidget {
   }
 }
 
+
+// ── Notification bell ─────────────────────────────────────────────────────────
+
+class _NotificationBell extends StatelessWidget {
+  final int count;
+  const _NotificationBell({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => showAppNotificationSheet(context),
+      child: SizedBox(
+        width: 34,
+        height: 34,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: context.theme.colors.border, width: 1.5),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.notifications_rounded,
+                size: 18,
+                color: context.theme.colors.foreground,
+              ),
+            ),
+            if (count > 0)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.colorsOf(context).accent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: context.theme.typography.xs.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 // ── Profile avatar button ─────────────────────────────────────────────────────
 

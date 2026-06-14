@@ -17,7 +17,7 @@ fi
 
 # Parse .env — skip blank lines and comments
 declare -A env_vars
-while IFS='=' read -r key value; do
+while IFS='=' read -r key value || [[ -n "$key" ]]; do
   [[ -z "$key" || "$key" == \#* ]] && continue
   # Strip inline comments and surrounding whitespace/quotes
   value="${value%%#*}"
@@ -30,6 +30,7 @@ done < "$ENV_FILE"
 
 SUPABASE_URL="${env_vars[SUPABASE_URL]:-}"
 SUPABASE_ANON_KEY="${env_vars[SUPABASE_ANON_KEY]:-}"
+API_BASE_URL="${env_vars[API_BASE_URL]:-http://localhost:3001/api}"
 
 if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_ANON_KEY" ]]; then
   echo "Error: SUPABASE_URL and SUPABASE_ANON_KEY must be set in .env" >&2
@@ -39,6 +40,7 @@ fi
 DEFINES=(
   "--dart-define=SUPABASE_URL=$SUPABASE_URL"
   "--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+  "--dart-define=API_BASE_URL=$API_BASE_URL"
 )
 
 # Use a native (non-Flatpak) Chromium/Chrome for web. A Flatpak-sandboxed

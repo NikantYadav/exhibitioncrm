@@ -9,6 +9,7 @@ Validate every incoming request. Before your route handler does any business log
 
 LATER:
 - PROPER AUTH : Manual review needed once
+- PREVENT USUAGE OF AI ONLY TO PLATFORM data, no generic conversations.
 - AI Improvement 
 - SECURITY PROPER
 - ANDROID OPTIMIZATION

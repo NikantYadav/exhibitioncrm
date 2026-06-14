@@ -10,6 +10,7 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../config/app_theme.dart';
+import '../models/contact.dart';
 import '../services/api_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_input.dart';
@@ -24,14 +25,6 @@ Future<bool> showLogInteractionSheet(
   // When set, auto-marks the contact as met in the event after saving
   Future<void> Function()? onMarkedMet,
 }) async {
-  if (contactId == null || contactId.isEmpty) {
-    showFToast(
-      context: context,
-      title: const Text('No contact linked — interaction cannot be saved.'),
-      variant: FToastVariant.destructive,
-    );
-    return false;
-  }
   final saved = await showAppSheet<bool>(
     context: context,
     side: FLayout.btt,
@@ -48,9 +41,9 @@ Future<bool> showLogInteractionSheet(
 // ── Sheet ──────────────────────────────────────────────────────────────────────
 
 class _LogInteractionSheet extends StatefulWidget {
-  final String contactId;
+  final String? contactId;
   final String? initialMode;
-  const _LogInteractionSheet({required this.contactId, this.initialMode});
+  const _LogInteractionSheet({this.contactId, this.initialMode});
 
   @override
   State<_LogInteractionSheet> createState() => _LogInteractionSheetState();
@@ -64,6 +57,12 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
 
   DateTime _selectedDate = DateTime.now();
   bool _isSaving = false;
+
+  // ── Contact selection (when no contactId pre-supplied) ────────────────────
+  String? _pickedContactId;
+  String? _pickedContactName;
+  List<Contact>? _contacts;
+  bool _loadingContacts = false;
 
   // ── Voice recording ──────────────────────────────────────────────────────────
   final AudioRecorder _recorder = AudioRecorder();
@@ -132,6 +131,8 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
     setState(() { _isRecording = false; _amplitude = 0; });
   }
 
+  String? get _effectiveContactId => widget.contactId ?? _pickedContactId;
+
   Future<void> _saveVoiceNote() async {
     if (_recordingPath == null) return;
     setState(() => _isSaving = true);
@@ -143,7 +144,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
 
       // 2. Post the interaction immediately with placeholder summary
       final result = await ApiService.logInteraction(
-        contactId: widget.contactId,
+        contactId: _effectiveContactId!,
         type: 'voice_note',
         summary: '🎙 Voice note — transcript pending...',
         interactionDate: _selectedDate.toIso8601String(),
@@ -153,6 +154,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
       final interactionId = result['data']?['id'] as String?;
 
       if (mounted) {
+        showAppToast(context, 'Interaction logged.');
         Navigator.of(context).pop(true);
       }
 
@@ -200,14 +202,17 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
     try {
       final mode = _modeController.text.trim();
       await ApiService.logInteraction(
-        contactId: widget.contactId,
+        contactId: _effectiveContactId!,
         type: mode.isNotEmpty ? mode.toLowerCase().replaceAll(' ', '_') : 'manual',
         summary: notes,
         interactionDate: _selectedDate.toIso8601String(),
         details: mode.isNotEmpty ? {'mode': mode} : null,
       );
 
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        showAppToast(context, 'Interaction logged.');
+        Navigator.of(context).pop(true);
+      }
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -245,6 +250,35 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
       },
     );
     if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  // ── Contact picker ────────────────────────────────────────────────────────
+
+  Future<void> _pickContact() async {
+    if (_contacts == null) {
+      setState(() => _loadingContacts = true);
+      try {
+        _contacts = await ApiService.getContacts();
+      } catch (_) {
+        _contacts = [];
+      }
+      if (mounted) setState(() => _loadingContacts = false);
+    }
+
+    if (!mounted) return;
+    final contacts = _contacts!;
+
+    final picked = await showAppSheet<Contact>(
+      context: context,
+      side: FLayout.btt,
+      builder: (ctx) => _ContactPickerSheet(contacts: contacts),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _pickedContactId = picked.id;
+        _pickedContactName = picked.fullName;
+      });
+    }
   }
 
   String _formatDate(DateTime d) {
@@ -354,10 +388,58 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
 
   // ── Text content ──────────────────────────────────────────────────────────
 
+  Widget _buildContactPicker() {
+    if (widget.contactId != null) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSectionLabel('Contact'),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _loadingContacts ? null : _pickContact,
+          child: AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            radius: 12,
+            elevated: true,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _loadingContacts
+                        ? 'Loading...'
+                        : (_pickedContactName ?? 'Select a contact...'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _pickedContactName != null
+                          ? _c.textPrimary
+                          : _c.textMuted,
+                    ),
+                  ),
+                ),
+                _loadingContacts
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _c.accent,
+                        ),
+                      )
+                    : Icon(Icons.person_search_outlined, size: 16, color: _c.accent),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
   Widget _buildTextContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildContactPicker(),
         AppSectionLabel('Date'),
         const SizedBox(height: 8),
         GestureDetector(
@@ -406,6 +488,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildContactPicker(),
         AppSectionLabel('Date'),
         const SizedBox(height: 8),
         GestureDetector(
@@ -553,9 +636,10 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
   // ── Save button ────────────────────────────────────────────────────────────
 
   Widget _buildSaveButton() {
-    final canSave = _isVoiceMode
+    final hasContact = _effectiveContactId != null;
+    final canSave = hasContact && (_isVoiceMode
         ? (_recordingPath != null && !_isRecording && !_isSaving)
-        : !_isSaving;
+        : !_isSaving);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
@@ -576,6 +660,136 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                     color: Colors.white,
                   ),
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Contact picker sheet ───────────────────────────────────────────────────────
+
+class _ContactPickerSheet extends StatefulWidget {
+  final List<Contact> contacts;
+  const _ContactPickerSheet({required this.contacts});
+
+  @override
+  State<_ContactPickerSheet> createState() => _ContactPickerSheetState();
+}
+
+class _ContactPickerSheetState extends State<_ContactPickerSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppTheme.colorsOf(context);
+    final filtered = _query.isEmpty
+        ? widget.contacts
+        : widget.contacts
+            .where((ct) => ct.fullName.toLowerCase().contains(_query.toLowerCase()))
+            .toList();
+
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.theme.colors.border,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Select Contact',
+                style: context.theme.typography.xl.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: context.theme.colors.foreground,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: AppInput(
+                controller: _searchController,
+                hint: 'Search contacts...',
+                onChanged: (v) => setState(() => _query = v),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No contacts found',
+                        style: context.theme.typography.sm.copyWith(
+                          color: context.theme.colors.mutedForeground,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      itemCount: filtered.length,
+                      itemBuilder: (ctx, i) {
+                        final contact = filtered[i];
+                        return GestureDetector(
+                          onTap: () => Navigator.of(context).pop(contact),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: c.accent.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    contact.firstName.isNotEmpty
+                                        ? contact.firstName[0].toUpperCase()
+                                        : '?',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: c.accent,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    contact.fullName,
+                                    style: context.theme.typography.sm.copyWith(
+                                      color: context.theme.colors.foreground,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );

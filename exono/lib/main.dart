@@ -14,6 +14,7 @@ import 'providers/auth_provider.dart';
 import 'providers/conversation_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/live_event_provider.dart';
+import 'providers/notification_provider.dart';
 import 'providers/offline_provider.dart';
 import 'providers/theme_provider.dart';
 import 'router.dart';
@@ -77,6 +78,7 @@ class ExonoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => LiveEventProvider()),
         ChangeNotifierProvider(create: (_) => OfflineProvider()..initialize()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: _ExonoRouter(),
     );

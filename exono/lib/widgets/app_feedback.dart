@@ -90,9 +90,14 @@ Future<bool?> showAppConfirmDialog({
       body: message != null ? Text(message) : null,
       actions: [
         FButton(
-          variant: FButtonVariant.ghost,
+          variant: FButtonVariant.outline,
           onPress: () => Navigator.pop(ctx, false),
-          child: Text(cancelLabel),
+          child: Builder(
+            builder: (bCtx) => Text(
+              cancelLabel,
+              style: TextStyle(color: bCtx.theme.colors.foreground),
+            ),
+          ),
         ),
         FButton(
           variant: destructive ? FButtonVariant.destructive : FButtonVariant.primary,

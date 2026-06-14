@@ -345,19 +345,22 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
   }
 
   Widget _statCol(IconData icon, String value, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 28, height: 28,
-          decoration: BoxDecoration(color: _c.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, size: 14, color: _c.accent),
-        ),
-        const SizedBox(height: 10),
-        Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, color: context.theme.colors.foreground, height: 1)),
-        const SizedBox(height: 3),
-        Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.7, color: context.theme.colors.mutedForeground), textAlign: TextAlign.center),
-      ],
+    return SizedBox(
+      height: 80,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(color: _c.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, size: 14, color: _c.accent),
+          ),
+          const SizedBox(height: 6),
+          Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, color: context.theme.colors.foreground, height: 1)),
+          const SizedBox(height: 3),
+          Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, fontSize: 9, letterSpacing: 0.4, color: context.theme.colors.mutedForeground), textAlign: TextAlign.center, maxLines: 2),
+        ],
+      ),
     );
   }
 
