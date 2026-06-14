@@ -1,11 +1,11 @@
 NOW:
-FAST SPEED
-SMOOTH FUNCTIONING
-PROPER TENANT STRUCTURE
-OFFLINE MODE -> [testing left]
-RATE-LIMITING
-Implement zod validation throughout the frontend.
-Validate every incoming request. Before your route handler does any business logic
+- FAST SPEED
+- SMOOTH FUNCTIONING
+- PROPER TENANT STRUCTURE
+- RATE-LIMITING
+- Implement zod validation throughout the frontend.
+- Validate every incoming request. Before your route handler does any business logic
+-SUPABASE COLUMN ANALYSIS
 
 LATER:
 - PROPER AUTH : Manual review needed once

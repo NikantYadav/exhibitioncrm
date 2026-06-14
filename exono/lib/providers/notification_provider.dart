@@ -47,6 +47,9 @@ class NotificationProvider extends ChangeNotifier {
   bool get hasNotifications => _notifications.isNotEmpty;
 
   void add(AppNotification notification) {
+    // Idempotent by id — re-emitting (e.g. on restart or callback re-wiring)
+    // must not stack duplicate cards.
+    if (_notifications.any((n) => n.id == notification.id)) return;
     _notifications.insert(0, notification);
     notifyListeners();
   }

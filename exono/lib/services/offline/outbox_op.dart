@@ -11,6 +11,10 @@ class OutboxOp {
   final int createdAt;
   final String? serverId;
 
+  /// Duplicate-match payload (JSON list of existing contacts) when [status] is
+  /// 'needs_review'. Null otherwise.
+  final String? reviewData;
+
   const OutboxOp({
     required this.id,
     required this.opType,
@@ -22,8 +26,10 @@ class OutboxOp {
     this.lastError,
     required this.createdAt,
     this.serverId,
+    this.reviewData,
   });
 
   bool get isPending => status == 'pending' || status == 'syncing';
   bool get isFailed => status == 'failed';
+  bool get needsReview => status == 'needs_review';
 }

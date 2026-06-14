@@ -82,20 +82,44 @@ class OfflineQueue {
 
   static Future<int> pendingCount() async {
     final db = await LocalDb.db;
+    // needs_review ops are surfaced as notifications, not counted as pending.
     final result = await db.rawQuery(
-      "SELECT COUNT(*) as c FROM outbox WHERE status != 'done'",
+      "SELECT COUNT(*) as c FROM outbox WHERE status NOT IN ('done', 'needs_review')",
     );
     return (result.first['c'] as int?) ?? 0;
   }
 
-  /// Ops still eligible to sync (not done, not permanently failed). Used to
-  /// decide whether another sync pass is worthwhile.
+  /// Ops still eligible to sync (not done, not permanently failed, not parked
+  /// for review). Used to decide whether another sync pass is worthwhile.
   static Future<int> retryableCount() async {
     final db = await LocalDb.db;
     final result = await db.rawQuery(
-      "SELECT COUNT(*) as c FROM outbox WHERE status NOT IN ('done', 'failed')",
+      "SELECT COUNT(*) as c FROM outbox WHERE status NOT IN ('done', 'failed', 'needs_review')",
     );
     return (result.first['c'] as int?) ?? 0;
+  }
+
+  /// Ops parked because sync detected a likely duplicate; resolved by the user
+  /// via a notification.
+  static Future<List<OutboxOp>> needsReview() async {
+    final db = await LocalDb.db;
+    final rows = await db.query(
+      'outbox',
+      where: "status = 'needs_review'",
+      orderBy: 'created_at ASC',
+    );
+    return rows.map(_fromRow).toList();
+  }
+
+  /// Parks an op for user review, storing the duplicate matches as JSON.
+  static Future<void> markNeedsReview(String id, String reviewDataJson) async {
+    final db = await LocalDb.db;
+    await db.update(
+      'outbox',
+      {'status': 'needs_review', 'review_data': reviewDataJson},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   static Future<void> markSyncing(String id) async {
@@ -130,6 +154,18 @@ class OfflineQueue {
         'attempts': current + 1,
         'last_error': error,
       },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Overwrites an op's payload (e.g. to persist AI-enriched fields back before
+  /// parking it for review, so the notification shows real data).
+  static Future<void> updatePayload(String id, Map<String, dynamic> payload) async {
+    final db = await LocalDb.db;
+    await db.update(
+      'outbox',
+      {'payload': jsonEncode(payload)},
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -215,6 +251,7 @@ class OfflineQueue {
       lastError: row['last_error'] as String?,
       createdAt: row['created_at'] as int,
       serverId: row['server_id'] as String?,
+      reviewData: row['review_data'] as String?,
     );
   }
 }

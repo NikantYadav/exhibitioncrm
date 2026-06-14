@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/notification_provider.dart';
+import '../providers/offline_provider.dart';
 import '../services/api_service.dart';
 import '../services/offline/write_gateway.dart';
 import 'app_button.dart';
@@ -122,6 +123,21 @@ class _DedupCardState extends State<_DedupCard> {
 
   DedupNotification get n => widget.notification;
 
+  /// Best available display name for the pending contact, falling back through
+  /// first/last -> name -> email -> a generic label so the card is never empty.
+  String _pendingLabel(Map<String, dynamic> c) {
+    final full = [
+      (c['first_name'] ?? '').toString().trim(),
+      (c['last_name'] ?? '').toString().trim(),
+    ].where((s) => s.isNotEmpty).join(' ');
+    if (full.isNotEmpty) return full;
+    final name = (c['name'] ?? '').toString().trim();
+    if (name.isNotEmpty) return name;
+    final email = (c['email'] ?? '').toString().trim();
+    if (email.isNotEmpty) return email;
+    return 'New contact';
+  }
+
   Future<void> _resolve({required bool merge}) async {
     setState(() => _isLoading = true);
     try {
@@ -142,7 +158,8 @@ class _DedupCardState extends State<_DedupCard> {
         return;
       }
       if (!mounted) return;
-      context.read<NotificationProvider>().remove(n.id);
+      await _clearNotification();
+      if (!mounted) return;
       showAppToast(context, merge ? 'Merged with existing contact' : 'Saved as new contact');
     } catch (_) {
       if (!mounted) return;
@@ -158,20 +175,26 @@ class _DedupCardState extends State<_DedupCard> {
       rawText: n.rawText,
       eventId: n.eventId,
       extractedData: n.pendingContact,
+      skipDuplicateCheck: true,
     );
     if (!mounted) return;
-    context.read<NotificationProvider>().remove(n.id);
+    await _clearNotification();
+    if (!mounted) return;
     showAppToast(context, 'Saved as new contact');
+  }
+
+  /// Removes the in-memory card and deletes the durable parked op so the
+  /// notification doesn't reappear on the next sync/restart.
+  Future<void> _clearNotification() async {
+    context.read<NotificationProvider>().remove(n.id);
+    await context.read<OfflineProvider>().resolveReview(n.id);
   }
 
   @override
   Widget build(BuildContext context) {
     final c = AppTheme.colorsOf(context);
     final existing = n.dupes.isNotEmpty ? n.dupes.first : null;
-    final pendingName = [
-      n.pendingContact['first_name'] ?? '',
-      n.pendingContact['last_name'] ?? '',
-    ].where((s) => (s as String).isNotEmpty).join(' ');
+    final pendingName = _pendingLabel(n.pendingContact);
 
     return AppCard(
       elevated: true,
@@ -193,7 +216,7 @@ class _DedupCardState extends State<_DedupCard> {
                 ),
               ),
               GestureDetector(
-                onTap: () => context.read<NotificationProvider>().remove(n.id),
+                onTap: _isLoading ? null : _clearNotification,
                 child: Icon(
                   Icons.close_rounded,
                   size: 18,
@@ -207,12 +230,35 @@ class _DedupCardState extends State<_DedupCard> {
           const SizedBox(height: 8),
           AppCard(
             padding: const EdgeInsets.all(12),
-            child: Text(
-              pendingName,
-              style: context.theme.typography.sm.copyWith(
-                fontWeight: FontWeight.w600,
-                color: context.theme.colors.foreground,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  pendingName,
+                  style: context.theme.typography.sm.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: context.theme.colors.foreground,
+                  ),
+                ),
+                if ((n.pendingContact['email'] ?? '').toString().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    n.pendingContact['email'].toString(),
+                    style: context.theme.typography.sm.copyWith(
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
+                ],
+                if ((n.pendingContact['company'] ?? '').toString().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    n.pendingContact['company'].toString(),
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           if (existing != null) ...[
@@ -272,7 +318,7 @@ class _DedupCardState extends State<_DedupCard> {
           const SizedBox(height: 8),
           AppButton(
             label: 'DISMISS',
-            onPressed: _isLoading ? null : () => context.read<NotificationProvider>().remove(n.id),
+            onPressed: _isLoading ? null : _clearNotification,
             variant: ButtonVariant.ghost,
             fullWidth: true,
           ),

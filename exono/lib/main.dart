@@ -103,6 +103,9 @@ class _ExonoRouterState extends State<_ExonoRouter> {
     _router = buildRouter(context.read<AuthProvider>());
     // Start polling live event once auth is resolved
     _initLiveEventOnAuth();
+    // Forward sync-time duplicate detections into the notification center.
+    final notifications = context.read<NotificationProvider>();
+    context.read<OfflineProvider>().onNotification = notifications.add;
   }
 
   void _initLiveEventOnAuth() {

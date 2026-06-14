@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/offline_provider.dart';
+import 'app_button.dart';
 import 'app_header.dart';
 
 /// Full-screen offline placeholder. Drop-in replacement for a screen's build
@@ -51,6 +54,14 @@ class AppOfflineScreen extends StatelessWidget {
                           color: context.theme.colors.mutedForeground,
                           height: 1.5,
                         ),
+                      ),
+                      const SizedBox(height: 24),
+                      AppButton(
+                        label: 'RETRY',
+                        variant: ButtonVariant.outline,
+                        prefixIcon: const Icon(Icons.refresh_rounded),
+                        onPressed: () =>
+                            context.read<OfflineProvider>().recheckConnectivity(),
                       ),
                     ],
                   ),

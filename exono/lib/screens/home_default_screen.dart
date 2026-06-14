@@ -142,6 +142,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
                   color: _c.accent,
                   backgroundColor: context.theme.colors.background,
                   onRefresh: () async {
+                    // Re-verify connectivity first so the offline/sync badge
+                    // updates immediately on pull-to-refresh.
+                    await context.read<OfflineProvider>().recheckConnectivity();
                     await Future.wait([
                       lep.refresh(),
                       _loadUpcomingEvents(),

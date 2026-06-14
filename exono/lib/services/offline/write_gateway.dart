@@ -26,6 +26,9 @@ class WriteGateway {
     String? rawText,
     Map<String, dynamic>? extractedData,
     String? eventId,
+    /// When true the sync-time duplicate check is skipped — used after the user
+    /// has explicitly chosen "create as new" from a dedup notification.
+    bool skipDuplicateCheck = false,
   }) async {
     if (isOnline) {
       final result = await ApiService.createCapture(
@@ -45,6 +48,7 @@ class WriteGateway {
         'rawText': rawText,
         'extractedData': extractedData ?? {},
         'eventId': eventId,
+        'skipDuplicateCheck': skipDuplicateCheck,
       },
       imageBytes: imageBytes,
       eventId: eventId,

@@ -70,6 +70,10 @@ class SyncService {
 
       await OfflineQueue.markDone(op.id, serverId: serverId);
       await OfflineQueue.deleteImageAfterSync(op);
+    } on _NeedsReview catch (e) {
+      // A likely duplicate was detected at sync time. Park the op; the user
+      // resolves it via a notification (see OfflineProvider).
+      await OfflineQueue.markNeedsReview(op.id, e.dupesJson);
     } on _PermanentError catch (e) {
       await OfflineQueue.markFailed(op.id, e.message);
     } catch (e) {
@@ -116,6 +120,25 @@ class SyncService {
       }
     }
 
+    // Persist the AI-enriched fields back to the op so that, if it gets parked
+    // for review below, the notification (and a later "create new") shows the
+    // real extracted contact data rather than the original empty payload.
+    payload['extractedData'] = extractedData;
+    await OfflineQueue.updatePayload(op.id, payload);
+
+    // Duplicate detection deferred to sync time (needs network). If a likely
+    // match exists, park for user review instead of creating. Skipped when the
+    // user already chose "create as new" from a dedup notification.
+    if (payload['skipDuplicateCheck'] != true) {
+      await _guardDuplicate(
+        name: (extractedData['name'] ?? '').toString().trim().isNotEmpty
+            ? extractedData['name'].toString()
+            : '${extractedData['first_name'] ?? ''} ${extractedData['last_name'] ?? ''}'.trim(),
+        email: extractedData['email']?.toString(),
+        phone: extractedData['phone']?.toString(),
+      );
+    }
+
     final result = await ApiService.createCapture(
       captureType: captureType,
       imageData: imageData,
@@ -128,11 +151,50 @@ class SyncService {
   }
 
   Future<String?> _syncContact(OutboxOp op) async {
+    final p = op.payload;
+    await _guardDuplicate(
+      name: (p['name'] ?? '').toString().trim().isNotEmpty
+          ? p['name'].toString()
+          : '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim(),
+      email: p['email']?.toString(),
+      phone: p['phone']?.toString(),
+    );
+
     final contact = await ApiService.createContact(
       op.payload,
       idempotencyKey: op.id,
     );
     return contact.id;
+  }
+
+  /// Runs the server duplicate check. Throws [_NeedsReview] (carrying the match
+  /// list as JSON) when duplicates are found so the op gets parked. Check
+  /// failures are swallowed so they don't block the create.
+  Future<void> _guardDuplicate({
+    required String name,
+    String? email,
+    String? phone,
+  }) async {
+    if (name.isEmpty && (email?.isEmpty ?? true) && (phone?.isEmpty ?? true)) {
+      return;
+    }
+    try {
+      final result = await ApiService.checkDuplicateContacts(
+        name: name,
+        email: email ?? '',
+        phone: phone ?? '',
+      );
+      if (result['has_duplicates'] == true) {
+        final dupes = result['data'] as List? ?? [];
+        if (dupes.isNotEmpty) {
+          throw _NeedsReview(jsonEncode(dupes));
+        }
+      }
+    } on _NeedsReview {
+      rethrow;
+    } catch (_) {
+      // Duplicate check failed (network/transient) — proceed with create.
+    }
   }
 
   Future<String?> _syncInteraction(OutboxOp op) async {
@@ -161,4 +223,11 @@ class SyncService {
 class _PermanentError {
   final String message;
   _PermanentError(this.message);
+}
+
+/// Thrown during sync when a duplicate contact is detected, so the op is parked
+/// as 'needs_review' rather than created. Carries the matches as a JSON string.
+class _NeedsReview implements Exception {
+  final String dupesJson;
+  _NeedsReview(this.dupesJson);
 }

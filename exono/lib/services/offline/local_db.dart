@@ -16,7 +16,15 @@ class LocalDb {
     final path = p.join(dbPath, 'exono_offline.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // review_data holds the duplicate-match payload when an op is parked
+          // as 'needs_review' during sync. Guard against the column already
+          // existing (e.g. a build that added it in onCreate before the bump).
+          await _addColumnIfMissing(db, 'outbox', 'review_data', 'TEXT');
+        }
+      },
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE outbox (
@@ -29,7 +37,8 @@ class LocalDb {
             attempts INTEGER NOT NULL DEFAULT 0,
             last_error TEXT,
             created_at INTEGER NOT NULL,
-            server_id TEXT
+            server_id TEXT,
+            review_data TEXT
           )
         ''');
 
@@ -51,5 +60,20 @@ class LocalDb {
         ''');
       },
     );
+  }
+
+  /// Adds [column] to [table] only if it isn't already present, so re-running an
+  /// upgrade (or upgrading a DB that already had the column) can't crash.
+  static Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String type,
+  ) async {
+    final info = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = info.any((row) => row['name'] == column);
+    if (!exists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
+    }
   }
 }

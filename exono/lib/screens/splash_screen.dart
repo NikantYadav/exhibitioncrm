@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -21,14 +23,34 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigate() async {
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
     final auth = context.read<AuthProvider>();
+
+    // Wait until auth has finished restoring the session before routing, so a
+    // logged-in user never sees the auth screen flash. Keep a minimum splash
+    // duration so the logo doesn't blink on fast restores.
+    final minSplash = Future<void>.delayed(const Duration(milliseconds: 800));
+    await _waitForAuthInit(auth);
+    await minSplash;
+
+    if (!mounted) return;
     if (auth.isAuthenticated) {
       context.go('/');
     } else {
       context.go('/auth');
     }
+  }
+
+  Future<void> _waitForAuthInit(AuthProvider auth) {
+    if (auth.initialized) return Future.value();
+    final completer = Completer<void>();
+    void listener() {
+      if (auth.initialized && !completer.isCompleted) {
+        auth.removeListener(listener);
+        completer.complete();
+      }
+    }
+    auth.addListener(listener);
+    return completer.future;
   }
 
   @override

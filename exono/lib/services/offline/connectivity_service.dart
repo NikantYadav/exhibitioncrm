@@ -18,6 +18,7 @@ class ConnectivityService {
   ConnectivityService._();
 
   bool _isOnline = true;
+  bool _initialized = false;
   final _controller = StreamController<bool>.broadcast();
   StreamSubscription<List<ConnectivityResult>>? _sub;
   Timer? _retryTimer;
@@ -28,19 +29,38 @@ class ConnectivityService {
   Future<void> initialize() async {
     if (kIsWeb) return;
 
-    // Check initial state.
-    final results = await Connectivity().checkConnectivity();
-    _isOnline = await _probe(results);
-    _updateRetryTimer();
+    // Idempotent: re-initialise cleanly instead of stacking listeners.
+    await _sub?.cancel();
 
-    _sub = Connectivity().onConnectivityChanged.listen((results) async {
-      final wasOnline = _isOnline;
-      _isOnline = await _probe(results);
-      if (_isOnline != wasOnline) {
-        _controller.add(_isOnline);
-      }
-      _updateRetryTimer();
+    // Determine initial state from the interface, then refine with a probe.
+    final results = await Connectivity().checkConnectivity();
+    await _evaluate(results, emit: false);
+    _initialized = true;
+
+    _sub = Connectivity().onConnectivityChanged.listen((results) {
+      _evaluate(results, emit: true);
     });
+  }
+
+  /// Resolves online/offline from the interface state plus a reachability probe,
+  /// updating [_isOnline] and (optionally) emitting on change.
+  Future<void> _evaluate(List<ConnectivityResult> results, {required bool emit}) async {
+    final hasInterface = results.any((r) => r != ConnectivityResult.none);
+
+    bool online;
+    if (!hasInterface) {
+      // No network interface at all — definitively offline.
+      online = false;
+    } else {
+      // Interface present. Probe the server, but don't let a single slow/failed
+      // probe flip a connected device offline — retry a couple of times first.
+      online = await _probeWithRetries();
+    }
+
+    final changed = online != _isOnline;
+    _isOnline = online;
+    _updateRetryTimer();
+    if (emit && changed) _controller.add(_isOnline);
   }
 
   /// While offline, poll every 15 s so we detect server recovery even when
@@ -51,7 +71,8 @@ class ConnectivityService {
     if (!_isOnline) {
       _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
         final results = await Connectivity().checkConnectivity();
-        final nowOnline = await _probe(results);
+        if (results.every((r) => r == ConnectivityResult.none)) return;
+        final nowOnline = await _probeWithRetries();
         if (nowOnline && !_isOnline) {
           _isOnline = true;
           _retryTimer?.cancel();
@@ -64,23 +85,32 @@ class ConnectivityService {
 
   Future<bool> checkNow() async {
     if (kIsWeb) return true;
-    final results = await Connectivity().checkConnectivity();
-    final wasOnline = _isOnline;
-    _isOnline = await _probe(results);
-    if (_isOnline != wasOnline) {
-      _controller.add(_isOnline);
+    if (!_initialized) {
+      await initialize();
+      return _isOnline;
     }
-    _updateRetryTimer();
+    final results = await Connectivity().checkConnectivity();
+    await _evaluate(results, emit: true);
     return _isOnline;
   }
 
-  Future<bool> _probe(List<ConnectivityResult> results) async {
-    if (results.every((r) => r == ConnectivityResult.none)) return false;
-    // Real reachability check against the API /health endpoint.
+  /// Probes /health up to 3 times with short backoff. A connected interface
+  /// shouldn't be declared offline on the first transient failure.
+  Future<bool> _probeWithRetries() async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (await _probe()) return true;
+      if (attempt < 2) {
+        await Future<void>.delayed(const Duration(milliseconds: 800));
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _probe() async {
     try {
       final response = await http
           .get(Uri.parse('${ApiConfig.baseUrl}/health'))
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 8));
       return response.statusCode == 200;
     } catch (_) {
       return false;
