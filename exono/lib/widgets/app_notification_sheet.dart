@@ -299,9 +299,7 @@ class _DedupCardState extends State<_DedupCard> {
               ),
             ),
           ],
-          const SizedBox(height: 16),
-          FDivider(),
-          const SizedBox(height: 14),
+          const SizedBox(height: 24),
           AppButton(
             label: 'MERGE WITH EXISTING',
             onPressed: _isLoading ? null : () => _resolve(merge: true),

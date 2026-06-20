@@ -39,8 +39,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   late final SyncProvider _sync;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void initState() {
+    super.initState();
     _sync = context.read<SyncProvider>();
     _targetsRepo = _sync.targetCompanies;
     _contactEventsRepo = _sync.contactEvents;
@@ -677,10 +677,12 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   Expanded(
                     child: Text(
                       'Target Companies',
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: context.theme.typography.xl.copyWith(
                         fontWeight: FontWeight.w600,
                         color: context.theme.colors.foreground,
+                        height: 1.1,
                       ),
                     ),
                   ),
@@ -732,39 +734,48 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: context.theme.colors.border)),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      companyName,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground),
-                    ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    companyName,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground),
                   ),
-                  if (booth != null && booth.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    AppChip.label('BOOTH $booth'),
-                  ],
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                AppButton(
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.sm,
+                  onPressed: () => _deleteTarget(target),
+                  child: Icon(Icons.delete_outline, color: _c.destructive, size: 20),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            AppButton(
-              prefixIcon: Icon(Icons.open_in_new_rounded, size: 14),
-              label: 'MANAGE',
-              variant: ButtonVariant.outline,
-              size: ButtonSize.sm,
-              onPressed: () => _openTargetDetail(target),
-            ),
-            const SizedBox(width: 4),
-            AppButton(
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.sm,
-              onPressed: () => _deleteTarget(target),
-              child: Icon(Icons.delete_outline, color: _c.destructive, size: 20),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (booth != null && booth.isNotEmpty)
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: AppChip.label('BOOTH $booth', ellipsis: true),
+                    ),
+                  )
+                else
+                  const Spacer(),
+                const SizedBox(width: 8),
+                AppButton(
+                  prefixIcon: Icon(Icons.open_in_new_rounded, size: 14),
+                  label: 'MANAGE',
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.sm,
+                  onPressed: () => _openTargetDetail(target),
+                ),
+              ],
             ),
           ],
         ),
@@ -1043,8 +1054,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
             ],
           ),
           const SizedBox(height: 20),
-          const FDivider(),
-          const SizedBox(height: 16),
           for (int i = 0; i < 2; i++) ...[
             Row(
               children: [
@@ -1060,11 +1069,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                 ),
               ],
             ),
-            if (i < 1)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                child: const FDivider(),
-              ),
+            if (i < 1) const SizedBox(height: 16),
           ],
         ],
       ),

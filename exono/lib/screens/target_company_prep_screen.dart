@@ -52,11 +52,6 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
     super.initState();
     _boothCtrl = TextEditingController();
     _notesCtrl = TextEditingController();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
     _sync = context.read<SyncProvider>();
     _targetsRepo = _sync.targetCompanies;
   }
@@ -294,25 +289,23 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                           ] else if (_enrichError != null) ...[
                             const SizedBox(height: 12),
                             _buildInfoBanner(_enrichError!, isError: true),
-                          ] else if (headquarters.isNotEmpty || employeeCount.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            const FDivider(),
-                            const SizedBox(height: 14),
-                            Wrap(
-                              spacing: 16,
-                              runSpacing: 10,
-                              children: [
-                                if (headquarters.isNotEmpty) _statItem(Icons.location_on_outlined, headquarters),
-                                if (employeeCount.isNotEmpty) _statItem(Icons.people_outline_rounded, employeeCount),
-                              ],
-                            ),
                           ],
 
-                          if (desc.isNotEmpty) ...[
+                          if ((headquarters.isNotEmpty || employeeCount.isNotEmpty) && !_isEnriching && _enrichError == null || desc.isNotEmpty) ...[
                             const SizedBox(height: 16),
-                            const FDivider(),
-                            const SizedBox(height: 14),
-                            Text(desc, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.55)),
+                            ..._dividedRows([
+                              if ((headquarters.isNotEmpty || employeeCount.isNotEmpty) && !_isEnriching && _enrichError == null)
+                                Wrap(
+                                  spacing: 16,
+                                  runSpacing: 10,
+                                  children: [
+                                    if (headquarters.isNotEmpty) _statItem(Icons.location_on_outlined, headquarters),
+                                    if (employeeCount.isNotEmpty) _statItem(Icons.people_outline_rounded, employeeCount),
+                                  ],
+                                ),
+                              if (desc.isNotEmpty)
+                                Text(desc, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.55)),
+                            ]),
                           ],
                         ],
                       ),
@@ -320,7 +313,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
 
                     const SizedBox(height: 16),
 
-                    // ── Details card ───────────────────────────────────────────
+                    // ── Products & Services card ────────────────────────────────
                     if (location.isNotEmpty || website.isNotEmpty || products.isNotEmpty)
                       AppCard(
                         padding: const EdgeInsets.all(20),
@@ -328,20 +321,32 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            AppSectionLabel('Details'),
+                            AppSectionLabel('Products & Services'),
                             const SizedBox(height: 14),
-                            if (location.isNotEmpty) _infoRow(Icons.location_on_outlined, location),
-                            if (website.isNotEmpty) _infoRow(Icons.language_rounded, website),
-                            if (products.isNotEmpty) ...[
-                              if (location.isNotEmpty || website.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                const FDivider(),
-                                const SizedBox(height: 12),
-                              ],
-                              AppSectionLabel('Products & Services'),
-                              const SizedBox(height: 8),
-                              Text(products, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5)),
-                            ],
+                            ..._dividedRows([
+                              if (location.isNotEmpty) Row(children: [
+                                Icon(Icons.location_on_outlined, size: 16, color: _c.accent),
+                                const SizedBox(width: 10),
+                                Expanded(child: Text(location, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
+                              ]),
+                              if (website.isNotEmpty) Row(children: [
+                                Icon(Icons.language_rounded, size: 16, color: _c.accent),
+                                const SizedBox(width: 10),
+                                Expanded(child: Text(website, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
+                              ]),
+                              if (products.isNotEmpty)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.inventory_2_outlined, size: 16, color: _c.accent),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(products,
+                                          style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.55)),
+                                    ),
+                                  ],
+                                ),
+                            ]),
                           ],
                         ),
                       ),
@@ -541,9 +546,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                             _buildInfoBanner(_briefingError!, isError: true),
                           ],
                           if (_talkingPoints.isNotEmpty && !_isGenerating) ...[
-                            const SizedBox(height: 20),
-                            const FDivider(),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             AppSectionLabel('Talking Points', color: _c.accent),
                             const SizedBox(height: 14),
                             ..._talkingPoints.asMap().entries.map((e) => Padding(
@@ -673,16 +676,12 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                   ),
                 ]),
                 const SizedBox(height: 16),
-                const FDivider(),
-                const SizedBox(height: 14),
                 Row(children: [
                   SkeletonLoader(width: 110, height: 13, borderRadius: BorderRadius.circular(4)),
                   const SizedBox(width: 20),
                   SkeletonLoader(width: 90, height: 13, borderRadius: BorderRadius.circular(4)),
                 ]),
                 const SizedBox(height: 16),
-                const FDivider(),
-                const SizedBox(height: 14),
                 SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
                 const SizedBox(height: 6),
                 SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
@@ -711,9 +710,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                   const SizedBox(width: 10),
                   SkeletonLoader(width: 180, height: 13, borderRadius: BorderRadius.circular(4)),
                 ]),
-                const SizedBox(height: 14),
-                const FDivider(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 SkeletonLoader(width: 120, height: 11, borderRadius: BorderRadius.circular(4)),
                 const SizedBox(height: 8),
                 SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
@@ -786,15 +783,16 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
     ]);
   }
 
-  Widget _infoRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(children: [
-        Icon(icon, size: 16, color: _c.accent),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
-      ]),
-    );
+  List<Widget> _dividedRows(List<Widget> rows) {
+    return [
+      for (var i = 0; i < rows.length; i++) ...[
+        if (i > 0) Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.18)),
+        ),
+        rows[i],
+      ],
+    ];
   }
 
   Widget _buildInfoBanner(String message, {bool isError = false}) {

@@ -80,14 +80,9 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
     super.initState();
     _subjectCtrl = TextEditingController();
     _bodyCtrl = TextEditingController();
-    _loadStats();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
     _sync = context.read<SyncProvider>();
     _contactEventsRepo = _sync.contactEvents;
+    _loadStats();
   }
 
   @override

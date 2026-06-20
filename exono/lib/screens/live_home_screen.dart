@@ -535,13 +535,14 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           AppCard(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
             child: Column(children: [
-              for (int i = 0; i < lep.liveGoals.length; i++) ...[
-                _buildGoalRow(lep.liveGoals[i], event, lep),
-                if (i < lep.liveGoals.length - 1) ...[
-                  FDivider(),
-                  const SizedBox(height: 4),
-                ],
-              ],
+              for (int i = 0; i < lep.liveGoals.length; i++)
+                Container(
+                  decoration: i.isOdd
+                      ? BoxDecoration(color: _c.surfaceAlt, borderRadius: BorderRadius.circular(10))
+                      : null,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: _buildGoalRow(lep.liveGoals[i], event, lep),
+                ),
             ]),
           ),
       ],

@@ -142,9 +142,7 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
         children: [
           const SizedBox(height: 28),
           _brand(),
-          const SizedBox(height: 20),
-          FDivider(),
-          const SizedBox(height: 8),
+          const SizedBox(height: 24),
           _collapseToggle(),
           const SizedBox(height: 8),
           Expanded(child: _navList()),
@@ -318,8 +316,6 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        FDivider(),
-        const SizedBox(height: 4),
         GestureDetector(
           onTap: () => context.go('/profile'),
           child: Container(

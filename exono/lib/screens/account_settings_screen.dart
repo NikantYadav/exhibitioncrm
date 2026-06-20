@@ -241,7 +241,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                     auth.designation,
                     style: context.theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w500,
-                      color: context.theme.colors.secondaryForeground,
+                      color: context.theme.colors.mutedForeground,
                     ),
                   ),
                 ],
@@ -325,14 +325,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
           if (!hasContent) ...[
             _emptyProfileHint(),
           ] else ...[
-            _viewRow('Name', name),
-            FDivider(),
-            if (designation.isNotEmpty) ...[_viewRow('Designation', designation), FDivider()],
-            if (website.isNotEmpty) ...[_viewRow('Website', website, isLink: true), FDivider()],
-            if (linkedin.isNotEmpty) ...[_viewRow('LinkedIn', linkedin, isLink: true), FDivider()],
-            if (products.isNotEmpty) ...[_viewRow('Products & Services', products, multiLine: true), FDivider()],
-            if (additionalContext.isNotEmpty) ...[_viewRow('Additional AI Context', additionalContext, multiLine: true), FDivider()],
-            _viewRow('AI Tone', tone[0].toUpperCase() + tone.substring(1)),
+            ..._stripeRows([
+              _viewRow('Name', name),
+              if (designation.isNotEmpty) _viewRow('Designation', designation),
+              if (website.isNotEmpty) _viewRow('Website', website, isLink: true),
+              if (linkedin.isNotEmpty) _viewRow('LinkedIn', linkedin, isLink: true),
+              if (products.isNotEmpty) _viewRow('Products & Services', products, multiLine: true),
+              if (additionalContext.isNotEmpty) _viewRow('Additional AI Context', additionalContext, multiLine: true),
+              _viewRow('AI Tone', tone[0].toUpperCase() + tone.substring(1)),
+            ]),
           ],
 
           const SizedBox(height: 16),
@@ -373,9 +374,19 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     );
   }
 
+  List<Widget> _stripeRows(List<Widget> rows) {
+    return [
+      for (var i = 0; i < rows.length; i++)
+        Container(
+          decoration: i.isOdd ? BoxDecoration(color: _c.surfaceAlt, borderRadius: BorderRadius.circular(10)) : null,
+          child: rows[i],
+        ),
+    ];
+  }
+
   Widget _viewRow(String label, String value, {bool isLink = false, bool multiLine = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
       child: Row(
         crossAxisAlignment: multiLine ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [

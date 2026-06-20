@@ -13,12 +13,14 @@ class AppChip extends StatelessWidget {
   final _AppChipVariant _variant;
   final Color? color;
   final Color? textColor;
+  final bool ellipsis;
 
   const AppChip(
     this.label, {
     super.key,
     this.color,
     this.textColor,
+    this.ellipsis = false,
   }) : _variant = _AppChipVariant.tag;
 
   const AppChip.label(
@@ -26,6 +28,7 @@ class AppChip extends StatelessWidget {
     super.key,
     this.color,
     this.textColor,
+    this.ellipsis = false,
   }) : _variant = _AppChipVariant.labelBadge;
 
   const AppChip.status(
@@ -33,6 +36,7 @@ class AppChip extends StatelessWidget {
     super.key,
     required Color this.color,
     this.textColor,
+    this.ellipsis = false,
   }) : _variant = _AppChipVariant.status;
 
   @override
@@ -61,7 +65,9 @@ class AppChip extends StatelessWidget {
               ),
             ),
           ),
-          child: Text(label.toUpperCase()),
+          child: ellipsis
+              ? Text(label.toUpperCase(), overflow: TextOverflow.ellipsis, maxLines: 1)
+              : Text(label.toUpperCase()),
         );
 
       case _AppChipVariant.labelBadge:
@@ -85,7 +91,9 @@ class AppChip extends StatelessWidget {
               ),
             ),
           ),
-          child: Text(label.toUpperCase()),
+          child: ellipsis
+              ? Text(label.toUpperCase(), overflow: TextOverflow.ellipsis, maxLines: 1)
+              : Text(label.toUpperCase()),
         );
 
       case _AppChipVariant.status:
@@ -109,7 +117,9 @@ class AppChip extends StatelessWidget {
               ),
             ),
           ),
-          child: Text(label.toUpperCase()),
+          child: ellipsis
+              ? Text(label.toUpperCase(), overflow: TextOverflow.ellipsis, maxLines: 1)
+              : Text(label.toUpperCase()),
         );
     }
   }

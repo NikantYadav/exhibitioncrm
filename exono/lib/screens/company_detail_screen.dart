@@ -43,8 +43,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
   late final SyncProvider _sync;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void initState() {
+    super.initState();
     _sync = context.read<SyncProvider>();
   }
 
@@ -177,8 +177,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                   ],
                 ),
                 const SizedBox(height: 16),
-                Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.4)),
-                const SizedBox(height: 14),
                 SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
                 const SizedBox(height: 6),
                 SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
@@ -197,9 +195,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                 const SizedBox(height: 14),
                 _skeletonInfoRow(),
                 _skeletonInfoRow(),
-                const SizedBox(height: 4),
-                Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.4)),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
                 const SizedBox(height: 6),
                 SkeletonLoader(width: 220, height: 13, borderRadius: BorderRadius.circular(4)),
@@ -336,8 +332,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                   _buildEnrichError(),
                 ] else if (headquarters.isNotEmpty || employeeCount.isNotEmpty || foundedYear.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.5)),
-                  const SizedBox(height: 14),
                   Wrap(
                     spacing: 16,
                     runSpacing: 10,
@@ -350,8 +344,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
 
                 if (desc.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.5)),
-                  const SizedBox(height: 14),
                   Text(desc, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.55)),
                 ],
               ],
@@ -374,14 +366,19 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                   if (website.isNotEmpty) _infoRow(Icons.language_rounded, website, () => _launchUrl(website)),
                   if (linkedinUrl.isNotEmpty) _infoRow(Icons.link_rounded, 'LinkedIn', () => _launchUrl(linkedinUrl)),
                   if (products.isNotEmpty) ...[
-                    if (location.isNotEmpty || website.isNotEmpty || linkedinUrl.isNotEmpty) ...[
+                    if (location.isNotEmpty || website.isNotEmpty || linkedinUrl.isNotEmpty)
                       const SizedBox(height: 4),
-                      Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.4)),
-                      const SizedBox(height: 12),
-                    ],
-                    AppSectionLabel('Products & Services'),
-                    const SizedBox(height: 8),
-                    Text(products, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5)),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.inventory_2_outlined, size: 17, color: _c.accent),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(products,
+                              style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, height: 1.5)),
+                        ),
+                      ],
+                    ),
                   ],
                 ],
               ),
@@ -458,8 +455,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                 // Talking Points section
                 if (talkingPoints.isNotEmpty && !_isGenerating) ...[
                   const SizedBox(height: 20),
-                  Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.5)),
-                  const SizedBox(height: 16),
                   AppSectionLabel('Talking Points', color: _c.accent),
                   const SizedBox(height: 14),
                   ...talkingPoints.asMap().entries.map((e) => Padding(

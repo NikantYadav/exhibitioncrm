@@ -30,7 +30,7 @@ done < "$ENV_FILE"
 
 SUPABASE_URL="${env_vars[SUPABASE_URL]:-}"
 SUPABASE_ANON_KEY="${env_vars[SUPABASE_ANON_KEY]:-}"
-API_BASE_URL="${env_vars[API_BASE_URL]:-http://localhost:3001/api}"
+API_BASE_URL="${env_vars[API_BASE_URL]:-https://exhibitioncrm.vercel.app/}"
 
 if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_ANON_KEY" ]]; then
   echo "Error: SUPABASE_URL and SUPABASE_ANON_KEY must be set in .env" >&2

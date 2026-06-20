@@ -287,11 +287,10 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
       radius: 20,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Column(
-        children: [
+        children: _stripeRows([
           _fieldRow(Icons.business_outlined, _coCtrl, 'Company'),
-          FDivider(),
           _fieldRow(Icons.work_outline_rounded, _titleCtrl, 'Job title'),
-        ],
+        ]),
       ),
     );
   }
@@ -302,15 +301,23 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
       radius: 20,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Column(
-        children: [
+        children: _stripeRows([
           _fieldRow(Icons.email_outlined, _emailCtrl, 'Email', kbd: TextInputType.emailAddress),
-          FDivider(),
           _fieldRow(Icons.phone_outlined, _phoneCtrl, 'Phone', kbd: TextInputType.phone),
-          FDivider(),
           _fieldRow(Icons.link_outlined, _linkedinCtrl, 'LinkedIn URL', kbd: TextInputType.url),
-        ],
+        ]),
       ),
     );
+  }
+
+  List<Widget> _stripeRows(List<Widget> rows) {
+    return [
+      for (var i = 0; i < rows.length; i++)
+        Container(
+          decoration: i.isOdd ? BoxDecoration(color: _c.surfaceAlt, borderRadius: BorderRadius.circular(10)) : null,
+          child: rows[i],
+        ),
+    ];
   }
 
   Widget _fieldRow(
@@ -323,6 +330,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
       height: 50,
       child: Row(
         children: [
+          const SizedBox(width: 4),
           Icon(icon, size: 15, color: _c.accent),
           const SizedBox(width: 12),
           Expanded(

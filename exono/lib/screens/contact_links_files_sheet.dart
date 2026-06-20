@@ -10,6 +10,7 @@ import '../models/contact_asset.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/app_input.dart';
 import '../utils/screen_logger.dart';
 
 Future<List<ContactAsset>?> showContactLinksFilesSheet(
@@ -305,46 +306,18 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
           body: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              AppInput(
                 controller: titleCtrl,
                 autofocus: true,
-                cursorColor: ctx.theme.colors.foreground,
-                style: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.foreground),
-                decoration: InputDecoration(
-                  labelText: 'Label',
-                  labelStyle: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground),
-                  hintText: 'e.g. Proposal Deck',
-                  hintStyle: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: ctx.theme.colors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: ctx.theme.colors.foreground),
-                  ),
-                ),
+                labelText: 'Label',
+                hintText: 'e.g. Proposal Deck',
               ),
               const SizedBox(height: 12),
-              TextField(
+              AppInput(
                 controller: urlCtrl,
-                cursorColor: ctx.theme.colors.foreground,
-                style: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.foreground),
+                labelText: 'URL',
+                hintText: 'https://',
                 keyboardType: TextInputType.url,
-                decoration: InputDecoration(
-                  labelText: 'URL',
-                  labelStyle: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground),
-                  hintText: 'https://',
-                  hintStyle: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: ctx.theme.colors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: ctx.theme.colors.foreground),
-                  ),
-                ),
               ),
             ],
           ),
