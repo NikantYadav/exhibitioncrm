@@ -208,17 +208,14 @@ class _ChatScreenState extends State<ChatScreen>
 
     return Scaffold(
       backgroundColor: _c.background,
-      body: DecoratedBox(
-        decoration: AppTheme.appBackground(context),
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              _buildTopBar(),
-              Expanded(child: _buildChatCanvas()),
-              _buildInputSection(),
-            ],
-          ),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _buildTopBar(),
+            Expanded(child: _buildChatCanvas()),
+            _buildInputSection(),
+          ],
         ),
       ),
     );
@@ -231,17 +228,18 @@ class _ChatScreenState extends State<ChatScreen>
       height: 56,
       decoration: BoxDecoration(
         color: _c.background.withValues(alpha: 0.95),
-        border: Border(bottom: BorderSide(color: _c.border)),
+        border: Border(bottom: BorderSide(color: context.theme.colors.border)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
         children: [
           // Back
-          IconButton(
+          AppButton(
             onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
-            icon: Icon(Icons.arrow_back_ios_new_rounded,
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.sm,
+            child: Icon(Icons.arrow_back_ios_new_rounded,
                 color: _c.accent, size: 19),
-            tooltip: 'Back',
           ),
           // AI avatar
           Container(
@@ -259,7 +257,6 @@ class _ChatScreenState extends State<ChatScreen>
           Expanded(
             child: Consumer2<ConversationProvider, ChatProvider>(
               builder: (context, conv, chat, _) {
-                // Derive first user message for snippet fallback
                 final firstUserMsg = chat.messages
                     .where((m) => m.isUser && !m.id.startsWith('optimistic_'))
                     .firstOrNull
@@ -268,7 +265,7 @@ class _ChatScreenState extends State<ChatScreen>
                         ?.displayTitle(firstMessageSnippet: firstUserMsg) ??
                     (firstUserMsg != null
                         ? ConversationModel(
-                            id: '', kind: 'global', updatedAt: DateTime.now())
+                            id: '', updatedAt: DateTime.now())
                           .displayTitle(firstMessageSnippet: firstUserMsg)
                         : 'Exono Assistant');
                 return Column(
@@ -277,28 +274,20 @@ class _ChatScreenState extends State<ChatScreen>
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
-                        fontSize: 14,
+                      style: context.theme.typography.sm.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: _c.textPrimary,
+                        color: context.theme.colors.foreground,
                         height: 1.2,
                         letterSpacing: -0.2,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Consumer<ChatProvider>(
-                      builder: (context, chat, child) => AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: Text(
-                                'AI Assistant',
-                                key: const ValueKey('idle'),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: _c.textMuted,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
+                    Text(
+                      'AI Assistant',
+                      style: context.theme.typography.xs.copyWith(
+                        color: context.theme.colors.mutedForeground,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
@@ -410,19 +399,17 @@ class _ChatScreenState extends State<ChatScreen>
             const SizedBox(height: 24),
             Text(
               'Exono Assistant',
-              style: TextStyle(
-                fontSize: 22,
+              style: context.theme.typography.xl2.copyWith(
                 fontWeight: FontWeight.w800,
-                color: _c.textPrimary,
+                color: context.theme.colors.foreground,
                 letterSpacing: -0.5,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Your AI-powered CRM companion.\nAsk about contacts, events, or anything.',
-              style: TextStyle(
-                fontSize: 14,
-                color: _c.textMuted,
+              style: context.theme.typography.sm.copyWith(
+                color: context.theme.colors.mutedForeground,
                 height: 1.55,
               ),
               textAlign: TextAlign.center,
@@ -452,15 +439,15 @@ class _ChatScreenState extends State<ChatScreen>
             const SizedBox(height: 16),
             Text(
               'Connection failed',
-              style: TextStyle(
-                  fontSize: 16,
+              style: context.theme.typography.lg.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: _c.textPrimary),
+                  color: context.theme.colors.foreground),
             ),
             const SizedBox(height: 6),
             Text(
               error,
-              style: TextStyle(fontSize: 12, color: _c.textMuted),
+              style: context.theme.typography.xs.copyWith(
+                  color: context.theme.colors.mutedForeground),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
@@ -511,18 +498,16 @@ class _ChatScreenState extends State<ChatScreen>
                     const SizedBox(width: 5),
                     Text(
                       'Assistant',
-                      style: TextStyle(
-                          fontSize: 11,
+                      style: context.theme.typography.xs.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: _c.textMuted),
+                          color: context.theme.colors.mutedForeground),
                     ),
                   ] else ...[
                     Text(
                       'You',
-                      style: TextStyle(
-                          fontSize: 11,
+                      style: context.theme.typography.xs.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: _c.textMuted),
+                          color: context.theme.colors.mutedForeground),
                     ),
                   ],
                 ],
@@ -545,13 +530,12 @@ class _ChatScreenState extends State<ChatScreen>
                   ),
                   border: isUser
                       ? null
-                      : Border.all(color: _c.border),
+                      : Border.all(color: context.theme.colors.border),
                 ),
                 child: isUser
                     ? Text(
                         message.text,
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: context.theme.typography.sm.copyWith(
                           fontWeight: FontWeight.w400,
                           color: Colors.white,
                           height: 1.5,
@@ -561,14 +545,12 @@ class _ChatScreenState extends State<ChatScreen>
                         data: message.text,
                         styleSheet: MarkdownStyleSheet.fromTheme(
                             Theme.of(context)).copyWith(
-                          p: TextStyle(
-                            fontSize: 14,
+                          p: context.theme.typography.sm.copyWith(
                             fontWeight: FontWeight.w400,
                             color: _c.textSecondary,
                             height: 1.55,
                           ),
-                          code: TextStyle(
-                            fontSize: 13,
+                          code: context.theme.typography.sm.copyWith(
                             fontFamily: 'monospace',
                             color: _c.accent,
                             backgroundColor:
@@ -577,14 +559,11 @@ class _ChatScreenState extends State<ChatScreen>
                           codeblockDecoration: BoxDecoration(
                             color: _c.surfaceElevated,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: _c.border),
+                            border: Border.all(color: context.theme.colors.border),
                           ),
                           blockquoteDecoration: BoxDecoration(
-                            color: _c.accentSoft.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border(
-                                left: BorderSide(
-                                    color: _c.accent, width: 3)),
+                            color: _c.accentSoft.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                         ),
                         selectable: true,
@@ -600,10 +579,9 @@ class _ChatScreenState extends State<ChatScreen>
                 children: [
                   Text(
                     _formatTime(message.timestamp),
-                    style: TextStyle(
-                      fontSize: 10,
+                    style: context.theme.typography.xs.copyWith(
                       fontWeight: FontWeight.w500,
-                      color: _c.textMuted,
+                      color: context.theme.colors.mutedForeground,
                     ),
                   ),
                 ],
@@ -664,10 +642,9 @@ class _ChatScreenState extends State<ChatScreen>
                   const SizedBox(width: 5),
                   Text(
                     'Assistant',
-                    style: TextStyle(
-                        fontSize: 11,
+                    style: context.theme.typography.xs.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: _c.textMuted),
+                        color: context.theme.colors.mutedForeground),
                   ),
                 ],
               ),
@@ -682,7 +659,7 @@ class _ChatScreenState extends State<ChatScreen>
                   bottomLeft: Radius.circular(4),
                   bottomRight: Radius.circular(16),
                 ),
-                border: Border.all(color: _c.border),
+                border: Border.all(color: context.theme.colors.border),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -694,8 +671,6 @@ class _ChatScreenState extends State<ChatScreen>
       ),
     );
   }
-
-  // ── Input section ─────────────────────────────────────────────────────────
 
   // ── Input section ─────────────────────────────────────────────────────────
 
@@ -712,7 +687,7 @@ class _ChatScreenState extends State<ChatScreen>
           ),
           decoration: BoxDecoration(
             color: _c.background.withValues(alpha: 0.92),
-            border: Border(top: BorderSide(color: _c.border)),
+            border: Border(top: BorderSide(color: context.theme.colors.border)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -741,8 +716,8 @@ class _ChatScreenState extends State<ChatScreen>
                         Expanded(
                           child: Text(
                             'Failed to send. Tap ↑ to retry.',
-                            style: TextStyle(
-                                fontSize: 12, color: _c.destructive),
+                            style: context.theme.typography.xs.copyWith(
+                                color: _c.destructive),
                           ),
                         ),
                       ],
@@ -756,7 +731,7 @@ class _ChatScreenState extends State<ChatScreen>
                 decoration: BoxDecoration(
                   color: _c.surfaceAlt,
                   borderRadius: BorderRadius.circular(AppTheme.radiusInput),
-                  border: Border.all(color: _c.border),
+                  border: Border.all(color: context.theme.colors.border),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -773,10 +748,9 @@ class _ChatScreenState extends State<ChatScreen>
                         maxLines: null,
                         keyboardType: TextInputType.multiline,
                         textInputAction: TextInputAction.newline,
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: context.theme.typography.sm.copyWith(
                           fontWeight: FontWeight.w400,
-                          color: _c.textPrimary,
+                          color: context.theme.colors.foreground,
                           height: 1.5,
                         ),
                         cursorColor: _c.accent,
@@ -785,9 +759,8 @@ class _ChatScreenState extends State<ChatScreen>
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           hintText: 'Message Exono…',
-                          hintStyle: TextStyle(
-                            fontSize: 14,
-                            color: _c.textMuted,
+                          hintStyle: context.theme.typography.sm.copyWith(
+                            color: context.theme.colors.mutedForeground,
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 13),
@@ -820,7 +793,7 @@ class _ChatScreenState extends State<ChatScreen>
                                       size: 18,
                                       color: canSend
                                           ? Colors.white
-                                          : _c.textMuted,
+                                          : context.theme.colors.mutedForeground,
                                     ),
                                   ),
                                 ),
@@ -836,7 +809,8 @@ class _ChatScreenState extends State<ChatScreen>
               const SizedBox(height: 4),
               Text(
                 'AI may make mistakes. Verify important info.',
-                style: TextStyle(fontSize: 10, color: _c.textMuted),
+                style: context.theme.typography.xs.copyWith(
+                    color: context.theme.colors.mutedForeground),
               ),
             ],
           ),
@@ -924,8 +898,7 @@ class _LinkedEntityCard extends StatelessWidget {
                 children: [
                   Text(
                     _typeLabel.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 9,
+                    style: context.theme.typography.xs.copyWith(
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
                       color: colors.accent,
@@ -934,10 +907,9 @@ class _LinkedEntityCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     entity.displayName,
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: context.theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
+                      color: context.theme.colors.foreground,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -946,9 +918,8 @@ class _LinkedEntityCard extends StatelessWidget {
                     const SizedBox(height: 1),
                     Text(
                       entity.subtitle!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.textMuted,
+                      style: context.theme.typography.xs.copyWith(
+                        color: context.theme.colors.mutedForeground,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -959,7 +930,7 @@ class _LinkedEntityCard extends StatelessWidget {
             ),
             if (_tappable) ...[
               const SizedBox(width: 6),
-              Icon(Icons.chevron_right_rounded, size: 16, color: colors.textMuted),
+              Icon(Icons.chevron_right_rounded, size: 16, color: context.theme.colors.mutedForeground),
             ],
           ],
         ),

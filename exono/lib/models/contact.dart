@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import '../db/app_database.dart';
+
 class Contact {
   final String id;
   final String? userId;
@@ -11,7 +15,6 @@ class Contact {
   final String? notes;
   final String? avatarUrl;
   final List<Map<String, dynamic>> contactAssets;
-  final String enrichmentStatus;
   final String followUpStatus;
   final String followUpUrgency;
   final DateTime? lastContactedAt;
@@ -32,7 +35,6 @@ class Contact {
     this.notes,
     this.avatarUrl,
     this.contactAssets = const [],
-    this.enrichmentStatus = 'pending',
     this.followUpStatus = 'not_contacted',
     this.followUpUrgency = '',
     this.lastContactedAt,
@@ -57,7 +59,6 @@ class Contact {
       contactAssets: (json['contact_assets'] as List?)
           ?.map((e) => Map<String, dynamic>.from(e as Map))
           .toList() ?? const [],
-      enrichmentStatus: json['enrichment_status'] ?? 'pending',
       followUpStatus: json['follow_up_status'] ?? 'not_contacted',
       followUpUrgency: json['follow_up_urgency'] ?? '',
       lastContactedAt: json['last_contacted_at'] != null 
@@ -82,7 +83,6 @@ class Contact {
       'linkedin_url': linkedinUrl,
       'notes': notes,
       'avatar_url': avatarUrl,
-      'enrichment_status': enrichmentStatus,
       'follow_up_status': followUpStatus,
       'follow_up_urgency': followUpUrgency,
       'last_contacted_at': lastContactedAt?.toIso8601String(),
@@ -90,48 +90,111 @@ class Contact {
   }
 
   String get fullName => '$firstName ${lastName ?? ''}'.trim();
+
+  factory Contact.fromDrift(ContactsTableData row, {Company? company}) {
+    return Contact(
+      id: row.id,
+      userId: row.userId,
+      companyId: row.companyId,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      email: row.email,
+      phone: row.phone,
+      jobTitle: row.jobTitle,
+      linkedinUrl: row.linkedinUrl,
+      notes: row.notes,
+      avatarUrl: row.avatarUrl,
+      contactAssets: row.contactAssetsJson != null
+          ? (jsonDecode(row.contactAssetsJson!) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : const [],
+      followUpStatus: row.followUpStatus,
+      followUpUrgency: row.followUpUrgency,
+      lastContactedAt: row.lastContactedAt,
+      createdAt: row.createdAt ?? row.updatedAt,
+      updatedAt: row.updatedAt,
+      company: company,
+    );
+  }
 }
 
 class Company {
   final String id;
   final String name;
-  final String? domain;
   final String? website;
   final String? industry;
   final String? description;
   final String? location;
-  final String? region;
   final String? companySize;
   final String? productsServices;
-  final bool isEnriched;
+  final String? headquarters;
+  final String? employeeCount;
+  final String? foundedYear;
+  final String? linkedinUrl;
+  final String? tickerSymbol;
+  final DateTime? enrichedAt;
+  final bool enrichmentFailed;
+  final List<String> talkingPoints;
 
   Company({
     required this.id,
     required this.name,
-    this.domain,
     this.website,
     this.industry,
     this.description,
     this.location,
-    this.region,
     this.companySize,
     this.productsServices,
-    this.isEnriched = false,
+    this.headquarters,
+    this.employeeCount,
+    this.foundedYear,
+    this.linkedinUrl,
+    this.tickerSymbol,
+    this.enrichedAt,
+    this.enrichmentFailed = false,
+    this.talkingPoints = const [],
   });
 
   factory Company.fromJson(Map<String, dynamic> json) {
     return Company(
       id: json['id'],
       name: json['name'] ?? '',
-      domain: json['domain'],
       website: json['website'],
       industry: json['industry'],
       description: json['description'],
       location: json['location'],
-      region: json['region'],
       companySize: json['company_size'],
       productsServices: json['products_services'],
-      isEnriched: json['is_enriched'] ?? false,
+      headquarters: json['headquarters'],
+      employeeCount: json['employee_count'],
+      foundedYear: json['founded_year'],
+      linkedinUrl: json['linkedin_url'],
+      tickerSymbol: json['ticker_symbol'],
+      enrichedAt: json['enriched_at'] != null ? DateTime.parse(json['enriched_at']) : null,
+      enrichmentFailed: json['enrichment_failed'] ?? false,
+      talkingPoints: (json['talking_points'] as List?)?.cast<String>() ?? const [],
+    );
+  }
+
+  factory Company.fromDrift(CompaniesTableData row) {
+    return Company(
+      id: row.id,
+      name: row.name,
+      website: row.website,
+      industry: row.industry,
+      description: row.description,
+      location: row.location,
+      companySize: row.companySize,
+      productsServices: row.productsServices,
+      headquarters: row.headquarters,
+      employeeCount: row.employeeCount,
+      foundedYear: row.foundedYear,
+      linkedinUrl: row.linkedinUrl,
+      tickerSymbol: row.tickerSymbol,
+      enrichedAt: row.enrichedAt,
+      enrichmentFailed: row.enrichmentFailed,
+      talkingPoints: row.talkingPointsJson != null
+          ? (jsonDecode(row.talkingPointsJson!) as List).cast<String>()
+          : const [],
     );
   }
 }

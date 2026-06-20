@@ -3,19 +3,13 @@ import '../services/api_service.dart';
 
 class ConversationModel {
   final String id;
-  final String kind; // global | contact | event
   final String? title;
-  final String? contactId;
-  final String? eventId;
   final DateTime updatedAt;
   final String? firstMessagePreview;
 
   ConversationModel({
     required this.id,
-    required this.kind,
     this.title,
-    this.contactId,
-    this.eventId,
     required this.updatedAt,
     this.firstMessagePreview,
   });
@@ -23,10 +17,7 @@ class ConversationModel {
   factory ConversationModel.fromJson(Map<String, dynamic> json) {
     return ConversationModel(
       id: json['id'] as String,
-      kind: json['kind'] as String? ?? 'global',
       title: json['title'] as String?,
-      contactId: json['contact_id'] as String?,
-      eventId: json['event_id'] as String?,
       updatedAt: DateTime.tryParse(json['updated_at'] as String? ?? '') ??
           DateTime.now(),
       firstMessagePreview: json['first_message_preview'] as String?,
@@ -42,14 +33,7 @@ class ConversationModel {
       final clean = snippet.replaceAll(RegExp(r'\s+'), ' ').trim();
       return clean.length > 40 ? '${clean.substring(0, 40)}…' : clean;
     }
-    switch (kind) {
-      case 'contact':
-        return 'Contact Chat';
-      case 'event':
-        return 'Event Chat';
-      default:
-        return 'New Chat';
-    }
+    return 'New Chat';
   }
 }
 
@@ -82,7 +66,7 @@ class ConversationProvider extends ChangeNotifier {
   }
 
   Future<ConversationModel> createGlobal() async {
-    final json = await ApiService.createConversation(kind: 'global');
+    final json = await ApiService.createConversation();
     final convo = ConversationModel.fromJson(
         json['data'] as Map<String, dynamic>);
     upsertConversation(convo);
@@ -92,66 +76,17 @@ class ConversationProvider extends ChangeNotifier {
   }
 
   Future<ConversationModel> getOrCreateGlobal() async {
-    // If we have an active one that is global, return it
-    if (_activeConversation != null && _activeConversation!.kind == 'global') {
+    if (_activeConversation != null) {
       return _activeConversation!;
     }
 
-    // Otherwise look for the most recent global one
-    final existing = _conversations.where((c) => c.kind == 'global').toList();
-    if (existing.isNotEmpty) {
-      _activeConversation = existing.first;
+    if (_conversations.isNotEmpty) {
+      _activeConversation = _conversations.first;
       notifyListeners();
-      return existing.first;
+      return _conversations.first;
     }
 
     return createGlobal();
-  }
-
-  Future<ConversationModel> getOrCreateForContact(
-      String contactId, String contactName) async {
-    final existing =
-        _conversations.where((c) => c.contactId == contactId).toList();
-    if (existing.isNotEmpty) {
-      _activeConversation = existing.first;
-      notifyListeners();
-      return existing.first;
-    }
-
-    final json = await ApiService.createConversation(
-      kind: 'contact',
-      contactId: contactId,
-      title: contactName,
-    );
-    final convo = ConversationModel.fromJson(
-        json['data'] as Map<String, dynamic>);
-    upsertConversation(convo);
-    _activeConversation = convo;
-    notifyListeners();
-    return convo;
-  }
-
-  Future<ConversationModel> getOrCreateForEvent(
-      String eventId, String eventName) async {
-    final existing =
-        _conversations.where((c) => c.eventId == eventId).toList();
-    if (existing.isNotEmpty) {
-      _activeConversation = existing.first;
-      notifyListeners();
-      return existing.first;
-    }
-
-    final json = await ApiService.createConversation(
-      kind: 'event',
-      eventId: eventId,
-      title: eventName,
-    );
-    final convo = ConversationModel.fromJson(
-        json['data'] as Map<String, dynamic>);
-    upsertConversation(convo);
-    _activeConversation = convo;
-    notifyListeners();
-    return convo;
   }
 
   void setActive(ConversationModel? convo) {

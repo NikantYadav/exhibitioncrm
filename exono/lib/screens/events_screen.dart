@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
+import '../db/app_database.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_checkbox.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/app_header.dart';
@@ -21,6 +22,7 @@ import '../widgets/app_offline_screen.dart';
 import 'event_follow_ups_screen.dart';
 import 'pre_event_prep_screen.dart';
 import '../utils/screen_logger.dart';
+import '../providers/sync_provider.dart';
 
 class EventsScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -37,22 +39,14 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   bool _showUpcoming = true;
   String _searchQuery = '';
 
-  List<Event> _events = [];
   Map<String, Map<String, dynamic>> _eventStats = {};
-  bool _isLoading = true;
-  String? _error;
+  final Set<String> _statsLoadedFor = {};
 
   final TextEditingController _eventNameController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _startDateController = TextEditingController();
   final TextEditingController _endDateController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadEvents();
-  }
 
   @override
   void dispose() {
@@ -64,53 +58,37 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     super.dispose();
   }
 
-  Future<void> _loadEvents() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final events = await ApiService.getEvents();
-      final pastEvents = events.where((e) => e.status == 'completed').toList();
-      final statsResults = await Future.wait(
-        pastEvents.map((e) => ApiService.getEventStats(e.id).catchError((e) => <String, dynamic>{})),
-      );
-      final statsMap = <String, Map<String, dynamic>>{};
-      for (var i = 0; i < pastEvents.length; i++) {
-        statsMap[pastEvents[i].id] = statsResults[i];
-      }
-      setState(() {
-        _events = events;
-        _eventStats = statsMap;
-        _isLoading = false;
-      });
-    } on UnauthorizedException { rethrow; } catch (_) {
-      setState(() {
-        _error = 'Unable to load events. Please try again.';
-        _isLoading = false;
-      });
-    }
+  Future<void> _loadStatsIfNeeded(List<Event> events) async {
+    final pastEventIds = events.where((e) => e.status == 'completed').map((e) => e.id).toList();
+    final missing = pastEventIds.where((id) => !_statsLoadedFor.contains(id)).toList();
+    if (missing.isEmpty) return;
+    _statsLoadedFor.addAll(missing);
+    final statsMap = await ApiService.getEventStatsBatch(missing).catchError((_) => <String, Map<String, dynamic>>{});
+    if (!mounted) return;
+    setState(() => _eventStats = {..._eventStats, ...statsMap});
   }
 
-  List<Event> get _upcomingEvents =>
-      _events.where((e) => e.status == 'upcoming' || e.status == 'ongoing').toList();
+  List<Event> _upcomingEvents(List<Event> events) =>
+      events.where((e) => e.status == 'upcoming' || e.status == 'ongoing').toList();
 
-  List<Event> get _pastEvents =>
-      _events.where((e) => e.status == 'completed').toList();
+  List<Event> _pastEvents(List<Event> events) =>
+      events.where((e) => e.status == 'completed').toList();
 
-  List<Event> get _filteredUpcoming {
-    if (_searchQuery.isEmpty) return _upcomingEvents;
+  List<Event> _filteredUpcoming(List<Event> events) {
+    final upcoming = _upcomingEvents(events);
+    if (_searchQuery.isEmpty) return upcoming;
     final q = _searchQuery.toLowerCase();
-    return _upcomingEvents.where((e) =>
+    return upcoming.where((e) =>
       e.name.toLowerCase().contains(q) ||
       (e.location ?? '').toLowerCase().contains(q)
     ).toList();
   }
 
-  List<Event> get _filteredPast {
-    if (_searchQuery.isEmpty) return _pastEvents;
+  List<Event> _filteredPast(List<Event> events) {
+    final past = _pastEvents(events);
+    if (_searchQuery.isEmpty) return past;
     final q = _searchQuery.toLowerCase();
-    return _pastEvents.where((e) =>
+    return past.where((e) =>
       e.name.toLowerCase().contains(q) ||
       (e.location ?? '').toLowerCase().contains(q)
     ).toList();
@@ -139,6 +117,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     final isOnline = context.watch<OfflineProvider>().isOnline;
     if (!isOnline) return const AppOfflineScreen(title: 'Events');
 
+    final eventsRepo = context.read<SyncProvider>().events;
+
     return ColoredBox(
       color: context.theme.colors.background,
       child: Column(
@@ -149,36 +129,42 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
             onActionPressed: _showNewEventSheet,
           ),
           Expanded(
-            child: _isLoading
-                ? _buildSkeletonLoader()
-                : _error != null
-                    ? _buildErrorState()
-                    : RefreshIndicator(
-                        onRefresh: _loadEvents,
-                        color: _c.accent,
-                        backgroundColor: context.theme.colors.background,
-                        child: CustomScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          slivers: [
-                            SliverToBoxAdapter(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildSearchBar(),
-                                    const SizedBox(height: 20),
-                                    _buildTabs(),
-                                    const SizedBox(height: 20),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            _buildEventsList(),
-                            const SliverToBoxAdapter(child: SizedBox(height: 120)),
-                          ],
+            child: StreamBuilder<List<EventsTableData>>(
+              stream: eventsRepo.watchAll(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return _buildSkeletonLoader();
+
+                final events = snapshot.data!.map(Event.fromDrift).toList();
+                _loadStatsIfNeeded(events);
+
+                return RefreshIndicator(
+                  onRefresh: eventsRepo.catchUp,
+                  color: _c.accent,
+                  backgroundColor: context.theme.colors.background,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSearchBar(),
+                              const SizedBox(height: 20),
+                              _buildTabs(events),
+                              const SizedBox(height: 20),
+                            ],
+                          ),
                         ),
                       ),
+                      _buildEventsList(events),
+                      const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -194,7 +180,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildTabs() {
+  Widget _buildTabs(List<Event> events) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -202,11 +188,40 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: context.theme.colors.border),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          _buildTabButton(label: 'Upcoming', count: _upcomingEvents.length, isActive: _showUpcoming),
-          const SizedBox(width: 4),
-          _buildTabButton(label: 'Past', count: _pastEvents.length, isActive: !_showUpcoming),
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            alignment: _showUpcoming ? Alignment.centerLeft : Alignment.centerRight,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              child: Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: context.theme.colors.background,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 38,
+            child: Row(
+              children: [
+                _buildTabButton(label: 'Upcoming', count: _upcomingEvents(events).length, isActive: _showUpcoming),
+                const SizedBox(width: 4),
+                _buildTabButton(label: 'Past', count: _pastEvents(events).length, isActive: !_showUpcoming),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -220,25 +235,11 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
           _searchQuery = '';
           _searchController.clear();
         }),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          decoration: BoxDecoration(
-            color: isActive ? context.theme.colors.background : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
+        child: Center(
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
                 label,
@@ -270,9 +271,9 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildEventsList() {
+  Widget _buildEventsList(List<Event> allEvents) {
     if (_showUpcoming) {
-      final events = _filteredUpcoming;
+      final events = _filteredUpcoming(allEvents);
       if (events.isEmpty) {
         return SliverToBoxAdapter(
           child: Padding(
@@ -297,7 +298,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         ),
       );
     } else {
-      final events = _filteredPast;
+      final events = _filteredPast(allEvents);
       if (events.isEmpty) {
         return SliverToBoxAdapter(
           child: Padding(
@@ -322,45 +323,6 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         ),
       );
     }
-  }
-
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: context.theme.colors.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(Icons.wifi_off_rounded, size: 36, color: context.theme.colors.error),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Failed to load events',
-            style: context.theme.typography.lg.copyWith(
-              fontWeight: FontWeight.w600,
-              color: context.theme.colors.foreground,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Check your connection and try again.',
-            style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
-          ),
-          const SizedBox(height: 24),
-          AppButton(
-            label: 'Retry',
-            prefixIcon: const Icon(Icons.refresh_rounded, size: 18),
-            variant: ButtonVariant.primary,
-            onPressed: _loadEvents,
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildEmptyState({
@@ -504,9 +466,12 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                     GestureDetector(
                       onTap: () => _showEventActionsSheet(event),
                       behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(Icons.more_vert_rounded, color: context.theme.colors.mutedForeground, size: 20),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Center(
+                          child: Icon(Icons.more_vert_rounded, color: context.theme.colors.mutedForeground, size: 20),
+                        ),
                       ),
                     ),
                   ],
@@ -796,7 +761,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
       });
 
       if (sheetContext.mounted) { Navigator.of(sheetContext).pop(); }
-      await _loadEvents();
+      if (mounted) { await context.read<SyncProvider>().events.catchUp(); }
 
       if (mounted) { showAppToast(context, 'Event created successfully.'); }
     } on UnauthorizedException { rethrow; } catch (_) {
@@ -857,7 +822,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         'end_date': endDate,
       });
       if (sheetContext.mounted) { Navigator.of(sheetContext).pop(); }
-      await _loadEvents();
+      if (mounted) { await context.read<SyncProvider>().events.catchUp(); }
       if (mounted) { showAppToast(context, 'Event updated.'); }
     } on UnauthorizedException { rethrow; } catch (_) {
       if (sheetContext.mounted) { showAppToast(sheetContext, 'Server error — please try again.'); }
@@ -935,6 +900,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                   fullWidth: true,
                   onPressed: () async {
                     Navigator.of(ctx).pop();
+                    final eventsRepo = context.read<SyncProvider>().events;
                     final confirmed = await showAppConfirmDialog(
                       context: context,
                       title: 'Delete Event',
@@ -945,10 +911,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                     if (confirmed != true) return;
                     try {
                       await ApiService.deleteEvent(event.id);
+                      await eventsRepo.catchUp();
                       if (mounted) {
-                        setState(() {
-                          _events.removeWhere((e) => e.id == event.id);
-                        });
                         showAppToast(context, 'Event deleted.');
                       }
                     } on UnauthorizedException { rethrow; } catch (e) {
@@ -1068,8 +1032,14 @@ class _NewEventSheetState extends State<_NewEventSheet> {
           lastDate: DateTime(2030),
           builder: (context, child) => Theme(
             data: Theme.of(context).copyWith(
-              colorScheme: ColorScheme.dark(
+              colorScheme: ColorScheme(
+                brightness: widget.colors.isDark ? Brightness.dark : Brightness.light,
                 primary: widget.colors.accent,
+                onPrimary: Colors.white,
+                secondary: widget.colors.accent,
+                onSecondary: Colors.white,
+                error: widget.colors.destructive,
+                onError: Colors.white,
                 surface: widget.colors.surface,
                 onSurface: widget.colors.textPrimary,
               ),
@@ -1144,15 +1114,10 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                   const SizedBox(height: 16),
                   _buildDateField(label: 'Start Date', controller: widget.startDateController),
                   const SizedBox(height: 14),
-                  FCheckbox(
+                  AppCheckbox(
                     value: _isOneDay,
-                    label: Text(
-                      'One-day event',
-                      style: context.theme.typography.sm.copyWith(
-                        color: context.theme.colors.mutedForeground,
-                      ),
-                    ),
-                    onChange: (val) => setState(() {
+                    label: 'One-day event',
+                    onChanged: (val) => setState(() {
                       _isOneDay = val;
                       if (_isOneDay) { widget.endDateController.clear(); }
                     }),

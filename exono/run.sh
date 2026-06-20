@@ -70,6 +70,14 @@ fi
 if [[ $# -gt 0 && "$1" != -* ]]; then
   SUBCMD="$1"
   shift
+  # For "build <target>", extract the target so defines come after it
+  if [[ "$SUBCMD" == "build" && $# -gt 0 && "$1" != -* ]]; then
+    BUILD_TARGET="$1"
+    shift
+    echo "→ flutter $SUBCMD $BUILD_TARGET ${DEFINES[*]} $*"
+    flutter "$SUBCMD" "$BUILD_TARGET" "${DEFINES[@]}" "$@"
+    exit $?
+  fi
 else
   SUBCMD="run"
 fi

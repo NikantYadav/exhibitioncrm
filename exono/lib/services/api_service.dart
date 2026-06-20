@@ -143,20 +143,6 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> enrichContact(String contactId) async {
-    final response = await http.post(
-      Uri.parse('${ApiConfig.baseUrl}/contacts/$contactId/enrich'),
-      headers: await _headers(),
-    );
-
-    checkUnauthorized(response);
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Failed to enrich contact');
-    }
-  }
-
   static Future<Event> createEvent(
     Map<String, dynamic> eventData, {
     String? idempotencyKey,
@@ -195,20 +181,6 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getDashboardSummary() async {
-    final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/dashboard/summary'),
-      headers: await _headers(),
-    );
-
-    checkUnauthorized(response);
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Failed to load dashboard summary');
-    }
-  }
-
   static Future<Map<String, dynamic>> getAllFollowUps() async {
     final response = await http.get(
       Uri.parse('${ApiConfig.baseUrl}/follow-ups'),
@@ -236,7 +208,7 @@ class ApiService {
 
   // Chat: create or reuse a global conversation
   static Future<Map<String, dynamic>> getOrCreateGlobalConversation() async {
-    return createConversation(kind: 'global');
+    return createConversation();
   }
 
   static Future<Map<String, dynamic>> getMessages(
@@ -281,20 +253,9 @@ class ApiService {
     throw Exception('Failed to search messages');
   }
 
-  static Future<List<Map<String, dynamic>>> listConversations({
-    String? kind,
-    String? contactId,
-    String? eventId,
-  }) async {
-    var url = '${ApiConfig.baseUrl}${ApiConfig.conversations}';
-    final params = <String>[];
-    if (kind != null) params.add('kind=${Uri.encodeComponent(kind)}');
-    if (contactId != null) params.add('contact_id=${Uri.encodeComponent(contactId)}');
-    if (eventId != null) params.add('event_id=${Uri.encodeComponent(eventId)}');
-    if (params.isNotEmpty) url += '?${params.join('&')}';
-
+  static Future<List<Map<String, dynamic>>> listConversations() async {
     final response = await http.get(
-      Uri.parse(url),
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.conversations}'),
       headers: await _headers(),
     );
     checkUnauthorized(response);
@@ -306,15 +267,10 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> createConversation({
-    required String kind,
     String? title,
-    String? contactId,
-    String? eventId,
   }) async {
-    final body = <String, dynamic>{'kind': kind};
+    final body = <String, dynamic>{};
     if (title != null) body['title'] = title;
-    if (contactId != null) body['contact_id'] = contactId;
-    if (eventId != null) body['event_id'] = eventId;
 
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.conversations}'),
@@ -439,6 +395,21 @@ class ApiService {
     throw Exception('Failed to load event stats');
   }
 
+  static Future<Map<String, Map<String, dynamic>>> getEventStatsBatch(List<String> eventIds) async {
+    if (eventIds.isEmpty) return {};
+    final ids = eventIds.join(',');
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/stats/batch?ids=$ids'),
+      headers: await _headers(),
+    );
+    checkUnauthorized(response);
+    if (response.statusCode == 200) {
+      final raw = json.decode(response.body)['data'] as Map<String, dynamic>;
+      return raw.map((k, v) => MapEntry(k, v as Map<String, dynamic>));
+    }
+    throw Exception('Failed to load batch event stats');
+  }
+
   static Future<Map<String, dynamic>> getEventTarget(String eventId, String targetId) async {
     final response = await http.get(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId'),
@@ -464,32 +435,6 @@ class ApiService {
     throw Exception('Failed to load event targets');
   }
 
-  static Future<List<Map<String, dynamic>>> getEventCaptures(String eventId) async {
-    final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/captures'),
-      headers: await _headers(),
-    );
-    checkUnauthorized(response);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return (data['data'] as List).cast<Map<String, dynamic>>();
-    }
-    throw Exception('Failed to load event captures');
-  }
-
-  static Future<List<Map<String, dynamic>>> getEventFollowUps(String eventId) async {
-    final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/follow-ups'),
-      headers: await _headers(),
-    );
-    checkUnauthorized(response);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return (data['data'] as List).cast<Map<String, dynamic>>();
-    }
-    throw Exception('Failed to load event follow-ups');
-  }
-
   static Future<void> markFollowUpSent(
     String eventId,
     String contactId, {
@@ -501,8 +446,8 @@ class ApiService {
       headers: await _headers(),
       body: json.encode({
         'action': 'send',
-        if (subject != null) 'subject': subject,
-        if (body != null) 'body': body,
+        'subject': ?subject,
+        'body': ?body,
       }),
     );
     checkUnauthorized(response);
@@ -615,11 +560,11 @@ class ApiService {
       headers: await _headersWithKey(idempotencyKey),
       body: json.encode({
         'contact_id': contactId,
-        if (eventId != null) 'event_id': eventId,
+        'event_id': ?eventId,
         'interaction_type': type,
         'summary': summary,
-        if (interactionDate != null) 'interaction_date': interactionDate,
-        if (details != null) 'details': details,
+        'interaction_date': ?interactionDate,
+        'details': ?details,
       }),
     );
 
@@ -889,7 +834,7 @@ class ApiService {
     throw Exception('No ongoing event found');
   }
 
-  /// Single-round-trip replacement for getOngoingEvent + getLiveEventData + getEventCaptures.
+  /// Single-round-trip replacement for getOngoingEvent + getLiveEventData + a captures fetch.
   /// Returns null if no ongoing event. On success, returns a map with keys:
   ///   'event' (Event), 'liveData' (Map), 'captures' (List), 'nextEvent' (Event?)
   static Future<Map<String, dynamic>?> getLiveSession() async {
@@ -1066,5 +1011,26 @@ class ApiService {
       return json.decode(response.body) as Map<String, dynamic>;
     }
     throw Exception('Failed to check duplicates');
+  }
+
+  /// Delta sync — see backend/src/routes/sync.ts. `since` is the previous
+  /// `server_time` (omit/null for a full snapshot). `tables` is a CSV of
+  /// synced table names (omit for all of them, including `companies`).
+  static Future<Map<String, dynamic>> getSyncDelta({
+    String? since,
+    String? tables,
+  }) async {
+    final query = <String, String>{
+      'since': ?since,
+      'tables': ?tables,
+    };
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.sync}')
+        .replace(queryParameters: query.isEmpty ? null : query);
+    final response = await http.get(uri, headers: await _headers());
+    checkUnauthorized(response);
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to fetch sync delta');
   }
 }

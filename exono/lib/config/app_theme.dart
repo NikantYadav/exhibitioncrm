@@ -155,7 +155,7 @@ class AppTheme {
     borderStrong: Color(0xFFB9C9EA),
     textPrimary: Color(0xFF18253B),
     textSecondary: Color(0xFF50627F),
-    textMuted: Color(0xFF7E8FAC),
+    textMuted: Color(0xFF526A88),
     accent: Color(0xFF0672EF),
     accentStrong: Color(0xFF0559C2),
     accentSoft: Color(0xFFD6EAFD),

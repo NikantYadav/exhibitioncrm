@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
@@ -25,10 +26,8 @@ class AccountSettingsScreen extends StatefulWidget {
 class _AccountSettingsScreenState extends State<AccountSettingsScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
-  // ── Edit mode ───────────────────────────────────────────────────────────────
   bool _editing = false;
 
-  // ── Profile controllers (only used in edit mode) ────────────────────────────
   late TextEditingController _nameCtrl;
   late TextEditingController _designationCtrl;
   late TextEditingController _websiteCtrl;
@@ -90,7 +89,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     if (_isSavingProfile) return;
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      _snack('Display name is required.', error: true);
+      showAppToast(context, 'Display name is required.');
       return;
     }
     setState(() => _isSavingProfile = true);
@@ -107,12 +106,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
       if (!mounted) return;
       if (result['success'] == true) {
         setState(() => _editing = false);
-        _snack('Profile saved.');
+        showAppToast(context, 'Profile saved.');
       } else {
-        _snack(result['error'] as String? ?? 'Failed to save profile.', error: true);
+        showAppToast(context, result['error'] as String? ?? 'Failed to save profile.');
       }
     } finally {
-      if (mounted) setState(() => _isSavingProfile = false);
+      if (mounted) { setState(() => _isSavingProfile = false); }
     }
   }
 
@@ -124,10 +123,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     context.go('/auth');
   }
 
-  void _snack(String message, {bool error = false}) {
-    showAppToast(context, message);
-  }
-
   // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
@@ -135,8 +130,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     final auth = context.watch<AuthProvider>();
     final isLoading = auth.profile == null || auth.user == null;
 
-    return DecoratedBox(
-      decoration: AppTheme.appBackground(context),
+    return ColoredBox(
+      color: context.theme.colors.background,
       child: SafeArea(
         bottom: false,
         child: isLoading ? _buildSkeleton() : _buildBody(auth),
@@ -150,25 +145,24 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: _c.navBackground,
-        border: Border(bottom: BorderSide(color: _c.border)),
+        border: Border(bottom: BorderSide(color: context.theme.colors.border)),
       ),
       child: Row(
         children: [
           AppButton(
             onPressed: () => context.go('/'),
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.ghost,
             size: ButtonSize.sm,
-            child: Icon(Icons.arrow_back_rounded, color: _c.textPrimary, size: 20),
+            child: Icon(Icons.arrow_back_rounded, color: context.theme.colors.foreground, size: 20),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Settings',
-              style: TextStyle(
-                fontSize: 17,
+              style: context.theme.typography.lg.copyWith(
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.3,
-                color: _c.textPrimary,
+                color: context.theme.colors.foreground,
               ),
             ),
           ),
@@ -227,23 +221,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: _c.accent,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              auth.initials,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-          ),
+          AppAvatar(initials: auth.initials, size: 56),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -251,23 +229,30 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
               children: [
                 Text(
                   auth.displayName,
-                  style: TextStyle(
-                    fontSize: 18,
+                  style: context.theme.typography.xl.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.4,
-                    color: _c.textPrimary,
+                    color: context.theme.colors.foreground,
                   ),
                 ),
                 if (auth.designation.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
                     auth.designation,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _c.textSecondary),
+                    style: context.theme.typography.sm.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: context.theme.colors.secondaryForeground,
+                    ),
                   ),
                 ],
                 if (email.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(email, style: TextStyle(fontSize: 12, color: _c.textMuted)),
+                  Text(
+                    email,
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 10),
                 Wrap(
@@ -279,6 +264,32 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                   ],
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── AI nudge banner (shared) ────────────────────────────────────────────────
+
+  Widget _aiNudge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _c.accentSoft,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _c.accent.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.auto_awesome_rounded, size: 15, color: _c.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Completing your profile helps the AI generate personalised responses, emails, and follow-ups in your voice.',
+              style: context.theme.typography.xs.copyWith(height: 1.5, color: _c.accent),
             ),
           ),
         ],
@@ -308,40 +319,20 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // AI personalisation nudge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: _c.accentSoft,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _c.accent.withValues(alpha: 0.25)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.auto_awesome_rounded, size: 15, color: _c.accent),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Completing your profile helps the AI generate personalised responses, emails, and follow-ups in your voice.',
-                    style: TextStyle(fontSize: 12, height: 1.5, color: _c.accent),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _aiNudge(),
           const SizedBox(height: 16),
 
           if (!hasContent) ...[
             _emptyProfileHint(),
           ] else ...[
             _viewRow('Name', name),
-            if (designation.isNotEmpty) _viewRow('Designation', designation),
-            if (website.isNotEmpty) _viewRow('Website', website, isLink: true),
-            if (linkedin.isNotEmpty) _viewRow('LinkedIn', linkedin, isLink: true),
-            if (products.isNotEmpty) _viewRow('Products & Services', products, multiLine: true),
-            if (additionalContext.isNotEmpty) _viewRow('Additional AI Context', additionalContext, multiLine: true),
-            _viewRow('AI Tone', tone[0].toUpperCase() + tone.substring(1), isLast: true),
+            FDivider(),
+            if (designation.isNotEmpty) ...[_viewRow('Designation', designation), FDivider()],
+            if (website.isNotEmpty) ...[_viewRow('Website', website, isLink: true), FDivider()],
+            if (linkedin.isNotEmpty) ...[_viewRow('LinkedIn', linkedin, isLink: true), FDivider()],
+            if (products.isNotEmpty) ...[_viewRow('Products & Services', products, multiLine: true), FDivider()],
+            if (additionalContext.isNotEmpty) ...[_viewRow('Additional AI Context', additionalContext, multiLine: true), FDivider()],
+            _viewRow('AI Tone', tone[0].toUpperCase() + tone.substring(1)),
           ],
 
           const SizedBox(height: 16),
@@ -364,50 +355,53 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
         children: [
           Text(
             'No profile info yet',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _c.textPrimary),
+            style: context.theme.typography.sm.copyWith(
+              fontWeight: FontWeight.w600,
+              color: context.theme.colors.foreground,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             'Add your details to unlock personalised AI-generated emails, follow-ups, and conversation suggestions.',
-            style: TextStyle(fontSize: 13, height: 1.5, color: _c.textMuted),
+            style: context.theme.typography.sm.copyWith(
+              height: 1.5,
+              color: context.theme.colors.mutedForeground,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _viewRow(String label, String value, {bool isLink = false, bool multiLine = false, bool isLast = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            crossAxisAlignment: multiLine ? CrossAxisAlignment.start : CrossAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 130,
-                child: Text(
-                  label,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _c.textMuted),
-                ),
+  Widget _viewRow(String label, String value, {bool isLink = false, bool multiLine = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: multiLine ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              style: context.theme.typography.xs.copyWith(
+                fontWeight: FontWeight.w600,
+                color: context.theme.colors.mutedForeground,
               ),
-              Expanded(
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: multiLine ? 1.5 : 1.0,
-                    color: isLink ? _c.accent : _c.textPrimary,
-                    decoration: isLink ? TextDecoration.underline : null,
-                    decorationColor: isLink ? _c.accent.withValues(alpha: 0.4) : null,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+          Expanded(
+            child: Text(
+              value,
+              style: context.theme.typography.sm.copyWith(
+                height: multiLine ? 1.5 : 1.0,
+                color: isLink ? _c.accent : context.theme.colors.foreground,
+                decoration: isLink ? TextDecoration.underline : null,
+                decorationColor: isLink ? _c.accent.withValues(alpha: 0.4) : null,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -420,28 +414,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // AI personalisation nudge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: _c.accentSoft,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _c.accent.withValues(alpha: 0.25)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.auto_awesome_rounded, size: 15, color: _c.accent),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Completing your profile helps the AI generate personalised responses, emails, and follow-ups in your voice.',
-                    style: TextStyle(fontSize: 12, height: 1.5, color: _c.accent),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _aiNudge(),
           const SizedBox(height: 20),
           _field(label: 'Display Name', ctrl: _nameCtrl, hint: 'Your full name', required: true),
           _gap(),
@@ -490,7 +463,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
       children: [
         Text(
           'AI TONE',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: _c.textMuted),
+          style: context.theme.typography.xs.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.4,
+            color: context.theme.colors.mutedForeground,
+          ),
         ),
         const SizedBox(height: 8),
         Row(
@@ -509,17 +486,16 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                       color: active ? _c.accent : _c.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: active ? _c.accent : _c.border,
+                        color: active ? _c.accent : context.theme.colors.border,
                         width: active ? 1.5 : 1,
                       ),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       tone[0].toUpperCase() + tone.substring(1),
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: context.theme.typography.xs.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: active ? Colors.white : _c.textSecondary,
+                        color: active ? Colors.white : context.theme.colors.secondaryForeground,
                       ),
                     ),
                   ),
@@ -544,7 +520,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
           subtitle: theme.isDarkMode ? 'Using dark surfaces.' : 'Using light surfaces.',
           value: theme.isDarkMode,
           onChanged: (v) => theme.setThemeMode(v ? ThemeMode.dark : ThemeMode.light),
-          isLast: true,
         ),
       ),
     );
@@ -562,7 +537,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
         destructive: true,
         loading: _isLoggingOut,
         onTap: _logout,
-        isLast: true,
       ),
     );
   }
@@ -575,50 +549,55 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     required String subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
-    bool isLast = false,
   }) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: _c.accentSoft,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, size: 18, color: _c.accent),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _c.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text(subtitle, style: TextStyle(fontSize: 12, color: _c.textMuted)),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              FSwitch(
-                value: value,
-                onChange: onChanged,
-                style: FSwitchStyleDelta.delta(
-                  trackColor: FVariantsValueDelta.delta([
-                    FVariantValueDeltaOperation.base(_c.border),
-                  ]),
-                ),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _c.accentSoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 18, color: _c.accent),
           ),
-        ),
-      ],
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: context.theme.typography.sm.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: context.theme.colors.foreground,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: context.theme.typography.xs.copyWith(
+                    color: context.theme.colors.mutedForeground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          FSwitch(
+            value: value,
+            onChange: onChanged,
+            style: FSwitchStyleDelta.delta(
+              trackColor: FVariantsValueDelta.delta([
+                FVariantValueDeltaOperation.base(context.theme.colors.border),
+              ]),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -629,51 +608,52 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     required VoidCallback onTap,
     bool destructive = false,
     bool loading = false,
-    bool isLast = false,
   }) {
     final color = destructive ? _c.destructive : _c.accent;
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: loading ? null : onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  alignment: Alignment.center,
-                  child: loading
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: FCircularProgress(),
-                        )
-                      : Icon(icon, size: 18, color: color),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label,
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color)),
-                      const SizedBox(height: 2),
-                      Text(sublabel, style: TextStyle(fontSize: 12, color: _c.textMuted)),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded, size: 18, color: _c.textMuted),
-              ],
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: loading
+                  ? SizedBox(width: 16, height: 16, child: FCircularProgress())
+                  : Icon(icon, size: 18, color: color),
             ),
-          ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: context.theme.typography.sm.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    sublabel,
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 18, color: context.theme.colors.mutedForeground),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -694,7 +674,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
       children: [
         Text(
           required ? '${label.toUpperCase()} *' : label.toUpperCase(),
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: _c.textMuted),
+          style: context.theme.typography.xs.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.4,
+            color: context.theme.colors.mutedForeground,
+          ),
         ),
         const SizedBox(height: 6),
         AppInput(
@@ -717,7 +701,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: _c.navBackground,
-            border: Border(bottom: BorderSide(color: _c.border)),
+            border: Border(bottom: BorderSide(color: context.theme.colors.border)),
           ),
           child: Row(
             children: [
@@ -733,11 +717,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _skeletonCard(
+                AppCard(
                   radius: 28,
+                  padding: const EdgeInsets.all(20),
                   child: Row(
                     children: [
-                      SkeletonLoader(width: 56, height: 56, borderRadius: BorderRadius.circular(18)),
+                      SkeletonLoader(width: 56, height: 56, borderRadius: BorderRadius.circular(12)),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -763,7 +748,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                 const SizedBox(height: 24),
                 SkeletonLoader(width: 60, height: 11, borderRadius: BorderRadius.circular(3)),
                 const SizedBox(height: 10),
-                _skeletonCard(
+                AppCard(
+                  radius: 20,
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
                       SkeletonLoader(width: double.infinity, height: 44, borderRadius: BorderRadius.circular(12)),
@@ -784,13 +771,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                 const SizedBox(height: 24),
                 SkeletonLoader(width: 90, height: 11, borderRadius: BorderRadius.circular(3)),
                 const SizedBox(height: 10),
-                _skeletonCard(
+                AppCard(
+                  radius: 20,
+                  padding: const EdgeInsets.all(16),
                   child: SkeletonLoader(width: double.infinity, height: 56, borderRadius: BorderRadius.circular(12)),
                 ),
                 const SizedBox(height: 24),
                 SkeletonLoader(width: 65, height: 11, borderRadius: BorderRadius.circular(3)),
                 const SizedBox(height: 10),
-                _skeletonCard(
+                AppCard(
+                  radius: 20,
+                  padding: const EdgeInsets.all(16),
                   child: SkeletonLoader(width: double.infinity, height: 56, borderRadius: BorderRadius.circular(12)),
                 ),
               ],
@@ -798,19 +789,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
           ),
         ),
       ],
-    );
-  }
-
-  Widget _skeletonCard({required Widget child, double radius = 20}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _c.surface,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: _c.border),
-      ),
-      child: child,
     );
   }
 }

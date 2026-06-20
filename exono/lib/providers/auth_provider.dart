@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
@@ -48,8 +49,6 @@ class AuthProvider extends ChangeNotifier {
     if (_profile != null) {
       final d = _profile!['designation'] as String?;
       if (d != null && d.isNotEmpty) return d.toUpperCase();
-      final role = _profile!['employee_role'] as String?;
-      if (role != null && role.isNotEmpty) return role.toUpperCase();
     }
     return 'TEAM MEMBER';
   }
@@ -212,8 +211,7 @@ class AuthProvider extends ChangeNotifier {
 
   void _syncRealtimeAuth(String token) {
     try {
-      // Supabase.instance.client.realtime.setAuth(token);
-      // Called lazily when Supabase is initialized
+      Supabase.instance.client.realtime.setAuth(token);
     } catch (_) {}
   }
 }

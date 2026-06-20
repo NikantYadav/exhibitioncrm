@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../providers/offline_provider.dart';
+import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
 import '../services/offline/write_gateway.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
@@ -70,14 +72,13 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
   }
 
   Future<void> _loadEvents() async {
-    try {
-      final events = await ApiService.getEvents();
-      if (!mounted) return;
-      setState(() {
-        _events = events;
-        if (events.isNotEmpty) _eventId = events.first.id;
-      });
-    } on UnauthorizedException { rethrow; } catch (_) {}
+    final rows = await context.read<SyncProvider>().events.watchAll().first;
+    if (!mounted) return;
+    final events = rows.map(Event.fromDrift).toList();
+    setState(() {
+      _events = events;
+      if (events.isNotEmpty) _eventId = events.first.id;
+    });
   }
 
   // ── Build ───────────────────────────────────────────────────
@@ -85,7 +86,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _c.background,
+      backgroundColor: context.theme.colors.background,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -131,8 +132,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                                 const SizedBox(width: 4),
                                 Text(
                                   'ADD TAG',
-                                  style: TextStyle(
-                                    fontSize: 9,
+                                  style: context.theme.typography.xs.copyWith(
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 1.2,
                                     color: _c.accent,
@@ -149,7 +149,8 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                       else
                         Text(
                           'No tags yet — tap Add Tag to label this contact.',
-                          style: TextStyle(fontSize: 12, color: _c.textMuted, height: 1.5),
+                          style: context.theme.typography.xs.copyWith(
+                            color: context.theme.colors.mutedForeground, height: 1.5),
                         ),
                     ],
                   ),
@@ -171,13 +172,13 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
 
   Widget _buildHeader() {
     return ColoredBox(
-      color: _c.navBackground,
+      color: context.theme.colors.background,
       child: SafeArea(
         bottom: false,
         child: Container(
           height: 56,
           decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: _c.border)),
+            border: Border(bottom: BorderSide(color: context.theme.colors.border)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
@@ -196,18 +197,18 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                 children: [
                   Text(
                     'NEW CONTACT',
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: context.theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.8,
-                      color: _c.textPrimary,
+                      color: context.theme.colors.foreground,
                       height: 1,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     'Enter details manually',
-                    style: TextStyle(fontSize: 10, color: _c.textMuted),
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.mutedForeground),
                   ),
                 ],
               ),
@@ -240,30 +241,9 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [_c.accent, _c.accentStrong],
-              ),
-            ),
-            alignment: Alignment.center,
-            child: initials.isEmpty
-                ? Icon(Icons.person_outline_rounded, color: Colors.white, size: 32)
-                : Text(
-                    initials.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
+          AppAvatar(
+            initials: initials.isEmpty ? '?' : initials.toUpperCase(),
+            size: 72,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -272,14 +252,15 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
               children: [
                 AppChip.label('Manual Entry', color: _c.surfaceElevated, textColor: _c.textMuted),
                 const SizedBox(height: 8),
-                _inlineField(_fnCtrl, 'First name', fontSize: 22, bold: true),
+                _inlineField(_fnCtrl, 'First name'),
                 const SizedBox(height: 2),
-                _inlineField(_lnCtrl, 'Last name', fontSize: 15),
+                _inlineField(_lnCtrl, 'Last name'),
                 if (subtitle.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 12, color: _c.textMuted, height: 1.3),
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.mutedForeground, height: 1.3),
                   ),
                 ],
               ],
@@ -290,12 +271,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     );
   }
 
-  Widget _inlineField(
-    TextEditingController ctrl,
-    String hint, {
-    double fontSize = 14,
-    bool bold = false,
-  }) {
+  Widget _inlineField(TextEditingController ctrl, String hint) {
     return AppInput(
       controller: ctrl,
       hint: hint,
@@ -377,10 +353,12 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                 isExpanded: true,
                 dropdownColor: _c.surfaceAlt,
                 icon: Icon(Icons.expand_more, color: _c.accent, size: 18),
-                style: TextStyle(fontSize: 14, color: _c.textPrimary),
+                style: context.theme.typography.sm.copyWith(
+                  color: context.theme.colors.foreground),
                 hint: Text(
                   'Select event',
-                  style: TextStyle(color: _c.textMuted, fontSize: 14),
+                  style: context.theme.typography.sm.copyWith(
+                    color: context.theme.colors.mutedForeground),
                 ),
                 items: _events
                     .map(
@@ -453,7 +431,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: _c.border,
+                    color: context.theme.colors.border,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -461,11 +439,10 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
               const SizedBox(height: 18),
               Text(
                 'ADD TAG',
-                style: TextStyle(
-                  fontSize: 12,
+                style: context.theme.typography.xs.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.8,
-                  color: _c.textPrimary,
+                  color: context.theme.colors.foreground,
                 ),
               ),
               const SizedBox(height: 14),
@@ -509,8 +486,8 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
         MediaQuery.of(context).padding.bottom + 14,
       ),
       decoration: BoxDecoration(
-        color: _c.navBackground,
-        border: Border(top: BorderSide(color: _c.border)),
+        color: context.theme.colors.background,
+        border: Border(top: BorderSide(color: context.theme.colors.border)),
       ),
       child: AppButton(
         label: _saved ? 'CONTACT SAVED' : 'SAVE CONTACT',
@@ -640,7 +617,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               child: ColoredBox(
-              color: _c.surface,
+              color: context.theme.colors.background,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -648,7 +625,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                   Container(
                     width: 40, height: 4,
                     decoration: BoxDecoration(
-                      color: _c.border,
+                      color: context.theme.colors.border,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),

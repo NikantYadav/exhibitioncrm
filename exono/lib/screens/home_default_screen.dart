@@ -8,6 +8,7 @@ import '../models/event.dart';
 import '../providers/auth_provider.dart';
 import '../providers/live_event_provider.dart';
 import '../providers/offline_provider.dart';
+import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -84,20 +85,17 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
   }
 
   Future<void> _loadUpcomingEvents() async {
-    try {
-      final all = await ApiService.getEvents();
-      if (!mounted) return;
-      final upcoming = all
-          .where((e) => e.status == 'upcoming')
-          .toList()
-        ..sort((a, b) => a.startDate.compareTo(b.startDate));
-      setState(() {
-        _upcomingEvents = upcoming.take(3).toList();
-        _eventsLoaded = true;
-      });
-    } on UnauthorizedException { rethrow; } catch (_) {
-      if (mounted) setState(() => _eventsLoaded = true);
-    }
+    final rows = await context.read<SyncProvider>().events.watchAll().first;
+    if (!mounted) return;
+    final all = rows.map(Event.fromDrift).toList();
+    final upcoming = all
+        .where((e) => e.status == 'upcoming')
+        .toList()
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+    setState(() {
+      _upcomingEvents = upcoming.take(3).toList();
+      _eventsLoaded = true;
+    });
   }
 
 
@@ -200,10 +198,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
 
   Widget _buildLiveHome(LiveEventProvider lep, String firstName) {
     final event = lep.liveEvent!;
-    final location = [event.venue, event.hall]
-        .whereType<String>()
-        .where((s) => s.isNotEmpty)
-        .join(' • ');
+    final location = event.location ?? '';
     final scanned = lep.scannedContacts.length;
     final targetsLeft = lep.targetContacts.where((t) => (t['status'] as String?) != 'met').length;
     final goalsLeft = lep.liveGoals.where((g) => (g['status'] as String?) != 'completed').length;
@@ -367,7 +362,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           const SizedBox(height: 6),
           Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, color: context.theme.colors.foreground, height: 1)),
           const SizedBox(height: 3),
-          Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, fontSize: 9, letterSpacing: 0.4, color: context.theme.colors.mutedForeground), textAlign: TextAlign.center, maxLines: 2),
+          Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.4, color: context.theme.colors.mutedForeground), textAlign: TextAlign.center, maxLines: 2),
         ],
       ),
     );
@@ -501,10 +496,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     final months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
     final month = months[event.startDate.month - 1];
     final day = event.startDate.day.toString();
-    final location = [event.venue, event.hall, event.location]
-        .whereType<String>()
-        .where((s) => s.isNotEmpty)
-        .firstOrNull ?? '';
+    final location = event.location ?? '';
 
     return GestureDetector(
       onTap: () => _openEvent(event),
@@ -558,14 +550,18 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
   }
 
   Widget _buildNoEventsCard() {
-    return AppCard(
-      padding: const EdgeInsets.all(20),
-      radius: 12,
-      child: Row(children: [
-        Icon(Icons.calendar_today_outlined, color: _c.accent, size: 20),
-        const SizedBox(width: 12),
-        Expanded(child: Text('No upcoming events. Add one in the Events tab.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4))),
-      ]),
+    return GestureDetector(
+      onTap: () => context.go('/events'),
+      child: AppCard(
+        padding: const EdgeInsets.all(20),
+        radius: 12,
+        child: Row(children: [
+          Icon(Icons.calendar_today_outlined, color: _c.accent, size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text('No upcoming events. Tap to add one.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4))),
+          Icon(Icons.chevron_right_rounded, size: 18, color: context.theme.colors.mutedForeground),
+        ]),
+      ),
     );
   }
 }

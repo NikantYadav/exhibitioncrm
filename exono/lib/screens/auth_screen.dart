@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
-import '../providers/theme_provider.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/entry_flow_components.dart';
 
@@ -195,143 +194,114 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   }
 
   Widget _themeToggle(ExonoColors colors) {
-    return Positioned(
+    return const Positioned(
       bottom: 16,
       right: 16,
-      child: Consumer<ThemeProvider>(
-        builder: (context, theme, _) => IconButton(
-          onPressed: () => theme.toggleTheme(),
-          tooltip: theme.isDarkMode ? 'Switch to day mode' : 'Switch to night mode',
-          icon: Icon(
-            theme.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-            size: 20,
-            color: colors.textSecondary,
-          ),
-          style: IconButton.styleFrom(
-            backgroundColor: colors.surface.withValues(alpha: 0.92),
-            side: BorderSide(color: colors.border),
-          ),
-        ),
-      ),
+      child: EntryThemeToggleButton(),
     );
   }
 
   Widget _buildCard(ExonoColors colors) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: colors.isDark ? 0.92 : 0.98),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: colors.isDark ? 0.32 : 0.08),
-            blurRadius: 40,
-            offset: const Offset(0, 16),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildCardHeader(colors),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!_isLogin) ...[
-                      _AuthField(
-                        controller: _nameController,
-                        label: 'Full name',
-                        hint: 'Alex Morgan',
-                        prefixIcon: Icons.person_outline_rounded,
-                        textInputAction: TextInputAction.next,
-                        textCapitalization: TextCapitalization.words,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Please enter your name';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                    ],
-                    _AuthField(
-                      controller: _emailController,
-                      label: 'Email',
-                      hint: 'you@example.com',
-                      prefixIcon: Icons.alternate_email_rounded,
-                      keyboardType: TextInputType.emailAddress,
+    return EntryPanel(
+      padding: EdgeInsets.zero,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildCardHeader(colors),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!_isLogin) ...[
+                    EntryTextField(
+                      controller: _nameController,
+                      label: 'Full name',
+                      hint: 'Alex Morgan',
+                      prefixIcon: Icons.person_outline_rounded,
                       textInputAction: TextInputAction.next,
+                      textCapitalization: TextCapitalization.words,
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Please enter your email';
-                        if (!v.contains('@')) return 'Please enter a valid email';
+                        if (v == null || v.trim().isEmpty) return 'Please enter your name';
                         return null;
                       },
                     ),
                     const SizedBox(height: 14),
-                    _AuthField(
-                      controller: _passwordController,
-                      label: 'Password',
-                      hint: _isLogin ? 'Enter your password' : 'Create a password',
-                      prefixIcon: Icons.lock_outline_rounded,
-                      obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _handleSubmit(),
-                      suffix: IconButton(
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                          color: colors.textMuted,
-                          size: 18,
-                        ),
-                        splashRadius: 18,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Please enter your password';
-                        if (v.length < 6) return 'Password must be at least 6 characters';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    _SubmitButton(
-                      label: _isLogin ? 'SIGN IN' : 'CREATE ACCOUNT',
-                      icon: _isLogin ? Icons.login_rounded : Icons.person_add_alt_rounded,
-                      loading: _isLoading,
-                      onPressed: _handleSubmit,
-                      colors: colors,
-                    ),
-                    const SizedBox(height: 18),
-                    Center(
-                      child: GestureDetector(
-                        onTap: () => _toggleMode(!_isLogin),
-                        child: RichText(
-                          text: TextSpan(
-                            style: TextStyle(fontSize: 13, color: colors.textMuted),
-                            children: [
-                              TextSpan(text: _isLogin ? "Don't have an account? " : 'Already have an account? '),
-                              TextSpan(
-                                text: _isLogin ? 'Create one' : 'Sign in',
-                                style: TextStyle(
-                                  color: colors.accent,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
-                ),
+                  EntryTextField(
+                    controller: _emailController,
+                    label: 'Email',
+                    hint: 'you@example.com',
+                    prefixIcon: Icons.alternate_email_rounded,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Please enter your email';
+                      if (!v.contains('@')) return 'Please enter a valid email';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  EntryTextField(
+                    controller: _passwordController,
+                    label: 'Password',
+                    hint: _isLogin ? 'Enter your password' : 'Create a password',
+                    prefixIcon: Icons.lock_outline_rounded,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _handleSubmit(),
+                    suffix: IconButton(
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        color: colors.textMuted,
+                        size: 18,
+                      ),
+                      splashRadius: 18,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Please enter your password';
+                      if (v.length < 6) return 'Password must be at least 6 characters';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  EntryPrimaryButton(
+                    label: _isLogin ? 'SIGN IN' : 'CREATE ACCOUNT',
+                    icon: _isLogin ? Icons.login_rounded : Icons.person_add_alt_rounded,
+                    loading: _isLoading,
+                    onPressed: _handleSubmit,
+                  ),
+                  const SizedBox(height: 18),
+                  Center(
+                    child: GestureDetector(
+                      onTap: () => _toggleMode(!_isLogin),
+                      child: RichText(
+                        text: TextSpan(
+                          style: context.theme.typography.sm.copyWith(color: colors.textMuted),
+                          children: [
+                            TextSpan(text: _isLogin ? "Don't have an account? " : 'Already have an account? '),
+                            TextSpan(
+                              text: _isLogin ? 'Create one' : 'Sign in',
+                              style: TextStyle(
+                                color: colors.accent,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -357,8 +327,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           const SizedBox(height: 16),
           Text(
             _isLogin ? 'Welcome back' : 'Create account',
-            style: TextStyle(
-              fontSize: 22,
+            style: context.theme.typography.xl.copyWith(
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
               color: colors.textPrimary,
@@ -370,8 +339,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
             _isLogin
                 ? 'Sign in to continue to your workspace'
                 : 'Get started — your workspace is waiting',
-            style: TextStyle(
-              fontSize: 13,
+            style: context.theme.typography.sm.copyWith(
               color: colors.textMuted,
               height: 1.4,
             ),
@@ -422,8 +390,7 @@ class _BrandPanel extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   'Exono',
-                  style: TextStyle(
-                    fontSize: 18,
+                  style: context.theme.typography.lg.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
                     color: colors.textPrimary,
@@ -432,9 +399,8 @@ class _BrandPanel extends StatelessWidget {
                 const Spacer(),
                 // headline
                 Text(
-                  'Close deals faster.\nStay ahead of the pipeline.',
-                  style: TextStyle(
-                    fontSize: 32,
+                  'Never lose a lead.\nNever miss a follow-up.',
+                  style: context.theme.typography.xl2.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: -1.0,
                     height: 1.2,
@@ -443,9 +409,8 @@ class _BrandPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'A modern CRM built for teams that move fast — track contacts, manage deals, and never miss a follow-up.',
-                  style: TextStyle(
-                    fontSize: 14,
+                  'Capture leads on the expo floor, remember every interaction, and follow up before the conversation goes cold.',
+                  style: context.theme.typography.sm.copyWith(
                     height: 1.6,
                     color: colors.textSecondary,
                   ),
@@ -473,15 +438,14 @@ class _BrandPanel extends StatelessWidget {
                           children: [
                             Text(
                               f.$2,
-                              style: TextStyle(
-                                fontSize: 13,
+                              style: context.theme.typography.sm.copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: colors.textPrimary,
                               ),
                             ),
                             Text(
                               f.$3,
-                              style: TextStyle(fontSize: 12, color: colors.textMuted, height: 1.4),
+                              style: context.theme.typography.xs.copyWith(color: colors.textMuted, height: 1.4),
                             ),
                           ],
                         ),
@@ -504,9 +468,8 @@ class _BrandPanel extends StatelessWidget {
                       Icon(Icons.verified_rounded, size: 14, color: colors.accentStrong),
                       const SizedBox(width: 8),
                       Text(
-                        'Trusted by sales teams to close more deals',
-                        style: TextStyle(
-                          fontSize: 12,
+                        'Trusted by teams working the exhibition floor',
+                        style: context.theme.typography.xs.copyWith(
                           fontWeight: FontWeight.w500,
                           color: colors.textSecondary,
                         ),
@@ -523,8 +486,8 @@ class _BrandPanel extends StatelessWidget {
   }
 
   static const _features = [
-    (Icons.contacts_rounded, 'Contact management', 'All your leads and clients in one place'),
-    (Icons.trending_up_rounded, 'Pipeline tracking', 'Visualise every deal stage at a glance'),
+    (Icons.qr_code_scanner_rounded, 'Instant capture', 'Scan badges and business cards in seconds'),
+    (Icons.psychology_outlined, 'Relationship memory', 'Every interaction remembered, automatically'),
     (Icons.notifications_active_rounded, 'Smart follow-ups', 'Never let a hot lead go cold'),
   ];
 }
@@ -550,149 +513,3 @@ class _DotGridPainter extends CustomPainter {
   bool shouldRepaint(covariant _DotGridPainter old) => old.colors != colors;
 }
 
-class _AuthField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final String hint;
-  final IconData prefixIcon;
-  final String? Function(String?)? validator;
-  final TextInputType? keyboardType;
-  final TextInputAction? textInputAction;
-  final TextCapitalization textCapitalization;
-  final bool obscureText;
-  final Widget? suffix;
-  final ValueChanged<String>? onSubmitted;
-
-  const _AuthField({
-    required this.controller,
-    required this.label,
-    required this.hint,
-    required this.prefixIcon,
-    this.validator,
-    this.keyboardType,
-    this.textInputAction,
-    this.textCapitalization = TextCapitalization.none,
-    this.obscureText = false,
-    this.suffix,
-    this.onSubmitted,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppTheme.colorsOf(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-            color: colors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          validator: validator,
-          keyboardType: keyboardType,
-          textInputAction: textInputAction,
-          textCapitalization: textCapitalization,
-          obscureText: obscureText,
-          onFieldSubmitted: onSubmitted,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: colors.textPrimary,
-          ),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: colors.textMuted, fontSize: 14),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(prefixIcon, color: colors.accent, size: 18),
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 40),
-            suffixIcon: suffix,
-            fillColor: colors.surfaceAlt,
-            filled: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: colors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: colors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: colors.accent, width: 1.5),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: colors.destructive),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: colors.destructive, width: 1.5),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SubmitButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool loading;
-  final VoidCallback onPressed;
-  final ExonoColors colors;
-
-  const _SubmitButton({
-    required this.label,
-    required this.icon,
-    required this.loading,
-    required this.onPressed,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      width: double.infinity,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [colors.accent, colors.accentStrong]),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: colors.accent.withValues(alpha: 0.35),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: FButton(
-          variant: FButtonVariant.primary,
-          onPress: loading ? null : onPressed,
-          prefix: loading
-              ? const SizedBox(width: 16, height: 16, child: FCircularProgress())
-              : Icon(icon, size: 16),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

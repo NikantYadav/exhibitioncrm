@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import 'package:provider/provider.dart';
 import '../widgets/app_feedback.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
@@ -11,7 +12,10 @@ import 'package:path_provider/path_provider.dart';
 
 import '../config/app_theme.dart';
 import '../models/contact.dart';
+import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/app_avatar.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
@@ -95,13 +99,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
   Future<void> _startRecording() async {
     final status = await Permission.microphone.request();
     if (status != PermissionStatus.granted) {
-      if (mounted) {
-        showFToast(
-          context: context,
-          title: const Text('Microphone permission required'),
-          variant: FToastVariant.destructive,
-        );
-      }
+      if (mounted) showAppToast(context, 'Microphone permission required');
       return;
     }
 
@@ -165,11 +163,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _isSaving = false);
-        showFToast(
-          context: context,
-          title: const Text('Failed to save. Please try again.'),
-          variant: FToastVariant.destructive,
-        );
+        showAppToast(context, 'Failed to save. Please try again.');
       }
     }
   }
@@ -190,11 +184,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
   Future<void> _saveInteraction() async {
     final notes = _notesController.text.trim();
     if (notes.isEmpty) {
-      showFToast(
-        context: context,
-        title: const Text('Please add some notes'),
-        variant: FToastVariant.destructive,
-      );
+      showAppToast(context, 'Please add some notes');
       return;
     }
 
@@ -216,11 +206,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _isSaving = false);
-        showFToast(
-          context: context,
-          title: const Text('Failed to save. Please try again.'),
-          variant: FToastVariant.destructive,
-        );
+        showAppToast(context, 'Failed to save. Please try again.');
       }
     }
   }
@@ -258,7 +244,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
     if (_contacts == null) {
       setState(() => _loadingContacts = true);
       try {
-        _contacts = await ApiService.getContacts();
+        _contacts = await context.read<SyncProvider>().contacts.watchAllWithCompany().first;
       } catch (_) {
         _contacts = [];
       }
@@ -408,23 +394,15 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                     _loadingContacts
                         ? 'Loading...'
                         : (_pickedContactName ?? 'Select a contact...'),
-                    style: TextStyle(
-                      fontSize: 14,
+                    style: context.theme.typography.sm.copyWith(
                       color: _pickedContactName != null
-                          ? _c.textPrimary
-                          : _c.textMuted,
+                          ? context.theme.colors.foreground
+                          : context.theme.colors.mutedForeground,
                     ),
                   ),
                 ),
                 _loadingContacts
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: _c.accent,
-                        ),
-                      )
+                    ? const SizedBox(width: 16, height: 16, child: FCircularProgress())
                     : Icon(Icons.person_search_outlined, size: 16, color: _c.accent),
               ],
             ),
@@ -453,7 +431,8 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                 Expanded(
                   child: Text(
                     _formatDate(_selectedDate),
-                    style: TextStyle(fontSize: 14, color: _c.textSecondary),
+                    style: context.theme.typography.sm.copyWith(
+                      color: context.theme.colors.foreground),
                   ),
                 ),
                 Icon(Icons.calendar_today_outlined, size: 16, color: _c.accent),
@@ -502,7 +481,8 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                 Expanded(
                   child: Text(
                     _formatDate(_selectedDate),
-                    style: TextStyle(fontSize: 14, color: _c.textSecondary),
+                    style: context.theme.typography.sm.copyWith(
+                      color: context.theme.colors.foreground),
                   ),
                 ),
                 Icon(Icons.calendar_today_outlined, size: 16, color: _c.accent),
@@ -530,13 +510,15 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                                 const SizedBox(width: 8),
                                 Text(
                                   'Recording ready  (${_formatDuration(_recDuration)})',
-                                  style: TextStyle(fontSize: 13, color: _c.textSecondary),
+                                  style: context.theme.typography.sm.copyWith(
+                                    color: context.theme.colors.foreground),
                                 ),
                               ],
                             )
                           : Text(
                               'Tap to start recording',
-                              style: TextStyle(fontSize: 13, color: _c.textMuted),
+                              style: context.theme.typography.sm.copyWith(
+                                color: context.theme.colors.mutedForeground),
                             ),
                 ),
                 const SizedBox(height: 20),
@@ -544,11 +526,10 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                 if (_isRecording) ...[
                   Text(
                     _formatDuration(_recDuration),
-                    style: TextStyle(
-                      fontSize: 28,
+                    style: context.theme.typography.xl2.copyWith(
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.5,
-                      color: _c.textPrimary,
+                      color: context.theme.colors.foreground,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -579,7 +560,9 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                     },
                     child: Text(
                       'Record again',
-                      style: TextStyle(fontSize: 12, color: _c.textMuted, decoration: TextDecoration.underline),
+                      style: context.theme.typography.xs.copyWith(
+                        color: context.theme.colors.mutedForeground,
+                        decoration: TextDecoration.underline),
                     ),
                   ),
                 ],
@@ -592,12 +575,13 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(
             children: [
-              Icon(Icons.info_outline, size: 13, color: _c.textMuted),
+              Icon(Icons.info_outline, size: 13, color: context.theme.colors.mutedForeground),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   'Voice note is saved instantly. Transcript is generated in background.',
-                  style: TextStyle(fontSize: 12, color: _c.textMuted, height: 1.4),
+                  style: context.theme.typography.xs.copyWith(
+                    color: context.theme.colors.mutedForeground, height: 1.4),
                 ),
               ),
             ],
@@ -643,24 +627,13 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: FButton(
-          variant: FButtonVariant.primary,
-          onPress: canSave ? (_isVoiceMode ? _saveVoiceNote : _saveInteraction) : null,
-          child: _isSaving
-              ? const FCircularProgress()
-              : Text(
-                  _isVoiceMode ? 'SAVE VOICE NOTE' : 'SAVE TO TIMELINE',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                    color: Colors.white,
-                  ),
-                ),
-        ),
+      child: AppButton(
+        label: _isVoiceMode ? 'SAVE VOICE NOTE' : 'SAVE TO TIMELINE',
+        onPressed: canSave ? (_isVoiceMode ? _saveVoiceNote : _saveInteraction) : null,
+        variant: ButtonVariant.primary,
+        fullWidth: true,
+        isLoading: _isSaving,
+        size: ButtonSize.lg,
       ),
     );
   }
@@ -688,7 +661,6 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final c = AppTheme.colorsOf(context);
     final filtered = _query.isEmpty
         ? widget.contacts
         : widget.contacts
@@ -748,31 +720,18 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                       itemCount: filtered.length,
                       itemBuilder: (ctx, i) {
                         final contact = filtered[i];
+                        final initials = contact.firstName.isNotEmpty
+                            ? (contact.firstName[0] +
+                                    (contact.lastName?.isNotEmpty == true ? contact.lastName![0] : ''))
+                                .toUpperCase()
+                            : '?';
                         return GestureDetector(
                           onTap: () => Navigator.of(context).pop(contact),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             child: Row(
                               children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: c.accent.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    contact.firstName.isNotEmpty
-                                        ? contact.firstName[0].toUpperCase()
-                                        : '?',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: c.accent,
-                                    ),
-                                  ),
-                                ),
+                                AppAvatar(initials: initials, size: 36),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(

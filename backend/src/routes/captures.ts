@@ -27,7 +27,8 @@ router.get('/', async (req, res, next) => {
     let query = supabase
       .from('captures')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .is('deleted_at', null);
 
     if (event_id) {
       query = query.eq('event_id', event_id);
@@ -75,6 +76,7 @@ router.post('/', async (req, res, next) => {
         .select()
         .eq('client_op_id', idempotencyKey)
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .maybeSingle();
       if (existing) {
         return res.json({ data: existing });
@@ -121,6 +123,7 @@ router.post('/', async (req, res, next) => {
           .from('events')
           .select('name')
           .eq('id', event_id)
+          .is('deleted_at', null)
           .single();
         if (eventData) eventName = eventData.name;
       }
@@ -197,7 +200,8 @@ router.post('/', async (req, res, next) => {
               note: raw_text?.trim() || null,
               event_name: eventName,
               image_url: image
-            }
+            },
+            user_id: userId,
           });
 
         // Link to target companies
@@ -207,6 +211,7 @@ router.post('/', async (req, res, next) => {
             .select('id')
             .eq('event_id', event_id)
             .eq('company_id', companyId)
+            .is('deleted_at', null)
             .single();
 
           if (targetMatch) {
@@ -246,7 +251,7 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const { error } = await supabase
       .from('captures')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', req.params.id)
       .eq('user_id', req.user!.id);
 

@@ -3,11 +3,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
+import 'package:provider/provider.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_input.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
+import '../providers/sync_provider.dart';
+import '../repositories/contact_events_repository.dart';
 import '../services/api_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -56,10 +59,11 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   String get _eventId => widget.event?.id ?? widget.eventId ?? '';
 
   // Data
-  List<Map<String, dynamic>> _followUps = [];
+  List<FollowUpRow> _followUps = [];
   Map<String, dynamic>? _stats;
-  bool _isLoading = true;
-  bool _hasError = false;
+
+  late final ContactEventsRepository _contactEventsRepo;
+  late final SyncProvider _sync;
 
   // Filter
   static const List<String> _filterOptions = ['All', 'Pending', 'Done', 'Skipped'];
@@ -71,16 +75,19 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   late final TextEditingController _subjectCtrl;
   late final TextEditingController _bodyCtrl;
 
-  // Sent/skipped sets — seeded from DB follow_up_status on load, then updated optimistically
-  final Set<String> _sentIds = {};
-  final Set<String> _skippedIds = {};
-
   @override
   void initState() {
     super.initState();
     _subjectCtrl = TextEditingController();
     _bodyCtrl = TextEditingController();
-    _loadAll();
+    _loadStats();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync = context.read<SyncProvider>();
+    _contactEventsRepo = _sync.contactEvents;
   }
 
   @override
@@ -91,79 +98,35 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // Data loading
+  // Data loading — only the lightweight aggregate-count summary still hits
+  // the API directly; the follow-up list itself streams from drift.
   // ---------------------------------------------------------------------------
 
-  Future<void> _loadAll() async {
-    if (_eventId.isEmpty) {
-      setState(() => _isLoading = false);
-      return;
-    }
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-    });
+  Future<void> _loadStats() async {
+    if (_eventId.isEmpty) return;
     try {
-      final results = await Future.wait([
-        ApiService.getEventFollowUps(_eventId),
-        ApiService.getEventStats(_eventId),
-      ]);
-      if (!mounted) return;
-      final followUps = results[0] as List<Map<String, dynamic>>;
-      // Seed sent/skipped from actual DB status so counts survive navigation
-      final seededSent = <String>{};
-      final seededSkipped = <String>{};
-      for (final fu in followUps) {
-        final contact = fu['contact'] as Map<String, dynamic>?;
-        if (contact == null) continue; // unmet targets start as pending
-        final id = contact['id'] as String? ?? '';
-        final status = contact['follow_up_status'] as String? ?? '';
-        if (id.isEmpty) continue;
-        if (status == 'contacted') seededSent.add(id);
-        if (status == 'needs_follow_up') seededSkipped.add(id);
-      }
-      setState(() {
-        _followUps = followUps;
-        _stats = results[1] as Map<String, dynamic>;
-        _sentIds
-          ..clear()
-          ..addAll(seededSent);
-        _skippedIds
-          ..clear()
-          ..addAll(seededSkipped);
-        _isLoading = false;
-      });
-    } on UnauthorizedException { rethrow; } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _hasError = true;
-      });
-    }
+      final stats = await ApiService.getEventStats(_eventId);
+      if (mounted) setState(() => _stats = stats);
+    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   // ---------------------------------------------------------------------------
   // Derived helpers
   // ---------------------------------------------------------------------------
 
-  // A stable unique key per follow-up entry (contact id for scanned, target_id for unmet targets)
-  String _fuKey(Map<String, dynamic> fu) {
-    final contact = fu['contact'] as Map<String, dynamic>?;
-    if (contact != null) return contact['id'] as String? ?? '';
-    return fu['target_id'] as String? ?? '';
-  }
+  bool _isSent(FollowUpRow fu) => fu.followUpStatus == 'contacted';
+  bool _isSkipped(FollowUpRow fu) => fu.followUpStatus == 'needs_follow_up';
 
-  List<Map<String, dynamic>> get _filteredFollowUps {
+  List<FollowUpRow> get _filteredFollowUps {
     return _followUps.where((fu) {
-      final key = _fuKey(fu);
-      final sent = _sentIds.contains(key);
+      final sent = _isSent(fu);
       switch (_activeFilter) {
         case 'Pending':
-          return !sent && !_skippedIds.contains(key);
+          return !sent && !_isSkipped(fu);
         case 'Done':
           return sent;
         case 'Skipped':
-          return _skippedIds.contains(key) && !sent;
+          return _isSkipped(fu) && !sent;
         default:
           return true;
       }
@@ -171,80 +134,47 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   }
 
   int get _totalContacts => _followUps.length;
-  int get _sentCount => _sentIds.length;
-  int get _pendingCount => _followUps
-      .where((fu) {
-        final key = _fuKey(fu);
-        return !_sentIds.contains(key) && !_skippedIds.contains(key);
-      })
-      .length;
+  int get _sentCount => _followUps.where(_isSent).length;
+  int get _pendingCount => _followUps.where((fu) => !_isSent(fu) && !_isSkipped(fu)).length;
   double get _completionRate =>
       _totalContacts == 0 ? 0 : _sentCount / _totalContacts;
 
-  String _initials(Map<String, dynamic> fu) {
-    final contact = fu['contact'] as Map<String, dynamic>?;
-    if (contact != null) {
-      final f = (contact['first_name'] as String? ?? '');
-      final l = (contact['last_name'] as String? ?? '');
-      return '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}'.toUpperCase();
-    }
-    // Target — use company name initials
-    final company = fu['company'] as Map<String, dynamic>?;
-    final name = company?['name'] as String? ?? '';
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  String _initials(FollowUpRow fu) {
+    final f = fu.firstName;
+    final l = fu.lastName ?? '';
+    return '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}'.toUpperCase();
   }
 
-  String _fullName(Map<String, dynamic> fu) {
-    final contact = fu['contact'] as Map<String, dynamic>?;
-    if (contact != null) {
-      final f = contact['first_name'] as String? ?? '';
-      final l = contact['last_name'] as String? ?? '';
-      return '$f $l'.trim();
-    }
-    final company = fu['company'] as Map<String, dynamic>?;
-    return company?['name'] as String? ?? 'Unknown Company';
-  }
+  String _fullName(FollowUpRow fu) => '${fu.firstName} ${fu.lastName ?? ''}'.trim();
 
-  String _roleCompany(Map<String, dynamic> fu) {
-    final contact = fu['contact'] as Map<String, dynamic>?;
-    final company = fu['company'] as Map<String, dynamic>?;
-    if (contact == null) {
-      // Target entry — show industry or generic label
-      final industry = company?['industry'] as String? ?? '';
-      return industry.isNotEmpty ? 'Target Company · $industry' : 'Target Company';
-    }
-    final role = contact['job_title'] as String? ?? 'Contact';
-    final companyName = company?['name'] as String? ?? '';
+  String _roleCompany(FollowUpRow fu) {
+    final role = fu.jobTitle?.isNotEmpty == true ? fu.jobTitle! : 'Contact';
+    final companyName = fu.companyName ?? '';
     return companyName.isNotEmpty ? '$role · $companyName' : role;
   }
 
-  String _draftSubject(Map<String, dynamic> fu) {
-    final draft = fu['email_draft'] as Map<String, dynamic>? ?? {};
-    final saved = draft['subject'] as String?;
+  String _draftSubject(FollowUpRow fu) {
+    final saved = fu.draftSubject;
     if (saved != null && saved.isNotEmpty) return saved;
-    final contact = fu['contact'] as Map<String, dynamic>? ?? {};
-    final company = fu['company'] as Map<String, dynamic>?;
-    final firstName = contact['first_name'] as String? ?? '';
-    final companyName = company?['name'] as String? ?? '';
+    final companyName = fu.companyName ?? '';
     return companyName.isNotEmpty
-        ? 'Following up — $firstName from $companyName'
-        : 'Following up from our meeting, $firstName';
+        ? 'Following up — ${fu.firstName} from $companyName'
+        : 'Following up from our meeting, ${fu.firstName}';
   }
 
-  String _savedDraftBody(Map<String, dynamic> fu) {
-    final draft = fu['email_draft'] as Map<String, dynamic>? ?? {};
-    return draft['body'] as String? ?? '';
-  }
+  String _savedDraftBody(FollowUpRow fu) => fu.draftBody ?? '';
 
   // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
 
-  Future<void> _expandComposer(Map<String, dynamic> fu) async {
-    final contact = fu['contact'] as Map<String, dynamic>? ?? {};
-    final contactId = contact['id'] as String? ?? '';
+  Future<void> _afterFollowUpWrite() async {
+    await _sync.contacts.catchUp();
+    await _sync.emailDrafts.catchUp();
+  }
+
+  Future<void> _expandComposer(FollowUpRow fu) async {
+    final contactId = fu.contactId;
     if (_expandedContactId == contactId) {
       setState(() => _expandedContactId = null);
       return;
@@ -264,14 +194,6 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
         if (mounted && _expandedContactId == contactId) {
           final subject = draft['subject'] ?? '';
           final body = draft['body'] ?? '';
-          // Cache in local list so reopening skips the API call
-          final idx = _followUps.indexWhere((f) => _fuKey(f) == contactId);
-          if (idx != -1) {
-            _followUps[idx] = {
-              ..._followUps[idx],
-              'email_draft': {'subject': subject, 'body': body},
-            };
-          }
           setState(() {
             if (subject.isNotEmpty) _subjectCtrl.text = subject;
             _bodyCtrl.text = body;
@@ -284,14 +206,12 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
     }
   }
 
-  Future<void> _showFollowedUpDialog(Map<String, dynamic> fu) async {
-    final contact = fu['contact'] as Map<String, dynamic>?;
-    final contactId = contact?['id'] as String?;
-    if (contactId == null || contactId.isEmpty) {
+  Future<void> _showFollowedUpDialog(FollowUpRow fu) async {
+    final contactId = fu.contactId;
+    if (contactId.isEmpty) {
       _snack('Cannot log follow-up for a target company without a contact.');
       return;
     }
-    final key = _fuKey(fu);
     final noteCtrl = TextEditingController();
     final channelCtrl = TextEditingController(text: 'Email');
     await showAppSheet<void>(
@@ -302,20 +222,17 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
           name: _fullName(fu),
           noteCtrl: noteCtrl,
           channelCtrl: channelCtrl,
-          colors: _c,
           onSubmit: (note, channel) async {
             Navigator.of(ctx).pop();
-            setState(() {
-              _sentIds.add(key);
-              _expandedContactId = null;
-            });
+            setState(() => _expandedContactId = null);
             _snack('Follow-up logged.');
-            ApiService.markFollowUpSent(
+            await ApiService.markFollowUpSent(
               _eventId,
               contactId,
               subject: _subjectCtrl.text.isNotEmpty ? _subjectCtrl.text : null,
               body: _bodyCtrl.text.isNotEmpty ? _bodyCtrl.text : null,
             ).catchError((_) {});
+            await _afterFollowUpWrite();
             ApiService.logInteraction(
               contactId: contactId,
               eventId: _eventId.isNotEmpty ? _eventId : null,
@@ -334,42 +251,34 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   }
 
   Future<void> _markSent(String contactId) async {
-    // Optimistic update immediately
-    setState(() {
-      _sentIds.add(contactId);
-      _expandedContactId = null;
-    });
+    setState(() => _expandedContactId = null);
     _snack('Follow-up sent.');
-    // Persist to backend (fire-and-forget — optimistic already updated UI)
     if (_eventId.isNotEmpty) {
-      ApiService.markFollowUpSent(
+      await ApiService.markFollowUpSent(
         _eventId,
         contactId,
         subject: _subjectCtrl.text.isNotEmpty ? _subjectCtrl.text : null,
         body: _bodyCtrl.text.isNotEmpty ? _bodyCtrl.text : null,
       ).catchError((_) {});
+      await _afterFollowUpWrite();
     }
   }
 
   Future<void> _markSkipped(String contactId) async {
-    setState(() {
-      _skippedIds.add(contactId);
-      _expandedContactId = null;
-    });
+    setState(() => _expandedContactId = null);
     _snack('Contact skipped for now.');
     if (_eventId.isNotEmpty) {
-      ApiService.skipFollowUp(_eventId, contactId).catchError((_) {});
+      await ApiService.skipFollowUp(_eventId, contactId).catchError((_) {});
+      await _afterFollowUpWrite();
     }
   }
 
   Future<void> _unskip(String contactId) async {
-    setState(() {
-      _skippedIds.remove(contactId);
-      _expandedContactId = null;
-    });
+    setState(() => _expandedContactId = null);
     _snack('Moved back to pending.');
     if (_eventId.isNotEmpty) {
-      ApiService.unskipFollowUp(_eventId, contactId).catchError((_) {});
+      await ApiService.unskipFollowUp(_eventId, contactId).catchError((_) {});
+      await _afterFollowUpWrite();
     }
   }
 
@@ -392,16 +301,18 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
             _TopBar(
               eventName: widget.event?.name,
               onBack: () => Navigator.of(context).pop(),
-              onNotification: () => _snack('Notifications are UI-only for now.'),
             ),
             Expanded(
-              child: _isLoading
-                  ? _buildSkeleton()
-                  : _hasError
-                      ? _buildErrorState()
-                      : _followUps.isEmpty
-                          ? _buildEmptyState()
-                          : _buildBody(),
+              child: _eventId.isEmpty
+                  ? _buildEmptyState()
+                  : StreamBuilder<List<FollowUpRow>>(
+                      stream: _contactEventsRepo.watchFollowUps(_eventId),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) return _buildSkeleton();
+                        _followUps = snapshot.data!;
+                        return _followUps.isEmpty ? _buildEmptyState() : _buildBody();
+                      },
+                    ),
             ),
           ],
         ),
@@ -439,11 +350,10 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                     Expanded(
                       child: Text(
                         'Follow-Up Queue',
-                        style: TextStyle(
-                          fontSize: 20,
+                        style: context.theme.typography.xl.copyWith(
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.3,
-                          color: _c.textPrimary,
+                          color: context.theme.colors.foreground,
                         ),
                       ),
                     ),
@@ -468,7 +378,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                 padding: const EdgeInsets.all(48),
                 child: Text(
                   'No contacts match this filter.',
-                  style: TextStyle(color: _c.textMuted, fontSize: 14),
+                  style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -479,7 +389,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
             delegate: SliverChildBuilderDelegate(
               (ctx, i) {
                 final fu = _filteredFollowUps[i];
-                final key = _fuKey(fu);
+                final key = fu.contactId;
                 final isLast = i == _filteredFollowUps.length - 1;
                 return Padding(
                   padding: EdgeInsets.fromLTRB(16, 0, 16, isLast ? 32 : 12),
@@ -489,8 +399,8 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                     colors: _c,
                     isExpanded: _expandedContactId == key,
                     isDraftLoading: _isDraftLoading && _expandedContactId == key,
-                    isSent: _sentIds.contains(key),
-                    isSkipped: _skippedIds.contains(key),
+                    isSent: _isSent(fu),
+                    isSkipped: _isSkipped(fu),
                     subjectCtrl: _expandedContactId == key ? _subjectCtrl : null,
                     bodyCtrl: _expandedContactId == key ? _bodyCtrl : null,
                     onExpand: () => _expandComposer(fu),
@@ -536,11 +446,10 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
           const SizedBox(height: 16),
           Text(
             eventName,
-            style: TextStyle(
-              fontSize: 26,
+            style: context.theme.typography.xl2.copyWith(
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
-              color: _c.textPrimary,
+              color: context.theme.colors.foreground,
               height: 1.15,
             ),
           ),
@@ -553,10 +462,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                 Expanded(
                   child: Text(
                     location,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: _c.textMuted,
-                    ),
+                    style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
                   ),
                 ),
               ],
@@ -574,8 +480,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                   ),
                   Text(
                     '${(_completionRate * 100).round()}%',
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: context.theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w700,
                       color: _completionRate == 1 ? _c.success : _c.accent,
                     ),
@@ -655,16 +560,12 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
             const SizedBox(height: 20),
             Text(
               'All caught up!',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: _c.textPrimary,
-              ),
+              style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground),
             ),
             const SizedBox(height: 8),
             Text(
               'No follow-ups are pending for this event.',
-              style: TextStyle(fontSize: 14, color: _c.textMuted, height: 1.5),
+              style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5),
               textAlign: TextAlign.center,
             ),
           ],
@@ -673,29 +574,6 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
     );
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline_rounded, size: 42, color: _c.destructive),
-            const SizedBox(height: 16),
-            Text(
-              'Could not load follow-ups.',
-              style: TextStyle(fontSize: 16, color: _c.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            AppButton(
-              label: 'Retry',
-              onPressed: _loadAll,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   // ---------------------------------------------------------------------------
   // Skeleton
@@ -765,14 +643,9 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   }
 
   Widget _skeletonCard({required Widget child, double radius = 20}) {
-    return Container(
-      width: double.infinity,
+    return AppCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _c.surface,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: _c.border),
-      ),
+      radius: radius,
       child: child,
     );
   }
@@ -793,7 +666,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
 // ===========================================================================
 
 class _ContactFollowUpCard extends StatelessWidget {
-  final Map<String, dynamic> fu;
+  final FollowUpRow fu;
   final String contactId;
   final ExonoColors colors;
   final bool isExpanded;
@@ -860,10 +733,9 @@ class _ContactFollowUpCard extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 fullName,
-                                style: TextStyle(
-                                  fontSize: 16,
+                                style: context.theme.typography.lg.copyWith(
                                   fontWeight: FontWeight.w600,
-                                  color: _c.textPrimary,
+                                  color: context.theme.colors.foreground,
                                   letterSpacing: -0.2,
                                 ),
                               ),
@@ -873,17 +745,14 @@ class _ContactFollowUpCard extends StatelessWidget {
                               AppChip.status('FOLLOWED UP', color: _c.success),
                             ] else if (isSkipped) ...[
                               const SizedBox(width: 8),
-                              AppChip.status('SKIPPED', color: _c.textMuted),
+                              AppChip.status('SKIPPED', color: context.theme.colors.mutedForeground),
                             ],
                           ],
                         ),
                         const SizedBox(height: 3),
                         Text(
                           roleCompany,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _c.textMuted,
-                          ),
+                          style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -965,11 +834,10 @@ class _ContactFollowUpCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(
                   'OR SEND EMAIL',
-                  style: TextStyle(
-                      fontSize: 10,
+                  style: context.theme.typography.xs.copyWith(
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.4,
-                      color: _c.textMuted),
+                      color: context.theme.colors.mutedForeground),
                 ),
               ),
               Expanded(child: FDivider(style: FDividerStyleDelta.delta(color: context.theme.colors.border, padding: EdgeInsetsGeometryDelta.value(EdgeInsets.zero)))),
@@ -991,7 +859,7 @@ class _ContactFollowUpCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: _c.surfaceAlt.withValues(alpha: 0.4),
                     border: Border(
-                      bottom: BorderSide(color: _c.border.withValues(alpha: 0.35)),
+                      bottom: BorderSide(color: context.theme.colors.border.withValues(alpha: 0.35)),
                     ),
                   ),
                   child: Column(
@@ -999,11 +867,10 @@ class _ContactFollowUpCard extends StatelessWidget {
                     children: [
                       Text(
                         'SUBJECT',
-                        style: TextStyle(
-                          fontSize: 10,
+                        style: context.theme.typography.xs.copyWith(
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1.6,
-                          color: _c.textMuted,
+                          color: context.theme.colors.mutedForeground,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1023,11 +890,10 @@ class _ContactFollowUpCard extends StatelessWidget {
                         children: [
                           Text(
                             'MESSAGE',
-                            style: TextStyle(
-                              fontSize: 10,
+                            style: context.theme.typography.xs.copyWith(
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.6,
-                              color: _c.textMuted,
+                              color: context.theme.colors.mutedForeground,
                             ),
                           ),
                           if (isDraftLoading) ...[
@@ -1040,8 +906,7 @@ class _ContactFollowUpCard extends StatelessWidget {
                             const SizedBox(width: 6),
                             Text(
                               'Generating AI draft…',
-                              style: TextStyle(
-                                fontSize: 10,
+                              style: context.theme.typography.xs.copyWith(
                                 color: _c.accent,
                                 letterSpacing: 0.2,
                               ),
@@ -1104,25 +969,23 @@ class _ContactFollowUpCard extends StatelessWidget {
 class _TopBar extends StatelessWidget {
   final String? eventName;
   final VoidCallback onBack;
-  final VoidCallback onNotification;
 
   const _TopBar({
     required this.eventName,
     required this.onBack,
-    required this.onNotification,
   });
 
   @override
   Widget build(BuildContext context) {
-    final _c = AppTheme.colorsOf(context);
+    final c = AppTheme.colorsOf(context);
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: Container(
           height: 56,
           decoration: BoxDecoration(
-            color: _c.surface.withValues(alpha: 0.94),
-            border: Border(bottom: BorderSide(color: _c.border, width: 1)),
+            color: c.surface.withValues(alpha: 0.94),
+            border: Border(bottom: BorderSide(color: context.theme.colors.border, width: 1)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(
@@ -1131,7 +994,7 @@ class _TopBar extends StatelessWidget {
                 onPressed: onBack,
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.sm,
-                child: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
+                child: Icon(Icons.arrow_back_rounded, color: c.accent, size: 22),
               ),
               Expanded(
                 child: Column(
@@ -1140,22 +1003,20 @@ class _TopBar extends StatelessWidget {
                   children: [
                     Text(
                       'FOLLOW-UP QUEUE',
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: context.theme.typography.xs.copyWith(
                         fontWeight: FontWeight.w700,
                         letterSpacing: 2.2,
-                        color: _c.textMuted,
+                        color: context.theme.colors.mutedForeground,
                       ),
                     ),
                     if (eventName != null) ...[
                       const SizedBox(height: 2),
                       Text(
                         eventName!,
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: context.theme.typography.sm.copyWith(
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
-                          color: _c.textPrimary,
+                          color: context.theme.colors.foreground,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1164,12 +1025,7 @@ class _TopBar extends StatelessWidget {
                   ],
                 ),
               ),
-              AppButton(
-                onPressed: onNotification,
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.sm,
-                child: Icon(Icons.notifications_none_rounded, color: _c.accent, size: 22),
-              ),
+              const SizedBox(width: 44),
             ],
           ),
         ),
@@ -1195,7 +1051,7 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final _c = colors;
+    final c = colors;
     return AppCard(
       padding: const EdgeInsets.all(16),
       radius: 16,
@@ -1206,28 +1062,26 @@ class _StatTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-              color: _c.accentSoft,
+              color: c.accentSoft,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: 16, color: _c.accent),
+            child: Icon(icon, size: 16, color: c.accent),
           ),
           const SizedBox(height: 10),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 22,
+            style: context.theme.typography.xl.copyWith(
               fontWeight: FontWeight.w700,
-              color: valueColor ?? _c.textPrimary,
+              color: valueColor ?? context.theme.colors.foreground,
               letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 3),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
+            style: context.theme.typography.xs.copyWith(
               fontWeight: FontWeight.w500,
-              color: _c.textMuted,
+              color: context.theme.colors.mutedForeground,
               letterSpacing: 0.3,
             ),
           ),
@@ -1255,8 +1109,7 @@ class _CountBadge extends StatelessWidget {
       ),
       child: Text(
         '$count pending',
-        style: TextStyle(
-          fontSize: 11,
+        style: context.theme.typography.xs.copyWith(
           fontWeight: FontWeight.w700,
           color: colors.accent,
           letterSpacing: 0.2,
@@ -1306,21 +1159,21 @@ class _AnimatedProgressBarState extends State<_AnimatedProgressBar>
 
   @override
   Widget build(BuildContext context) {
-    final _c = widget.colors;
+    final c = widget.colors;
     final isComplete = widget.value >= 1.0;
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
       child: Container(
         height: 6,
-        color: _c.surfaceElevated,
+        color: c.surfaceElevated,
         child: AnimatedBuilder(
           animation: _anim,
-          builder: (_, _x) => FractionallySizedBox(
+          builder: (_, _) => FractionallySizedBox(
             alignment: Alignment.centerLeft,
             widthFactor: (_anim.value * widget.value).clamp(0.0, 1.0),
             child: Container(
               decoration: BoxDecoration(
-                color: isComplete ? _c.success : _c.accent,
+                color: isComplete ? c.success : c.accent,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -1339,83 +1192,75 @@ class _FollowedUpSheet extends StatelessWidget {
   final String name;
   final TextEditingController noteCtrl;
   final TextEditingController channelCtrl;
-  final ExonoColors colors;
   final void Function(String note, String channel) onSubmit;
 
   const _FollowedUpSheet({
     required this.name,
     required this.noteCtrl,
     required this.channelCtrl,
-    required this.colors,
     required this.onSubmit,
   });
 
   @override
   Widget build(BuildContext context) {
-    final c = colors;
-    return Container(
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(top: BorderSide(color: c.border)),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: c.border,
-                borderRadius: BorderRadius.circular(999),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.theme.colors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Log Follow-Up',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: c.textPrimary,
-              letterSpacing: -0.3,
+            const SizedBox(height: 20),
+            Text(
+              'Log Follow-Up',
+              style: context.theme.typography.xl.copyWith(
+                fontWeight: FontWeight.w700,
+                color: context.theme.colors.foreground,
+                letterSpacing: -0.3,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Recording follow-up with $name',
-            style: TextStyle(fontSize: 13, color: c.textMuted),
-          ),
-          const SizedBox(height: 20),
-          _SheetField(
-            label: 'Channel',
-            hint: 'e.g. Email, LinkedIn, Phone…',
-            controller: channelCtrl,
-            colors: c,
-          ),
-          const SizedBox(height: 14),
-          _SheetField(
-            label: 'Notes (optional)',
-            hint: 'What did you discuss? Any commitments made?',
-            controller: noteCtrl,
-            colors: c,
-            maxLines: 4,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Sharing context helps our AI personalise future suggestions.',
-            style: TextStyle(fontSize: 11, color: c.textMuted, height: 1.4),
-          ),
-          const SizedBox(height: 20),
-          AppButton(
-            label: 'CONFIRM FOLLOW-UP',
-            onPressed: () => onSubmit(noteCtrl.text.trim(), channelCtrl.text.trim()),
-            fullWidth: true,
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              'Recording follow-up with $name',
+              style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+            ),
+            const SizedBox(height: 20),
+            _SheetField(
+              label: 'Channel',
+              hint: 'e.g. Email, LinkedIn, Phone…',
+              controller: channelCtrl,
+            ),
+            const SizedBox(height: 14),
+            _SheetField(
+              label: 'Notes (optional)',
+              hint: 'What did you discuss? Any commitments made?',
+              controller: noteCtrl,
+              maxLines: 4,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sharing context helps our AI personalise future suggestions.',
+              style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            AppButton(
+              label: 'CONFIRM FOLLOW-UP',
+              onPressed: () => onSubmit(noteCtrl.text.trim(), channelCtrl.text.trim()),
+              fullWidth: true,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1425,30 +1270,26 @@ class _SheetField extends StatelessWidget {
   final String label;
   final String hint;
   final TextEditingController controller;
-  final ExonoColors colors;
   final int maxLines;
 
   const _SheetField({
     required this.label,
     required this.hint,
     required this.controller,
-    required this.colors,
     this.maxLines = 1,
   });
 
   @override
   Widget build(BuildContext context) {
-    final c = colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label.toUpperCase(),
-          style: TextStyle(
-              fontSize: 10,
+          style: context.theme.typography.xs.copyWith(
               fontWeight: FontWeight.w700,
               letterSpacing: 1.4,
-              color: c.textMuted),
+              color: context.theme.colors.mutedForeground),
         ),
         const SizedBox(height: 6),
         AppInput(

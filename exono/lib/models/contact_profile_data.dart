@@ -205,7 +205,7 @@ ContactProfileData mapContactToProfileData(Contact contact) {
         : companyDisplay,
     eventTag: '',
     followUpDue: contact.followUpStatus == 'urgent' || contact.followUpStatus == 'contacted',
-    followUpStatus: contact.followUpStatus ?? 'not_contacted',
+    followUpStatus: contact.followUpStatus,
     productTag: isIndependent ? '' : c(contact.company?.productsServices),
     briefingItems: const [],
     buyingAuthority: '',

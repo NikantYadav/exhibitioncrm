@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import '../services/api_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -237,10 +238,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
                   children: [
                     Text(
                       'ONBOARDING',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(letterSpacing: 1.2),
+                      style: context.theme.typography.xs.copyWith(
+                        fontWeight: FontWeight.w700, letterSpacing: 1.2,
+                        color: context.theme.colors.mutedForeground),
                     ),
                     const SizedBox(height: 8),
-                    Text(titles[_currentPage], style: Theme.of(context).textTheme.headlineLarge),
+                    Text(titles[_currentPage],
+                      style: context.theme.typography.xl2.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: context.theme.colors.foreground)),
                   ],
                 ),
               ),
@@ -253,7 +259,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
                 ),
                 child: Text(
                   '${_currentPage + 1}/4',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: colors.textPrimary),
+                  style: context.theme.typography.sm.copyWith(
+                    fontWeight: FontWeight.w800, color: context.theme.colors.foreground),
                 ),
               ),
             ],
@@ -414,7 +421,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
             children: [
               Text(
                 'AI PERSONALITY',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(letterSpacing: 1.2),
+                style: context.theme.typography.xs.copyWith(
+                  fontWeight: FontWeight.w700, letterSpacing: 1.2,
+                  color: context.theme.colors.mutedForeground),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -461,9 +470,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
               children: [
                 EntryEyebrow(label: eyebrow),
                 const SizedBox(height: 18),
-                Text(title, style: Theme.of(context).textTheme.displaySmall),
+                Text(title,
+                  style: context.theme.typography.xl2.copyWith(
+                    fontWeight: FontWeight.w700, color: context.theme.colors.foreground)),
                 const SizedBox(height: 10),
-                Text(subtitle, style: Theme.of(context).textTheme.bodyLarge),
+                Text(subtitle,
+                  style: context.theme.typography.sm.copyWith(
+                    color: context.theme.colors.mutedForeground, height: 1.5)),
                 const SizedBox(height: 22),
                 ...children,
               ],
@@ -496,9 +509,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('SIGNED IN AS', style: Theme.of(context).textTheme.labelMedium),
+                  Text('SIGNED IN AS',
+                    style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w700, letterSpacing: 1.0,
+                      color: context.theme.colors.mutedForeground)),
                   const SizedBox(height: 4),
-                  Text(_initialEmail!, style: Theme.of(context).textTheme.titleMedium),
+                  Text(_initialEmail!,
+                    style: context.theme.typography.sm.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: context.theme.colors.foreground)),
                 ],
               ),
             ),
@@ -535,11 +554,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title.toUpperCase(), style: Theme.of(context).textTheme.labelMedium),
+                  Text(title.toUpperCase(),
+                    style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w700, letterSpacing: 1.0,
+                      color: context.theme.colors.mutedForeground)),
                   const SizedBox(height: 4),
-                  Text(value, style: Theme.of(context).textTheme.titleMedium),
+                  Text(value,
+                    style: context.theme.typography.sm.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: context.theme.colors.foreground)),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                  Text(subtitle,
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.mutedForeground)),
                 ],
               ),
             ),
@@ -586,16 +613,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: Theme.of(context).textTheme.headlineSmall),
+                  Text(label,
+                    style: context.theme.typography.lg.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: context.theme.colors.foreground)),
                   const SizedBox(height: 5),
-                  Text(description, style: Theme.of(context).textTheme.bodyMedium),
+                  Text(description,
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.mutedForeground, height: 1.4)),
                 ],
               ),
             ),
             const SizedBox(width: 12),
             Icon(
               isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-              color: isSelected ? colors.accentStrong : colors.textMuted,
+              color: isSelected ? colors.accentStrong : context.theme.colors.mutedForeground,
               size: 22,
             ),
           ],
@@ -621,10 +653,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
+          style: context.theme.typography.xs.copyWith(
             fontWeight: FontWeight.w700,
-            color: isSelected ? (colors.isDark ? colors.background : Colors.white) : colors.textPrimary,
+            color: isSelected
+                ? (colors.isDark ? colors.background : Colors.white)
+                : context.theme.colors.foreground,
           ),
         ),
       ),

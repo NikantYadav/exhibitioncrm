@@ -1,4 +1,4 @@
-import 'dart:math' as Math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
@@ -7,9 +7,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../db/app_database.dart';
 import '../models/contact.dart';
 import '../models/contact_profile_data.dart';
 import '../models/event.dart';
+import '../providers/sync_provider.dart';
+import '../repositories/contacts_repository.dart';
 import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
@@ -35,59 +38,37 @@ class ContactDetailScreen extends StatefulWidget {
 }
 
 class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLogger {
-  ContactProfileData? _contact;
-  bool _isLoading = true;
+  // Timeline/insights are AI-derived overlays merged onto the synced base
+  // profile in build() — they're not stored in drift (see plan.md scoping
+  // for this screen: base fields + linked events migrated, timeline/AI not).
+  List<ContactTimelineItem> _timelineItems = const [];
   bool _isLoadingDetails = false;
   bool _isLoadingInsights = false;
   bool _isUploadingAvatar = false;
   Map<String, dynamic>? _contactInsights;
-  String? _error;
+  String? _detailsLoadedForContactId;
+
+  late final ContactsRepository _contactsRepo;
 
   @override
-  void initState() {
-    super.initState();
-    _loadContact();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _contactsRepo = context.read<SyncProvider>().contacts;
   }
 
-  Future<void> _loadContact() async {
-    setState(() { _isLoading = true; _error = null; });
-    try {
-      final res = await ApiService.getContact(widget.contactId);
-      if (res['data'] != null) {
-        final c = Contact.fromJson(res['data']);
-        final profile = mapContactToProfileData(c);
-        if (mounted) {
-          setState(() {
-            _contact = profile;
-            _isLoading = false;
-            _isLoadingDetails = true;
-            _isLoadingInsights = true;
-          });
-          _fetchContactDetails(profile);
-        }
-      } else {
-        if (mounted) setState(() { _isLoading = false; _error = 'Contact not found'; });
-      }
-    } on UnauthorizedException { rethrow; } catch (e) {
-      if (mounted) setState(() { _isLoading = false; _error = e.toString(); });
-    }
+  Future<void> _fetchContactDetailsIfNeeded(ContactProfileData profile) async {
+    if (_detailsLoadedForContactId == profile.id) return;
+    _detailsLoadedForContactId = profile.id;
+    if (mounted) setState(() { _isLoadingDetails = true; _isLoadingInsights = true; });
+    _fetchContactDetails(profile);
   }
 
   Future<void> _reloadContact() async {
-    try {
-      final res = await ApiService.getContact(widget.contactId);
-      if (res['data'] != null && mounted) {
-        final c = Contact.fromJson(res['data']);
-        final profile = mapContactToProfileData(c);
-        setState(() {
-          _contact = profile;
-          _contactInsights = null;
-          _isLoadingDetails = true;
-          _isLoadingInsights = true;
-        });
-        _fetchContactDetails(profile);
-      }
-    } on UnauthorizedException { rethrow; } catch (_) {}
+    // Base fields stream from drift automatically once catchUp() lands the
+    // write; this just re-pulls the AI-derived overlays (timeline/insights).
+    await _contactsRepo.catchUp();
+    _detailsLoadedForContactId = null;
+    if (mounted) setState(() => _contactInsights = null);
   }
 
   Future<void> _fetchInsights(String contactId) async {
@@ -121,13 +102,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   Future<void> _fetchContactDetails(ContactProfileData profile) async {
     _fetchInsights(profile.id);
     try {
-      final results = await Future.wait([
-        ApiService.getContactTimeline(profile.id),
-        ApiService.getContactEvents(profile.id),
-      ]);
-
-      final timelineData = results[0] as List<Map<String, dynamic>>;
-      final eventsData  = results[1] as List<Map<String, dynamic>>;
+      final timelineData = await ApiService.getContactTimeline(profile.id);
 
       final timelineItems = timelineData
           .where((item) => (item['interaction_type'] ?? '') != 'event_link' && item['date'] != null)
@@ -136,7 +111,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         final type = item['type'] as String? ?? 'interaction';
         final details = item['details'] as Map<String, dynamic>?;
         final mode = details?['mode'] as String?;
-        String title = item['title'] ?? (type == 'note' ? 'Note Added' : 'Interaction');
+        String title = item['title'] ?? 'Interaction';
         if (type == 'interaction' && item['interaction_type'] == 'capture') { title = 'Scanner Capture'; }
         else if (type == 'interaction' && mode != null && mode.isNotEmpty) { title = mode; }
         else if (type == 'interaction' && item['interaction_type'] == 'voice_note') { title = 'Voice Note'; }
@@ -157,15 +132,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         );
       }).toList();
 
-      final linkedEvents = eventsData.map((e) => Event.fromJson(e)).toList();
-
       if (mounted) {
         setState(() {
           _isLoadingDetails = false;
-          _contact = _contact?.copyWith(
-            timelineItems: timelineItems,
-            linkedEvents: linkedEvents,
-          );
+          _timelineItems = timelineItems;
         });
       }
     } on UnauthorizedException { rethrow; } catch (e) {
@@ -207,10 +177,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
       );
       final url = supabase.storage.from('contact-avatars').getPublicUrl(path);
       await ApiService.updateContact(contact.id, {'avatar_url': url});
-      if (mounted) {
-        setState(() => _isUploadingAvatar = false);
-        _reloadContact();
-      }
+      await _contactsRepo.catchUp();
+      if (mounted) setState(() => _isUploadingAvatar = false);
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
@@ -252,7 +220,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     }
   }
 
-  void _toast(String message) => showFToast(context: context, title: Text(message));
+  void _toast(String message) => showAppToast(context, message);
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -263,9 +231,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   String _formatTime(DateTime date) =>
       '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
-  Future<void> _openLinksFiles() async {
-    final contact = _contact;
-    if (contact == null) return;
+  Future<void> _openLinksFiles(ContactProfileData contact) async {
     final updatedAssets = await showContactLinksFilesSheet(
       context, contactId: contact.id, initialAssets: contact.assets,
     );
@@ -274,11 +240,12 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
       await ApiService.updateContact(contact.id, {
         'contact_assets': updatedAssets.map((a) => a.toJson()).toList(),
       });
+      await _contactsRepo.catchUp();
     } on UnauthorizedException { rethrow; } catch (_) {}
-    if (mounted) setState(() { _contact = contact.copyWith(assets: updatedAssets); });
   }
 
-  Future<void> _showLinkEventSheet(ContactProfileData contact) async {
+  Future<void> _showLinkEventSheet(ContactProfileData contact, Set<String> linkedEventIds) async {
+    final interactionsRepo = context.read<SyncProvider>().interactions;
     List<Event> allEvents = [];
     try { allEvents = await ApiService.getEvents(); } on UnauthorizedException { rethrow; } catch (_) {}
     if (!mounted) return;
@@ -287,27 +254,21 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
       side: FLayout.btt,
       builder: (ctx) => _EventPickerSheet(
         allEvents: allEvents,
-        linkedEventIds: contact.linkedEvents.map((e) => e.id).toSet(),
+        linkedEventIds: linkedEventIds,
         onLink: (event) async {
           await ApiService.linkContactToEvent(contact.id, event.id);
-          if (mounted && _contact?.id == contact.id) {
-            final updated = contact.linkedEvents.any((e) => e.id == event.id)
-                ? contact.linkedEvents
-                : [...contact.linkedEvents, event];
-            setState(() { _contact = _contact!.copyWith(linkedEvents: updated); });
-          }
+          await interactionsRepo.catchUp();
         },
       ),
     );
   }
 
   Future<void> _unlinkEvent(ContactProfileData contact, Event event) async {
+    final sync = context.read<SyncProvider>();
     try {
       await ApiService.unlinkContactFromEvent(contact.id, event.id);
-      if (mounted) {
-        final updated = contact.linkedEvents.where((e) => e.id != event.id).toList();
-        setState(() { _contact = _contact!.copyWith(linkedEvents: updated); });
-      }
+      await sync.interactions.catchUp();
+      await sync.contactEvents.catchUp();
     } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) _toast('Failed to unlink event');
     }
@@ -347,22 +308,43 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
 
   @override
   Widget build(BuildContext context) {
-    return FScaffold(
-      header: _buildHeader(),
-      childPad: false,
-      child: _isLoading
-          ? _buildSkeleton()
-          : _error != null
-              ? Center(child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(_error!, textAlign: TextAlign.center),
-                ))
-              : _buildBody(_contact!),
+    return StreamBuilder<Contact?>(
+      stream: _contactsRepo.watchByIdWithCompany(widget.contactId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return FScaffold(header: _buildHeader(null), childPad: false, child: _buildSkeleton());
+        }
+        final raw = snapshot.data;
+        if (raw == null) {
+          return FScaffold(
+            header: _buildHeader(null),
+            childPad: false,
+            child: const Center(child: Text('Contact not found')),
+          );
+        }
+
+        return StreamBuilder<List<EventsTableData>>(
+          stream: context.read<SyncProvider>().events.watchLinkedToContact(widget.contactId),
+          builder: (context, eventsSnapshot) {
+            final linkedEvents = (eventsSnapshot.data ?? const <EventsTableData>[]).map(Event.fromDrift).toList();
+            var contact = mapContactToProfileData(raw).copyWith(
+              timelineItems: _timelineItems,
+              linkedEvents: linkedEvents,
+            );
+            WidgetsBinding.instance.addPostFrameCallback((_) => _fetchContactDetailsIfNeeded(contact));
+
+            return FScaffold(
+              header: _buildHeader(contact),
+              childPad: false,
+              child: _buildBody(contact),
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget _buildHeader() {
-    final contact = _contact;
+  Widget _buildHeader(ContactProfileData? contact) {
     return FHeader.nested(
       title: const SizedBox.shrink(),
       prefixes: [
@@ -531,7 +513,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(contact.listName, style: theme.typography.xl.copyWith(fontWeight: FontWeight.w700)),
+                    Text(contact.listName, style: theme.typography.xl.copyWith(fontWeight: FontWeight.w700, height: 1.1)),
                     if (contact.title.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(contact.title, style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
@@ -658,7 +640,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
       case 'urgent':         return AppChip.status('URGENT',        color: c.destructive);
       case 'contacted':      return AppChip.status('CONTACTED',     color: c.success);
       case 'needs_followup': return AppChip.status('FOLLOW UP',     color: c.accent);
-      default:               return AppChip.status('NOT CONTACTED', color: c.textMuted);
+      default:               return AppChip.status('NOT CONTACTED', color: context.theme.colors.mutedForeground);
     }
   }
 
@@ -959,7 +941,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     final hasAssets = contact.assets.isNotEmpty;
     final theme = context.theme;
     return GestureDetector(
-      onTap: _openLinksFiles,
+      onTap: () => _openLinksFiles(contact),
       child: AppCard(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         radius: 12,
@@ -1001,7 +983,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               const Spacer(),
               AppButton(
                 variant: ButtonVariant.secondary,
-                onPressed: () => _showLinkEventSheet(contact),
+                onPressed: () => _showLinkEventSheet(contact, contact.linkedEvents.map((e) => e.id).toSet()),
                 prefixIcon: const Icon(Icons.add, size: 14),
                 label: 'Link Event',
               ),
@@ -1099,7 +1081,7 @@ class _EditContactSheetState extends State<_EditContactSheet> {
       if (mounted) Navigator.pop(context, true);
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
-        showFToast(context: context, title: const Text('Save failed. Please try again.'));
+        showAppToast(context, 'Save failed. Please try again.');
         setState(() => _isSaving = false);
       }
     }
@@ -1200,13 +1182,13 @@ class _AiThinkingDotsState extends State<_AiThinkingDots> with SingleTickerProvi
     final color = context.theme.colors.primary;
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (_, __) {
+      builder: (_, _) {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(3, (i) {
             final phase = i / 3.0;
             final t = ((_ctrl.value - phase) % 1.0 + 1.0) % 1.0;
-            final brightness = (Math.sin(t * Math.pi)).clamp(0.0, 1.0);
+            final brightness = (math.sin(t * math.pi)).clamp(0.0, 1.0);
             final size = 6.0 + brightness * 3.0;
             return Padding(
               padding: const EdgeInsets.only(right: 6),
@@ -1329,7 +1311,8 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
                               setState(() => _linking = true);
                               try { await widget.onLink(event); }
                               finally { if (mounted) setState(() => _linking = false); }
-                              if (mounted) Navigator.pop(context);
+                              if (!context.mounted) return;
+                              Navigator.pop(context);
                             },
                             prefix: FBadge(variant: FBadgeVariant.secondary, child: const Icon(Icons.event_outlined, size: 18, color: Colors.white)),
                             suffix: isLinked

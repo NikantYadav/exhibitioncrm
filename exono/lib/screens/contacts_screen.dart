@@ -3,10 +3,12 @@ import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../models/contact.dart';
 import '../models/contact_profile_data.dart';
 import '../providers/offline_provider.dart';
+import '../providers/sync_provider.dart';
+import '../repositories/contacts_repository.dart';
 import '../models/event.dart';
-import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_header.dart';
@@ -36,47 +38,14 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
   String? _filterStatus;
   String? _filterEventId;
 
-  List<ContactProfileData> _allContacts = [];
-  bool _isLoading = true;
-  String? _error;
   String _searchQuery = '';
 
   // Alphabet index
   final List<String> _alphabet = ['#', ...List.generate(26, (i) => String.fromCharCode(65 + i))];
 
-  @override
-  void initState() {
-    super.initState();
-    _loadContacts();
-  }
-
-  Future<void> _loadContacts() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final contacts = await ApiService.getContacts();
-      if (mounted) {
-        setState(() {
-          _allContacts = contacts.map(mapContactToProfileData).toList();
-          _isLoading = false;
-        });
-      }
-    } on UnauthorizedException { rethrow; } catch (_) {
-      if (mounted) {
-        setState(() {
-          _error = 'Unable to load contacts. Please try again.';
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  List<ContactProfileData> get _filteredContacts {
+  List<ContactProfileData> _filteredContacts(List<ContactProfileData> allContacts) {
     final query = _searchQuery.trim().toLowerCase();
-    return _allContacts.where((c) {
+    return allContacts.where((c) {
       if (query.isNotEmpty &&
           !c.listName.toLowerCase().contains(query) &&
           !c.listSubtitle.toLowerCase().contains(query) &&
@@ -90,8 +59,8 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
   }
 
   /// Groups filtered contacts alphabetically. Returns list of (letter, contacts).
-  List<(String, List<ContactProfileData>)> get _groupedContacts {
-    final filtered = _filteredContacts;
+  List<(String, List<ContactProfileData>)> _groupedContacts(List<ContactProfileData> allContacts) {
+    final filtered = _filteredContacts(allContacts);
     final Map<String, List<ContactProfileData>> map = {};
     for (final c in filtered) {
       final first = c.listName.trim().isEmpty ? '#' : c.listName[0].toUpperCase();
@@ -119,14 +88,36 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
     final isOnline = context.watch<OfflineProvider>().isOnline;
     if (!isOnline) return const AppOfflineScreen(title: 'Contacts');
 
+    final contactsRepo = context.read<SyncProvider>().contacts;
+
     return FScaffold(
       header: AppHeader(
         actionIcon: Icons.add_rounded,
         actionTooltip: 'Add Contact',
-        onActionPressed: _showAddContactSheet,
+        onActionPressed: () => _showAddContactSheet(contactsRepo),
       ),
       childPad: false,
-      child: _buildListBody(),
+      child: StreamBuilder<List<Contact>>(
+        stream: contactsRepo.watchAllWithCompany(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return _buildSkeleton();
+          }
+          final allContacts = snapshot.data!.map(mapContactToProfileData).toList();
+          return _buildListBody(allContacts, contactsRepo);
+        },
+      ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      itemCount: 8,
+      itemBuilder: (context, index) => const Padding(
+        padding: EdgeInsets.only(bottom: 14),
+        child: SkeletonCard(),
+      ),
     );
   }
 
@@ -134,7 +125,7 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
       _filterCompany != null || _filterLocation != null ||
       _filterStatus != null || _filterEventId != null;
 
-  Widget _buildSearchBar(FThemeData theme) {
+  Widget _buildSearchBar(FThemeData theme, List<ContactProfileData> allContacts) {
     final activeCount = [_filterCompany, _filterLocation, _filterStatus, _filterEventId]
         .where((f) => f != null)
         .length;
@@ -153,7 +144,7 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
           const SizedBox(width: 8),
           AppButton(
             variant: _hasActiveFilters ? ButtonVariant.primary : ButtonVariant.outline,
-            onPressed: _showFilterSheet,
+            onPressed: () => _showFilterSheet(allContacts),
             prefixIcon: const Icon(Icons.tune_rounded, size: 16),
             label: activeCount > 0 ? 'Filters ($activeCount)' : 'Filter',
           ),
@@ -175,15 +166,13 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildFilterRow(FThemeData theme) => const SizedBox.shrink();
-
-  void _showFilterSheet() {
-    final allCompanies = _allContacts
+  void _showFilterSheet(List<ContactProfileData> allContacts) {
+    final allCompanies = allContacts
         .map((c) => c.company).where((c) => c.isNotEmpty).toSet().toList()..sort();
-    final allLocations = _allContacts
+    final allLocations = allContacts
         .map((c) => c.location).where((l) => l.isNotEmpty).toSet().toList()..sort();
     final eventMap = <String, Event>{};
-    for (final c in _allContacts) {
+    for (final c in allContacts) {
       for (final e in c.linkedEvents) { eventMap[e.id] = e; }
     }
     final allEvents = eventMap.values.toList()..sort((a, b) => a.name.compareTo(b.name));
@@ -216,44 +205,39 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildListBody() {
+  Widget _buildListBody(List<ContactProfileData> allContacts, ContactsRepository contactsRepo) {
     final theme = context.theme;
-    if (_isLoading) {
-      return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        itemCount: 8,
-        itemBuilder: (context, index) => const Padding(
-          padding: EdgeInsets.only(bottom: 14),
-          child: SkeletonCard(),
-        ),
-      );
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('Error: $_error', textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            AppButton(label: 'RETRY', onPressed: _loadContacts),
-          ],
-        ),
-      );
-    }
-
-    final groups = _groupedContacts;
+    final groups = _groupedContacts(allContacts);
 
     return Column(
       children: [
-        _buildSearchBar(theme),
-        _buildFilterRow(theme),
+        _buildSearchBar(theme, allContacts),
         Expanded(
           child: groups.isEmpty
               ? Center(
-                  child: Text(
-                    'No contacts found.',
-                    style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'No contacts found.',
+                        style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground),
+                      ),
+                      if (_hasActiveFilters || _searchQuery.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        AppButton(
+                          label: 'Clear search & filters',
+                          variant: ButtonVariant.ghost,
+                          onPressed: () => setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                            _filterCompany = null;
+                            _filterLocation = null;
+                            _filterStatus = null;
+                            _filterEventId = null;
+                          }),
+                        ),
+                      ],
+                    ],
                   ),
                 )
               : Stack(
@@ -357,14 +341,17 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
         final active = presentLetters.contains(letter);
         return GestureDetector(
           onTap: active ? () => _scrollToLetter(letter, groups) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 1.5),
-            child: Text(
-              letter,
-              style: theme.typography.xs.copyWith(
-                fontWeight: FontWeight.w600,
-                color: active ? theme.colors.primary : theme.colors.mutedForeground.withAlpha(80),
-                fontSize: 10,
+          behavior: HitTestBehavior.opaque,
+          child: SizedBox(
+            width: 20,
+            height: 16,
+            child: Center(
+              child: Text(
+                letter,
+                style: theme.typography.xs.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: active ? theme.colors.primary : theme.colors.mutedForeground.withAlpha(80),
+                ),
               ),
             ),
           ),
@@ -395,10 +382,10 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
     );
   }
 
-  void _showAddContactSheet() {
+  void _showAddContactSheet(ContactsRepository contactsRepo) {
     showAppSheet(
       context: context,
-      builder: (ctx) => _AddContactSheet(onContactAdded: _loadContacts),
+      builder: (ctx) => _AddContactSheet(onContactAdded: contactsRepo.catchUp),
     );
   }
 
@@ -720,7 +707,8 @@ class _FilterSheetState extends State<_FilterSheet> {
 
   Widget _suggestionList(List<String> items, ValueChanged<String> onTap) {
     final theme = context.theme;
-    return FCard.raw(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: items.take(5).map((item) => FTappable(
@@ -742,7 +730,8 @@ class _FilterSheetState extends State<_FilterSheet> {
 
   Widget _eventSuggestionList(List<Event> events, ValueChanged<Event> onTap) {
     final theme = context.theme;
-    return FCard.raw(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: events.take(6).map((event) => FTappable(

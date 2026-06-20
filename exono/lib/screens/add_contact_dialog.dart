@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
-import '../config/app_theme.dart';
 import '../services/api_service.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/app_section_label.dart';
 import '../utils/screen_logger.dart';
 
 /// Full-screen bottom sheet for manual contact entry.
@@ -80,9 +80,6 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> with ScreenLogger 
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-    final c = AppTheme.colorsOf(context);
-
     return SafeArea(
       top: false,
       child: Form(
@@ -97,7 +94,7 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> with ScreenLogger 
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: theme.colors.border,
+                  color: context.theme.colors.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -109,37 +106,19 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> with ScreenLogger 
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'New Contact',
-                        style: theme.typography.xl.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: theme.colors.foreground,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Fill in the details below',
-                        style: theme.typography.sm.copyWith(
-                          color: theme.colors.mutedForeground,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'New Contact',
+                    style: context.theme.typography.xl.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: context.theme.colors.foreground,
+                    ),
                   ),
                   const Spacer(),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: c.surfaceElevated,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.close, size: 16, color: theme.colors.mutedForeground),
-                    ),
+                  AppButton(
+                    onPressed: () => Navigator.pop(context),
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.sm,
+                    child: Icon(Icons.close_rounded, size: 18, color: context.theme.colors.mutedForeground),
                   ),
                 ],
               ),
@@ -155,7 +134,7 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> with ScreenLogger 
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Name row
-                    _sectionLabel(context, 'Basic Info'),
+                    AppSectionLabel('Basic Info'),
                     const SizedBox(height: 10),
                     Row(
                       children: [
@@ -191,7 +170,7 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> with ScreenLogger 
                     const SizedBox(height: 24),
 
                     // Professional
-                    _sectionLabel(context, 'Professional'),
+                    AppSectionLabel('Professional'),
                     const SizedBox(height: 10),
                     AppInput(
                       controller: _jobTitleController,
@@ -212,7 +191,7 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> with ScreenLogger 
                     const SizedBox(height: 24),
 
                     // Notes
-                    _sectionLabel(context, 'Notes'),
+                    AppSectionLabel('Notes'),
                     const SizedBox(height: 10),
                     AppInput(
                       controller: _notesController,
@@ -253,14 +232,4 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> with ScreenLogger 
     );
   }
 
-  Widget _sectionLabel(BuildContext context, String label) {
-    return Text(
-      label.toUpperCase(),
-      style: context.theme.typography.xs.copyWith(
-        fontWeight: FontWeight.w700,
-        color: context.theme.colors.mutedForeground,
-        letterSpacing: 1.1,
-      ),
-    );
-  }
 }

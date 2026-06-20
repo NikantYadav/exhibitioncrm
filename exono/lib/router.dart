@@ -46,17 +46,17 @@ GoRouter buildRouter(AuthProvider auth) {
     },
     routes: [
       // ── Public / auth routes (no shell) ──────────────────────────────────
-      GoRoute(path: '/splash',     builder: (_, __) => const SplashScreen()),
-      GoRoute(path: '/landing',    builder: (_, __) => const LandingScreen()),
-      GoRoute(path: '/auth',       builder: (_, __) => const AuthScreen()),
-      GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
+      GoRoute(path: '/splash',     builder: (_, _) => const SplashScreen()),
+      GoRoute(path: '/landing',    builder: (_, _) => const LandingScreen()),
+      GoRoute(path: '/auth',       builder: (_, _) => const AuthScreen()),
+      GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
 
       // ── Capture — full-screen modal, no nav shell ─────────────────────────
-      GoRoute(path: '/capture', builder: (_, __) => const CaptureScreen()),
-      GoRoute(path: '/voice-capture', builder: (_, __) => const VoiceContactCaptureScreen()),
+      GoRoute(path: '/capture', builder: (_, _) => const CaptureScreen()),
+      GoRoute(path: '/voice-capture', builder: (_, _) => const VoiceContactCaptureScreen()),
 
       // ── Live event floor — full-screen (no nav shell) ──────────────────────
-      GoRoute(path: '/live-event', builder: (_, __) => const LiveHomeScreen()),
+      GoRoute(path: '/live-event', builder: (_, _) => const LiveHomeScreen()),
 
       // ── Company detail — full-screen (no nav shell needed) ────────────────
       GoRoute(
@@ -96,27 +96,27 @@ GoRouter buildRouter(AuthProvider auth) {
         routes: [
           GoRoute(
             path: '/',
-            builder: (_, __) => const HomeDefaultScreen(),
+            builder: (_, _) => const HomeDefaultScreen(),
           ),
           GoRoute(
             path: '/events',
-            builder: (_, __) => const EventsScreen(),
+            builder: (_, _) => const EventsScreen(),
           ),
           GoRoute(
             path: '/contacts',
-            builder: (_, __) => const ContactsScreen(),
+            builder: (_, _) => const ContactsScreen(),
           ),
           GoRoute(
             path: '/follow-ups',
-            builder: (_, __) => const FollowUpsScreen(),
+            builder: (_, _) => const FollowUpsScreen(),
           ),
           GoRoute(
             path: '/profile',
-            builder: (_, __) => const AccountSettingsScreen(),
+            builder: (_, _) => const AccountSettingsScreen(),
           ),
           GoRoute(
             path: '/chat-history',
-            builder: (_, __) => const ChatHistoryScreen(),
+            builder: (_, _) => const ChatHistoryScreen(),
           ),
         ],
       ),

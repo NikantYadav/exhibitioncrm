@@ -8,10 +8,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:exono/main.dart';
+import 'package:exono/providers/theme_provider.dart';
 
 void main() {
   testWidgets('App builds smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const ExonoApp());
+    await tester.pumpWidget(ExonoApp(themeProvider: ThemeProvider()));
     await tester.pump();
 
     expect(find.byType(ExonoApp), findsOneWidget);

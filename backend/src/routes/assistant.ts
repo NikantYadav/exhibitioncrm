@@ -71,7 +71,7 @@ function sanitiseUserInput(text: string, userId: string): string {
 
 // ─── Immutable fields — never allowed in write tool args ─────────────────────
 const IMMUTABLE_FIELDS = new Set([
-  'id', 'owner_user_id', 'user_id', 'created_at', 'updated_at',
+  'id', 'user_id', 'created_at', 'updated_at',
   'sender_user_id', 'conversation_id',
 ]);
 
@@ -86,12 +86,12 @@ function stripImmutable(data: Record<string, unknown>): Record<string, unknown> 
 const SLAYER_QUERY_TOOL = {
   name: 'query_crm',
   description: `Query CRM data using the semantic layer. Use this for ANY read operation:
-listing contacts, events, notes, email drafts, captures, companies,
+listing contacts, events, email drafts, captures, companies,
 interactions, dashboard stats, or searching messages.
 The semantic layer handles SQL generation — you just describe what you want.
-Available source_models: contacts, events, notes, email_drafts,
+Available source_models: contacts, events, email_drafts,
 captures, companies, interactions, messages, conversations,
-documents, attachments.`,
+attachments.`,
   parameters: {
     type: 'object',
     properties: {
@@ -194,7 +194,6 @@ const WRITE_TOOLS = [
         location: { type: 'string' },
         start_date: { type: 'string', description: 'ISO 8601 datetime' },
         end_date: { type: 'string', description: 'ISO 8601 datetime' },
-        description: { type: 'string' },
         event_type: { type: 'string' },
       },
       required: ['name', 'start_date'],
@@ -211,24 +210,9 @@ const WRITE_TOOLS = [
         location: { type: 'string' },
         start_date: { type: 'string', description: 'ISO 8601 datetime' },
         end_date: { type: 'string', description: 'ISO 8601 datetime' },
-        description: { type: 'string' },
         event_type: { type: 'string' },
       },
       required: ['event_id'],
-    },
-  },
-  {
-    name: 'create_note',
-    description: 'Add a note to a contact or event',
-    parameters: {
-      type: 'object',
-      properties: {
-        content: { type: 'string' },
-        contact_id: { type: 'string' },
-        event_id: { type: 'string' },
-        note_type: { type: 'string', enum: ['text', 'voice', 'ai'] },
-      },
-      required: ['content'],
     },
   },
   {
@@ -274,7 +258,7 @@ async function execCreateContact(args: Record<string, unknown>, userId: string) 
 
   // Verify the linked event belongs to this user
   if (a.event_id) {
-    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).maybeSingle();
+    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).is('deleted_at', null).maybeSingle();
     if (!ev) throw new Error('Event not found or access denied');
   }
 
@@ -297,8 +281,8 @@ async function execCreateContact(args: Record<string, unknown>, userId: string) 
   if (error) throw new Error(error.message);
 
   if (a.event_id) {
-    await supabaseAdmin.from('interactions').insert({ contact_id: contact.id, event_id: a.event_id, interaction_type: 'capture', summary: 'Added by assistant' });
-    await supabaseAdmin.from('captures').insert({ contact_id: contact.id, event_id: a.event_id, capture_type: 'manual', status: 'completed', raw_data: { source: 'assistant' } });
+    await supabaseAdmin.from('interactions').insert({ contact_id: contact.id, event_id: a.event_id, interaction_type: 'capture', summary: 'Added by assistant', user_id: userId });
+    await supabaseAdmin.from('captures').insert({ contact_id: contact.id, event_id: a.event_id, capture_type: 'manual', status: 'completed', raw_data: { source: 'assistant' }, user_id: userId });
   }
 
   return contact;
@@ -333,7 +317,7 @@ async function execUpdateContact(args: Record<string, unknown>, userId: string) 
   if (Object.keys(update).length === 0) throw new Error('No valid fields to update');
 
   // user_id filter ensures the LLM cannot update a contact belonging to another user
-  const { data, error } = await supabaseAdmin.from('contacts').update(update).eq('id', a.contact_id).eq('user_id', userId).select('*').maybeSingle();
+  const { data, error } = await supabaseAdmin.from('contacts').update(update).eq('id', a.contact_id).eq('user_id', userId).is('deleted_at', null).select('*').maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error('Contact not found or access denied');
   return data;
@@ -345,7 +329,6 @@ async function execCreateEvent(args: Record<string, unknown>, userId: string) {
     location: z.string().trim().optional(),
     start_date: z.any(),
     end_date: z.any().optional(),
-    description: z.string().trim().optional(),
     event_type: z.string().trim().optional(),
   }).parse(args);
 
@@ -362,6 +345,7 @@ async function execCreateEvent(args: Record<string, unknown>, userId: string) {
     .eq('user_id', userId)
     .ilike('name', a.name)
     .eq('start_date', startIso)
+    .is('deleted_at', null)
     .maybeSingle();
   if (existing) return existing;
 
@@ -369,7 +353,7 @@ async function execCreateEvent(args: Record<string, unknown>, userId: string) {
     name: a.name, location: a.location,
     start_date: startIso,
     end_date: a.end_date ? toIso(a.end_date, 'end_date') : null,
-    description: a.description, event_type: a.event_type,
+    event_type: a.event_type,
     user_id: userId,
   }).select('*').single();
   if (error) throw new Error(error.message);
@@ -383,7 +367,6 @@ async function execUpdateEvent(args: Record<string, unknown>, userId: string) {
     location: z.string().trim().optional(),
     start_date: z.any().optional(),
     end_date: z.any().optional(),
-    description: z.string().trim().optional(),
     event_type: z.string().trim().optional(),
   }).parse(args);
 
@@ -396,43 +379,16 @@ async function execUpdateEvent(args: Record<string, unknown>, userId: string) {
     raw.start_date = startIso;
   }
   if (a.end_date !== undefined) raw.end_date = toIso(a.end_date, 'end_date');
-  if (a.description !== undefined) raw.description = a.description;
   if (a.event_type !== undefined) raw.event_type = a.event_type;
 
   const update = stripImmutable(raw);
   if (Object.keys(update).length === 0) throw new Error('No valid fields to update');
 
-  const { data, error } = await supabaseAdmin.from('events').update(update).eq('id', a.event_id).eq('user_id', userId).select('*').maybeSingle();
+  const { data, error } = await supabaseAdmin.from('events').update(update).eq('id', a.event_id).eq('user_id', userId).is('deleted_at', null).select('*').maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error('Event not found or access denied');
   return data;
 }
-
-async function execCreateNote(args: Record<string, unknown>, userId: string) {
-  const a = z.object({
-    content: z.string().trim().min(1),
-    contact_id: z.string().uuid().optional(),
-    event_id: z.string().uuid().optional(),
-    note_type: z.string().trim().optional(),
-  }).parse(args);
-
-  if (a.contact_id) {
-    const { data: c } = await supabaseAdmin.from('contacts').select('id').eq('id', a.contact_id).eq('user_id', userId).maybeSingle();
-    if (!c) throw new Error('Contact not found or access denied');
-  }
-  if (a.event_id) {
-    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).maybeSingle();
-    if (!ev) throw new Error('Event not found or access denied');
-  }
-
-  const { data, error } = await supabaseAdmin.from('notes').insert({
-    content: a.content, contact_id: a.contact_id ?? null,
-    event_id: a.event_id ?? null, note_type: a.note_type ?? 'text',
-  }).select('*').single();
-  if (error) throw new Error(error.message);
-  return data;
-}
-
 
 async function execDraftEmail(args: Record<string, unknown>, userId: string) {
   const a = z.object({
@@ -443,17 +399,18 @@ async function execDraftEmail(args: Record<string, unknown>, userId: string) {
     event_id: z.string().uuid().optional(),
   }).parse(args);
 
-  const { data: c } = await supabaseAdmin.from('contacts').select('id').eq('id', a.contact_id).eq('user_id', userId).maybeSingle();
+  const { data: c } = await supabaseAdmin.from('contacts').select('id').eq('id', a.contact_id).eq('user_id', userId).is('deleted_at', null).maybeSingle();
   if (!c) throw new Error('Contact not found or access denied');
 
   if (a.event_id) {
-    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).maybeSingle();
+    const { data: ev } = await supabaseAdmin.from('events').select('id').eq('id', a.event_id).eq('user_id', userId).is('deleted_at', null).maybeSingle();
     if (!ev) throw new Error('Event not found or access denied');
   }
 
   const { data, error } = await supabaseAdmin.from('email_drafts').insert({
     contact_id: a.contact_id, subject: a.subject, body: a.body,
     email_type: a.email_type ?? null, event_id: a.event_id ?? null, status: 'draft',
+    user_id: userId,
   }).select('*').single();
   if (error) throw new Error(error.message);
   return data;
@@ -466,23 +423,7 @@ type ToolResult = { name: string; ok: boolean; result?: unknown; error?: string 
 async function executeTool(
   call: ToolCall,
   userId: string,
-  supabaseUser: ReturnType<typeof createSupabaseUserClient>,
-  runId: string
 ): Promise<ToolResult> {
-  // Persist the tool call record
-  const { data: tcRow } = await supabaseUser
-    .from('tool_calls')
-    .insert({ assistant_run_id: runId, name: call.name, args_json: call.args })
-    .select('id').single();
-  const tcId = tcRow?.id as string | undefined;
-
-  const persist = async (result: unknown, error?: string) => {
-    if (!tcId) return;
-    await supabaseUser.from('tool_calls').update(
-      error ? { error } : { result_json: result }
-    ).eq('id', tcId);
-  };
-
   try {
     let result: unknown;
 
@@ -504,18 +445,15 @@ async function executeTool(
         case 'update_contact': result = await execUpdateContact(call.args, userId); break;
         case 'create_event': result = await execCreateEvent(call.args, userId); break;
         case 'update_event': result = await execUpdateEvent(call.args, userId); break;
-        case 'create_note': result = await execCreateNote(call.args, userId); break;
         case 'draft_email': result = await execDraftEmail(call.args, userId); break;
         default:
           throw new Error(`Unknown tool: ${call.name}`);
       }
     }
 
-    await persist(result);
     return { name: call.name, ok: true, result };
   } catch (e: any) {
     const msg = e?.message || 'Tool error';
-    await persist(undefined, msg);
     return { name: call.name, ok: false, error: msg };
   }
 }
@@ -534,7 +472,7 @@ interface UserProfile {
   linkedin_url?: string;
 }
 
-function buildSystemPrompt(entityContext: string, userProfile?: UserProfile): string {
+function buildSystemPrompt(userProfile?: UserProfile): string {
   const tone = userProfile?.ai_tone ?? 'professional';
 
   const toneInstruction =
@@ -561,13 +499,13 @@ function buildSystemPrompt(entityContext: string, userProfile?: UserProfile): st
 
 You have access to tools to READ and WRITE CRM data.
 
-READ: Use query_crm for any data retrieval — listing contacts, events, notes,
+READ: Use query_crm for any data retrieval — listing contacts, events,
 email drafts, captures, companies, or searching messages.
 The semantic layer handles SQL — just describe what you want with source_model,
 dimensions, filters, and optional measures.
 
 WRITE: Use create_contact, update_contact, create_event, update_event,
-create_note, draft_email for mutations.
+draft_email for mutations.
 
 Rules:
 - ALWAYS call query_crm FIRST before any write operation to look up the record's ID. Never assume you know an ID.
@@ -578,32 +516,7 @@ Rules:
 - Dates must be ISO 8601 (e.g. 2026-06-01T10:00:00Z).
 - You may call multiple tools in sequence — each result is fed back to you.
 - NEVER include UUIDs or any database IDs in your text reply. Entity cards are shown separately — just refer to things by name.
-- When drafting emails, follow-up messages, or any outbound communication, incorporate the user's products, value proposition, and tone naturally.${profileSection}${entityContext}`;
-}
-
-// ─── Entity context loader ────────────────────────────────────────────────────
-
-async function loadEntityContext(convo: { kind: string; contact_id?: string; event_id?: string }): Promise<string> {
-  if (convo.kind === 'contact' && convo.contact_id) {
-    const { data: contact } = await supabaseAdmin
-      .from('contacts')
-      .select('id, first_name, last_name, email, phone, job_title, notes, follow_up_status, follow_up_urgency, last_contacted_at, company:companies(id, name, domain, industry)')
-      .eq('id', convo.contact_id).maybeSingle();
-    const { data: interactions } = await supabaseAdmin
-      .from('interactions')
-      .select('interaction_type, interaction_date, summary')
-      .eq('contact_id', convo.contact_id)
-      .order('interaction_date', { ascending: false }).limit(5);
-    return `\n\nContext — this conversation is about contact:\n${JSON.stringify({ contact, recent_interactions: interactions ?? [] })}`;
-  }
-  if (convo.kind === 'event' && convo.event_id) {
-    const { data: event } = await supabaseAdmin
-      .from('events')
-      .select('id, name, description, location, start_date, end_date, event_type, status')
-      .eq('id', convo.event_id).maybeSingle();
-    return `\n\nContext — this conversation is about event:\n${JSON.stringify({ event })}`;
-  }
-  return '';
+- When drafting emails, follow-up messages, or any outbound communication, incorporate the user's products, value proposition, and tone naturally.${profileSection}`;
 }
 
 // ─── POST /api/assistant/respond ─────────────────────────────────────────────
@@ -637,33 +550,18 @@ router.post('/respond', async (req, res) => {
   // 1. Persist user message
   const { data: userMessage, error: userMsgErr } = await supabaseUser
     .from('messages')
-    .insert({ conversation_id, owner_user_id: userId, sender_type: 'user', sender_user_id: userId, content: text })
+    .insert({ conversation_id, user_id: userId, sender_type: 'user', sender_user_id: userId, content: text })
     .select('*').single();
   if (userMsgErr) return res.status(400).json({ error: userMsgErr.message });
 
   // (auto-titling is done after the assistant response, see below)
 
-  // 2. Create assistant run record
-  const { data: run, error: runErr } = await supabaseUser
-    .from('assistant_runs')
-    .insert({ conversation_id, owner_user_id: userId, user_message_id: userMessage.id, correlation_id: correlationId, status: 'running' })
-    .select('*').single();
-  if (runErr) return res.status(400).json({ error: runErr.message });
-
   try {
-    // 3. Load conversation + entity context
-    const { data: convo } = await supabaseUser
-      .from('conversations')
-      .select('id, kind, contact_id, event_id')
-      .eq('id', conversation_id).single();
+    // 2. Load user profile context
+    const { data: userProfile } = await supabaseAdmin.from('user_profiles').select('name, designation, profile_type, products_services, value_proposition, additional_context, ai_tone, website, linkedin_url').eq('user_id', userId).maybeSingle();
+    const systemPrompt = buildSystemPrompt(userProfile ?? undefined);
 
-    const [entityContext, { data: userProfile }] = await Promise.all([
-      convo ? loadEntityContext(convo) : Promise.resolve(''),
-      supabaseAdmin.from('user_profiles').select('name, designation, profile_type, products_services, value_proposition, additional_context, ai_tone, website, linkedin_url').eq('user_id', userId).maybeSingle(),
-    ]);
-    const systemPrompt = buildSystemPrompt(entityContext, userProfile ?? undefined);
-
-    // 4. Build conversation history (last 20 messages)
+    // 3. Build conversation history (last 20 messages)
     const { data: recentMessages } = await supabaseUser
       .from('messages')
       .select('sender_type, content')
@@ -678,11 +576,10 @@ router.post('/respond', async (req, res) => {
         content: m.content,
       } as ConversationTurn));
 
-    // 5. Agentic loop — max 6 iterations
+    // 4. Agentic loop — max 6 iterations
     const MAX_ITERATIONS = 6;
     let assistantText = '';
     const allToolResults: ToolResult[] = [];
-    const linksToInsert: Array<{ contact_id?: string; event_id?: string; email_draft_id?: string }> = [];
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const llmResult = await litellm.generateWithTools(systemPrompt, history, ALL_TOOLS);
@@ -696,7 +593,7 @@ router.post('/respond', async (req, res) => {
       const iterResults: Array<{ id: string; name: string; result: unknown }> = [];
 
       for (const call of llmResult.calls) {
-        const toolResult = await executeTool(call, userId, supabaseUser, run.id);
+        const toolResult = await executeTool(call, userId);
         allToolResults.push(toolResult);
 
         // If query_crm failed (slayer down or query error), abort immediately.
@@ -710,14 +607,6 @@ router.post('/respond', async (req, res) => {
           name: call.name,
           result: toolResult.ok ? toolResult.result : { error: toolResult.error },
         });
-
-        // Track created records for message_links
-        if (toolResult.ok && toolResult.result && typeof toolResult.result === 'object') {
-          const r = toolResult.result as Record<string, unknown>;
-          if (call.name === 'create_contact' && r.id) linksToInsert.push({ contact_id: r.id as string });
-          if (call.name === 'create_event' && r.id) linksToInsert.push({ event_id: r.id as string });
-          if (call.name === 'draft_email' && r.id) linksToInsert.push({ email_draft_id: r.id as string });
-        }
       }
 
       // Append tool calls + results to history for next iteration.
@@ -735,33 +624,14 @@ router.post('/respond', async (req, res) => {
       assistantText = summaryResult.type === 'text' ? summaryResult.content : 'Done.';
     }
 
-    // 6. Persist assistant message
+    // 5. Persist assistant message
     const { data: assistantMessage, error: assistantErr } = await supabaseUser
       .from('messages')
-      .insert({ conversation_id, owner_user_id: userId, sender_type: 'assistant', sender_user_id: null, content: assistantText || 'Done.' })
+      .insert({ conversation_id, user_id: userId, sender_type: 'assistant', sender_user_id: null, content: assistantText || 'Done.' })
       .select('*').single();
     if (assistantErr) throw new Error(assistantErr.message);
 
-    // 7. Insert message links for created records
-    if (linksToInsert.length > 0) {
-      await supabaseUser.from('message_links').insert(
-        linksToInsert.map((l) => ({
-          message_id: assistantMessage.id,
-          contact_id: l.contact_id ?? null,
-          event_id: l.event_id ?? null,
-          email_draft_id: l.email_draft_id ?? null,
-        }))
-      );
-    }
-
-    // 8. Update run status
-    const errCount = allToolResults.filter((r) => !r.ok).length;
-    const { data: updatedRun } = await supabaseUser
-      .from('assistant_runs')
-      .update({ status: errCount > 0 ? 'failed' : 'succeeded', finished_at: new Date().toISOString() })
-      .eq('id', run.id).select('*').single();
-
-    // 9. Build linked entities directly from tool results — last write wins per entity ID.
+    // 6. Build linked entities directly from tool results — last write wins per entity ID.
     const linkedEntitiesMap = new Map<string, any>();
     for (const tr of allToolResults) {
       if (!tr.ok || !tr.result || typeof tr.result !== 'object') continue;
@@ -778,22 +648,18 @@ router.post('/respond', async (req, res) => {
     }
     const linkedEntities = Array.from(linkedEntitiesMap.values());
 
-    // 10. Await titling (only happens on first message) and fetch updated conversation
+    // 7. Await titling (only happens on first message) and fetch updated conversation
     await autoTitleConversation(supabaseUser, conversation_id, text);
     const { data: conversation } = await supabaseUser.from('conversations').select('*').eq('id', conversation_id).single();
 
     res.json({
       user_message: userMessage,
       assistant_message: assistantMessage,
-      run: updatedRun ?? run,
       conversation: conversation,
       linked_entities: linkedEntities,
     });
 
   } catch (err: any) {
-    await supabaseUser.from('assistant_runs').update({
-      status: 'failed', finished_at: new Date().toISOString(), error: err?.message || 'Assistant error',
-    }).eq('id', run.id);
     res.status(500).json({ error: err?.message || 'Assistant error' });
   }
 });

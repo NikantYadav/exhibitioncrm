@@ -12,6 +12,7 @@ async function ownsContact(userId: string, contactId: string): Promise<boolean> 
     .select('id')
     .eq('id', contactId)
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .maybeSingle();
   return data !== null;
 }
@@ -38,6 +39,7 @@ router.post('/', async (req, res, next) => {
         summary: summary || '',
         interaction_date: interaction_date || new Date().toISOString(),
         details: details || {},
+        user_id: req.user!.id,
       })
       .select()
       .single();
@@ -60,6 +62,7 @@ router.patch('/:id', async (req, res, next) => {
       .from('interactions')
       .select('contact_id')
       .eq('id', id)
+      .is('deleted_at', null)
       .maybeSingle();
 
     if (!existing) {

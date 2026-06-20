@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
 
 /// Small uppercase section label used inside cards.
@@ -23,8 +24,7 @@ class AppSectionLabel extends StatelessWidget {
     final c = AppTheme.colorsOf(context);
     return Text(
       label.toUpperCase(),
-      style: TextStyle(
-        fontSize: 10,
+      style: context.theme.typography.xs.copyWith(
         fontWeight: FontWeight.w700,
         letterSpacing: letterSpacing,
         color: color ?? c.textMuted,

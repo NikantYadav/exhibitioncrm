@@ -111,6 +111,14 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
     return _filterByEvent(base);
   }
 
+  String? get _selectedEventName {
+    if (_selectedEventId == null) return null;
+    for (final e in _events) {
+      if (e.id == _selectedEventId) return e.name;
+    }
+    return null;
+  }
+
   int get _pendingCount => _filterByEvent(_needsFollowup).length;
   int get _doneCount    => _filterByEvent(_followedUp).length;
   int get _newCount     => _filterByEvent(_notContacted).length;
@@ -383,7 +391,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
           ),
         ),
       ),
-    );
+    ).whenComplete(searchCtrl.dispose);
   }
 
   Widget _eventOption({
@@ -490,45 +498,13 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                 ),
                 if (widget.event == null && widget.eventId == null) ...[
                 const SizedBox(width: 10),
-                GestureDetector(
+                _EventFilterButton(
+                  active: _selectedEventId != null,
+                  label: _selectedEventName ?? 'Event',
+                  accent: _c.accent,
+                  accentSoft: _c.accentSoft,
+                  surfaceAlt: _c.surfaceAlt,
                   onTap: _showEventFilterSheet,
-                  child: Container(
-                    height: 36,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: _selectedEventId != null
-                          ? _c.accentSoft
-                          : _c.surfaceAlt,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: _selectedEventId != null
-                            ? _c.accent.withValues(alpha: 0.5)
-                            : context.theme.colors.border,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.filter_list_rounded, size: 14,
-                          color: _selectedEventId != null ? _c.accent : context.theme.colors.mutedForeground),
-                        const SizedBox(width: 4),
-                        Text(
-                          _selectedEventId != null ? 'Event' : 'Event',
-                          style: context.theme.typography.xs.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: _selectedEventId != null ? _c.accent : context.theme.colors.mutedForeground,
-                          ),
-                        ),
-                        if (_selectedEventId != null) ...[
-                          const SizedBox(width: 4),
-                          Container(
-                            width: 6, height: 6,
-                            decoration: BoxDecoration(color: _c.accent, shape: BoxShape.circle),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
                 ),
                 ], // end event filter button
               ],
@@ -810,6 +786,75 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
       padding: const EdgeInsets.all(16),
       radius: radius,
       child: child,
+    );
+  }
+}
+
+/// Pill button that opens the event filter sheet. When a specific event is
+/// selected it shows that event's name (truncated) so the active filter is
+/// legible at a glance, with the Trust Blue accent treatment.
+class _EventFilterButton extends StatelessWidget {
+  const _EventFilterButton({
+    required this.active,
+    required this.label,
+    required this.accent,
+    required this.accentSoft,
+    required this.surfaceAlt,
+    required this.onTap,
+  });
+
+  final bool active;
+  final String label;
+  final Color accent;
+  final Color accentSoft;
+  final Color surfaceAlt;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = active ? accent : context.theme.colors.mutedForeground;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 36,
+        constraints: const BoxConstraints(maxWidth: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: active ? accentSoft : surfaceAlt,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: active
+                ? accent.withValues(alpha: 0.5)
+                : context.theme.colors.border,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.filter_list_rounded, size: 14, color: fg),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.theme.typography.xs.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                ),
+              ),
+            ),
+            if (active) ...[
+              const SizedBox(width: 6),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

@@ -49,93 +49,87 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.82,
-          decoration: BoxDecoration(
-            color: _c.background,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            border: Border(top: BorderSide(color: _c.border)),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 48,
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.82,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.20),
-                  borderRadius: BorderRadius.circular(999),
+                  color: context.theme.colors.border,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: _c.border)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'LINKS & FILES',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.2,
-                          color: _c.textPrimary,
-                        ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: context.theme.colors.border)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Links & Files',
+                      style: context.theme.typography.xl.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        color: context.theme.colors.foreground,
                       ),
                     ),
-                    if (_uploading)
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: const FCircularProgress(),
-                      )
-                    else
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(_assets),
-                        splashRadius: 20,
-                        icon: Icon(Icons.close, color: _c.accent),
-                      ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: _assets.isEmpty ? _buildEmptyState() : _buildAssetList(),
-              ),
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                decoration: BoxDecoration(
-                  border: Border(top: BorderSide(color: _c.border)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: AppButton(
-                        label: 'ADD LINK',
-                        onPressed: _uploading ? null : _addLink,
-                        variant: ButtonVariant.outline,
-                        fullWidth: true,
-                      ),
+                  ),
+                  if (_uploading)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: FCircularProgress(),
+                    )
+                  else
+                    AppButton(
+                      onPressed: () => Navigator.of(context).pop(_assets),
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.sm,
+                      child: Icon(Icons.close, size: 18, color: context.theme.colors.mutedForeground),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppButton(
-                        label: 'ADD FILE',
-                        onPressed: _uploading ? null : _addFile,
-                        variant: ButtonVariant.outline,
-                        fullWidth: true,
-                      ),
-                    ),
-                  ],
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+            Expanded(
+              child: _assets.isEmpty ? _buildEmptyState() : _buildAssetList(),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: context.theme.colors.border)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      label: 'ADD LINK',
+                      onPressed: _uploading ? null : _addLink,
+                      variant: ButtonVariant.outline,
+                      fullWidth: true,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: AppButton(
+                      label: 'ADD FILE',
+                      onPressed: _uploading ? null : _addFile,
+                      variant: ButtonVariant.outline,
+                      fullWidth: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -154,20 +148,20 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
               decoration: BoxDecoration(
                 color: _c.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+                border: Border.all(color: context.theme.colors.border),
               ),
               child: Icon(Icons.attachment_outlined, color: _c.accent, size: 32),
             ),
             const SizedBox(height: 20),
             Text(
               'No links or files yet',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _c.textPrimary),
+              style: context.theme.typography.lg.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground),
             ),
             const SizedBox(height: 8),
             Text(
               'Attach shared decks, proposals, or useful follow-up links for this contact.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, height: 1.5, color: _c.textMuted),
+              style: context.theme.typography.sm.copyWith(height: 1.5, color: context.theme.colors.mutedForeground),
             ),
           ],
         ),
@@ -193,14 +187,14 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
+                    color: context.theme.colors.muted,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     asset.type == ContactAssetType.link
                         ? Icons.link
                         : Icons.insert_drive_file_outlined,
-                    color: _c.textPrimary,
+                    color: context.theme.colors.foreground,
                     size: 20,
                   ),
                 ),
@@ -211,10 +205,9 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
                     children: [
                       Text(
                         asset.title,
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: context.theme.typography.sm.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: _c.textPrimary,
+                          color: context.theme.colors.foreground,
                         ),
                       ),
                       if (asset.url.isNotEmpty) ...[
@@ -223,16 +216,17 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
                           asset.url,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: _c.textMuted),
+                          style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
                         ),
                       ],
                     ],
                   ),
                 ),
-                IconButton(
+                AppButton(
                   onPressed: () => setState(() => _assets.removeAt(index)),
-                  splashRadius: 18,
-                  icon: Icon(Icons.delete_outline, color: _c.accent, size: 20),
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.sm,
+                  child: Icon(Icons.delete_outline, color: _c.destructive, size: 18),
                 ),
               ],
             ),
@@ -303,11 +297,10 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
     final result = await showAppDialog<ContactAsset>(
       context: context,
       builder: (ctx, style, _) {
-        final c = AppTheme.colorsOf(ctx);
         return FDialog(
           title: Text(
             'Add link',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.textPrimary),
+            style: ctx.theme.typography.lg.copyWith(fontWeight: FontWeight.w600, color: ctx.theme.colors.foreground),
           ),
           body: Column(
             mainAxisSize: MainAxisSize.min,
@@ -315,41 +308,41 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
               TextField(
                 controller: titleCtrl,
                 autofocus: true,
-                cursorColor: c.textPrimary,
-                style: TextStyle(color: c.textPrimary),
+                cursorColor: ctx.theme.colors.foreground,
+                style: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.foreground),
                 decoration: InputDecoration(
                   labelText: 'Label',
-                  labelStyle: TextStyle(color: c.textMuted),
+                  labelStyle: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground),
                   hintText: 'e.g. Proposal Deck',
-                  hintStyle: TextStyle(color: c.textMuted),
+                  hintStyle: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: c.border),
+                    borderSide: BorderSide(color: ctx.theme.colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: c.textPrimary),
+                    borderSide: BorderSide(color: ctx.theme.colors.foreground),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: urlCtrl,
-                cursorColor: c.textPrimary,
-                style: TextStyle(color: c.textPrimary),
+                cursorColor: ctx.theme.colors.foreground,
+                style: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.foreground),
                 keyboardType: TextInputType.url,
                 decoration: InputDecoration(
                   labelText: 'URL',
-                  labelStyle: TextStyle(color: c.textMuted),
+                  labelStyle: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground),
                   hintText: 'https://',
-                  hintStyle: TextStyle(color: c.textMuted),
+                  hintStyle: ctx.theme.typography.sm.copyWith(color: ctx.theme.colors.mutedForeground),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: c.border),
+                    borderSide: BorderSide(color: ctx.theme.colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: c.textPrimary),
+                    borderSide: BorderSide(color: ctx.theme.colors.foreground),
                   ),
                 ),
               ),

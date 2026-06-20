@@ -5,6 +5,7 @@ import '../config/app_theme.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/offline_provider.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
@@ -104,36 +105,17 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
   }
 
   Widget _newChatButton() {
-    return GestureDetector(
-      onTap: _startNewChat,
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          color: _c.accent,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'NEW CHAT',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AppButton(
+      label: 'NEW CHAT',
+      onPressed: _startNewChat,
+      variant: ButtonVariant.primary,
+      prefixIcon: const Icon(Icons.add_rounded, size: 20),
+      fullWidth: true,
     );
   }
 
   Widget _chatItem(ConversationModel convo) {
-    final (icon, iconBg) = _iconForKind(convo.kind);
+    final (icon, iconBg) = (Icons.auto_awesome_outlined, _c.accentSoft);
 
     return Dismissible(
       key: ValueKey(convo.id),
@@ -209,17 +191,6 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
     );
   }
 
-  (IconData, Color) _iconForKind(String kind) {
-    switch (kind) {
-      case 'contact':
-        return (Icons.person_outline_rounded, _c.accentSoft);
-      case 'event':
-        return (Icons.calendar_today_outlined, _c.accentSoft);
-      default:
-        return (Icons.auto_awesome_outlined, _c.accentSoft);
-    }
-  }
-
   Widget _emptyState() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -243,9 +214,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
                 const SizedBox(height: 16),
                 Text(
                   'No chats yet',
-                  style: TextStyle(
-                    color: _c.textPrimary,
-                    fontSize: 16,
+                  style: context.theme.typography.lg.copyWith(
+                    color: context.theme.colors.foreground,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.3,
                   ),
@@ -254,9 +224,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
                 Text(
                   'Start a new chat to ask about contacts,\nevents, or anything in your CRM.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: _c.textMuted,
-                    fontSize: 13,
+                  style: context.theme.typography.sm.copyWith(
+                    color: context.theme.colors.mutedForeground,
                     height: 1.5,
                   ),
                 ),

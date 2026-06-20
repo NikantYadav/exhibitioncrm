@@ -17,8 +17,13 @@ class AppHeader extends StatelessWidget {
   final Widget? actionWidget;
   final bool showProfile;
   final VoidCallback? onBack;
-
   final bool showNotifications;
+
+  /// When set, shows this text as the header title (used in detail screens).
+  final String? title;
+
+  /// Optional trailing widget shown to the right of the title (detail screens).
+  final Widget? trailing;
 
   const AppHeader({
     super.key,
@@ -29,6 +34,8 @@ class AppHeader extends StatelessWidget {
     this.showProfile = true,
     this.showNotifications = false,
     this.onBack,
+    this.title,
+    this.trailing,
   });
 
   @override
@@ -77,6 +84,27 @@ class AppHeader extends StatelessWidget {
     );
 
     if (onBack != null) {
+      if (title != null) {
+        // Detail screen: back button + title text + optional trailing widget.
+        return FHeader.nested(
+          title: Text(
+            title!,
+            style: context.theme.typography.lg.copyWith(
+              fontWeight: FontWeight.w600,
+              color: context.theme.colors.foreground,
+              letterSpacing: -0.3,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          prefixes: [
+            _HeaderActionFHeaderAction(icon: Icons.arrow_back_rounded, onPress: onBack!),
+          ],
+          suffixes: [
+            ?trailing,
+            suffixRow,
+          ],
+        );
+      }
       return FHeader.nested(
         title: const SizedBox.shrink(),
         prefixes: [

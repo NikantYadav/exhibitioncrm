@@ -11,6 +11,7 @@ async function ownsContact(userId: string, contactId: string): Promise<boolean> 
     .select('id')
     .eq('id', contactId)
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .maybeSingle();
   return data !== null;
 }
@@ -20,6 +21,7 @@ async function ownsInteraction(userId: string, interactionId: string): Promise<b
     .from('interactions')
     .select('contact_id, contacts!inner(user_id)')
     .eq('id', interactionId)
+    .is('deleted_at', null)
     .maybeSingle();
   if (!data) return false;
   const contact = (data as any).contacts;
@@ -42,10 +44,10 @@ router.get('/', async (req, res, next) => {
           *,
           company:companies(*),
           interactions!inner(id, event_id, interaction_type, interaction_date),
-          notes(id, event_id, created_at),
           email_drafts(*)
         `)
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .eq('interactions.event_id', event_id);
     } else {
       query = supabase
@@ -54,10 +56,10 @@ router.get('/', async (req, res, next) => {
           *,
           company:companies(*),
           interactions(id, interaction_type, event_id, interaction_date),
-          notes(id, event_id, created_at),
           email_drafts(*)
         `)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .is('deleted_at', null);
     }
 
     const { data: contacts, error } = await query.order('created_at', { ascending: false });
@@ -73,17 +75,17 @@ router.get('/', async (req, res, next) => {
     };
 
     contacts?.forEach(contact => {
-      const drafts = contact.email_drafts || [];
+      // embedded email_drafts/interactions can't be filtered inline in the select above —
+      // filter out soft-deleted rows here in app code.
+      const drafts = (contact.email_drafts || []).filter((d: any) => !d.deleted_at);
       const sentDrafts = drafts.filter((d: any) =>
         d.status === 'sent' && (!event_id || d.event_id === event_id)
       );
 
-      const interactionList = (contact.interactions as any[]) || [];
-      const noteList = (contact.notes as any[]) || [];
+      const interactionList = ((contact.interactions as any[]) || []).filter((i: any) => !i.deleted_at);
 
       const dates: string[] = [];
       interactionList.forEach((i: any) => i.interaction_date && dates.push(i.interaction_date));
-      noteList.forEach((n: any) => n.created_at && dates.push(n.created_at));
       sentDrafts.forEach((d: any) => d.sent_at && dates.push(d.sent_at));
 
       const lastInteraction = dates.length > 0
@@ -94,7 +96,7 @@ router.get('/', async (req, res, next) => {
 
       (contact as any).last_interaction = lastInteraction;
 
-      const interactionCount = interactionList.length + noteList.length;
+      const interactionCount = interactionList.length;
 
       if (contact.follow_up_status) {
         if (contact.follow_up_status === 'followed_up') categorized.followed_up.push(contact);
@@ -130,7 +132,8 @@ router.post('/', async (req, res, next) => {
         interaction_type: 'email',
         interaction_date: new Date().toISOString(),
         summary: body.summary || 'Follow-up email',
-        details: body.details
+        details: body.details,
+        user_id: req.user!.id,
       })
       .select()
       .single();
@@ -180,7 +183,7 @@ router.delete('/:id', async (req, res, next) => {
 
     const { error } = await supabase
       .from('interactions')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) {

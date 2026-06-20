@@ -18,10 +18,7 @@ const upload = multer({
 });
 
 const createConversationSchema = z.object({
-  kind: z.enum(['global', 'contact', 'event']),
   title: z.string().trim().min(1).max(200).optional(),
-  contact_id: z.string().uuid().optional(),
-  event_id: z.string().uuid().optional(),
 });
 
 const createAttachmentSchema = z.object({
@@ -39,20 +36,11 @@ const uploadAttachmentSchema = z.object({
 // GET /api/conversations
 router.get('/', async (req, res) => {
   const supabase = createSupabaseUserClient(req.accessToken!);
-  const kind = typeof req.query.kind === 'string' ? req.query.kind : undefined;
-  const contactId = typeof req.query.contact_id === 'string' ? req.query.contact_id : undefined;
-  const eventId = typeof req.query.event_id === 'string' ? req.query.event_id : undefined;
 
-  let query = supabase
+  const { data, error } = await supabase
     .from('conversations')
     .select('*')
     .order('updated_at', { ascending: false });
-
-  if (kind) query = query.eq('kind', kind);
-  if (contactId) query = query.eq('contact_id', contactId);
-  if (eventId) query = query.eq('event_id', eventId);
-
-  const { data, error } = await query;
   if (error) return res.status(400).json({ error: error.message });
 
   // Enrich each conversation with the first user message as a preview
@@ -83,30 +71,19 @@ router.post('/', async (req, res) => {
   }
 
   const supabase = createSupabaseUserClient(req.accessToken!);
-  const ownerUserId = req.user!.id;
-  const { kind, title, contact_id, event_id } = parsed.data;
-
-  // We no longer reuse conversations for 'global' kind to support multiple chats.
-  // The frontend now manages when to create a new chat vs using an existing one.
+  const userId = req.user!.id;
+  const { title } = parsed.data;
 
   const { data: conversation, error } = await supabase
     .from('conversations')
     .insert({
-      owner_user_id: ownerUserId,
-      kind,
+      user_id: userId,
       title: title ?? null,
-      contact_id: contact_id ?? null,
-      event_id: event_id ?? null,
     })
     .select('*')
     .single();
 
   if (error) return res.status(400).json({ error: error.message });
-
-  // Ensure owner membership row exists
-  await supabase
-    .from('conversation_members')
-    .insert({ conversation_id: conversation.id, user_id: ownerUserId, role: 'owner' });
 
   res.json({ data: conversation, reused: false });
 });
@@ -121,7 +98,7 @@ router.get('/:id/messages', async (req, res) => {
 
   let query = supabase
     .from('messages')
-    .select('*, attachments:message_attachments(*), links:message_links(*)')
+    .select('*, attachments:message_attachments(*)')
     .eq('conversation_id', conversationId);
 
   // Pagination: return latest N messages by default.
@@ -152,7 +129,7 @@ router.get('/:id/messages/search', async (req, res) => {
 
   const { data, error } = await supabase
     .from('messages')
-    .select('*, attachments:message_attachments(*), links:message_links(*)')
+    .select('*, attachments:message_attachments(*)')
     .eq('conversation_id', conversationId)
     .textSearch('content', q, { type: 'websearch', config: 'english' })
     .order('created_at', { ascending: false })
@@ -207,7 +184,7 @@ router.post('/:id/attachments/upload', upload.single('file'), async (req, res) =
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
 
   const supabaseUser = createSupabaseUserClient(req.accessToken!);
-  const ownerUserId = req.user!.id;
+  const userId = req.user!.id;
 
   // Ensure the message belongs to this conversation
   const { data: message, error: msgErr } = await supabaseUser
@@ -230,7 +207,7 @@ router.post('/:id/attachments/upload', upload.single('file'), async (req, res) =
     return /^[.][a-z0-9]{1,10}$/.test(e) ? e : '';
   })();
 
-  const path = `${ownerUserId}/${conversationId}/${randomUUID()}${ext}`;
+  const path = `${userId}/${conversationId}/${randomUUID()}${ext}`;
 
   const { error: uploadErr } = await supabaseAdmin.storage.from(bucket).upload(path, req.file.buffer, {
     contentType: req.file.mimetype,
@@ -267,15 +244,15 @@ router.post('/:id/messages', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const supabase = createSupabaseUserClient(req.accessToken!);
-  const ownerUserId = req.user!.id;
+  const userId = req.user!.id;
 
   const { data, error } = await supabase
     .from('messages')
     .insert({
       conversation_id: conversationId,
-      owner_user_id: ownerUserId,
+      user_id: userId,
       sender_type: 'user',
-      sender_user_id: ownerUserId,
+      sender_user_id: userId,
       content: parsed.data.content,
     })
     .select('*')

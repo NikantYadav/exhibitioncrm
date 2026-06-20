@@ -1,14 +1,20 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_theme.dart';
+import '../db/app_database.dart';
+import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
@@ -24,58 +30,35 @@ class CompanyDetailScreen extends StatefulWidget {
 class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
-  Map<String, dynamic>? _company;
-  List<Map<String, dynamic>> _contacts = [];
-  bool _isLoading = true;
-  bool _isLoadingContacts = true;
-  String? _error;
-
   // Enrichment
   bool _isEnriching = false;
   String? _enrichError;
+  bool _autoEnrichTried = false;
 
   // Talking points (briefing)
   bool _isGenerating = false;
   String? _briefingError;
+  List<String> _talkingPointsOverride = const [];
+
+  late final SyncProvider _sync;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
-    try {
-      final company = await ApiService.getCompany(widget.companyId);
-      if (!mounted) return;
-      setState(() { _company = company; _isLoading = false; });
-      _loadContacts();
-      _autoEnrich(company);
-    } on UnauthorizedException { rethrow; } catch (_) {
-      if (mounted) setState(() { _error = 'Unable to load company details. Please try again.'; _isLoading = false; });
-    }
-  }
-
-  Future<void> _loadContacts() async {
-    try {
-      final contacts = await ApiService.getCompanyContacts(widget.companyId);
-      if (mounted) setState(() { _contacts = contacts; _isLoadingContacts = false; });
-    } on UnauthorizedException { rethrow; } catch (_) {
-      if (mounted) setState(() => _isLoadingContacts = false);
-    }
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync = context.read<SyncProvider>();
   }
 
   // Runs on first open if not yet enriched, or if previous attempt failed.
-  Future<void> _autoEnrich(Map<String, dynamic> company) async {
-    final enrichedAt = company['enriched_at'] as String?;
-    final failed = company['enrichment_failed'] as bool? ?? false;
-    if (enrichedAt != null && !failed) return; // already enriched successfully
+  Future<void> _autoEnrich(CompaniesTableData? company) async {
+    if (_autoEnrichTried || company == null) return;
+    if (company.enrichedAt != null && !company.enrichmentFailed) return; // already enriched successfully
+    _autoEnrichTried = true;
 
     setState(() { _isEnriching = true; _enrichError = null; });
     try {
-      final updated = await ApiService.enrichCompany(widget.companyId);
-      if (mounted) setState(() { _company = updated; _isEnriching = false; });
+      await ApiService.enrichCompany(widget.companyId);
+      await _sync.companies.catchUp();
+      if (mounted) setState(() => _isEnriching = false);
     } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         setState(() {
@@ -90,9 +73,10 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
     setState(() { _isGenerating = true; _briefingError = null; });
     try {
       final points = await ApiService.generateCompanyBriefing(widget.companyId);
+      await _sync.companies.catchUp();
       if (mounted) {
         setState(() {
-          _company = {...?_company, 'talking_points': points};
+          _talkingPointsOverride = List<String>.from(points);
           _isGenerating = false;
         });
       }
@@ -114,60 +98,50 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _c.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: _isLoading
-                  ? _buildLoadingState()
-                  : _error != null
-                      ? _buildErrorState()
-                      : _buildBody(),
+    return StreamBuilder<CompaniesTableData?>(
+      stream: _sync.companies.watchById(widget.companyId),
+      builder: (context, snapshot) {
+        final company = snapshot.data;
+        if (company != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _autoEnrich(company));
+        }
+        return ColoredBox(
+          color: context.theme.colors.background,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _buildHeader(company),
+                Expanded(
+                  child: !snapshot.hasData
+                      ? _buildLoadingState()
+                      : company == null
+                          ? _buildNotFoundState()
+                          : _buildBody(company),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   // ── Header ───────────────────────────────────────────────────────────────────
 
-  Widget _buildHeader() {
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        color: _c.background,
-        border: Border(bottom: BorderSide(color: _c.border)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => context.canPop() ? context.pop() : context.go('/contacts'),
-            icon: Icon(Icons.arrow_back_rounded, color: _c.accent, size: 22),
-            splashRadius: 20,
-            tooltip: 'Back',
-          ),
-          Expanded(
-            child: Text(
-              _company?['name'] as String? ?? 'Company',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _c.textPrimary, letterSpacing: -0.3),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if ((_company?['website'] as String?)?.isNotEmpty == true)
-            IconButton(
-              onPressed: () => _launchUrl(_company!['website'] as String),
-              icon: Icon(Icons.open_in_browser_rounded, color: _c.accent, size: 20),
-              splashRadius: 20,
-              tooltip: 'Open website',
-            ),
-        ],
-      ),
+  Widget _buildHeader(CompaniesTableData? company) {
+    return AppHeader(
+      title: company?.name ?? 'Company',
+      onBack: () => context.canPop() ? context.pop() : context.go('/contacts'),
+      showProfile: false,
+      trailing: company?.website?.isNotEmpty == true
+          ? AppButton(
+              onPressed: () => _launchUrl(company!.website!),
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.sm,
+              child: Icon(Icons.open_in_browser_rounded, size: 20, color: _c.accent),
+            )
+          : null,
     );
   }
 
@@ -203,7 +177,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                   ],
                 ),
                 const SizedBox(height: 16),
-                Container(height: 1, color: _c.border.withValues(alpha: 0.4)),
+                Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.4)),
                 const SizedBox(height: 14),
                 SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
                 const SizedBox(height: 6),
@@ -224,7 +198,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                 _skeletonInfoRow(),
                 _skeletonInfoRow(),
                 const SizedBox(height: 4),
-                Container(height: 1, color: _c.border.withValues(alpha: 0.4)),
+                Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.4)),
                 const SizedBox(height: 12),
                 SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
                 const SizedBox(height: 6),
@@ -270,7 +244,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildNotFoundState() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -279,15 +253,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
           children: [
             Icon(Icons.error_outline_rounded, color: _c.destructive, size: 40),
             const SizedBox(height: 12),
-            Text('Could not load company', style: TextStyle(color: _c.textPrimary, fontWeight: FontWeight.w600, fontSize: 16)),
-            const SizedBox(height: 6),
-            Text(_error ?? '', style: TextStyle(color: _c.textMuted, fontSize: 13), textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            AppButton(
-              label: 'RETRY',
-              onPressed: _load,
-              variant: ButtonVariant.outline,
-            ),
+            Text('Company not found', style: context.theme.typography.lg.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -296,21 +262,24 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
 
   // ── Main body ─────────────────────────────────────────────────────────────────
 
-  Widget _buildBody() {
-    final co = _company!;
-    final name           = co['name']              as String? ?? '';
-    final industry       = co['industry']          as String? ?? '';
-    final location       = co['location']          as String? ?? '';
-    final website        = co['website']           as String? ?? '';
-    final size           = co['company_size']      as String? ?? '';
-    final desc           = co['description']       as String? ?? '';
-    final products       = co['products_services'] as String? ?? '';
-    final headquarters   = co['headquarters']      as String? ?? '';
-    final employeeCount  = co['employee_count']    as String? ?? '';
-    final foundedYear    = co['founded_year']      as String? ?? '';
-    final linkedinUrl    = co['linkedin_url']      as String? ?? '';
-    final ticker         = co['ticker_symbol']     as String? ?? '';
-    final talkingPoints  = (co['talking_points'] as List?)?.cast<String>() ?? [];
+  Widget _buildBody(CompaniesTableData co) {
+    final name           = co.name;
+    final industry       = co.industry ?? '';
+    final location       = co.location ?? '';
+    final website        = co.website ?? '';
+    final size           = co.companySize ?? '';
+    final desc           = co.description ?? '';
+    final products       = co.productsServices ?? '';
+    final headquarters   = co.headquarters ?? '';
+    final employeeCount  = co.employeeCount ?? '';
+    final foundedYear    = co.foundedYear ?? '';
+    final linkedinUrl    = co.linkedinUrl ?? '';
+    final ticker         = co.tickerSymbol ?? '';
+    final talkingPoints  = _talkingPointsOverride.isNotEmpty
+        ? _talkingPointsOverride
+        : (co.talkingPointsJson != null
+            ? (jsonDecode(co.talkingPointsJson!) as List).cast<String>()
+            : const <String>[]);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
@@ -328,29 +297,19 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _c.accentSoft,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _c.border),
-                      ),
-                      child: Text(
-                        name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.toUpperCase(),
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _c.accent, letterSpacing: -0.3),
-                      ),
+                    AppAvatar(
+                      initials: name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.toUpperCase(),
+                      size: 56,
                     ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: _c.textPrimary)),
+                          Text(name, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4, color: context.theme.colors.foreground)),
                           if (industry.isNotEmpty) ...[
                             const SizedBox(height: 4),
-                            Text(industry, style: TextStyle(fontSize: 13, color: _c.textMuted)),
+                            Text(industry, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
                           ],
                           const SizedBox(height: 8),
                           Wrap(
@@ -377,7 +336,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                   _buildEnrichError(),
                 ] else if (headquarters.isNotEmpty || employeeCount.isNotEmpty || foundedYear.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Container(height: 1, color: _c.border.withValues(alpha: 0.5)),
+                  Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.5)),
                   const SizedBox(height: 14),
                   Wrap(
                     spacing: 16,
@@ -391,9 +350,9 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
 
                 if (desc.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Container(height: 1, color: _c.border.withValues(alpha: 0.5)),
+                  Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.5)),
                   const SizedBox(height: 14),
-                  Text(desc, style: TextStyle(fontSize: 13, color: _c.textSecondary, height: 1.55)),
+                  Text(desc, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.55)),
                 ],
               ],
             ),
@@ -417,12 +376,12 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                   if (products.isNotEmpty) ...[
                     if (location.isNotEmpty || website.isNotEmpty || linkedinUrl.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Container(height: 1, color: _c.border.withValues(alpha: 0.4)),
+                      Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.4)),
                       const SizedBox(height: 12),
                     ],
                     AppSectionLabel('Products & Services'),
                     const SizedBox(height: 8),
-                    Text(products, style: TextStyle(fontSize: 13, color: _c.textSecondary, height: 1.5)),
+                    Text(products, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5)),
                   ],
                 ],
               ),
@@ -431,29 +390,35 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
           const SizedBox(height: 16),
 
           // ── Contacts card ──────────────────────────────────────────────────
-          AppCard(
-            padding: const EdgeInsets.all(20),
-            radius: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          StreamBuilder<List<ContactsTableData>>(
+            stream: _sync.contacts.watchByCompany(widget.companyId),
+            builder: (context, snapshot) {
+              final contacts = snapshot.data;
+              return AppCard(
+                padding: const EdgeInsets.all(20),
+                radius: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: AppSectionLabel('Contacts')),
-                    if (!_isLoadingContacts && _contacts.isNotEmpty)
-                      Text('${_contacts.length} TOTAL',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: _c.accent)),
+                    Row(
+                      children: [
+                        Expanded(child: AppSectionLabel('Contacts')),
+                        if (contacts != null && contacts.isNotEmpty)
+                          Text('${contacts.length} TOTAL',
+                              style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.2, color: _c.accent)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (contacts == null)
+                      Column(children: [_contactSkeleton(), const SizedBox(height: 12), _contactSkeleton()])
+                    else if (contacts.isEmpty)
+                      Text('No contacts found for this company.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))
+                    else
+                      ...contacts.map(_buildContactRow),
                   ],
                 ),
-                const SizedBox(height: 12),
-                if (_isLoadingContacts)
-                  Column(children: [_contactSkeleton(), const SizedBox(height: 12), _contactSkeleton()])
-                else if (_contacts.isEmpty)
-                  Text('No contacts found for this company.', style: TextStyle(fontSize: 14, color: _c.textMuted))
-                else
-                  ..._contacts.map(_buildContactRow),
-              ],
-            ),
+              );
+            },
           ),
 
           const SizedBox(height: 16),
@@ -493,7 +458,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                 // Talking Points section
                 if (talkingPoints.isNotEmpty && !_isGenerating) ...[
                   const SizedBox(height: 20),
-                  Container(height: 1, color: _c.border.withValues(alpha: 0.5)),
+                  Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.5)),
                   const SizedBox(height: 16),
                   AppSectionLabel('Talking Points', color: _c.accent),
                   const SizedBox(height: 14),
@@ -509,12 +474,12 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                           alignment: Alignment.center,
                           decoration: BoxDecoration(color: _c.accentSoft, borderRadius: BorderRadius.circular(6)),
                           child: Text('${e.key + 1}',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _c.accent)),
+                              style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(e.value,
-                              style: TextStyle(fontSize: 13, color: _c.textSecondary, height: 1.5)),
+                              style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5)),
                         ),
                       ],
                     ),
@@ -522,7 +487,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                 ] else if (!_isGenerating && talkingPoints.isEmpty) ...[
                   const SizedBox(height: 14),
                   Text('Generate an AI briefing to get talking points for your next meeting.',
-                      style: TextStyle(fontSize: 13, color: _c.textMuted)),
+                      style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
                 ],
               ],
             ),
@@ -543,7 +508,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
           child: FCircularProgress(),
         ),
         const SizedBox(width: 8),
-        Text('Loading company details…', style: TextStyle(fontSize: 12, color: _c.textMuted, fontStyle: FontStyle.italic)),
+        Text('Loading company details…', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground, fontStyle: FontStyle.italic)),
       ],
     );
   }
@@ -560,7 +525,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
         children: [
           Icon(Icons.info_outline, size: 14, color: _c.destructive),
           const SizedBox(width: 8),
-          Expanded(child: Text(_enrichError!, style: TextStyle(fontSize: 12, color: _c.destructive, height: 1.4))),
+          Expanded(child: Text(_enrichError!, style: context.theme.typography.xs.copyWith(color: _c.destructive, height: 1.4))),
         ],
       ),
     );
@@ -578,7 +543,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
         children: [
           Icon(Icons.error_outline, size: 14, color: _c.destructive),
           const SizedBox(width: 8),
-          Expanded(child: Text(_briefingError!, style: TextStyle(fontSize: 12, color: _c.destructive, height: 1.4))),
+          Expanded(child: Text(_briefingError!, style: context.theme.typography.xs.copyWith(color: _c.destructive, height: 1.4))),
         ],
       ),
     );
@@ -590,7 +555,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
       children: [
         Icon(icon, size: 14, color: _c.accent),
         const SizedBox(width: 5),
-        Text(label, style: TextStyle(fontSize: 12, color: _c.textSecondary)),
+        Text(label, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
       ],
     );
   }
@@ -604,7 +569,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
           children: [
             Icon(icon, size: 17, color: _c.accent),
             const SizedBox(width: 12),
-            Expanded(child: Text(value, style: TextStyle(fontSize: 14, color: _c.textPrimary), overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(value, style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground), overflow: TextOverflow.ellipsis)),
             if (onTap != null) Icon(Icons.chevron_right, size: 16, color: _c.accent),
           ],
         ),
@@ -612,11 +577,11 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
     );
   }
 
-  Widget _buildContactRow(Map<String, dynamic> contact) {
-    final firstName = contact['first_name'] as String? ?? '';
-    final lastName  = contact['last_name']  as String? ?? '';
-    final jobTitle  = contact['job_title']  as String? ?? '';
-    final contactId = contact['id']         as String? ?? '';
+  Widget _buildContactRow(ContactsTableData contact) {
+    final firstName = contact.firstName;
+    final lastName  = contact.lastName ?? '';
+    final jobTitle  = contact.jobTitle ?? '';
+    final contactId = contact.id;
     final initials  = (firstName.isNotEmpty ? firstName[0] : '') + (lastName.isNotEmpty ? lastName[0] : '');
 
     return GestureDetector(
@@ -631,8 +596,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('$firstName $lastName'.trim(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _c.textPrimary)),
-                  if (jobTitle.isNotEmpty) Text(jobTitle, style: TextStyle(fontSize: 12, color: _c.textMuted)),
+                  Text('$firstName $lastName'.trim(), style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+                  if (jobTitle.isNotEmpty) Text(jobTitle, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
                 ],
               ),
             ),

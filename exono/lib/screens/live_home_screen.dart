@@ -9,6 +9,7 @@ import '../widgets/app_button.dart';
 import '../widgets/app_feedback.dart';
 import '../models/event.dart';
 import '../providers/live_event_provider.dart';
+import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
@@ -18,7 +19,7 @@ import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import 'app_shell.dart';
-import 'event_target_screen.dart';
+import 'target_company_prep_screen.dart';
 import 'log_interaction_screen.dart';
 import '../utils/screen_logger.dart';
 
@@ -268,7 +269,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   }
 
   Future<void> _addContactAsTarget(Event event, LiveEventProvider lep) async {
-    final contacts = await ApiService.getContacts();
+    final contacts = await context.read<SyncProvider>().contacts.watchAllWithCompany().first;
     if (!mounted) return;
 
     final existingContactIds = lep.targetContacts
@@ -394,10 +395,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     final targetsLeft = lep.targetContacts.where((t) => !_isTargetContactMet(t)).length;
     final goalsLeft = lep.liveGoals.where((g) => (g['status'] as String?) != 'completed').length;
 
-    final location = [event.venue, event.hall]
-        .whereType<String>()
-        .where((s) => s.isNotEmpty)
-        .join(' • ');
+    final location = event.location ?? '';
 
     return RefreshIndicator(
       color: _c.accent,
@@ -487,7 +485,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         const SizedBox(height: 6),
         Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, color: context.theme.colors.foreground, height: 1)),
         const SizedBox(height: 3),
-        Text(label, style: context.theme.typography.xs.copyWith(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: context.theme.colors.mutedForeground),
+        Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.4, color: context.theme.colors.mutedForeground),
             textAlign: TextAlign.center, maxLines: 2),
       ],
     ));
@@ -504,17 +502,21 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           const Spacer(),
           GestureDetector(
             onTap: () => _showAddGoalSheet(event, lep),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: _c.accent.withValues(alpha: 0.5)),
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: _c.accent.withValues(alpha: 0.5)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.add_rounded, size: 12, color: _c.accent),
+                  const SizedBox(width: 4),
+                  Text('ADD GOAL', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.0, color: _c.accent)),
+                ]),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.add_rounded, size: 12, color: _c.accent),
-                const SizedBox(width: 4),
-                Text('ADD GOAL', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.0, color: _c.accent)),
-              ]),
             ),
           ),
         ]),
@@ -605,39 +607,48 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   color: isComplete ? _c.success : context.theme.colors.foreground,
                   decoration: isComplete ? TextDecoration.lineThrough : null,
                   decorationColor: _c.success))),
-              const SizedBox(width: 10),
+              Icon(Icons.more_horiz_rounded, size: 14, color: context.theme.colors.mutedForeground),
+              const SizedBox(width: 6),
               if (isCheckbox)
                 GestureDetector(
                   onTap: () => _toggleCheckboxGoal(goal, event, lep),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isComplete ? _c.success.withValues(alpha: 0.10) : _c.accentSoft,
-                      borderRadius: BorderRadius.circular(8),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isComplete ? _c.success.withValues(alpha: 0.10) : _c.accentSoft,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(isComplete ? 'DONE' : 'MARK DONE', style: context.theme.typography.xs.copyWith(
+                          fontWeight: FontWeight.w700, letterSpacing: 0.4,
+                          color: isComplete ? _c.success : _c.accent)),
                     ),
-                    child: Text(isComplete ? 'DONE' : 'MARK DONE', style: context.theme.typography.xs.copyWith(
-                        fontWeight: FontWeight.w700, letterSpacing: 0.4,
-                        color: isComplete ? _c.success : _c.accent)),
                   ),
                 )
               else
                 GestureDetector(
                   onTap: isComplete ? null : () => _incrementGoal(goal, event, lep),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isComplete ? _c.success.withValues(alpha: 0.10) : _c.accentSoft,
-                      borderRadius: BorderRadius.circular(8),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isComplete ? _c.success.withValues(alpha: 0.10) : _c.accentSoft,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (!isComplete) ...[
+                          Icon(Icons.add_rounded, size: 12, color: _c.accent),
+                          const SizedBox(width: 4),
+                        ],
+                        Text('$current / $total', style: context.theme.typography.sm.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: isComplete ? _c.success : _c.accent)),
+                      ]),
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      if (!isComplete) ...[
-                        Icon(Icons.add_rounded, size: 12, color: _c.accent),
-                        const SizedBox(width: 4),
-                      ],
-                      Text('$current / $total', style: context.theme.typography.sm.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: isComplete ? _c.success : _c.accent)),
-                    ]),
                   ),
                 ),
             ]),
@@ -718,7 +729,6 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             child: Text(
               count,
               style: context.theme.typography.xs.copyWith(
-                fontSize: 10,
                 fontWeight: FontWeight.w700,
                 color: isActive ? Colors.white : context.theme.colors.mutedForeground,
               ),
@@ -754,18 +764,22 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             const SizedBox(width: 10),
             GestureDetector(
               onTap: () => _addContactAsTarget(event, lep),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _c.accentSoft,
-                  borderRadius: BorderRadius.circular(8),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: _c.accentSoft,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.person_add_outlined, size: 13, color: _c.accent),
+                    const SizedBox(width: 5),
+                    Text('ADD', style: context.theme.typography.xs.copyWith(
+                        fontWeight: FontWeight.w700, letterSpacing: 0.8, color: _c.accent)),
+                  ]),
                 ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.person_add_outlined, size: 13, color: _c.accent),
-                  const SizedBox(width: 5),
-                  Text('ADD', style: context.theme.typography.xs.copyWith(
-                      fontWeight: FontWeight.w700, letterSpacing: 0.8, color: _c.accent)),
-                ]),
               ),
             ),
           ],
@@ -852,7 +866,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                         size: 13, color: isMet ? _c.success : context.theme.colors.mutedForeground),
                     const SizedBox(width: 5),
                     Text(isMet ? 'MET' : 'MARK MET', style: context.theme.typography.xs.copyWith(
-                        fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.6,
+                        fontWeight: FontWeight.w800, letterSpacing: 0.6,
                         color: isMet ? _c.success : context.theme.colors.mutedForeground)),
                   ]),
                 ),
@@ -1132,7 +1146,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
               final targetId = target['id'] as String? ?? '';
               if (targetId.isEmpty) return;
               Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => EventTargetScreen(event: event, targetId: targetId)));
+                  builder: (_) => TargetCompanyPrepScreen(event: event, targetId: targetId)));
             },
           ),
         ]),

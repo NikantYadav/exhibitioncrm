@@ -61,6 +61,7 @@ class AppBottomNav extends StatelessWidget {
     final nav = FBottomNavigationBar(
       index: _forIndex,
       onChange: _handleChange,
+      safeAreaBottom: true,
       children: const [
         FBottomNavigationBarItem(
           icon: Icon(Icons.home_outlined),
@@ -120,6 +121,7 @@ class AppBottomNav extends StatelessWidget {
     return FBottomNavigationBar(
       index: -1,
       onChange: _handleChange,
+      safeAreaBottom: true,
       children: const [
         FBottomNavigationBarItem(
           icon: Icon(Icons.home_outlined),

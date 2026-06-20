@@ -1,9 +1,14 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
+import '../db/app_database.dart';
 import '../models/event.dart';
+import '../providers/sync_provider.dart';
+import '../repositories/contact_events_repository.dart';
+import '../repositories/target_companies_repository.dart';
 import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
@@ -12,9 +17,8 @@ import '../widgets/app_chip.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
-import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
-import 'event_target_screen.dart';
+import 'target_company_prep_screen.dart';
 import '../utils/screen_logger.dart';
 
 class PreEventPrepScreen extends StatefulWidget {
@@ -30,26 +34,16 @@ class PreEventPrepScreen extends StatefulWidget {
 class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
-  List<Map<String, dynamic>> _targets = [];
-  List<Map<String, dynamic>> _targetContacts = [];
-  List<Map<String, dynamic>> _goals = [];
-  bool _isLoading = true;
+  late final TargetCompaniesRepository _targetsRepo;
+  late final ContactEventsRepository _contactEventsRepo;
+  late final SyncProvider _sync;
 
   @override
-  void initState() {
-    super.initState();
-    _loadAll();
-  }
-
-  Future<void> _loadAll() async {
-    await Future.wait([_loadTargets(), _loadTargetContacts(), _loadGoals()]);
-  }
-
-  Future<void> _loadGoals() async {
-    try {
-      final goals = await ApiService.getEventGoals(widget.event.id);
-      if (mounted) setState(() => _goals = goals);
-    } on UnauthorizedException { rethrow; } catch (_) {}
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync = context.read<SyncProvider>();
+    _targetsRepo = _sync.targetCompanies;
+    _contactEventsRepo = _sync.contactEvents;
   }
 
   Future<void> _addGoal() async {
@@ -134,8 +128,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   final total = isCheckbox ? 0 : (int.tryParse(totalCtrl.text.trim()) ?? 1);
                   Navigator.pop(ctx);
                   try {
-                    final newGoal = await ApiService.createEventGoal(widget.event.id, label, total);
-                    if (mounted) setState(() => _goals.add(newGoal));
+                    await ApiService.createEventGoal(widget.event.id, label, total);
+                    await _sync.eventGoals.catchUp();
                   } on UnauthorizedException { rethrow; } catch (_) {}
                 },
               ),
@@ -148,32 +142,13 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     totalCtrl.dispose();
   }
 
-  Future<void> _deleteGoalPrep(Map<String, dynamic> goal) async {
-    setState(() => _goals.removeWhere((g) => g['id'] == goal['id']));
+  Future<void> _deleteGoalPrep(EventGoalsTableData goal) async {
     try {
-      await ApiService.deleteEventGoal(widget.event.id, goal['id'] as String);
+      await ApiService.deleteEventGoal(widget.event.id, goal.id);
+      await _sync.eventGoals.catchUp();
     } on UnauthorizedException { rethrow; } catch (_) {
-      if (mounted) setState(() => _goals.add(goal));
+      if (mounted) showAppToast(context, 'Failed to delete goal.');
     }
-  }
-
-  Future<void> _loadTargets() async {
-    try {
-      final targets = await ApiService.getEventTargets(widget.event.id);
-      setState(() {
-        _targets = targets;
-        _isLoading = false;
-      });
-    } on UnauthorizedException { rethrow; } catch (_) {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _loadTargetContacts() async {
-    try {
-      final contacts = await ApiService.getEventTargetContacts(widget.event.id);
-      if (mounted) setState(() => _targetContacts = contacts);
-    } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
   String _daysUntil(DateTime date) {
@@ -196,17 +171,14 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     return '${months[start.month - 1]} ${start.day} — ${months[end.month - 1]} ${end.day}';
   }
 
-  Future<void> _openTargetDetail(Map<String, dynamic> target, int index) async {
+  Future<void> _openTargetDetail(TargetCompanyRow target) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => EventTargetScreen(event: widget.event, targetId: target['id'] as String),
+        builder: (context) => TargetCompanyPrepScreen(event: widget.event, targetId: target.id),
       ),
     );
-    try {
-      final data = await ApiService.getEventTarget(widget.event.id, target['id'] as String);
-      if (mounted) setState(() => _targets[index] = data);
-    } on UnauthorizedException { rethrow; } catch (_) {}
-    await _loadTargetContacts();
+    await _targetsRepo.catchUp();
+    await _contactEventsRepo.catchUp();
   }
 
   Future<void> _importTargets() async {
@@ -235,7 +207,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
 
     try {
       final imported = await ApiService.importEventTargets(widget.event.id, file.bytes!, file.name);
-      await _loadTargets();
+      await _targetsRepo.catchUp();
       if (mounted) {
         showAppToast(context, 'Import complete: ${imported['added']} added, ${imported['skipped']} skipped.');
       }
@@ -262,28 +234,26 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               ],
             ),
             Expanded(
-              child: _isLoading
-                  ? _buildLoadingState()
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1280),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildHeaderSection(),
-                              const SizedBox(height: 32),
-                              _buildGoalsPanel(),
-                              const SizedBox(height: 24),
-                              _buildTargetContactsPanel(),
-                              const SizedBox(height: 24),
-                              _buildTargetListPanel(),
-                            ],
-                          ),
-                        ),
-                      ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1280),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeaderSection(),
+                        const SizedBox(height: 32),
+                        _buildGoalsPanel(),
+                        const SizedBox(height: 24),
+                        _buildTargetContactsPanel(),
+                        const SizedBox(height: 24),
+                        _buildTargetListPanel(),
+                      ],
                     ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -304,14 +274,14 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.timer, size: 14, color: Colors.white),
+              Icon(Icons.timer, size: 14, color: context.theme.colors.background),
               const SizedBox(width: 8),
               Text(
                 _daysUntil(widget.event.startDate).toUpperCase(),
                 style: context.theme.typography.xs.copyWith(
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.4,
-                  color: Colors.white,
+                  color: context.theme.colors.background,
                 ),
               ),
             ],
@@ -369,68 +339,73 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   }
 
   Widget _buildGoalsPanel() {
-    return AppCard(
-      padding: const EdgeInsets.all(20),
-      radius: AppTheme.radiusCard,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Expanded(child: AppSectionLabel('Event Goals')),
-            AppButton(
-              variant: ButtonVariant.outline,
-              size: ButtonSize.sm,
-              onPressed: _addGoal,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.add_rounded, size: 12, color: _c.accent),
-                const SizedBox(width: 4),
-                Text('ADD', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.0, color: _c.accent)),
+    return StreamBuilder<List<EventGoalsTableData>>(
+      stream: _sync.eventGoals.watchAll(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return _buildPanelSkeleton();
+        final goals = snapshot.data!.where((g) => g.eventId == widget.event.id).toList();
+        return AppCard(
+          padding: const EdgeInsets.all(24),
+          radius: 16,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                  child: Text(
+                    'Event Goals',
+                    style: context.theme.typography.xl.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: context.theme.colors.foreground,
+                    ),
+                  ),
+                ),
+                AppButton(
+                  prefixIcon: const Icon(Icons.add_rounded, size: 16),
+                  label: 'Add',
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.sm,
+                  onPressed: _addGoal,
+                ),
               ]),
-            ),
-          ]),
-          const SizedBox(height: 16),
-          if (_goals.isEmpty)
-            Row(children: [
-              Icon(Icons.flag_outlined, size: 18, color: _c.accent),
-              const SizedBox(width: 10),
-              Expanded(child: Text('No goals yet. Set targets to stay focused during the event.',
-                  style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4))),
-            ])
-          else
-            for (int i = 0; i < _goals.length; i++) ...[
-              _buildPrepGoalRow(_goals[i]),
-              if (i < _goals.length - 1)
-                const SizedBox(height: 4),
+              const SizedBox(height: 16),
+              if (goals.isEmpty)
+                Row(children: [
+                  Icon(Icons.flag_outlined, size: 18, color: _c.accent),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('No goals yet. Set targets to stay focused during the event.',
+                      style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4))),
+                ])
+              else
+                for (int i = 0; i < goals.length; i++) ...[
+                  _buildPrepGoalRow(goals[i]),
+                  if (i < goals.length - 1)
+                    const SizedBox(height: 4),
+                ],
             ],
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildPrepGoalRow(Map<String, dynamic> goal) {
-    final current = goal['current'] as int? ?? 0;
-    final total = goal['total'] as int? ?? 1;
+  Widget _buildPrepGoalRow(EventGoalsTableData goal) {
+    final current = goal.current;
+    final total = goal.total;
     final isCheckbox = total == 0;
     final isComplete = isCheckbox ? current == 1 : (total > 0 && current >= total);
     final progress = (!isCheckbox && total > 0) ? (current / total).clamp(0.0, 1.0) : 0.0;
 
     return GestureDetector(
-      onLongPress: () {
-        showAppSheet(
+      onLongPress: () async {
+        final confirmed = await showAppConfirmDialog(
           context: context,
-          builder: (_) => SafeArea(
-            top: false,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const SizedBox(height: 8),
-              Container(width: 36, height: 4, decoration: BoxDecoration(color: context.theme.colors.border, borderRadius: BorderRadius.circular(2))),
-              ListTile(
-                leading: Icon(Icons.delete_outline_rounded, color: _c.destructive),
-                title: Text('Delete goal', style: TextStyle(color: _c.destructive)),
-                onTap: () { Navigator.pop(context); _deleteGoalPrep(goal); },
-              ),
-            ]),
-          ),
+          title: 'Delete goal?',
+          message: 'This removes "${goal.label}" from your event goals.',
+          confirmLabel: 'Delete',
+          destructive: true,
         );
+        if (confirmed == true) { _deleteGoalPrep(goal); }
       },
       child: Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -446,7 +421,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               child: isComplete ? Icon(Icons.check_rounded, size: 10, color: _c.isDark ? context.theme.colors.foreground : context.theme.colors.background) : null,
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text(goal['label'] as String? ?? '', style: context.theme.typography.sm.copyWith(
+            Expanded(child: Text(goal.label, style: context.theme.typography.sm.copyWith(
                 fontWeight: FontWeight.w500,
                 color: isComplete ? _c.success : context.theme.colors.foreground,
                 decoration: isComplete ? TextDecoration.lineThrough : null,
@@ -474,56 +449,59 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   }
 
   Widget _buildTargetContactsPanel() {
-    return AppCard(
-      padding: const EdgeInsets.all(24),
-      radius: 16,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return StreamBuilder<List<TargetContactRow>>(
+      stream: _contactEventsRepo.watchByEventWithContact(widget.event.id),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return _buildPanelSkeleton();
+        final targetContacts = snapshot.data!;
+        return AppCard(
+          padding: const EdgeInsets.all(24),
+          radius: 16,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  'Target Contacts',
-                  style: context.theme.typography.xl.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: context.theme.colors.foreground,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Target Contacts',
+                      style: context.theme.typography.xl.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: context.theme.colors.foreground,
+                      ),
+                    ),
                   ),
-                ),
+                  AppButton(
+                    prefixIcon: const Icon(Icons.person_add_outlined, size: 16),
+                    label: 'Add',
+                    variant: ButtonVariant.primary,
+                    size: ButtonSize.sm,
+                    onPressed: () => _showAddTargetContactSheet(targetContacts),
+                  ),
+                ],
               ),
-              AppButton(
-                prefixIcon: const Icon(Icons.person_add_outlined, size: 16),
-                label: 'Add',
-                variant: ButtonVariant.primary,
-                size: ButtonSize.sm,
-                onPressed: _showAddTargetContactSheet,
-              ),
+              const SizedBox(height: 20),
+              if (targetContacts.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Text(
+                    'No target contacts yet. Add people you want to meet.',
+                    style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+                  ),
+                )
+              else
+                ...targetContacts.map(_buildTargetContactRow),
             ],
           ),
-          const SizedBox(height: 20),
-          Container(height: 1, color: context.theme.colors.border),
-          if (_targetContacts.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Text(
-                'No target contacts yet. Add people you want to meet.',
-                style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
-              ),
-            )
-          else
-            ..._targetContacts.asMap().entries.map((entry) {
-              return _buildTargetContactRow(entry.value, entry.key);
-            }),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildTargetContactRow(Map<String, dynamic> contact, int index) {
-    final name = contact['name'] as String? ?? 'Unknown';
-    final jobTitle = contact['job_title'] as String? ?? '';
-    final companyName = contact['company_name'] as String? ?? '';
-    final contactId = contact['contact_id'] as String? ?? '';
+  Widget _buildTargetContactRow(TargetContactRow contact) {
+    final name = contact.name.isNotEmpty ? contact.name : 'Unknown';
+    final jobTitle = contact.jobTitle;
+    final companyName = contact.companyName;
     final parts = name.trim().split(RegExp(r'\s+'));
     final initials = parts.take(2).map((p) => p.isNotEmpty ? p[0] : '').join().toUpperCase();
 
@@ -552,7 +530,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
           AppButton(
             variant: ButtonVariant.ghost,
             size: ButtonSize.sm,
-            onPressed: () => _removeTargetContact(contactId, index),
+            onPressed: () => _removeTargetContact(contact.contactId),
             child: Icon(Icons.delete_outline, color: _c.destructive, size: 20),
           ),
         ],
@@ -560,14 +538,14 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     );
   }
 
-  Future<void> _showAddTargetContactSheet() async {
+  Future<void> _showAddTargetContactSheet(List<TargetContactRow> targetContacts) async {
     String searchQuery = '';
     List<dynamic> contacts = [];
     bool isSearching = true;
     bool initialLoaded = false;
     final searchCtrl = TextEditingController();
 
-    final existingIds = _targetContacts.map((c) => c['contact_id'] as String?).whereType<String>().toSet();
+    final existingIds = targetContacts.map((c) => c.contactId).toSet();
 
     await showAppSheet(
       context: context,
@@ -666,92 +644,89 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   Future<void> _addTargetContact(String contactId, String name, String jobTitle, String companyName) async {
     try {
       await ApiService.addContactToEvent(widget.event.id, contactId);
-      setState(() => _targetContacts.add({
-        'contact_id': contactId,
-        'name': name,
-        'job_title': jobTitle,
-        'company_name': companyName,
-        'status': 'not_contacted',
-      }));
+      await _contactEventsRepo.catchUp();
       if (mounted) showAppToast(context, '$name added to target contacts.');
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to add contact.');
     }
   }
 
-  Future<void> _removeTargetContact(String contactId, int index) async {
-    final removed = _targetContacts[index];
-    setState(() => _targetContacts.removeAt(index));
+  Future<void> _removeTargetContact(String contactId) async {
     try {
       await ApiService.removeContactFromEvent(widget.event.id, contactId);
+      await _contactEventsRepo.catchUp();
     } on UnauthorizedException { rethrow; } catch (_) {
-      if (mounted) setState(() => _targetContacts.insert(index, removed));
+      if (mounted) showAppToast(context, 'Failed to remove contact.');
     }
   }
 
   Widget _buildTargetListPanel() {
-    return AppCard(
-      padding: const EdgeInsets.all(24),
-      radius: 16,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return StreamBuilder<List<TargetCompanyRow>>(
+      stream: _targetsRepo.watchByEventWithCompany(widget.event.id),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return _buildPanelSkeleton();
+        final targets = snapshot.data!;
+        return AppCard(
+          padding: const EdgeInsets.all(24),
+          radius: 16,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  'Target Companies',
-                  style: context.theme.typography.xl.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: context.theme.colors.foreground,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Target Companies',
+                      overflow: TextOverflow.ellipsis,
+                      style: context.theme.typography.xl.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: context.theme.colors.foreground,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  AppButton(
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.sm,
+                    onPressed: _importTargets,
+                    child: const Icon(Icons.upload, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  AppButton(
+                    prefixIcon: const Icon(Icons.add, size: 16),
+                    label: 'Add',
+                    variant: ButtonVariant.primary,
+                    size: ButtonSize.sm,
+                    onPressed: _showAddTargetDialog,
+                  ),
+                ],
               ),
-              AppButton(
-                prefixIcon: const Icon(Icons.upload, size: 16),
-                label: 'Import',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.sm,
-                onPressed: _importTargets,
-              ),
-              const SizedBox(width: 8),
-              AppButton(
-                prefixIcon: const Icon(Icons.add, size: 16),
-                label: 'Add',
-                variant: ButtonVariant.primary,
-                size: ButtonSize.sm,
-                onPressed: _showAddTargetDialog,
-              ),
+              const SizedBox(height: 20),
+              if (targets.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Text(
+                    'No target companies yet. Add or import.',
+                    style: context.theme.typography.sm.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
+                )
+              else
+                ...targets.map(_buildTargetRow),
             ],
           ),
-          const SizedBox(height: 20),
-          Container(height: 1, color: context.theme.colors.border),
-          if (_targets.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Text(
-                'No target companies yet. Add or import.',
-                style: context.theme.typography.sm.copyWith(
-                  fontWeight: FontWeight.w400,
-                  color: context.theme.colors.mutedForeground,
-                ),
-              ),
-            )
-          else
-            ..._targets.asMap().entries.map((entry) {
-              return _buildTargetRow(entry.value, entry.key);
-            }),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildTargetRow(Map<String, dynamic> target, int globalIndex) {
-    final company = target['company'] as Map<String, dynamic>? ?? {};
-    final companyName = company['name'] as String? ?? 'Unknown';
-    final booth = target['booth_location'] as String?;
+  Widget _buildTargetRow(TargetCompanyRow target) {
+    final companyName = target.companyName;
+    final booth = target.boothLocation;
     return GestureDetector(
-      onTap: () => _openTargetDetail(target, globalIndex),
+      onTap: () => _openTargetDetail(target),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
@@ -760,40 +735,35 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         child: Row(
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Text(companyName, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+                  Flexible(
+                    child: Text(
+                      companyName,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground),
+                    ),
+                  ),
                   if (booth != null && booth.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(width: 8),
                     AppChip.label('BOOTH $booth'),
                   ],
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => _openTargetDetail(target, globalIndex),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(color: context.theme.colors.border),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.open_in_new_rounded, size: 14, color: _c.accent),
-                    const SizedBox(width: 4),
-                    Text('MANAGE', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.2, color: context.theme.colors.mutedForeground)),
-                  ],
-                ),
-              ),
+            AppButton(
+              prefixIcon: Icon(Icons.open_in_new_rounded, size: 14),
+              label: 'MANAGE',
+              variant: ButtonVariant.outline,
+              size: ButtonSize.sm,
+              onPressed: () => _openTargetDetail(target),
             ),
+            const SizedBox(width: 4),
             AppButton(
               variant: ButtonVariant.ghost,
               size: ButtonSize.sm,
-              onPressed: () => _deleteTarget(target, globalIndex),
+              onPressed: () => _deleteTarget(target),
               child: Icon(Icons.delete_outline, color: _c.destructive, size: 20),
             ),
           ],
@@ -980,8 +950,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
 
   Future<void> _addCompanyAsTarget(Map<String, dynamic> company, String? booth) async {
     try {
-      final newTarget = await ApiService.addEventTarget(widget.event.id, company['id'] as String, boothLocation: booth);
-      setState(() => _targets.add(newTarget));
+      await ApiService.addEventTarget(widget.event.id, company['id'] as String, boothLocation: booth);
+      await _targetsRepo.catchUp();
       if (mounted) showAppToast(context, '${company['name']} added to target list.');
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to add target.');
@@ -1048,171 +1018,55 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     }
   }
 
-  Future<void> _deleteTarget(Map<String, dynamic> target, int index) async {
-    final targetId = target['id'] as String;
+  Future<void> _deleteTarget(TargetCompanyRow target) async {
     try {
-      await ApiService.deleteEventTarget(widget.event.id, targetId);
-      setState(() {
-        _targets.removeAt(index);
-      });
+      await ApiService.deleteEventTarget(widget.event.id, target.id);
+      await _targetsRepo.catchUp();
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to remove target.');
     }
   }
 
-  Widget _buildLoadingState() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1280),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildPanelSkeleton() {
+    return AppCard(
+      padding: const EdgeInsets.all(24),
+      radius: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              SkeletonLoader(
-                width: 100,
-                height: 28,
-                borderRadius: BorderRadius.circular(999),
+              Expanded(
+                child: SkeletonLoader(width: 150, height: 24, borderRadius: BorderRadius.circular(4)),
               ),
-              const SizedBox(height: 16),
-              SkeletonLoader(
-                width: double.infinity,
-                height: 40,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  SkeletonLoader(
-                    width: 120,
-                    height: 16,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  const SizedBox(width: 20),
-                  SkeletonLoader(
-                    width: 100,
-                    height: 16,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              AppCard(
-                padding: const EdgeInsets.all(20),
-                radius: AppTheme.radiusCard,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SkeletonLoader(
-                            width: 120,
-                            height: 20,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        SkeletonLoader(
-                          width: 60,
-                          height: 24,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SkeletonLoader(
-                      width: double.infinity,
-                      height: 16,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    const SizedBox(height: 8),
-                    SkeletonLoader(
-                      width: double.infinity,
-                      height: 3,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              AppCard(
-                padding: const EdgeInsets.all(24),
-                radius: 16,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SkeletonLoader(
-                            width: 150,
-                            height: 24,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        SkeletonLoader(
-                          width: 80,
-                          height: 36,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        const SizedBox(width: 8),
-                        SkeletonLoader(
-                          width: 80,
-                          height: 36,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Container(height: 1, color: context.theme.colors.border),
-                    const SizedBox(height: 16),
-                    for (int i = 0; i < 3; i++) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SkeletonLoader(
-                                  width: 180,
-                                  height: 18,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                const SizedBox(height: 8),
-                                SkeletonLoader(
-                                  width: 100,
-                                  height: 24,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SkeletonLoader(
-                            width: 80,
-                            height: 32,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          const SizedBox(width: 8),
-                          SkeletonLoader(
-                            width: 36,
-                            height: 36,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                        ],
-                      ),
-                      if (i < 2)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          child: Container(height: 1, color: context.theme.colors.border),
-                        ),
-                    ],
-                  ],
-                ),
-              ),
+              SkeletonLoader(width: 80, height: 36, borderRadius: BorderRadius.circular(6)),
             ],
           ),
-        ),
+          const SizedBox(height: 20),
+          const FDivider(),
+          const SizedBox(height: 16),
+          for (int i = 0; i < 2; i++) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonLoader(width: 180, height: 18, borderRadius: BorderRadius.circular(4)),
+                      const SizedBox(height: 8),
+                      SkeletonLoader(width: 100, height: 24, borderRadius: BorderRadius.circular(999)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (i < 1)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: const FDivider(),
+              ),
+          ],
+        ],
       ),
     );
   }

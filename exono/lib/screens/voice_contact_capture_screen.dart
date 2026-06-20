@@ -16,10 +16,13 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../providers/offline_provider.dart';
+import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_chip.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_section_label.dart';
@@ -132,14 +135,13 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   }
 
   Future<void> _loadEvents() async {
-    try {
-      final events = await ApiService.getEvents();
-      if (!mounted) return;
-      setState(() {
-        _events = events;
-        if (events.isNotEmpty) _eventId = events.first.id;
-      });
-    } on UnauthorizedException { rethrow; } catch (_) {}
+    final rows = await context.read<SyncProvider>().events.watchAll().first;
+    if (!mounted) return;
+    final events = rows.map(Event.fromDrift).toList();
+    setState(() {
+      _events = events;
+      if (events.isNotEmpty) _eventId = events.first.id;
+    });
   }
 
   // ════════════════════════════════════════════════════════════
@@ -149,9 +151,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   @override
   Widget build(BuildContext context) {
     final isOnline = context.watch<OfflineProvider>().isOnline;
-    return Scaffold(
-      backgroundColor: _c.background,
-      body: Stack(
+    return ColoredBox(
+      color: _c.background,
+      child: Stack(
         fit: StackFit.expand,
         children: [
           SafeArea(
@@ -203,24 +205,19 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
 
   Widget _buildHeader() {
     final theme = context.theme;
-    return Material(
+    return ColoredBox(
       color: _c.navBackground,
       child: Container(
         height: 56,
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: theme.colors.border)),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            IconButton(
+            AppHeaderActionButton(
+              icon: Icons.arrow_back_rounded,
               onPressed: _onBack,
-              icon: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: theme.colors.foreground,
-                size: 18,
-              ),
-              tooltip: _phase == _Phase.review ? 'Retake' : 'Back',
             ),
             const Spacer(),
             if (_phase == _Phase.review) ...[
@@ -244,10 +241,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                 ],
               ),
               const Spacer(),
-              IconButton(
+              AppHeaderActionButton(
+                icon: Icons.close_rounded,
                 onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(Icons.close_rounded, color: _c.accent, size: 20),
-                tooltip: 'Close',
               ),
             ] else ...[
               const Spacer(),
@@ -564,8 +560,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   }
 
   Widget _buildRecordingBottomRow() {
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, bottomInset > 0 ? bottomInset : 0),
       child: Column(
         children: [
           AppButton(
@@ -691,29 +688,12 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                         ],
                       ),
                     ),
-                    GestureDetector(
-                      onTap: _onBack,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: theme.colors.border),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.refresh_rounded, size: 12, color: _c.accent),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Retake',
-                              style: theme.typography.xs.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: theme.colors.mutedForeground,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    AppButton(
+                      label: 'Retake',
+                      prefixIcon: Icon(Icons.refresh_rounded, size: 12),
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.sm,
+                      onPressed: _onBack,
                     ),
                   ],
                 ),
@@ -877,21 +857,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                 ),
               ),
               const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _c.accentSoft,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'AI',
-                  style: theme.typography.xs.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: _c.accent,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
+              AppChip.label('AI'),
             ],
           ),
           const SizedBox(height: 12),
@@ -1024,13 +990,13 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                     child: Column(
                       children: [
                         _dedupAction(
-                          'MERGE WITH EXISTING',
+                          'Merge with Existing',
                           primary: true,
                           onTap: () => _resolveDuplicateAndSave(merge: true),
                         ),
                         const SizedBox(height: 10),
                         _dedupAction(
-                          'CREATE AS NEW CONTACT',
+                          'Create as New Contact',
                           onTap: () => _resolveDuplicateAndSave(merge: false),
                         ),
                         const SizedBox(height: 10),

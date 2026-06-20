@@ -18,6 +18,7 @@ import 'providers/chat_provider.dart';
 import 'providers/live_event_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/offline_provider.dart';
+import 'providers/sync_provider.dart';
 import 'providers/theme_provider.dart';
 import 'router.dart';
 
@@ -52,7 +53,7 @@ Future<void> main() async {
   SupabaseConfig.validate();
   await Supabase.initialize(
     url: SupabaseConfig.url,
-    anonKey: SupabaseConfig.anonKey,
+    publishableKey: SupabaseConfig.anonKey,
   );
 
   final themeProvider = ThemeProvider();
@@ -83,6 +84,7 @@ class ExonoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LiveEventProvider()),
         ChangeNotifierProvider(create: (_) => OfflineProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => SyncProvider()),
       ],
       child: _ExonoRouter(),
     );
@@ -110,14 +112,22 @@ class _ExonoRouterState extends State<_ExonoRouter> {
 
   void _initLiveEventOnAuth() {
     final auth = context.read<AuthProvider>();
-    // Re-init live event provider on every auth state change (login/logout cycles)
+    final sync = context.read<SyncProvider>();
+    bool wasAuthenticated = auth.isAuthenticated;
+    // Re-init live event provider on every auth state change (login/logout
+    // cycles); start/stop the local drift cache in step with it.
     auth.addListener(() {
       if (auth.isAuthenticated) {
         context.read<LiveEventProvider>().init();
+        sync.start(auth.user!['id'] as String);
+      } else if (wasAuthenticated) {
+        sync.stop();
       }
+      wasAuthenticated = auth.isAuthenticated;
     });
     if (auth.isAuthenticated) {
       context.read<LiveEventProvider>().init();
+      sync.start(auth.user!['id'] as String);
     }
   }
 

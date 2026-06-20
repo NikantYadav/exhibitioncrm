@@ -80,16 +80,13 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
     final isMobile = MediaQuery.of(context).size.width < 768;
     return Scaffold(
       backgroundColor: _c.background,
-      body: DecoratedBox(
-        decoration: AppTheme.appBackground(context),
-        child: isMobile ? _mobile() : _desktop(),
-      ),
+      body: isMobile ? _mobile() : _desktop(),
       bottomNavigationBar: isMobile
           && _navBarPaths.any((p) => widget.location == p || widget.location.startsWith('$p?'))
           && !_isNoNavPath(widget.location)
           ? ValueListenableBuilder<bool>(
               valueListenable: appNavBarHidden,
-              builder: (_, hidden, __) {
+              builder: (_, hidden, _) {
                 if (hidden) return const SizedBox.shrink();
                 final isHome = widget.location == '/' || widget.location.startsWith('/?');
                 return Column(
@@ -162,12 +159,12 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
       return Container(
         width: 36, height: 36,
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [_c.accent, _c.accentStrong]),
+          color: _c.accent,
           borderRadius: BorderRadius.circular(10),
         ),
         alignment: Alignment.center,
-        child: Text('E', style: TextStyle(color: Colors.white,
-            fontSize: 18, fontWeight: FontWeight.w800)),
+        child: Text('E', style: context.theme.typography.lg.copyWith(
+            color: Colors.white, fontWeight: FontWeight.w800)),
       );
     }
     return Padding(
@@ -177,16 +174,18 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
           Container(
             width: 32, height: 32,
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [_c.accent, _c.accentStrong]),
+              color: _c.accent,
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
-            child: Text('E', style: TextStyle(color: Colors.white,
-                fontSize: 15, fontWeight: FontWeight.w800)),
+            child: Text('E', style: context.theme.typography.sm.copyWith(
+                color: Colors.white, fontWeight: FontWeight.w800)),
           ),
           const SizedBox(width: 10),
-          Text('exono', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800,
-              letterSpacing: -0.5, color: _c.textPrimary)),
+          Text('exono', style: context.theme.typography.lg.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              color: context.theme.colors.foreground)),
         ],
       ),
     );
@@ -195,9 +194,8 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
   Widget _collapseToggle() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: InkWell(
+      child: GestureDetector(
         onTap: () => setState(() => _sidebarCollapsed = !_sidebarCollapsed),
-        borderRadius: BorderRadius.circular(10),
         child: Container(
           height: 40,
           padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -205,10 +203,11 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
             mainAxisAlignment: _sidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
               Icon(_sidebarCollapsed ? Icons.menu_open_rounded : Icons.menu_rounded,
-                  size: 18, color: _c.textMuted),
+                  size: 18, color: context.theme.colors.mutedForeground),
               if (!_sidebarCollapsed) ...[
                 const SizedBox(width: 10),
-                Text('Collapse', style: TextStyle(fontSize: 13, color: _c.textMuted)),
+                Text('Collapse', style: context.theme.typography.sm.copyWith(
+                    color: context.theme.colors.mutedForeground)),
               ],
             ],
           ),
@@ -236,9 +235,8 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
     final active = _tabIndex == e.index;
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
-      child: InkWell(
+      child: GestureDetector(
         onTap: () => _onNav(e.index),
-        borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           height: 42,
@@ -250,12 +248,11 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
           child: Row(
             mainAxisAlignment: _sidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
-              Icon(e.icon, size: 18, color: active ? _c.accent : _c.textMuted),
+              Icon(e.icon, size: 18, color: active ? _c.accent : context.theme.colors.mutedForeground),
               if (!_sidebarCollapsed) ...[
                 const SizedBox(width: 10),
                 Text(e.label,
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: context.theme.typography.sm.copyWith(
                       fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                       color: active ? _c.accent : _c.textSecondary,
                     )),
@@ -275,13 +272,15 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
         color: _c.navBackground,
-        border: Border(bottom: BorderSide(color: _c.border)),
+        border: Border(bottom: BorderSide(color: context.theme.colors.border)),
       ),
       child: Row(
         children: [
           Text(
             _pathLabel(widget.location),
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _c.textPrimary),
+            style: context.theme.typography.sm.copyWith(
+                fontWeight: FontWeight.w700,
+                color: context.theme.colors.foreground),
           ),
           const Spacer(),
           if (name.isNotEmpty)
@@ -293,18 +292,20 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Container(
-                  width: 20, height: 20,
+                  width: 22, height: 22,
                   decoration: BoxDecoration(
+                    color: _c.accent,
                     shape: BoxShape.circle,
-                    gradient: LinearGradient(colors: [_c.accent, _c.accentStrong]),
                   ),
                   alignment: Alignment.center,
                   child: Text(name[0].toUpperCase(),
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                          color: Colors.white)),
+                      style: context.theme.typography.xs.copyWith(
+                          fontWeight: FontWeight.w700, color: Colors.white)),
                 ),
                 const SizedBox(width: 8),
-                Text(name, style: TextStyle(fontSize: 13, color: _c.textPrimary, fontWeight: FontWeight.w500)),
+                Text(name, style: context.theme.typography.sm.copyWith(
+                    color: context.theme.colors.foreground,
+                    fontWeight: FontWeight.w500)),
               ]),
             ),
         ],
@@ -319,18 +320,19 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         FDivider(),
         const SizedBox(height: 4),
-        InkWell(
+        GestureDetector(
           onTap: () => context.go('/profile'),
-          borderRadius: BorderRadius.circular(10),
           child: Container(
             height: 40, padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Row(
               mainAxisAlignment: _sidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
               children: [
-                Icon(Icons.settings_outlined, size: 18, color: isProfileActive ? _c.accent : _c.textMuted),
+                Icon(Icons.settings_outlined, size: 18,
+                    color: isProfileActive ? _c.accent : context.theme.colors.mutedForeground),
                 if (!_sidebarCollapsed) ...[
                   const SizedBox(width: 10),
-                  Text('Settings', style: TextStyle(fontSize: 13, color: _c.textMuted)),
+                  Text('Settings', style: context.theme.typography.sm.copyWith(
+                      color: isProfileActive ? _c.accent : context.theme.colors.mutedForeground)),
                 ],
               ],
             ),

@@ -6,7 +6,7 @@
  *
  * Security responsibilities of this module:
  *   1. Validate the query shape (Zod) — blocks unknown tables, oversized payloads.
- *   2. Strip any owner_user_id / user_id the LLM hallucinated in filters.
+ *   2. Strip any user_id the LLM hallucinated in filters.
  *   3. Inject the authenticated user's ownership filter for user-scoped tables.
  *
  * Slayer connects as slayer_readonly (SELECT-only, RLS enforced) so even if
@@ -24,27 +24,19 @@ const SLAYER_URL = (process.env.SLAYER_URL || 'http://127.0.0.1:5143').replace(/
 // The LLM can only query these tables. Anything else (pg_catalog, auth.users,
 // etc.) is blocked at validation time before the request reaches Slayer.
 const ALLOWED_MODELS = [
-  'contacts', 'events', 'notes', 'email_drafts',
+  'contacts', 'events', 'email_drafts',
   'captures', 'companies', 'interactions',
-  'messages', 'conversations', 'documents', 'attachments',
-  'contact_documents', 'enrichment_queue', 'user_profiles',
-  'target_companies', 'company_research', 'marketing_assets',
-  'message_links', 'message_attachments', 'conversation_members',
+  'messages', 'conversations', 'attachments',
+  'contact_documents', 'user_profiles',
+  'target_companies',
+  'message_attachments',
 ] as const;
 
 type AllowedModel = typeof ALLOWED_MODELS[number];
 
-// Tables that carry owner_user_id
-const OWNER_USER_ID_TABLES = new Set<string>([
-  'notes', 'captures', 'email_drafts',
-  'conversations', 'messages', 'assistant_runs',
-  'tool_calls', 'documents', 'attachments', 'contact_documents',
-  'enrichment_queue',
-]);
-
-// Tables that carry user_id (not owner_user_id)
+// Tables that carry user_id — the authenticated user's ownership filter is injected for these
 const USER_ID_TABLES = new Set<string>([
-  'contacts', 'events',
+  'contacts', 'events', 'user_profiles', 'captures', 'conversations', 'messages',
 ]);
 
 // ─── Zod schema for SlayerQuery ───────────────────────────────────────────────
@@ -83,18 +75,14 @@ export interface SlayerResponse {
 // ─── Ownership injection ──────────────────────────────────────────────────────
 
 /**
- * Strip any owner/user_id filters the LLM may have hallucinated,
+ * Strip any user_id filters the LLM may have hallucinated,
  * then inject the real authenticated user's ownership filter.
  */
 function applyOwnership(query: SlayerQuery, userId: string): SlayerQuery {
   // Strip LLM-hallucinated ownership filters
   const cleanFilters = (query.filters ?? []).filter(
-    (f) => !/owner_user_id/i.test(f) && !/\buser_id\s*=/i.test(f)
+    (f) => !/\buser_id\s*=/i.test(f)
   );
-
-  if (OWNER_USER_ID_TABLES.has(query.source_model as AllowedModel)) {
-    return { ...query, filters: [`owner_user_id = '${userId}'`, ...cleanFilters] };
-  }
 
   if (USER_ID_TABLES.has(query.source_model as AllowedModel)) {
     return { ...query, filters: [`user_id = '${userId}'`, ...cleanFilters] };

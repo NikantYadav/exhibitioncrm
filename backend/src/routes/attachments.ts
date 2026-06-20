@@ -9,6 +9,7 @@ async function ownsContact(userId: string, contactId: string): Promise<boolean> 
     .select('id')
     .eq('id', contactId)
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .maybeSingle();
   return data !== null;
 }

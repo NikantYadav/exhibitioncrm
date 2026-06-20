@@ -11,6 +11,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/app_status_badge.dart';
 import '../widgets/empty_state.dart';
 
 class SyncIssuesScreen extends StatefulWidget {
@@ -100,13 +101,13 @@ class _SyncIssuesScreenState extends State<SyncIssuesScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           if (failed.isNotEmpty) ...[
-            const AppSectionLabel('FAILED'),
+            const AppSectionLabel('Failed'),
             const SizedBox(height: 8),
             ...failed.map((op) => _OpCard(op: op, onRetry: _retry, onDiscard: _discard)),
             const SizedBox(height: 20),
           ],
           if (pending.isNotEmpty) ...[
-            const AppSectionLabel('PENDING'),
+            const AppSectionLabel('Pending'),
             const SizedBox(height: 8),
             ...pending.map((op) => _OpCard(op: op, onDiscard: _discard)),
           ],
@@ -164,6 +165,8 @@ class _OpCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasImage = op.imageRef != null;
     final isFailed = op.status == 'failed';
+    final isSyncing = op.status == 'syncing';
+    final c = AppTheme.colorsOf(context);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -185,13 +188,25 @@ class _OpCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    _timeAgo,
-                    style: context.theme.typography.xs.copyWith(
-                      color: context.theme.colors.mutedForeground,
-                    ),
-                  ),
+                  if (isFailed)
+                    AppStatusBadge(
+                      label: 'Failed',
+                      leading: const Icon(Icons.error_outline_rounded),
+                      color: c.destructive.withValues(alpha: 0.12),
+                      textColor: c.destructive,
+                    )
+                  else if (isSyncing)
+                    AppStatusBadge(label: 'Syncing', spinner: true)
+                  else
+                    AppStatusBadge(label: 'Queued'),
                 ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _timeAgo,
+                style: context.theme.typography.xs.copyWith(
+                  color: context.theme.colors.mutedForeground,
+                ),
               ),
               if (hasImage) ...[
                 const SizedBox(height: 4),

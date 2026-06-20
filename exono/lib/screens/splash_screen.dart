@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -15,11 +16,33 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _logoCtrl;
+  late final Animation<double> _logoOpacity;
+  late final Animation<double> _logoScale;
+
   @override
   void initState() {
     super.initState();
+    _logoCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    final curved = CurvedAnimation(parent: _logoCtrl, curve: Curves.easeOutQuint);
+    _logoOpacity = curved;
+    _logoScale = Tween<double>(begin: 0.94, end: 1.0).animate(curved);
+    if (PlatformDispatcher.instance.accessibilityFeatures.disableAnimations) {
+      _logoCtrl.value = 1.0;
+    } else {
+      _logoCtrl.forward();
+    }
     _navigate();
+  }
+
+  @override
+  void dispose() {
+    _logoCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _navigate() async {
@@ -63,10 +86,16 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       backgroundColor: colors.background,
       body: Center(
-        child: SvgPicture.asset(
-          logoAsset,
-          width: 72,
-          height: 72,
+        child: FadeTransition(
+          opacity: _logoOpacity,
+          child: ScaleTransition(
+            scale: _logoScale,
+            child: SvgPicture.asset(
+              logoAsset,
+              width: 72,
+              height: 72,
+            ),
+          ),
         ),
       ),
     );

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { litellm } from '../services/litellm-service';
-import { supabase } from '../config/supabase';
 
 const router = Router();
 
@@ -61,117 +60,6 @@ router.post('/transcribe', async (req, res, next) => {
   } catch (error: any) {
     console.error('Transcription error:', error);
     res.status(500).json({ error: error.message || 'Failed to transcribe audio' });
-  }
-});
-
-// POST /api/ai/analyze-note
-router.post('/analyze-note', async (req, res, next) => {
-  try {
-    const { noteId, contactId, content } = req.body;
-
-    if (!content || (!noteId && !contactId)) {
-      return res.status(400).json({ error: 'Content and either noteId or contactId required' });
-    }
-
-    // Get contact current status if contactId provided
-    let currentContact = null;
-    if (contactId) {
-      const { data: contact } = await supabase
-        .from('contacts')
-        .select('follow_up_status, follow_up_urgency, first_name, last_name')
-        .eq('id', contactId)
-        .single();
-      currentContact = contact;
-    }
-
-    // Analyze note content with AI
-    const prompt = `
-      You are an intelligent CRM assistant analyzing a note about a business contact interaction.
-      
-      Analyze this note content and determine:
-      1. Whether this represents actual contact/communication with the person
-      2. What follow-up status should be set based on the interaction
-      3. The urgency level of any needed follow-up
-      
-      Note content: "${content}"
-      
-      Guidelines:
-      - "contacted" = actual conversation, meeting, call, or meaningful exchange happened
-      - "needs_followup" = contact made but requires follow-up action (they asked for info, promised to connect, etc.)
-      - "not_contacted" = just notes about the person, no actual interaction yet
-      - "ignore" = explicitly mentioned not to follow up or not interested
-      
-      Urgency levels:
-      - "high" = time-sensitive, hot lead, requested immediate follow-up
-      - "medium" = standard follow-up needed within a week
-      - "low" = general follow-up, no rush
-      
-      Return ONLY valid JSON with no additional text.
-    `;
-
-    const schema = `{
-      "status": "contacted | needs_followup | not_contacted | ignore",
-      "urgency": "high | medium | low",
-      "reasoning": "brief explanation of the decision",
-      "interaction_detected": boolean,
-      "follow_up_needed": boolean
-    }`;
-
-    interface AnalysisResult {
-      status: 'contacted' | 'needs_followup' | 'not_contacted' | 'ignore';
-      urgency: 'high' | 'medium' | 'low';
-      reasoning: string;
-      interaction_detected: boolean;
-      follow_up_needed: boolean;
-    }
-
-    const analysis = await litellm.generateCompletion([
-      {
-        role: 'system',
-        content: prompt
-      },
-      {
-        role: 'user',
-        content: `Please analyze this and return JSON matching the schema: ${schema}`
-      }
-    ], { temperature: 0.3 });
-
-    const result = litellm.cleanAndParseJSON<AnalysisResult>(analysis);
-
-    // Update contact status if contactId provided and status should change
-    if (contactId && currentContact) {
-      const shouldUpdate =
-        currentContact.follow_up_status === 'not_contacted' &&
-        (result.status === 'contacted' || result.status === 'needs_followup');
-
-      if (shouldUpdate) {
-        const updateData: any = {
-          follow_up_status: result.status === 'needs_followup' ? 'needs_follow_up' : result.status,
-          follow_up_urgency: result.urgency,
-          updated_at: new Date().toISOString()
-        };
-
-        if (result.status === 'contacted' || result.status === 'needs_followup') {
-          updateData.last_contacted_at = new Date().toISOString();
-        }
-
-        await supabase
-          .from('contacts')
-          .update(updateData)
-          .eq('id', contactId);
-      }
-    }
-
-    res.json({
-      success: true,
-      analysis: result,
-      updated: currentContact?.follow_up_status === 'not_contacted' &&
-        (result.status === 'contacted' || result.status === 'needs_followup')
-    });
-
-  } catch (error: any) {
-    console.error('Note analysis error:', error);
-    res.status(500).json({ error: error.message || 'Failed to analyze note' });
   }
 });
 

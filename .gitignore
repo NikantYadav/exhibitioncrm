@@ -49,6 +49,7 @@ next-env.d.ts
 
 # supabase
 .supabase
+SUPABASE_SCHEMA.md
 
 .claude/
 # Added by code-review-graph

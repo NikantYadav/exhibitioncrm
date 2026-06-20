@@ -22,6 +22,7 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../models/event.dart';
 import '../providers/offline_provider.dart';
+import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
 import '../services/offline/write_gateway.dart';
 import '../services/web_file_picker.dart' if (dart.library.io) '../services/web_file_picker_stub.dart';
@@ -132,14 +133,13 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Future<void> _loadEvents() async {
-    try {
-      final events = await ApiService.getEvents();
-      if (!mounted) return;
-      setState(() {
-        _events = events;
-        if (events.isNotEmpty) _eventId = events.first.id;
-      });
-    } on UnauthorizedException { rethrow; } catch (_) {}
+    final rows = await context.read<SyncProvider>().events.watchAll().first;
+    if (!mounted) return;
+    final events = rows.map(Event.fromDrift).toList();
+    setState(() {
+      _events = events;
+      if (events.isNotEmpty) _eventId = events.first.id;
+    });
   }
 
   // ── Build ───────────────────────────────────────────────────
@@ -246,9 +246,8 @@ class _CaptureScreenState extends State<CaptureScreen>
       ),
       child: Text(
         'CAPTURE CONTACT',
-        style: TextStyle(
+        style: context.theme.typography.xs.copyWith(
           color: Colors.white.withValues(alpha: 0.9),
-          fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 2.2,
         ),
@@ -272,9 +271,8 @@ class _CaptureScreenState extends State<CaptureScreen>
               const SizedBox(height: 22),
               Text(
                 'ALIGN BUSINESS CARD IN FRAME',
-                style: TextStyle(
+                style: context.theme.typography.xs.copyWith(
                   color: Colors.white.withValues(alpha: 0.85),
-                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 2.8,
                 ),
@@ -282,9 +280,8 @@ class _CaptureScreenState extends State<CaptureScreen>
               const SizedBox(height: 5),
               Text(
                 'Tap capture when ready',
-                style: TextStyle(
+                style: context.theme.typography.xs.copyWith(
                   color: Colors.white.withValues(alpha: 0.42),
-                  fontSize: 12,
                 ),
               ),
             ],
@@ -309,7 +306,8 @@ class _CaptureScreenState extends State<CaptureScreen>
           const SizedBox(width: 7),
           Text(
             'Saved: $_lastCapture',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: _c.success),
+            style: context.theme.typography.xs.copyWith(
+              fontWeight: FontWeight.w500, color: _c.success),
           ),
         ],
       ),
@@ -409,9 +407,8 @@ class _CaptureScreenState extends State<CaptureScreen>
                       const SizedBox(width: 8),
                       Text(
                         'ENTER MANUALLY',
-                        style: TextStyle(
+                        style: context.theme.typography.xs.copyWith(
                           color: Colors.white.withValues(alpha: 0.6),
-                          fontSize: 10,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 1.8,
                         ),
@@ -502,8 +499,7 @@ class _CaptureScreenState extends State<CaptureScreen>
             const SizedBox(height: 6),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 9,
+              style: context.theme.typography.xs.copyWith(
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.4,
                 color: Colors.white.withValues(alpha: 0.55),
@@ -526,9 +522,8 @@ class _CaptureScreenState extends State<CaptureScreen>
             const SizedBox(height: 20),
             Text(
               'ANALYZING',
-              style: TextStyle(
+              style: context.theme.typography.xs.copyWith(
                 color: Colors.white,
-                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 3.5,
               ),
@@ -536,9 +531,8 @@ class _CaptureScreenState extends State<CaptureScreen>
             const SizedBox(height: 6),
             Text(
               'Extracting contact details…',
-              style: TextStyle(
+              style: context.theme.typography.xs.copyWith(
                 color: Colors.white.withValues(alpha: 0.48),
-                fontSize: 12,
               ),
             ),
           ],
@@ -605,7 +599,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         child: Container(
           height: 56,
           decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: _c.border)),
+            border: Border(bottom: BorderSide(color: context.theme.colors.border)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
@@ -622,20 +616,18 @@ class _CaptureScreenState extends State<CaptureScreen>
                 children: [
                   Text(
                     'NEW CONTACT',
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: context.theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.8,
-                      color: _c.textPrimary,
+                      color: context.theme.colors.foreground,
                       height: 1,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     'Review & save details',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: _c.textMuted,
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.mutedForeground,
                     ),
                   ),
                 ],
@@ -672,9 +664,11 @@ class _CaptureScreenState extends State<CaptureScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _inlineField(_fnCtrl, 'First name', fontSize: 20, bold: true),
+                _inlineField(_fnCtrl, 'First name',
+                    style: context.theme.typography.xl, bold: true),
                 const SizedBox(height: 2),
-                _inlineField(_lnCtrl, 'Last name', fontSize: 15),
+                _inlineField(_lnCtrl, 'Last name',
+                    style: context.theme.typography.lg),
               ],
             ),
           ),
@@ -696,8 +690,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                   const SizedBox(width: 5),
                   Text(
                     'RESCAN',
-                    style: TextStyle(
-                      fontSize: 9,
+                    style: context.theme.typography.xs.copyWith(
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
                       color: _c.accent,
@@ -764,8 +757,8 @@ class _CaptureScreenState extends State<CaptureScreen>
                 isExpanded: true,
                 dropdownColor: _c.surfaceAlt,
                 icon: Icon(Icons.expand_more, color: _c.accent, size: 18),
-                style: TextStyle(fontSize: 14, color: _c.textPrimary),
-                hint: Text('Select event', style: TextStyle(color: _c.textMuted, fontSize: 14)),
+                style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground),
+                hint: Text('Select event', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
                 items: _events
                     .map((e) => DropdownMenuItem(value: e.id, child: Text(e.name)))
                     .toList(),
@@ -801,7 +794,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       ),
       decoration: BoxDecoration(
         color: _c.background,
-        border: Border(top: BorderSide(color: _c.border)),
+        border: Border(top: BorderSide(color: context.theme.colors.border)),
       ),
       child: AppButton(
         label: _saved ? 'CONTACT SAVED' : 'SAVE CONTACT',
@@ -823,7 +816,7 @@ class _CaptureScreenState extends State<CaptureScreen>
           if (_isTranscribing) ...[
             FCircularProgress(),
             const SizedBox(height: 14),
-            Text('Transcribing…', style: TextStyle(fontSize: 13, color: _c.textMuted)),
+            Text('Transcribing…', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
           ] else if (_voiceCtrl.text.isNotEmpty) ...[
             AppSectionLabel('Transcript'),
             const SizedBox(height: 10),
@@ -833,13 +826,13 @@ class _CaptureScreenState extends State<CaptureScreen>
               hint: 'Transcript will appear here…',
             ),
             const SizedBox(height: 14),
-            _outlineBtn(
-              icon: Icons.refresh_rounded,
+            AppButton(
               label: 'RECORD AGAIN',
-              onTap: () => setState(() {
+              onPressed: () => setState(() {
                 _voiceCtrl.clear();
                 _recDuration = Duration.zero;
               }),
+              variant: ButtonVariant.outline,
             ),
           ] else ...[
             GestureDetector(
@@ -866,11 +859,10 @@ class _CaptureScreenState extends State<CaptureScreen>
             if (_isRecording) ...[
               Text(
                 _fmtDur(_recDuration),
-                style: TextStyle(
-                  fontSize: 22,
+                style: context.theme.typography.xl.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: 3,
-                  color: _c.textPrimary,
+                  color: context.theme.colors.foreground,
                 ),
               ),
               const SizedBox(height: 6),
@@ -878,10 +870,12 @@ class _CaptureScreenState extends State<CaptureScreen>
               const SizedBox(height: 6),
               Text(
                 'TAP TO STOP',
-                style: TextStyle(fontSize: 10, letterSpacing: 1.6, color: _c.textMuted),
+                style: context.theme.typography.xs.copyWith(
+                  letterSpacing: 1.6, color: context.theme.colors.mutedForeground),
               ),
             ] else
-              Text('Tap to record', style: TextStyle(fontSize: 13, color: _c.textMuted)),
+              Text('Tap to record', style: context.theme.typography.sm.copyWith(
+                  color: context.theme.colors.mutedForeground)),
           ],
         ],
       ),
@@ -925,7 +919,7 @@ class _CaptureScreenState extends State<CaptureScreen>
           children: [
             FCircularProgress(),
             const SizedBox(height: 14),
-            Text('Analyzing image…', style: TextStyle(fontSize: 13, color: _c.textMuted)),
+            Text('Analyzing image…', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
           ],
         ),
       );
@@ -941,17 +935,17 @@ class _CaptureScreenState extends State<CaptureScreen>
             const SizedBox(height: 12),
             Text(
               'TAP TO BROWSE',
-              style: TextStyle(
-                fontSize: 12,
+              style: context.theme.typography.xs.copyWith(
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.4,
-                color: _c.textMuted,
+                color: context.theme.colors.mutedForeground,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               'PDF · JPG · PNG up to 10 MB',
-              style: TextStyle(fontSize: 11, color: _c.textMuted),
+              style: context.theme.typography.xs.copyWith(
+                  color: context.theme.colors.mutedForeground),
             ),
           ],
         ),
@@ -984,7 +978,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                   Container(
                     width: 40, height: 4,
                     decoration: BoxDecoration(
-                      color: _c.border,
+                      color: context.theme.colors.border,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -1098,31 +1092,23 @@ class _CaptureScreenState extends State<CaptureScreen>
     );
   }
 
-  Widget _outlineBtn({required IconData icon, required String label, required VoidCallback onTap}) {
-    return AppButton(
-      label: label,
-      onPressed: onTap,
-      variant: ButtonVariant.outline,
-    );
-  }
-
   Widget _inlineField(
     TextEditingController ctrl,
     String hint, {
-    double fontSize = 14,
+    TextStyle? style,
     bool bold = false,
   }) {
+    final base = style ?? context.theme.typography.sm;
     return TextField(
       controller: ctrl,
-      style: TextStyle(
-        fontSize: fontSize,
+      style: base.copyWith(
         fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
-        color: _c.textPrimary,
+        color: context.theme.colors.foreground,
       ),
       cursorColor: _c.accent,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(fontSize: fontSize, color: _c.textMuted),
+        hintStyle: base.copyWith(color: context.theme.colors.mutedForeground),
         isDense: true,
         border: InputBorder.none,
         contentPadding: EdgeInsets.zero,
@@ -1516,13 +1502,12 @@ class _CaptureScreenState extends State<CaptureScreen>
       context: context,
       barrierDismissible: false,
       builder: (ctx, style, _) {
-        final c = AppTheme.colorsOf(ctx);
         return FDialog(
           title: Text(
             'Rename new contact',
             style: context.theme.typography.lg.copyWith(
               fontWeight: FontWeight.w700,
-              color: c.textPrimary,
+              color: context.theme.colors.foreground,
             ),
           ),
           body: Column(
@@ -1532,14 +1517,14 @@ class _CaptureScreenState extends State<CaptureScreen>
               Text(
                 'Update the name to distinguish this contact from the existing one.',
                 style: context.theme.typography.sm.copyWith(
-                  color: c.textMuted,
+                  color: context.theme.colors.mutedForeground,
                   height: 1.5,
                 ),
               ),
               const SizedBox(height: 16),
-              _dialogField(fnTemp, 'First name', c),
+              _dialogField(fnTemp, 'First name'),
               const SizedBox(height: 10),
-              _dialogField(lnTemp, 'Last name', c),
+              _dialogField(lnTemp, 'Last name'),
             ],
           ),
           actions: [
@@ -1568,7 +1553,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     await _doSave();
   }
 
-  Widget _dialogField(TextEditingController ctrl, String hint, ExonoColors c) {
+  Widget _dialogField(TextEditingController ctrl, String hint) {
     return AppInput(
       controller: ctrl,
       hint: hint,

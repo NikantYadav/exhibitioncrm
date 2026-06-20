@@ -7,11 +7,11 @@ class ApiConfig {
   // Endpoints
   static const String contacts = '/contacts';
   static const String events = '/events';
-  static const String notes = '/notes';
   static const String captures = '/captures';
   static const String companies = '/companies';
   static const String followUps = '/follow-ups';
   static const String ai = '/ai';
+  static const String sync = '/sync';
 
   // Chat
   static const String conversations = '/conversations';

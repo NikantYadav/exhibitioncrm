@@ -16,7 +16,8 @@ router.get('/', async (req, res, next) => {
     let query = supabase
       .from('contacts')
       .select('*, company:companies(*)')
-      .eq('user_id', req.user!.id);
+      .eq('user_id', req.user!.id)
+      .is('deleted_at', null);
 
     if (company_id) {
       query = query.eq('company_id', company_id);
@@ -48,6 +49,7 @@ router.post('/check-duplicate', async (req, res, next) => {
       .from('contacts')
       .select('*, company:companies(*)')
       .eq('user_id', req.user!.id)
+      .is('deleted_at', null)
       .limit(5);
 
     if (email && phone) {
@@ -86,6 +88,7 @@ router.get('/:id', async (req, res, next) => {
       .select('*, company:companies(*)')
       .eq('id', req.params.id)
       .eq('user_id', req.user!.id)
+      .is('deleted_at', null)
       .single();
 
     if (error) throw error;
@@ -110,6 +113,7 @@ router.post('/', async (req, res, next) => {
         .select()
         .eq('client_op_id', idempotencyKey)
         .eq('user_id', req.user!.id)
+        .is('deleted_at', null)
         .maybeSingle();
       if (existing) {
         return res.json({ data: existing });
@@ -169,7 +173,8 @@ router.post('/', async (req, res, next) => {
         event_id: body.event_id,
         interaction_type: 'capture',
         summary: 'Manually added during event',
-        details: { source: 'manual_entry' }
+        details: { source: 'manual_entry' },
+        user_id: req.user!.id,
       });
 
       await supabase.from('captures').insert({
@@ -177,7 +182,8 @@ router.post('/', async (req, res, next) => {
         event_id: body.event_id,
         capture_type: 'manual',
         status: 'completed',
-        raw_data: { manual_data: body }
+        raw_data: { manual_data: body },
+        user_id: req.user!.id,
       });
     }
 
@@ -188,6 +194,7 @@ router.post('/', async (req, res, next) => {
         .select('id')
         .eq('event_id', body.event_id)
         .eq('company_id', company_id)
+        .is('deleted_at', null)
         .single();
 
       if (targetMatch) {
@@ -290,6 +297,7 @@ router.get('/:id/timeline', async (req, res, next) => {
         contact:contacts(*)
       `)
       .eq('contact_id', id)
+      .is('deleted_at', null)
       .order('interaction_date', { ascending: false });
 
     if (type && type !== 'all') {
@@ -300,22 +308,12 @@ router.get('/:id/timeline', async (req, res, next) => {
 
     if (error) throw error;
 
-    // Fetch notes
-    let notes: any[] = [];
-    if (!type || type === 'all' || type === 'note') {
-      const { data: notesData } = await supabase
-        .from('notes')
-        .select('*, event:events(*)')
-        .eq('contact_id', id)
-        .order('created_at', { ascending: false });
-      notes = notesData || [];
-    }
-
     // Fetch captures
     const { data: captures } = await supabase
       .from('captures')
       .select('*')
       .eq('contact_id', id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     // Combine timeline
@@ -346,11 +344,6 @@ router.get('/:id/timeline', async (req, res, next) => {
         }
         return item;
       }),
-      ...(notes || []).map((n: any) => ({
-        ...n,
-        type: 'note',
-        date: n.created_at
-      })),
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     res.json({ data: timeline });
@@ -364,7 +357,7 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const { error } = await supabase
       .from('contacts')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', req.params.id)
       .eq('user_id', req.user!.id);
 
@@ -397,6 +390,7 @@ router.get('/:id/insights', async (req, res, next) => {
       .select('*, company:companies(*)')
       .eq('id', id)
       .eq('user_id', req.user!.id)
+      .is('deleted_at', null)
       .single();
 
     if (contactError || !contact) {
@@ -407,23 +401,18 @@ router.get('/:id/insights', async (req, res, next) => {
     console.log(`[insights] ${contactName} (${id}) — checking cache`);
 
     // ── Cache validity check ─────────────────────────────────────────────────
-    const [latestInteraction, latestNote] = await Promise.all([
-      supabase.from('interactions').select('updated_at').eq('contact_id', id)
-        .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('notes').select('updated_at').eq('contact_id', id)
-        .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-    ]);
+    const latestInteraction = await supabase.from('interactions').select('updated_at').eq('contact_id', id)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false }).limit(1).maybeSingle();
 
     const insightsTs = contact.ai_insights_generated_at ? new Date(contact.ai_insights_generated_at).getTime() : 0;
     const contactTs = new Date(contact.updated_at).getTime();
     const interactionTs = latestInteraction.data ? new Date(latestInteraction.data.updated_at).getTime() : 0;
-    const noteTs = latestNote.data ? new Date(latestNote.data.updated_at).getTime() : 0;
-    const latestActivityTime = Math.max(contactTs, interactionTs, noteTs);
+    const latestActivityTime = Math.max(contactTs, interactionTs);
 
     console.log(`[insights]   ai_insights_generated_at : ${contact.ai_insights_generated_at ?? 'none'}`);
     console.log(`[insights]   contact.updated_at       : ${contact.updated_at}${contactTs > insightsTs ? '  ← NEWER' : ''}`);
     console.log(`[insights]   latest interaction       : ${latestInteraction.data?.updated_at ?? 'none'}${interactionTs > insightsTs ? '  ← NEWER' : ''}`);
-    console.log(`[insights]   latest note              : ${latestNote.data?.updated_at ?? 'none'}${noteTs > insightsTs ? '  ← NEWER' : ''}`);
 
     if (
       contact.ai_insights &&
@@ -442,32 +431,21 @@ router.get('/:id/insights', async (req, res, next) => {
     console.log(`[insights] ✗ CACHE MISS — calling AI (reason: ${reason})`);
 
     // ── Fetch full timeline (no artificial limit) ────────────────────────────
-    const [interactionsRes, notesRes] = await Promise.all([
-      supabase.from('interactions')
-        .select('interaction_type, summary, details, interaction_date')
-        .eq('contact_id', id)
-        .order('interaction_date', { ascending: true }),
-      supabase.from('notes')
-        .select('content, created_at')
-        .eq('contact_id', id)
-        .order('created_at', { ascending: true }),
-    ]);
+    const interactionsRes = await supabase.from('interactions')
+      .select('interaction_type, summary, details, interaction_date')
+      .eq('contact_id', id)
+      .is('deleted_at', null)
+      .order('interaction_date', { ascending: true });
 
     type TimelineEntry = { text: string; date: string };
 
-    const allTimeline: TimelineEntry[] = [
-      ...(interactionsRes.data || []).map((i: any) => {
+    const allTimeline: TimelineEntry[] = (interactionsRes.data || []).map((i: any) => {
         const note = i.details?.note ? ` Note: ${i.details.note}` : '';
         return {
           text: `[${i.interaction_type}] ${(i.summary || '').slice(0, 1000)}${note} (${i.interaction_date?.slice(0, 10)})`,
           date: i.interaction_date || '',
         };
-      }),
-      ...(notesRes.data || []).map((n: any) => ({
-        text: `[note] ${(n.content || '').slice(0, 1000)} (${n.created_at?.slice(0, 10)})`,
-        date: n.created_at || '',
-      })),
-    ]
+      })
       .filter(item => item.text.trim() && item.date)
       .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -629,6 +607,7 @@ router.get('/:id/insights', async (req, res, next) => {
         .from('contacts')
         .select('ai_insights')
         .eq('id', req.params.id)
+        .is('deleted_at', null)
         .single();
       if (contact?.ai_insights) {
         console.log(`[insights] AI failed — returning stale cached insights`);
@@ -645,21 +624,23 @@ router.get('/:id/events', async (req, res, next) => {
   try {
     // Verify contact ownership first.
     const { data: contactCheck } = await supabase
-      .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).maybeSingle();
+      .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).is('deleted_at', null).maybeSingle();
     if (!contactCheck) return res.status(403).json({ error: 'Forbidden' });
 
     const [interactionsRes, contactEventsRes] = await Promise.all([
-      supabase.from('interactions').select('event:events(*)').eq('contact_id', req.params.id).not('event_id', 'is', null),
-      supabase.from('contact_events').select('event:events(*)').eq('contact_id', req.params.id),
+      supabase.from('interactions').select('event:events(*)').eq('contact_id', req.params.id).not('event_id', 'is', null).is('deleted_at', null),
+      supabase.from('contact_events').select('event:events(*)').eq('contact_id', req.params.id).is('deleted_at', null),
     ]);
 
     if (interactionsRes.error) throw interactionsRes.error;
 
+    // event:events(*) is a left join and can't filter the embedded row's deleted_at
+    // inline; drop soft-deleted events here instead.
     const seen = new Set<string>();
     const events = [
       ...(interactionsRes.data || []).map((r: any) => r.event),
       ...(contactEventsRes.data || []).map((r: any) => r.event),
-    ].filter((e: any) => e && !seen.has(e.id) && seen.add(e.id));
+    ].filter((e: any) => e && e.deleted_at == null && !seen.has(e.id) && seen.add(e.id));
 
     res.json({ data: events });
   } catch (error) {
@@ -677,7 +658,7 @@ router.post('/:id/events', async (req, res, next) => {
 
     // Verify contact ownership.
     const { data: contactCheck } = await supabase
-      .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).maybeSingle();
+      .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).is('deleted_at', null).maybeSingle();
     if (!contactCheck) return res.status(403).json({ error: 'Forbidden' });
 
     // Upsert: if already linked via event_link interaction, skip.
@@ -687,6 +668,7 @@ router.post('/:id/events', async (req, res, next) => {
       .eq('contact_id', req.params.id)
       .eq('event_id', event_id)
       .eq('interaction_type', 'event_link')
+      .is('deleted_at', null)
       .maybeSingle();
 
     if (existing) return res.json({ data: existing, already_linked: true });
@@ -699,6 +681,7 @@ router.post('/:id/events', async (req, res, next) => {
         interaction_type: 'event_link',
         interaction_date: new Date().toISOString(),
         summary: 'Contact linked to event',
+        user_id: req.user!.id,
       })
       .select()
       .single();
@@ -716,12 +699,12 @@ router.delete('/:id/events/:event_id', async (req, res, next) => {
   try {
     // Verify contact ownership.
     const { data: contactCheck } = await supabase
-      .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).maybeSingle();
+      .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).is('deleted_at', null).maybeSingle();
     if (!contactCheck) return res.status(403).json({ error: 'Forbidden' });
 
     const { error } = await supabase
       .from('interactions')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('contact_id', req.params.id)
       .eq('event_id', req.params.event_id)
       .eq('interaction_type', 'event_link');
@@ -734,104 +717,3 @@ router.delete('/:id/events/:event_id', async (req, res, next) => {
 });
 
 export default router;
-
-
-// POST /api/contacts/:id/enrich
-router.post('/:id/enrich', async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const force = req.body.force === true;
-    const { EnrichmentService } = await import('../services/enrichment-service');
-
-    // Fetch contact with company data — scoped to this user
-    const { data: contact, error: fetchError } = await supabase
-      .from('contacts')
-      .select('*, company:companies(*)')
-      .eq('id', id)
-      .eq('user_id', req.user!.id)
-      .single();
-
-    if (fetchError || !contact) {
-      return res.status(404).json({ error: fetchError?.message || 'Contact not found' });
-    }
-
-    // Skip if already enriched and nothing changed since last enrichment
-    if (!force && contact.last_enriched_at) {
-      const lastEnriched = new Date(contact.last_enriched_at).getTime();
-      const contactChanged = new Date(contact.updated_at).getTime() > lastEnriched;
-      const companyChanged = contact.company
-        ? new Date(contact.company.updated_at).getTime() > lastEnriched
-        : false;
-
-      if (!contactChanged && !companyChanged) {
-        return res.json({
-          success: true,
-          cached: true,
-          message: 'Already enriched — no changes detected since last enrichment.',
-          data: contact,
-        });
-      }
-    }
-
-    // Perform AI Research
-    const enrichResult = await EnrichmentService.enrichContact({
-      name: `${contact.first_name} ${contact.last_name || ''}`.trim(),
-      company: contact.company?.name,
-      email: contact.email,
-      job_title: contact.job_title
-    });
-
-    if (req.body.review_only) {
-      return res.json({
-        success: true,
-        data: {
-          enrichment: enrichResult
-        }
-      });
-    }
-
-    // Update Company data if applicable
-    if (contact.company_id) {
-      const companyUpdate = {
-        industry: enrichResult.industry || contact.company.industry,
-        description: enrichResult.description || contact.company.description,
-        location: enrichResult.location || contact.company.location,
-        region: enrichResult.region || contact.company.region,
-        company_size: enrichResult.company_size || contact.company.company_size,
-        products_services: enrichResult.products_services || contact.company.products_services,
-        website: enrichResult.website || contact.company.website,
-        is_enriched: true,
-        enrichment_confidence: enrichResult.confidence.industry || 0.8
-      };
-
-      const { error: companyError } = await supabase
-        .from('companies')
-        .update(companyUpdate)
-        .eq('id', contact.company_id);
-
-      if (companyError) console.error('Error updating company enrichment:', companyError);
-    }
-
-    // Update Contact: LinkedIn URL + enrichment timestamp
-    const contactUpdate: Record<string, any> = {
-      enrichment_status: 'enriched',
-      last_enriched_at: new Date().toISOString(),
-    };
-    if (enrichResult.linkedin_url && !contact.linkedin_url) {
-      contactUpdate.linkedin_url = enrichResult.linkedin_url;
-    }
-    await supabase.from('contacts').update(contactUpdate).eq('id', id);
-
-    res.json({
-      success: true,
-      data: {
-        ...contact,
-        is_enriched: true,
-        enrichment: enrichResult
-      }
-    });
-  } catch (error: any) {
-    console.error('Enrichment failed:', error);
-    res.status(500).json({ error: error?.message || 'Failed to enrich contact' });
-  }
-});

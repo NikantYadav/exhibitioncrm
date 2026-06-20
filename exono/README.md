@@ -152,6 +152,31 @@ flutter pub get
 flutter run
 ```
 
+### Web: `WebAssembly.instantiate(): Import #25 "env" ...` / blank screen on web
+
+This means `web/sqlite3.wasm` and/or `web/drift_worker.dart.js` are stale or don't match the
+`drift` / `sqlite3` package versions pinned in `pubspec.yaml`. These two files must be regenerated
+whenever those package versions change — never copy them from another project or an unrelated build.
+
+**Regenerate `drift_worker.dart.js`** (matches your pinned `drift` version):
+
+```bash
+# web/drift_worker.dart should contain:
+#   import 'package:drift/wasm.dart';
+#   void main() { WasmDatabase.workerMainForOpen(); }
+
+dart compile js web/drift_worker.dart -o web/drift_worker.dart.js -O4
+```
+
+**Re-fetch `sqlite3.wasm`** (matches your pinned `sqlite3` version, e.g. `3.3.3`):
+
+```bash
+curl -sL -o web/sqlite3.wasm \
+  "https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-<VERSION>/sqlite3.wasm"
+```
+
+Do this after every `drift`/`sqlite3` version bump in `pubspec.yaml`.
+
 ## Next Steps
 
 - [ ] Implement QR scanner

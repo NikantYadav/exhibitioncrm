@@ -8,7 +8,6 @@ class ChatMessage {
   final String text;
   final bool isUser;
   final DateTime timestamp;
-  final List<MessageLink> links;
   final List<LinkedEntity> linkedEntities;
 
   ChatMessage({
@@ -16,13 +15,11 @@ class ChatMessage {
     required this.text,
     required this.isUser,
     required this.timestamp,
-    this.links = const [],
     this.linkedEntities = const [],
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json,
       {List<LinkedEntity> linkedEntities = const []}) {
-    final rawLinks = json['links'] as List<dynamic>? ?? [];
     return ChatMessage(
       id: json['id'] as String,
       text: (json['content'] ?? '') as String,
@@ -30,41 +27,9 @@ class ChatMessage {
       timestamp:
           DateTime.tryParse((json['created_at'] ?? '') as String) ??
               DateTime.now(),
-      links: rawLinks
-          .cast<Map<String, dynamic>>()
-          .map(MessageLink.fromJson)
-          .toList(),
       linkedEntities: linkedEntities,
     );
   }
-}
-
-class MessageLink {
-  final String id;
-  final String? contactId;
-  final String? eventId;
-  final String? emailDraftId;
-
-  MessageLink({
-    required this.id,
-    this.contactId,
-    this.eventId,
-    this.emailDraftId,
-  });
-
-  factory MessageLink.fromJson(Map<String, dynamic> json) {
-    return MessageLink(
-      id: json['id'] as String,
-      contactId: json['contact_id'] as String?,
-      eventId: json['event_id'] as String?,
-      emailDraftId: json['email_draft_id'] as String?,
-    );
-  }
-
-  bool get hasAnyLink =>
-      contactId != null ||
-      eventId != null ||
-      emailDraftId != null;
 }
 
 class ChatProvider extends ChangeNotifier {

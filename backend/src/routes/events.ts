@@ -20,6 +20,7 @@ router.param('id', async (req: Request, res: Response, next: NextFunction, id: s
       .from('events')
       .select('id, user_id')
       .eq('id', id)
+      .is('deleted_at', null)
       .maybeSingle();
 
     if (!event) {
@@ -61,6 +62,7 @@ router.get('/', async (req, res, next) => {
       .from('events')
       .select('*')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('start_date', { ascending: false });
 
     if (error) throw error;
@@ -87,6 +89,7 @@ router.get('/ongoing/current', async (req, res, next) => {
       .from('events')
       .select('*')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('start_date', { ascending: false });
 
     if (error) throw error;
@@ -117,6 +120,7 @@ router.get('/live-session', async (req, res, next) => {
       .from('events')
       .select('*')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('start_date', { ascending: false });
 
     if (eventsError) throw eventsError;
@@ -141,23 +145,26 @@ router.get('/live-session', async (req, res, next) => {
       { data: contactEventRows, error: contactEventsError },
       { data: captures, error: capturesError },
     ] = await Promise.all([
-      supabase.from('captures').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
-      supabase.from('target_companies').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
-      supabase.from('event_goals').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
+      supabase.from('captures').select('*', { count: 'exact', head: true }).eq('event_id', eventId).is('deleted_at', null),
+      supabase.from('target_companies').select('*', { count: 'exact', head: true }).eq('event_id', eventId).is('deleted_at', null),
+      supabase.from('event_goals').select('*').eq('event_id', eventId).is('deleted_at', null).order('created_at', { ascending: true }),
       supabase
         .from('target_companies')
         .select(`id, priority, booth_location, status, company_id, talking_points, notes, use_notes_for_briefing, company:companies(id, name)`)
         .eq('event_id', eventId)
+        .is('deleted_at', null)
         .limit(50),
       supabase
         .from('contact_events')
-        .select(`id, contact_id, status, notes, talking_points, created_at, contact:contacts(id, first_name, last_name, job_title, company_id, company_name:companies(name))`)
+        .select(`id, contact_id, status, notes, talking_points, created_at, contact:contacts(id, first_name, last_name, job_title, company_id, deleted_at, company_name:companies(name))`)
         .eq('event_id', eventId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: true }),
       supabase
         .from('captures')
         .select('*, contact:contacts(*)')
         .eq('event_id', eventId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false }),
     ]);
 
@@ -183,7 +190,12 @@ router.get('/live-session', async (req, res, next) => {
       use_notes_for_briefing: target.use_notes_for_briefing ?? false,
     }));
 
-    const targetContacts = (contactEventRows || []).map((row: any) => {
+    // contact:contacts(...) is a left join and can't filter the embedded row's
+    // deleted_at inline (PostgREST !inner+dotted filter would also drop rows whose
+    // contact_id legitimately has no contact yet); drop deleted contacts here instead.
+    const liveContactEventRows = (contactEventRows || []).filter((row: any) => row.contact?.deleted_at == null);
+
+    const targetContacts = liveContactEventRows.map((row: any) => {
       const c = row.contact;
       const companyName = c?.company_name?.name ?? '';
       return {
@@ -199,7 +211,7 @@ router.get('/live-session', async (req, res, next) => {
     });
 
     const tc = targetsCount || 0;
-    const cc = (contactEventRows || []).length;
+    const cc = liveContactEventRows.length;
     const followUpsCount = targetContacts.filter((t: any) => t.status !== 'met').length;
     const targetReach = tc > 0 ? Math.round((cc / tc) * 100) : 0;
 
@@ -210,8 +222,7 @@ router.get('/live-session', async (req, res, next) => {
           event: {
             id: ongoingEvent.id,
             title: ongoingEvent.name,
-            venue: ongoingEvent.venue || ongoingEvent.location || '',
-            hall: ongoingEvent.hall || '',
+            venue: ongoingEvent.location || '',
           },
           stats: {
             target_reach: targetReach,
@@ -224,7 +235,11 @@ router.get('/live-session', async (req, res, next) => {
           targets: priorityTargets,
           target_contacts: targetContacts,
         },
-        captures: captures || [],
+        // contact:contacts(*) is a left join; drop the embedded contact if it's
+        // soft-deleted rather than surfacing a deleted contact's data here.
+        captures: (captures || []).map((c: any) =>
+          c.contact?.deleted_at != null ? { ...c, contact: null } : c
+        ),
       },
     });
   } catch (error) {
@@ -241,6 +256,7 @@ router.get('/upcoming/next', async (req, res, next) => {
       .from('events')
       .select('*')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('start_date', { ascending: true });
 
     if (error) throw error;
@@ -258,12 +274,121 @@ router.get('/upcoming/next', async (req, res, next) => {
   }
 });
 
+// GET /api/events/stats/batch?ids=id1,id2,...
+// Returns stats for multiple events in one round trip.
+router.get('/stats/batch', async (req, res, next) => {
+  try {
+    const userId = req.user!.id;
+    const idsParam = (req.query.ids as string) || '';
+    const eventIds = idsParam.split(',').map(s => s.trim()).filter(Boolean);
+
+    if (eventIds.length === 0) {
+      res.json({ data: {} });
+      return;
+    }
+
+    // Verify all requested events belong to this user
+    const { data: ownedEvents, error: ownedError } = await supabase
+      .from('events')
+      .select('id')
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .in('id', eventIds);
+
+    if (ownedError) throw ownedError;
+    const ownedIds = (ownedEvents || []).map((e: any) => e.id);
+    if (ownedIds.length === 0) { res.json({ data: {} }); return; }
+
+    // Batch queries across all events in parallel
+    const [
+      { data: captureRows },
+      { data: contactEventRows },
+      { data: targetRows },
+    ] = await Promise.all([
+      supabase.from('captures').select('event_id, contact_id').in('event_id', ownedIds).eq('status', 'completed').not('contact_id', 'is', null).is('deleted_at', null),
+      supabase.from('contact_events').select('event_id, contact_id').in('event_id', ownedIds).is('deleted_at', null),
+      supabase.from('target_companies').select('event_id').in('event_id', ownedIds).is('deleted_at', null),
+    ]);
+
+    // Group by event_id
+    const capturesByEvent = new Map<string, string[]>();
+    const contactEventsByEvent = new Map<string, string[]>();
+    const targetCountByEvent = new Map<string, number>();
+
+    for (const row of captureRows || []) {
+      const arr = capturesByEvent.get(row.event_id) || [];
+      arr.push(row.contact_id);
+      capturesByEvent.set(row.event_id, arr);
+    }
+    for (const row of contactEventRows || []) {
+      const arr = contactEventsByEvent.get(row.event_id) || [];
+      arr.push(row.contact_id);
+      contactEventsByEvent.set(row.event_id, arr);
+    }
+    for (const row of targetRows || []) {
+      targetCountByEvent.set(row.event_id, (targetCountByEvent.get(row.event_id) || 0) + 1);
+    }
+
+    // Collect all unique contact IDs across all events for a single follow-up status query
+    const allContactIds = Array.from(new Set([
+      ...(captureRows || []).map((r: any) => r.contact_id),
+      ...(contactEventRows || []).map((r: any) => r.contact_id),
+    ]));
+
+    const followUpStatusMap = new Map<string, string>();
+    if (allContactIds.length > 0) {
+      const { data: contactStatuses } = await supabase
+        .from('contacts')
+        .select('id, follow_up_status')
+        .in('id', allContactIds)
+        .is('deleted_at', null);
+      for (const c of contactStatuses || []) {
+        followUpStatusMap.set(c.id, c.follow_up_status);
+      }
+    }
+
+    // Build per-event stats
+    const result: Record<string, any> = {};
+    for (const eventId of ownedIds) {
+      const ceContactIds = contactEventsByEvent.get(eventId) || [];
+      const capContactIds = capturesByEvent.get(eventId) || [];
+      const uniqueContactIds = Array.from(new Set([...ceContactIds, ...capContactIds]));
+      const totalTargets = targetCountByEvent.get(eventId) || 0;
+      const totalContacts = uniqueContactIds.length;
+
+      let followUpsNeeded = 0;
+      let followUpsSkipped = 0;
+      let followUpsDone = 0;
+      for (const cid of uniqueContactIds) {
+        const status = followUpStatusMap.get(cid) || 'not_contacted';
+        if (status === 'not_contacted') followUpsNeeded++;
+        else if (status === 'needs_follow_up') followUpsSkipped++;
+        else if (status === 'contacted') followUpsDone++;
+      }
+
+      result[eventId] = {
+        total_contacts: totalContacts,
+        total_targets: totalTargets,
+        target_reach: totalTargets > 0 ? Math.round(totalContacts / totalTargets * 100) : 0,
+        follow_ups_needed: followUpsNeeded,
+        follow_ups_skipped: followUpsSkipped,
+        follow_ups_done: followUpsDone,
+      };
+    }
+
+    res.json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const { data: event, error } = await supabase
       .from('events')
       .select('*')
       .eq('id', req.params.id)
+      .is('deleted_at', null)
       .single();
 
     if (error) throw error;
@@ -292,18 +417,16 @@ router.post('/', async (req, res, next) => {
       .insert({
         user_id: req.user!.id,
         name: req.body.name,
-        description: req.body.description,
         location: req.body.location,
         start_date: req.body.start_date,
         end_date: req.body.end_date,
-        status: req.body.status || 'upcoming',
       })
       .select()
       .single();
 
     if (error) throw error;
 
-    res.json({ data, message: 'Event created successfully' });
+    res.json({ data: { ...data, status: getEventStatus(data) }, message: 'Event created successfully' });
   } catch (error) {
     next(error);
   }
@@ -328,7 +451,7 @@ router.patch('/:id', async (req, res, next) => {
 
     if (error) throw error;
 
-    res.json({ data, message: 'Event updated successfully' });
+    res.json({ data: { ...data, status: getEventStatus(data) }, message: 'Event updated successfully' });
   } catch (error) {
     next(error);
   }
@@ -346,26 +469,7 @@ router.put('/:id', async (req, res, next) => {
 
     if (error) throw error;
 
-    res.json({ data });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// GET /api/events/:id/captures
-router.get('/:id/captures', async (req, res, next) => {
-  try {
-    const eventId = req.params.id;
-
-    const { data: captures, error } = await supabase
-      .from('captures')
-      .select('*, contact:contacts(*)')
-      .eq('event_id', eventId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    res.json({ data: captures || [] });
+    res.json({ data: { ...data, status: getEventStatus(data) } });
   } catch (error) {
     next(error);
   }
@@ -380,24 +484,27 @@ router.get('/:id/stats', async (req, res, next) => {
     const { count: capturesCount } = await supabase
       .from('captures')
       .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId);
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
 
     // Get total contacts via contact_events
     const { count: contactEventsCount } = await supabase
       .from('contact_events')
       .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId);
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
 
     // Get total targets
     const { count: targetsCount } = await supabase
       .from('target_companies')
       .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId);
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
 
     // Collect all unique contact IDs from both contact_events AND captures
     const [{ data: contactEventRows }, { data: captureRows }] = await Promise.all([
-      supabase.from('contact_events').select('contact_id').eq('event_id', eventId),
-      supabase.from('captures').select('contact_id').eq('event_id', eventId).eq('status', 'completed').not('contact_id', 'is', null),
+      supabase.from('contact_events').select('contact_id').eq('event_id', eventId).is('deleted_at', null),
+      supabase.from('captures').select('contact_id').eq('event_id', eventId).eq('status', 'completed').not('contact_id', 'is', null).is('deleted_at', null),
     ]);
 
     const contactIds = Array.from(new Set([
@@ -411,11 +518,11 @@ router.get('/:id/stats', async (req, res, next) => {
     if (contactIds.length > 0) {
       const [{ count: pending }, { count: skipped }, { count: done }] = await Promise.all([
         supabase.from('contacts').select('*', { count: 'exact', head: true })
-          .in('id', contactIds).eq('follow_up_status', 'not_contacted'),
+          .in('id', contactIds).eq('follow_up_status', 'not_contacted').is('deleted_at', null),
         supabase.from('contacts').select('*', { count: 'exact', head: true })
-          .in('id', contactIds).eq('follow_up_status', 'needs_follow_up'),
+          .in('id', contactIds).eq('follow_up_status', 'needs_follow_up').is('deleted_at', null),
         supabase.from('contacts').select('*', { count: 'exact', head: true })
-          .in('id', contactIds).eq('follow_up_status', 'contacted'),
+          .in('id', contactIds).eq('follow_up_status', 'contacted').is('deleted_at', null),
       ]);
       followUpsCount = pending || 0;
       skippedCount = skipped || 0;
@@ -444,23 +551,6 @@ router.get('/:id/stats', async (req, res, next) => {
   }
 });
 
-// GET /api/events/:id/emails
-router.get('/:id/emails', async (req, res, next) => {
-  try {
-    const { data, error } = await supabase
-      .from('email_drafts')
-      .select('*, contact:contacts(*)')
-      .eq('event_id', req.params.id)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    res.json({ data: data || [] });
-  } catch (error) {
-    next(error);
-  }
-});
-
 // GET /api/events/:id/targets
 router.get('/:id/targets', async (req, res, next) => {
   try {
@@ -468,6 +558,7 @@ router.get('/:id/targets', async (req, res, next) => {
       .from('target_companies')
       .select('*, company:companies(*)')
       .eq('event_id', req.params.id)
+      .is('deleted_at', null)
       .order('priority', { ascending: true });
 
     if (error) throw error;
@@ -486,6 +577,7 @@ router.get('/:id/targets/:targetId', async (req, res, next) => {
       .select('*, company:companies(*)')
       .eq('id', req.params.targetId)
       .eq('event_id', req.params.id)
+      .is('deleted_at', null)
       .single();
 
     if (error) throw error;
@@ -510,10 +602,10 @@ router.get('/:id/live', async (req, res, next) => {
       { data: targetsRaw, error: targetsError },
       { data: contactEventRows, error: contactEventsError },
     ] = await Promise.all([
-      supabase.from('events').select('*').eq('id', eventId).single(),
-      supabase.from('captures').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
-      supabase.from('target_companies').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
-      supabase.from('event_goals').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
+      supabase.from('events').select('*').eq('id', eventId).is('deleted_at', null).single(),
+      supabase.from('captures').select('*', { count: 'exact', head: true }).eq('event_id', eventId).is('deleted_at', null),
+      supabase.from('target_companies').select('*', { count: 'exact', head: true }).eq('event_id', eventId).is('deleted_at', null),
+      supabase.from('event_goals').select('*').eq('event_id', eventId).is('deleted_at', null).order('created_at', { ascending: true }),
       supabase
         .from('target_companies')
         .select(`
@@ -521,14 +613,16 @@ router.get('/:id/live', async (req, res, next) => {
           company:companies(id, name)
         `)
         .eq('event_id', eventId)
+        .is('deleted_at', null)
         .limit(50),
       supabase
         .from('contact_events')
         .select(`
           id, contact_id, status, notes, talking_points, created_at,
-          contact:contacts(id, first_name, last_name, job_title, company_id, company_name:companies(name))
+          contact:contacts(id, first_name, last_name, job_title, company_id, deleted_at, company_name:companies(name))
         `)
         .eq('event_id', eventId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: true }),
     ]);
 
@@ -540,7 +634,10 @@ router.get('/:id/live', async (req, res, next) => {
     if (targetsError) throw targetsError;
     if (contactEventsError) throw contactEventsError;
 
-    const contactEventsCount = (contactEventRows || []).length;
+    // contact:contacts(...) is a left join and can't filter the embedded row's
+    // deleted_at inline; drop rows whose linked contact was soft-deleted instead.
+    const liveContactEventRows = (contactEventRows || []).filter((row: any) => row.contact?.deleted_at == null);
+    const contactEventsCount = liveContactEventRows.length;
     console.log(`[GET /events/:id/live] Event: ${event.name}, Stats - Scanned: ${capturesCount}, Targets: ${targetsCount}, Contacts: ${contactEventsCount}`);
 
     // Sort targets: high > medium > low
@@ -564,7 +661,7 @@ router.get('/:id/live', async (req, res, next) => {
     }));
 
     // Target contacts — independent list from contact_events
-    const targetContacts = (contactEventRows || []).map((row: any) => {
+    const targetContacts = liveContactEventRows.map((row: any) => {
       const c = (row as any).contact;
       const companyName = c?.company_name?.name ?? '';
       return {
@@ -593,8 +690,7 @@ router.get('/:id/live', async (req, res, next) => {
         event: {
           id: event.id,
           title: event.name,
-          venue: event.venue || event.location || '',
-          hall: event.hall || '',
+          venue: event.location || '',
         },
         stats: {
           target_reach: targetReach,
@@ -624,7 +720,7 @@ router.get('/:id/goals', async (req, res, next) => {
   try {
     const { data, error } = await supabase
       .from('event_goals').select('*')
-      .eq('event_id', req.params.id).order('created_at', { ascending: true });
+      .eq('event_id', req.params.id).is('deleted_at', null).order('created_at', { ascending: true });
     if (error) throw error;
     res.json({ data: data || [] });
   } catch (error) { next(error); }
@@ -636,13 +732,13 @@ router.post('/:id/ask', async (req, res, next) => {
     const { question } = req.body;
     if (!question) { res.status(400).json({ error: 'question required' }); return; }
     const [{ data: event }, { data: targets }] = await Promise.all([
-      supabase.from('events').select('name, venue, location, description, start_date, end_date').eq('id', req.params.id).single(),
-      supabase.from('target_companies').select('company:companies(name, industry), booth_location, status, priority').eq('event_id', req.params.id).limit(20),
+      supabase.from('events').select('name, location, start_date, end_date').eq('id', req.params.id).is('deleted_at', null).single(),
+      supabase.from('target_companies').select('company:companies(name, industry), booth_location, status, priority').eq('event_id', req.params.id).is('deleted_at', null).limit(20),
     ]);
     if (!event) { res.status(404).json({ error: 'Event not found' }); return; }
 
     const eventName = event.name as string;
-    const eventLocation = event.venue || event.location || '';
+    const eventLocation = event.location || '';
     const eventDates = event.start_date
       ? `${event.start_date.slice(0, 10)}${event.end_date ? ` to ${event.end_date.slice(0, 10)}` : ''}`
       : '';
@@ -662,7 +758,6 @@ router.post('/:id/ask', async (req, res, next) => {
       `Event: "${eventName}"`,
       eventLocation ? `Location: ${eventLocation}` : '',
       eventDates ? `Dates: ${eventDates}` : '',
-      event.description ? `Description: ${event.description}` : '',
     ].filter(Boolean).join('\n');
 
     const llm = new LiteLLMService();
@@ -681,7 +776,7 @@ router.post('/:id/goals', async (req, res, next) => {
     if (!label) { res.status(400).json({ error: 'label required' }); return; }
     const { data, error } = await supabase
       .from('event_goals')
-      .insert({ event_id: req.params.id, label, total: total ?? 1, current: 0 })
+      .insert({ event_id: req.params.id, label, total: total ?? 1, current: 0, user_id: req.user!.id })
       .select().single();
     if (error) throw error;
     res.json({ data });
@@ -712,7 +807,7 @@ router.delete('/:id/goals/:goalId', async (req, res, next) => {
   try {
     const { error } = await supabase
       .from('event_goals')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', req.params.goalId)
       .eq('event_id', req.params.id);
     if (error) throw error;
@@ -781,7 +876,7 @@ router.post('/:id/targets/import', upload.single('file'), async (req: any, res, 
         // Add as target (ignore duplicate)
         const { error: targetError } = await supabase
           .from('target_companies')
-          .insert({ event_id: eventId, company_id: companyId, priority: 'medium', status: 'not_contacted' });
+          .insert({ event_id: eventId, company_id: companyId, priority: 'medium', status: 'not_contacted', user_id: req.user!.id });
 
         if (targetError && targetError.code !== '23505') {
           results.errors.push(`Failed to add ${rawName} as target`);
@@ -813,6 +908,7 @@ router.post('/:id/targets', async (req, res, next) => {
         status: 'not_contacted',
         notes,
         booth_location: booth_location || null,
+        user_id: req.user!.id,
       })
       .select('*, company:companies(*)')
       .single();
@@ -852,6 +948,7 @@ router.post('/:id/targets/:targetId/briefing', async (req, res, next) => {
       .from('target_companies')
       .select('*, company:companies(*)')
       .eq('id', targetId)
+      .is('deleted_at', null)
       .single();
     if (error) throw error;
 
@@ -897,7 +994,7 @@ router.delete('/:id/targets/:targetId', async (req, res, next) => {
   try {
     const { error } = await supabase
       .from('target_companies')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', req.params.targetId)
       .eq('event_id', req.params.id);
 
@@ -913,107 +1010,6 @@ router.delete('/:id/targets/:targetId', async (req, res, next) => {
 // Returns a merged list of:
 //   1. Scanned contacts (contact_events) with their company + email draft
 //   2. Targeted companies that were never scanned — surfaced as unmet targets
-router.get('/:id/follow-ups', async (req, res, next) => {
-  try {
-    const eventId = req.params.id;
-
-    // Fetch all four data sources in parallel
-    const [
-      { data: contactEvents, error: ceError },
-      { data: captures,      error: capturesError },
-      { data: drafts,        error: draftsError },
-      { data: targets,       error: targetsError },
-    ] = await Promise.all([
-      supabase
-        .from('contact_events')
-        .select('contact:contacts(*, company:companies(id, name, industry))')
-        .eq('event_id', eventId),
-      supabase
-        .from('captures')
-        .select('contact:contacts(*, company:companies(id, name, industry))')
-        .eq('event_id', eventId)
-        .eq('status', 'completed')
-        .not('contact_id', 'is', null),
-      supabase
-        .from('email_drafts')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('target_companies')
-        .select('id, status, booth_location, company:companies(id, name, industry)')
-        .eq('event_id', eventId),
-    ]);
-
-    if (ceError) throw ceError;
-    if (capturesError) throw capturesError;
-    if (draftsError) throw draftsError;
-    if (targetsError) throw targetsError;
-
-    // Index drafts by contact_id (latest first due to order above)
-    const draftsMap = new Map<string, any>();
-    for (const draft of drafts || []) {
-      if (!draftsMap.has(draft.contact_id)) draftsMap.set(draft.contact_id, draft);
-    }
-
-    // Merge contact_events + captures, deduplicating by contact id
-    const seenContactIds = new Set<string>();
-    const allContacts: { contact: any; source: string }[] = [];
-
-    for (const ce of (contactEvents || []) as any[]) {
-      if (!ce.contact?.id) continue;
-      if (seenContactIds.has(ce.contact.id)) continue;
-      seenContactIds.add(ce.contact.id);
-      allContacts.push({ contact: ce.contact, source: 'scanned' });
-    }
-    for (const cap of (captures || []) as any[]) {
-      if (!cap.contact?.id) continue;
-      if (seenContactIds.has(cap.contact.id)) continue;
-      seenContactIds.add(cap.contact.id);
-      allContacts.push({ contact: cap.contact, source: 'scanned' });
-    }
-
-    // Build scanned-contact entries; track which company IDs are covered
-    const coveredCompanyIds = new Set<string>();
-    const result: any[] = [];
-
-    for (const { contact, source } of allContacts) {
-      const company = contact?.company || null;
-      if (company?.id) coveredCompanyIds.add(company.id);
-      const draft = contact ? (draftsMap.get(contact.id) || null) : null;
-
-      result.push({
-        source,
-        contact: contact ? {
-          id: contact.id,
-          first_name: contact.first_name,
-          last_name: contact.last_name,
-          email: contact.email,
-          job_title: contact.job_title,
-          follow_up_status: contact.follow_up_status,
-          ai_insights: contact.ai_insights,
-        } : null,
-        email_draft: draft ? {
-          id: draft.id,
-          subject: draft.subject,
-          body: draft.body,
-          email_type: draft.email_type,
-          status: draft.status,
-        } : null,
-        company: company ? {
-          id: company.id,
-          name: company.name,
-          industry: company.industry,
-        } : null,
-      });
-    }
-
-    res.json({ data: result });
-  } catch (error) {
-    next(error);
-  }
-});
-
 // PATCH /api/events/:id/follow-ups/:contactId
 // Marks a contact as contacted and upserts the email draft as sent.
 // Body: { subject?, body?, action: 'send' | 'skip' }
@@ -1048,6 +1044,7 @@ router.patch('/:id/follow-ups/:contactId', async (req, res, next) => {
         .select('id')
         .eq('event_id', eventId)
         .eq('contact_id', contactId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -1074,6 +1071,7 @@ router.patch('/:id/follow-ups/:contactId', async (req, res, next) => {
             body: body || '',
             status: 'sent',
             sent_at: new Date().toISOString(),
+            user_id: req.user!.id,
           });
       }
     } else if (action === 'skip') {
@@ -1115,6 +1113,7 @@ router.post('/:id/follow-ups/:contactId/draft', async (req, res, next) => {
       .select('subject, body')
       .eq('event_id', eventId)
       .eq('contact_id', contactId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -1126,10 +1125,11 @@ router.post('/:id/follow-ups/:contactId/draft', async (req, res, next) => {
 
     // No saved draft — generate via AI
     const [{ data: eventData }, { data: contactData }] = await Promise.all([
-      supabase.from('events').select('name, location, start_date').eq('id', eventId).single(),
+      supabase.from('events').select('name, location, start_date').eq('id', eventId).is('deleted_at', null).single(),
       supabase.from('contacts')
         .select('first_name, last_name, job_title, ai_insights, companies(name, industry, description)')
         .eq('id', contactId)
+        .is('deleted_at', null)
         .single(),
     ]);
 
@@ -1195,6 +1195,7 @@ Respond in JSON with exactly two fields: "subject" (string) and "body" (string).
       subject,
       body,
       status: 'draft',
+      user_id: req.user!.id,
     });
 
     res.json({ subject, body });
@@ -1213,6 +1214,7 @@ router.get('/:id/targets/:targetId/contacts', async (req, res, next) => {
       .from('target_companies')
       .select('company_id')
       .eq('id', targetId)
+      .is('deleted_at', null)
       .single();
     if (targetError || !target) { res.status(404).json({ error: 'Target not found' }); return; }
 
@@ -1221,6 +1223,7 @@ router.get('/:id/targets/:targetId/contacts', async (req, res, next) => {
       .from('contacts')
       .select('id, first_name, last_name, email, job_title')
       .eq('company_id', target.company_id)
+      .is('deleted_at', null)
       .order('first_name');
     if (contactsError) throw contactsError;
 
@@ -1228,7 +1231,8 @@ router.get('/:id/targets/:targetId/contacts', async (req, res, next) => {
     const { data: linked } = await supabase
       .from('contact_events')
       .select('contact_id')
-      .eq('event_id', eventId);
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
     const linkedIds = new Set((linked || []).map((l: any) => l.contact_id));
 
     const result = (contacts || []).map((c: any) => ({
@@ -1249,7 +1253,7 @@ router.post('/:id/targets/:targetId/contacts', async (req, res, next) => {
 
     const { error } = await supabase
       .from('contact_events')
-      .insert({ contact_id, event_id: eventId });
+      .insert({ contact_id, event_id: eventId, user_id: req.user!.id });
 
     if (error && error.code !== '23505') throw error; // ignore duplicate
 
@@ -1264,7 +1268,7 @@ router.delete('/:id/targets/:targetId/contacts/:contactId', async (req, res, nex
 
     const { error } = await supabase
       .from('contact_events')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('contact_id', contactId)
       .eq('event_id', eventId);
 
@@ -1278,7 +1282,7 @@ router.delete('/:id/contacts/:contactId', async (req, res, next) => {
   try {
     const { error } = await supabase
       .from('contact_events')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('contact_id', req.params.contactId)
       .eq('event_id', req.params.id);
     if (error) throw error;
@@ -1293,14 +1297,17 @@ router.get('/:id/contacts', async (req, res, next) => {
       .from('contact_events')
       .select(`
         id, contact_id, status, notes, talking_points, created_at,
-        contact:contacts(id, first_name, last_name, job_title, company_name:companies(name))
+        contact:contacts(id, first_name, last_name, job_title, deleted_at, company_name:companies(name))
       `)
       .eq('event_id', req.params.id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
     if (error) throw error;
 
-    const contacts = (data || []).map((row: any) => {
+    // contact:contacts(...) is a left join and can't filter the embedded row's
+    // deleted_at inline; drop rows whose linked contact was soft-deleted instead.
+    const contacts = (data || []).filter((row: any) => row.contact?.deleted_at == null).map((row: any) => {
       const c = row.contact;
       return {
         id: row.id,
@@ -1326,7 +1333,7 @@ router.post('/:id/contacts', async (req, res, next) => {
 
     const { error } = await supabase
       .from('contact_events')
-      .insert({ contact_id, event_id: req.params.id });
+      .insert({ contact_id, event_id: req.params.id, user_id: req.user!.id });
 
     if (error && error.code !== '23505') throw error; // ignore duplicate
 
@@ -1369,7 +1376,7 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const { error } = await supabase
       .from('events')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', req.params.id)
       .eq('user_id', req.user!.id);
 

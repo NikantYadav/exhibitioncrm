@@ -23,6 +23,7 @@ router.post('/draft', async (req, res, next) => {
       .select('*, company:companies(*)')
       .eq('id', contact_id)
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .single();
 
     if (!contact) {
@@ -37,15 +38,16 @@ router.post('/draft', async (req, res, next) => {
         .select('*')
         .eq('id', event_id)
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .single();
       event = data;
     }
 
-    // Fetch notes and user profile in parallel
-    const [{ data: notes }, { data: userProfile }] = await Promise.all([
-      supabase.from('notes').select('content').eq('contact_id', contact_id).order('created_at', { ascending: false }).limit(5),
-      supabase.from('user_profiles').select('name, designation, products_services, value_proposition, additional_context, ai_tone').eq('user_id', userId).maybeSingle(),
-    ]);
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
+      .select('name, designation, products_services, value_proposition, additional_context, ai_tone')
+      .eq('user_id', userId)
+      .maybeSingle();
 
     const tone = userProfile?.ai_tone ?? 'professional';
     const senderLines = [
@@ -64,7 +66,6 @@ Recipient:
 - Job Title: ${contact.job_title || 'Unknown'}
 ${event ? `- Met at event: ${event.name}` : ''}
 ${custom_context ? `- Extra context: ${custom_context}` : ''}
-${notes && notes.length > 0 ? `- Notes: ${notes.map((n: any) => n.content).join('; ')}` : ''}
 
 ${senderLines ? `About the sender (you are writing on their behalf):\n${senderLines}` : ''}
 
@@ -85,6 +86,7 @@ Write a natural, personalised email that reflects the sender's voice and offerin
         subject: emailDraft.subject,
         body: emailDraft.body,
         status: 'draft',
+        user_id: userId,
       })
       .select()
       .single();
@@ -152,6 +154,7 @@ router.delete('/drafts/:id', async (req, res, next) => {
       .from('email_drafts')
       .select('contact_id, contacts!inner(user_id)')
       .eq('id', id)
+      .is('deleted_at', null)
       .maybeSingle();
 
     if (!draft) {
@@ -166,7 +169,7 @@ router.delete('/drafts/:id', async (req, res, next) => {
 
     const { error } = await supabase
       .from('email_drafts')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) {

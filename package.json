@@ -1,0 +1,10 @@
+{
+  "name": "crm-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Dependencies for one-off maintenance scripts in scripts/ (not the backend or app).",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1"
+  }
+}
