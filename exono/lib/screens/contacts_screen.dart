@@ -336,6 +336,8 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
                         fontWeight: FontWeight.w600,
                         color: theme.colors.foreground,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -343,6 +345,8 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
                       style: theme.typography.xs.copyWith(
                         color: theme.colors.mutedForeground,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -618,11 +622,13 @@ class _AddContactSheet extends StatelessWidget {
               fullWidth: true,
               onPressed: () async {
                 context.pop();
+                navBarHide();
                 final result = await Navigator.of(context).push<ManualEntryResult>(
                   MaterialPageRoute(
                     builder: (_) => const ManualEntryScreen(),
                   ),
                 );
+                navBarShow();
                 if (result != null) { onContactAdded(); }
               },
             ),
@@ -813,7 +819,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                         children: [
                           Icon(Icons.event_available_outlined, size: 14, color: AppTheme.colorsOf(context).accent),
                           const SizedBox(width: 6),
-                          Text(_eventCtrl.text, style: theme.typography.sm.copyWith(color: theme.colors.primary, fontWeight: FontWeight.w500)),
+                          Expanded(child: Text(_eventCtrl.text, style: theme.typography.sm.copyWith(color: theme.colors.primary, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
                           const Spacer(),
                           AppButton(
                             variant: ButtonVariant.ghost,
@@ -895,7 +901,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               children: [
                 Icon(Icons.business_outlined, size: 14, color: AppTheme.colorsOf(context).accent),
                 const SizedBox(width: 8),
-                Text(item, style: theme.typography.sm.copyWith(color: theme.colors.foreground)),
+                Expanded(child: Text(item, style: theme.typography.sm.copyWith(color: theme.colors.foreground), maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
@@ -922,9 +928,9 @@ class _FilterSheetState extends State<_FilterSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(event.name, style: theme.typography.sm.copyWith(color: theme.colors.foreground)),
+                      Text(event.name, style: theme.typography.sm.copyWith(color: theme.colors.foreground), maxLines: 1, overflow: TextOverflow.ellipsis),
                       if (event.location != null && event.location!.isNotEmpty)
-                        Text(event.location!, style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground)),
+                        Text(event.location!, style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                   ),
                 ),

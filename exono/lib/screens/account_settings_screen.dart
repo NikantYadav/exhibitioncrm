@@ -233,6 +233,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                     letterSpacing: -0.4,
                     color: context.theme.colors.foreground,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 if (auth.designation.isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -242,6 +244,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                       fontWeight: FontWeight.w500,
                       color: context.theme.colors.mutedForeground,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
                 if (email.isNotEmpty) ...[
@@ -251,6 +255,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                     style: context.theme.typography.xs.copyWith(
                       color: context.theme.colors.mutedForeground,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
                 const SizedBox(height: 10),
@@ -408,6 +414,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                 decoration: isLink ? TextDecoration.underline : null,
                 decorationColor: isLink ? _c.accent.withValues(alpha: 0.4) : null,
               ),
+              maxLines: multiLine ? 3 : 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -576,6 +584,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: context.theme.typography.sm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: context.theme.colors.foreground,
@@ -584,6 +594,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: context.theme.typography.xs.copyWith(
                     color: context.theme.colors.mutedForeground,
                   ),
@@ -640,6 +652,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                 children: [
                   Text(
                     label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w600,
                       color: color,
@@ -648,6 +662,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                   const SizedBox(height: 2),
                   Text(
                     sublabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.xs.copyWith(
                       color: context.theme.colors.mutedForeground,
                     ),

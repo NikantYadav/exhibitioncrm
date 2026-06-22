@@ -632,6 +632,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(_fullName(contact),
+                        maxLines: 2,
                         style: context.theme.typography.sm.copyWith(
                           fontWeight: FontWeight.w700,
                           color: isDone ? context.theme.colors.mutedForeground : context.theme.colors.foreground,
@@ -642,6 +643,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                       if (company.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(company,
+                          maxLines: 1,
                           style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
                           overflow: TextOverflow.ellipsis),
                       ],
@@ -649,7 +651,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                       Row(children: [
                         Icon(Icons.access_time_rounded, size: 11, color: context.theme.colors.mutedForeground),
                         const SizedBox(width: 4),
-                        Text(lastTouched, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                        Expanded(
+                          child: Text(lastTouched, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
                       ]),
                     ],
                   ),

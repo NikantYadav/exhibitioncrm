@@ -438,6 +438,8 @@ class _BrandPanel extends StatelessWidget {
                           children: [
                             Text(
                               f.$2,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: context.theme.typography.sm.copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: colors.textPrimary,
@@ -445,6 +447,8 @@ class _BrandPanel extends StatelessWidget {
                             ),
                             Text(
                               f.$3,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: context.theme.typography.xs.copyWith(color: colors.textMuted, height: 1.4),
                             ),
                           ],

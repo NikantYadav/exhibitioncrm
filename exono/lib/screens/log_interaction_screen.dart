@@ -457,6 +457,8 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
                     _loadingContacts
                         ? 'Loading...'
                         : (_pickedContactName ?? 'Select a contact...'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.sm.copyWith(
                       color: _pickedContactName != null
                           ? context.theme.colors.foreground
@@ -841,6 +843,8 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                                 Expanded(
                                   child: Text(
                                     contact.fullName,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                     style: context.theme.typography.sm.copyWith(
                                       color: context.theme.colors.foreground,
                                     ),

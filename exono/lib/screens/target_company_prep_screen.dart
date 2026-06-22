@@ -285,7 +285,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                     CompanyName(companyId: resolvedCompanyId, fallback: companyName, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4, height: 1.15, color: context.theme.colors.foreground)),
                                     if (industry.isNotEmpty) ...[
                                       const SizedBox(height: 4),
-                                      Text(industry, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+                                      Text(industry, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
                                     ],
                                     const SizedBox(height: 8),
                                     Wrap(
@@ -358,12 +358,12 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                               if (location.isNotEmpty) Row(children: [
                                 Icon(Icons.location_on_outlined, size: 16, color: _c.accent),
                                 const SizedBox(width: 10),
-                                Expanded(child: Text(location, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
+                                Expanded(child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
                               ]),
                               if (website.isNotEmpty) Row(children: [
                                 Icon(Icons.language_rounded, size: 16, color: _c.accent),
                                 const SizedBox(width: 10),
-                                Expanded(child: Text(website, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
+                                Expanded(child: Text(website, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
                               ]),
                               if (products.isNotEmpty)
                                 Row(
@@ -373,6 +373,8 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(products,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
                                           style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.55)),
                                     ),
                                   ],
@@ -406,6 +408,8 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                       )
                                     : Text(
                                         (booth != null && booth.isNotEmpty) ? booth : 'Booth not set',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: context.theme.typography.sm.copyWith(
                                           color: (booth != null && booth.isNotEmpty)
                                               ? context.theme.colors.foreground
@@ -443,6 +447,8 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                         (target.target.notes?.isNotEmpty ?? false)
                                             ? target.target.notes!
                                             : 'No notes yet',
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
                                         style: context.theme.typography.sm.copyWith(
                                           color: (target.target.notes?.isNotEmpty ?? false)
                                               ? context.theme.colors.foreground
@@ -593,7 +599,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                     child: Text('${e.key + 1}', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
                                   ),
                                   const SizedBox(width: 10),
-                                  Expanded(child: Text(e.value, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5))),
+                                  Expanded(child: Text(e.value, maxLines: 3, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5))),
                                 ],
                               ),
                             )),
@@ -821,7 +827,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 14, color: _c.accent),
       const SizedBox(width: 5),
-      Text(label, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+      Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
     ]);
   }
 
@@ -848,7 +854,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
       child: Row(children: [
         Icon(isError ? Icons.error_outline : Icons.info_outline, size: 14, color: isError ? _c.destructive : _c.accent),
         const SizedBox(width: 8),
-        Expanded(child: Text(message, style: context.theme.typography.xs.copyWith(color: isError ? _c.destructive : context.theme.colors.mutedForeground, height: 1.4))),
+        Expanded(child: Text(message, maxLines: 3, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(color: isError ? _c.destructive : context.theme.colors.mutedForeground, height: 1.4))),
       ]),
     );
   }
@@ -866,9 +872,9 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$firstName $lastName'.trim(), style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
+            Text('$firstName $lastName'.trim(), maxLines: 2, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
             if (jobTitle.isNotEmpty)
-              Text(jobTitle, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+              Text(jobTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
           ]),
         ),
         AppButton(

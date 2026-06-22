@@ -235,6 +235,8 @@ class _DedupCardState extends State<_DedupCard> {
               children: [
                 Text(
                   pendingName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: context.theme.typography.sm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: context.theme.colors.foreground,
@@ -244,6 +246,8 @@ class _DedupCardState extends State<_DedupCard> {
                   const SizedBox(height: 4),
                   Text(
                     n.pendingContact['email'].toString(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.sm.copyWith(
                       color: context.theme.colors.mutedForeground,
                     ),
@@ -253,6 +257,8 @@ class _DedupCardState extends State<_DedupCard> {
                   const SizedBox(height: 2),
                   Text(
                     n.pendingContact['company'].toString(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.xs.copyWith(
                       color: context.theme.colors.mutedForeground,
                     ),
@@ -272,6 +278,8 @@ class _DedupCardState extends State<_DedupCard> {
                 children: [
                   Text(
                     '${existing['first_name'] ?? ''} ${existing['last_name'] ?? ''}'.trim(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w600,
                       color: context.theme.colors.foreground,
@@ -281,6 +289,8 @@ class _DedupCardState extends State<_DedupCard> {
                     const SizedBox(height: 4),
                     Text(
                       existing['email'] as String,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: context.theme.typography.sm.copyWith(
                         color: context.theme.colors.mutedForeground,
                       ),
@@ -290,6 +300,8 @@ class _DedupCardState extends State<_DedupCard> {
                     const SizedBox(height: 2),
                     Text(
                       (existing['company'] as Map?)?['name'] as String? ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: context.theme.typography.xs.copyWith(
                         color: context.theme.colors.mutedForeground,
                       ),

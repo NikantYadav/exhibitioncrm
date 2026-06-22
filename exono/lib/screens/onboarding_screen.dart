@@ -515,6 +515,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
                       color: context.theme.colors.mutedForeground)),
                   const SizedBox(height: 4),
                   Text(_initialEmail!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w600,
                       color: context.theme.colors.foreground)),
@@ -560,11 +562,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
                       color: context.theme.colors.mutedForeground)),
                   const SizedBox(height: 4),
                   Text(value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.sm.copyWith(
                       fontWeight: FontWeight.w600,
                       color: context.theme.colors.foreground)),
                   const SizedBox(height: 2),
                   Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.xs.copyWith(
                       color: context.theme.colors.mutedForeground)),
                 ],
@@ -614,11 +620,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.lg.copyWith(
                       fontWeight: FontWeight.w700,
                       color: context.theme.colors.foreground)),
                   const SizedBox(height: 5),
                   Text(description,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.xs.copyWith(
                       color: context.theme.colors.mutedForeground, height: 1.4)),
                 ],

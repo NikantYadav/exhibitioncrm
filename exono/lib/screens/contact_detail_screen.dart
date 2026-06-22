@@ -409,11 +409,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               ]),
               const SizedBox(height: 16),
               Row(children: [
-                SkeletonLoader(width: 90, height: 32, borderRadius: BorderRadius.circular(8)),
+                Expanded(child: SkeletonLoader(width: double.infinity, height: 32, borderRadius: BorderRadius.circular(8))),
                 const SizedBox(width: 8),
-                SkeletonLoader(width: 110, height: 32, borderRadius: BorderRadius.circular(8)),
+                Expanded(child: SkeletonLoader(width: double.infinity, height: 32, borderRadius: BorderRadius.circular(8))),
                 const SizedBox(width: 8),
-                SkeletonLoader(width: 80, height: 32, borderRadius: BorderRadius.circular(8)),
+                Expanded(child: SkeletonLoader(width: double.infinity, height: 32, borderRadius: BorderRadius.circular(8))),
               ]),
               const SizedBox(height: 14),
               SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
@@ -516,17 +516,17 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(contact.listName, style: theme.typography.xl.copyWith(fontWeight: FontWeight.w700, height: 1.1)),
+                    Text(contact.listName, style: theme.typography.xl.copyWith(fontWeight: FontWeight.w700, height: 1.1), maxLines: 2, overflow: TextOverflow.ellipsis),
                     if (contact.title.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(contact.title, style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
+                      Text(contact.title, style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                     if (contact.company.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(contact.company, style: theme.typography.sm.copyWith(
                         fontWeight: FontWeight.w600,
                         color: theme.colors.primary,
-                      )),
+                      ), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                     const SizedBox(height: 8),
                     _followUpBadge(contact.followUpStatus),
@@ -626,6 +626,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
             Expanded(
               child: Text(
                 value,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: context.theme.typography.sm.copyWith(color: fg),
               ),
@@ -747,7 +748,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           child: Row(children: [
             Icon(m.icon, size: 14, color: theme.colors.primary),
             const SizedBox(width: 8),
-            Text(m.label, style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
+            Expanded(child: Text(m.label, style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ]),
         )),
         const SizedBox(height: 4),
@@ -801,7 +802,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
             Icon(Icons.warning_amber_outlined, size: 14, color: theme.colors.primary),
             const SizedBox(width: 6),
             Expanded(child: Text('Pain point: $painPoint',
-                style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground, height: 1.4))),
+                style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground, height: 1.4),
+                maxLines: 3, overflow: TextOverflow.ellipsis)),
           ]),
           const SizedBox(height: 12),
         ],
@@ -818,7 +820,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               ),
               const SizedBox(width: 10),
               Expanded(child: Text(item, style: theme.typography.sm.copyWith(
-                  color: theme.colors.mutedForeground, height: 1.45))),
+                  color: theme.colors.mutedForeground, height: 1.45),
+                  maxLines: 3, overflow: TextOverflow.ellipsis)),
             ]),
           )),
           const SizedBox(height: 12),
@@ -833,7 +836,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               Icon(Icons.arrow_right, size: 16, color: theme.colors.primary),
               const SizedBox(width: 6),
               Expanded(child: Text(item, style: theme.typography.sm.copyWith(
-                  color: theme.colors.mutedForeground, height: 1.45))),
+                  color: theme.colors.mutedForeground, height: 1.45),
+                  maxLines: 3, overflow: TextOverflow.ellipsis)),
             ]),
           )),
           const SizedBox(height: 8),
@@ -911,10 +915,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                 Text(item.dateLabel, style: theme.typography.xs.copyWith(
                     fontWeight: FontWeight.w600, letterSpacing: 1.0, color: theme.colors.mutedForeground)),
                 const SizedBox(height: 6),
-                Text(item.title, style: theme.typography.sm.copyWith(fontWeight: FontWeight.w700)),
+                Text(item.title, style: theme.typography.sm.copyWith(fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
                 Text(item.description, style: theme.typography.sm.copyWith(
-                    color: theme.colors.mutedForeground, height: 1.4)),
+                    color: theme.colors.mutedForeground, height: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
                 if (item.note != null) ...[
                   const SizedBox(height: 10),
                   AppCard(
@@ -924,7 +928,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                       children: [
                         Icon(Icons.notes_rounded, size: 14, color: theme.colors.primary),
                         const SizedBox(width: 8),
-                        Expanded(child: Text(item.note!, style: theme.typography.sm.copyWith(
+                        Expanded(child: Text(item.note!, maxLines: 3, overflow: TextOverflow.ellipsis, style: theme.typography.sm.copyWith(
                             color: theme.colors.mutedForeground, height: 1.4))),
                       ],
                     ),
@@ -1016,7 +1020,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               color: theme.colors.mutedForeground, fontWeight: FontWeight.w600)),
         ),
         Expanded(
-          child: Text(value, style: theme.typography.sm.copyWith(color: theme.colors.foreground)),
+          child: Text(value, style: theme.typography.sm.copyWith(color: theme.colors.foreground), maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ],
     );
@@ -1061,9 +1065,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(event.name, style: theme.typography.sm.copyWith(fontWeight: FontWeight.w600)),
+                        Text(event.name, style: theme.typography.sm.copyWith(fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
                         if (event.location != null && event.location!.isNotEmpty)
-                          Text(event.location!, style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground)),
+                          Text(event.location!, style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
@@ -1379,9 +1383,9 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(event.name, style: theme.typography.sm.copyWith(fontWeight: FontWeight.w600)),
+                                  Text(event.name, style: theme.typography.sm.copyWith(fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
                                   if (event.location != null && event.location!.isNotEmpty)
-                                    Text(event.location!, style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground)),
+                                    Text(event.location!, style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
                                 ],
                               ),
                             ),

@@ -181,6 +181,8 @@ class _OpCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       _opLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: context.theme.typography.sm.copyWith(
                         fontWeight: FontWeight.w600,
                         color: context.theme.colors.foreground,

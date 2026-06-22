@@ -153,6 +153,7 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
                       Expanded(
                         child: Text(
                           event.name,
+                          maxLines: 1,
                           style: context.theme.typography.sm.copyWith(
                             fontWeight: FontWeight.w600,
                             color: valueColor,
@@ -225,6 +226,9 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
               color: labelColor,
               letterSpacing: 0.2,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
           ),
         ],
       ),

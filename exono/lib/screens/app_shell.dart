@@ -315,7 +315,9 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
                 const SizedBox(width: 8),
                 Text(name, style: context.theme.typography.sm.copyWith(
                     color: context.theme.colors.foreground,
-                    fontWeight: FontWeight.w500)),
+                    fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
               ]),
             ),
         ],

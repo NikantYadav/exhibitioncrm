@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
@@ -74,14 +73,18 @@ class EntryFlowTopBar extends StatelessWidget {
             child: Icon(leadingIcon, color: colors.accentStrong, size: 20),
           ),
           const SizedBox(width: 12),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1.2,
-              color: colors.textPrimary,
-              height: 1,
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.2,
+                color: colors.textPrimary,
+                height: 1,
+              ),
             ),
           ),
           const Spacer(),
@@ -309,9 +312,7 @@ class EntryPrimaryButton extends StatelessWidget {
       width: double.infinity,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [colors.accent, colors.accentStrong],
-          ),
+          color: colors.accent,
           borderRadius: BorderRadius.circular(999),
           boxShadow: AppTheme.softShadow(context),
         ),
@@ -328,7 +329,14 @@ class EntryPrimaryButton extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (loading)
-                      const SizedBox(width: 18, height: 18, child: FCircularProgress())
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
                     else
                       Icon(icon ?? Icons.arrow_forward_rounded, size: 18, color: Colors.white),
                     const SizedBox(width: 8),

@@ -206,6 +206,8 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
                     children: [
                       Text(
                         asset.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: context.theme.typography.sm.copyWith(
                           fontWeight: FontWeight.w600,
                           color: context.theme.colors.foreground,

@@ -389,7 +389,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: context.theme.colors.error.withValues(alpha: 0.18),
+                color: context.theme.colors.error,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Row(
@@ -397,8 +397,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                   Container(
                     width: 8,
                     height: 8,
-                    decoration: BoxDecoration(
-                      color: context.theme.colors.error,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -408,14 +408,14 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                     style: context.theme.typography.xs.copyWith(
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.4,
-                      color: context.theme.colors.error,
+                      color: Colors.white,
                     ),
                   ),
                   const Spacer(),
                   Text(
                     'Floor is open',
                     style: context.theme.typography.xs.copyWith(
-                      color: context.theme.colors.error.withValues(alpha: 0.7),
+                      color: Colors.white.withValues(alpha: 0.85),
                     ),
                   ),
                 ],
@@ -455,6 +455,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                     Expanded(
                       child: Text(
                         event.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: context.theme.typography.lg.copyWith(
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.3,
@@ -532,6 +534,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                   children: [
                     Text(
                       event.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: context.theme.typography.lg.copyWith(
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.3,
@@ -642,7 +646,10 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
             ),
           ),
           const SizedBox(height: 2),
-          AppSectionLabel(label),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: AppSectionLabel(label, letterSpacing: 0.8),
+          ),
         ],
       ),
     );
@@ -665,10 +672,11 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         Expanded(
           child: Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: context.theme.typography.xs.copyWith(
               color: context.theme.colors.mutedForeground,
             ),
-            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

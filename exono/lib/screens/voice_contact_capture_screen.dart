@@ -646,6 +646,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                             fn.isNotEmpty || ln.isNotEmpty
                                 ? '${fn.trim()} ${ln.trim()}'.trim()
                                 : 'New Contact',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: theme.typography.lg.copyWith(
                               fontWeight: FontWeight.w700,
                               color: theme.colors.foreground,
@@ -782,6 +784,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             Expanded(
               child: Text(
                 selectedName,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.typography.sm.copyWith(
                   color: _eventId == null ? theme.colors.mutedForeground : theme.colors.foreground,
@@ -807,15 +810,6 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'EVENT',
-                  style: context.theme.typography.xs.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.8,
-                    color: context.theme.colors.foreground,
-                  ),
-                ),
-                const SizedBox(height: 14),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 360),
                   child: SingleChildScrollView(
@@ -855,24 +849,29 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     required bool selected,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: context.theme.typography.lg.copyWith(
-                  color: context.theme.colors.foreground,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AppCard(
+          radius: 14,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.theme.typography.sm.copyWith(
+                    color: context.theme.colors.foreground,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
               ),
-            ),
-            if (selected) Icon(Icons.check_rounded, color: _c.accent, size: 20),
-          ],
+              if (selected) Icon(Icons.check_rounded, color: _c.accent, size: 18),
+            ],
+          ),
         ),
       ),
     );

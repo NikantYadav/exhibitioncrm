@@ -442,6 +442,8 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
           const SizedBox(height: 16),
           Text(
             eventName,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: context.theme.typography.xl2.copyWith(
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
@@ -458,6 +460,8 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                 Expanded(
                   child: Text(
                     location,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
                   ),
                 ),
@@ -729,6 +733,8 @@ class _ContactFollowUpCard extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 fullName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: context.theme.typography.lg.copyWith(
                                   fontWeight: FontWeight.w600,
                                   color: context.theme.colors.foreground,

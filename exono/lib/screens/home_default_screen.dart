@@ -324,13 +324,13 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
             Text('LIVE NOW', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.6, color: _c.destructive)),
           ]),
           const SizedBox(height: 14),
-          Text(event.name, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.6, color: context.theme.colors.foreground, height: 1.1)),
+          Text(event.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.6, color: context.theme.colors.foreground, height: 1.1)),
           if (location.isNotEmpty) ...[
             const SizedBox(height: 8),
             Row(children: [
               Icon(Icons.location_on_outlined, size: 14, color: _c.accent),
               const SizedBox(width: 6),
-              Expanded(child: Text(location, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground), overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
             ]),
           ],
         ],
@@ -356,8 +356,8 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
   }
 
   Widget _statCol(IconData icon, String value, String label) {
-    return SizedBox(
-      height: 80,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -430,7 +430,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(goal['label'] as String, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: isComplete ? context.theme.colors.mutedForeground : context.theme.colors.foreground,
+              Text(goal['label'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: isComplete ? context.theme.colors.mutedForeground : context.theme.colors.foreground,
                   decoration: isComplete ? TextDecoration.lineThrough : null, decorationColor: context.theme.colors.mutedForeground)),
               if (!isCheckbox) ...[
                 const SizedBox(height: 4),
@@ -526,10 +526,10 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(event.name, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground)),
+                Text(event.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground)),
                 if (location.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(location, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.mutedForeground, height: 1.4), overflow: TextOverflow.ellipsis),
+                  Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.mutedForeground, height: 1.4)),
                 ],
               ],
             ),

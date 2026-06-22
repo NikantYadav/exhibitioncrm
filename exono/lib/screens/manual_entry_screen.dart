@@ -124,9 +124,17 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                       const SizedBox(height: 10),
                       _buildContactInfoCard(),
                       const SizedBox(height: 24),
-                      AppSectionLabel('Context'),
+                      AppSectionLabel('Event'),
                       const SizedBox(height: 10),
-                      _buildContextCard(),
+                      _buildEventSelector(),
+                      const SizedBox(height: 24),
+                      AppSectionLabel('Notes'),
+                      const SizedBox(height: 10),
+                      AppInput(
+                        controller: _notesCtrl,
+                        maxLines: 5,
+                        hint: 'Key takeaways, context, or follow-up items…',
+                      ),
                     ],
                   ),
                 ),
@@ -295,31 +303,6 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     );
   }
 
-  // ── Context card (event + notes) ─────────────────────────────
-
-  Widget _buildContextCard() {
-    return AppCard(
-      radius: 20,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppSectionLabel('Event'),
-          const SizedBox(height: 6),
-          _buildEventSelector(),
-          const SizedBox(height: 16),
-          AppSectionLabel('Notes'),
-          const SizedBox(height: 6),
-          AppInput(
-            controller: _notesCtrl,
-            maxLines: 5,
-            hint: 'Key takeaways, context, or follow-up items…',
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildEventSelector() {
     final selectedName = _eventId == null
         ? 'No event'
@@ -327,27 +310,29 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     return GestureDetector(
       onTap: _showEventPickerSheet,
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: _c.surfaceAlt,
+          color: _c.surface,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.theme.colors.border),
         ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
+            Icon(Icons.event_outlined, size: 15, color: _c.accent),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 selectedName,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: context.theme.typography.lg.copyWith(
+                style: context.theme.typography.sm.copyWith(
                   color: _eventId == null
                       ? context.theme.colors.mutedForeground
                       : context.theme.colors.foreground,
-                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            Icon(Icons.expand_more_rounded, color: _c.accent, size: 18),
+            Icon(Icons.keyboard_arrow_down_rounded, color: _c.accent, size: 18),
           ],
         ),
       ),
@@ -366,15 +351,6 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'EVENT',
-                  style: context.theme.typography.xs.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.8,
-                    color: context.theme.colors.foreground,
-                  ),
-                ),
-                const SizedBox(height: 14),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 360),
                   child: SingleChildScrollView(
@@ -414,24 +390,29 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     required bool selected,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: context.theme.typography.lg.copyWith(
-                  color: context.theme.colors.foreground,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AppCard(
+          radius: 14,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.theme.typography.sm.copyWith(
+                    color: context.theme.colors.foreground,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
               ),
-            ),
-            if (selected) Icon(Icons.check_rounded, color: _c.accent, size: 20),
-          ],
+              if (selected) Icon(Icons.check_rounded, color: _c.accent, size: 18),
+            ],
+          ),
         ),
       ),
     );

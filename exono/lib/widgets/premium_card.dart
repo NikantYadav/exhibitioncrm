@@ -84,6 +84,8 @@ class CardHeader extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
@@ -94,6 +96,8 @@ class CardHeader extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             description!,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],

@@ -302,10 +302,10 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(name, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4, color: context.theme.colors.foreground)),
+                          Text(name, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4, color: context.theme.colors.foreground), maxLines: 2, overflow: TextOverflow.ellipsis),
                           if (industry.isNotEmpty) ...[
                             const SizedBox(height: 4),
-                            Text(industry, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+                            Text(industry, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
                           ],
                           const SizedBox(height: 8),
                           Wrap(
@@ -375,6 +375,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(products,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
                               style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, height: 1.5)),
                         ),
                       ],
@@ -474,6 +476,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(e.value,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5)),
                         ),
                       ],
@@ -518,7 +522,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
         children: [
           Icon(Icons.info_outline, size: 14, color: _c.destructive),
           const SizedBox(width: 8),
-          Expanded(child: Text(_enrichError!, style: context.theme.typography.xs.copyWith(color: _c.destructive, height: 1.4))),
+          Expanded(child: Text(_enrichError!, maxLines: 3, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(color: _c.destructive, height: 1.4))),
         ],
       ),
     );
@@ -536,7 +540,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
         children: [
           Icon(Icons.error_outline, size: 14, color: _c.destructive),
           const SizedBox(width: 8),
-          Expanded(child: Text(_briefingError!, style: context.theme.typography.xs.copyWith(color: _c.destructive, height: 1.4))),
+          Expanded(child: Text(_briefingError!, maxLines: 3, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(color: _c.destructive, height: 1.4))),
         ],
       ),
     );
@@ -548,7 +552,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
       children: [
         Icon(icon, size: 14, color: _c.accent),
         const SizedBox(width: 5),
-        Text(label, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+        Text(label, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
       ],
     );
   }
@@ -562,7 +566,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
           children: [
             Icon(icon, size: 17, color: _c.accent),
             const SizedBox(width: 12),
-            Expanded(child: Text(value, style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground), overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(value, style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground), maxLines: 1, overflow: TextOverflow.ellipsis)),
             if (onTap != null) Icon(Icons.chevron_right, size: 16, color: _c.accent),
           ],
         ),
@@ -589,8 +593,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('$firstName $lastName'.trim(), style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
-                  if (jobTitle.isNotEmpty) Text(jobTitle, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                  Text('$firstName $lastName'.trim(), style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  if (jobTitle.isNotEmpty) Text(jobTitle, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),

@@ -434,7 +434,8 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           const SizedBox(height: 14),
           Text(event.name, style: context.theme.typography.xl.copyWith(
               fontWeight: FontWeight.w800,
-              letterSpacing: -0.6, color: context.theme.colors.foreground, height: 1.1)),
+              letterSpacing: -0.6, color: context.theme.colors.foreground, height: 1.1),
+              maxLines: 2, overflow: TextOverflow.ellipsis),
           if (location.isNotEmpty) ...[
             const SizedBox(height: 8),
             Row(children: [
@@ -442,6 +443,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
               const SizedBox(width: 6),
               Expanded(child: Text(location,
                   style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis)),
             ]),
           ],
@@ -466,8 +468,8 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   }
 
   Widget _statColumn(IconData icon, String value, String label) {
-    return SizedBox(
-      height: 80,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -839,11 +841,13 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(name.isNotEmpty ? name : 'Unknown', style: context.theme.typography.lg.copyWith(
                       fontWeight: FontWeight.w700, letterSpacing: -0.2,
-                      color: isMet ? context.theme.colors.mutedForeground : context.theme.colors.foreground)),
+                      color: isMet ? context.theme.colors.mutedForeground : context.theme.colors.foreground),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
                   if (jobTitle.isNotEmpty) ...[
                     const SizedBox(height: 3),
                     Text(jobTitle,
                         style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   ],
                   if (companyName.isNotEmpty) ...[
@@ -855,6 +859,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                         child: Text(companyName,
                             style: context.theme.typography.xs.copyWith(
                                 color: _c.accent, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                       ),
                     ]),
@@ -903,6 +908,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   label: 'LOG INTERACTION',
                   prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
                   variant: ButtonVariant.branded,
+                  size: ButtonSize.sm,
                   onPressed: () => showLogInteractionSheet(context,
                       contactId: contactId.isNotEmpty ? contactId : null,
                       initialMode: event.name,
@@ -910,17 +916,19 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                       onMarkedMet: () => _markTargetContactMet(contactId, event, lep)),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               AppButton(
                 variant: ButtonVariant.outline,
+                size: ButtonSize.sm,
                 onPressed: contactId.isNotEmpty ? () => context.push('/contacts/$contactId') : null,
-                child: Icon(Icons.person_outline_rounded, size: 18, color: _c.accent),
+                child: Icon(Icons.person_outline_rounded, size: 16, color: _c.accent),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               AppButton(
                 variant: ButtonVariant.destructive,
+                size: ButtonSize.sm,
                 onPressed: () => _deleteTargetContact(target, event, lep),
-                child: Icon(Icons.delete_outline_rounded, size: 18, color: Colors.white),
+                child: Icon(Icons.delete_outline_rounded, size: 16, color: Colors.white),
               ),
             ]),
           ),
@@ -1028,19 +1036,20 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(fullName.isNotEmpty ? fullName : 'Unknown',
-                        style: context.theme.typography.lg.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+                        style: context.theme.typography.lg.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
                     if (jobTitle.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(jobTitle, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+                      Text(jobTitle, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                     if (company.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(company, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+                      Text(company, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                   ]),
                 ),
                 if (timeAgo.isNotEmpty)
-                  Text(timeAgo, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground, fontWeight: FontWeight.w500)),
+                  Text(timeAgo, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
               ]),
             ),
           ),
@@ -1058,7 +1067,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   Row(children: [
                     Icon(Icons.email_outlined, size: 16, color: _c.accent),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(email, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
+                    Expanded(child: Text(email, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   ]),
                   const SizedBox(height: 8),
                 ],
@@ -1066,7 +1075,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   Row(children: [
                     Icon(Icons.phone_outlined, size: 16, color: _c.accent),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(phone, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
+                    Expanded(child: Text(phone, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   ]),
                   const SizedBox(height: 12),
                 ],
@@ -1074,18 +1083,20 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   Expanded(
                     child: AppButton(
                       label: 'LOG INTERACTION',
-                      prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
+                      prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
                       variant: ButtonVariant.branded,
+                      size: ButtonSize.sm,
                       onPressed: () => showLogInteractionSheet(context,
                           contactId: contactId,
                           onMarkedMet: () => _markTargetContactMet(contactId, event, lep)),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   AppButton(
                     variant: ButtonVariant.outline,
+                    size: ButtonSize.sm,
                     onPressed: contactId.isEmpty ? null : () => context.push('/contacts/$contactId'),
-                    child: Icon(Icons.person_outline_rounded, size: 18, color: _c.accent),
+                    child: Icon(Icons.person_outline_rounded, size: 16, color: _c.accent),
                   ),
                 ]),
               ]),
@@ -1281,9 +1292,9 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(name, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+                                Text(name, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground), maxLines: 1, overflow: TextOverflow.ellipsis),
                                 if (company.isNotEmpty)
-                                  Text(company, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                                  Text(company, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground), maxLines: 2, overflow: TextOverflow.ellipsis),
                               ],
                             )),
                           ]),

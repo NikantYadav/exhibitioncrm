@@ -630,11 +630,13 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+                Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
                 if (jobTitle.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
                     jobTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.xs.copyWith(
                       fontWeight: FontWeight.w500,
                       color: context.theme.colors.mutedForeground,
@@ -645,6 +647,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   const SizedBox(height: 2),
                   Text(
                     companyName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.xs.copyWith(
                       color: _c.accent,
                     ),
@@ -744,9 +748,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                                           const SizedBox(width: 12),
                                           Expanded(
                                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                              Text(cname, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
+                                              Text(cname, maxLines: 2, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
                                               if (company.isNotEmpty)
-                                                Text(company, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                                                Text(company, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
                                             ]),
                                           ),
                                           Icon(Icons.add_circle_outline, color: _c.accent, size: 22),
@@ -960,9 +964,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text(coName, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
+                                                Text(coName, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
                                                 if (co['industry'] != null)
-                                                  Text(co['industry'] as String, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+                                                  Text(co['industry'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
                                               ],
                                             ),
                                           ),

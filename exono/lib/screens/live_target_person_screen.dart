@@ -196,6 +196,8 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(_name.isNotEmpty ? _name : _companyName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: context.theme.typography.xl.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.4,
@@ -204,6 +206,8 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
                 if (_jobTitle.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(_jobTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.sm.copyWith(
                       color: context.theme.colors.mutedForeground)),
                 ],
@@ -250,6 +254,8 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
                     decoration: BoxDecoration(color: _c.accent, shape: BoxShape.circle),
                   ),
                   Expanded(child: Text(_talkingPoints[i],
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     style: context.theme.typography.sm.copyWith(
                       color: context.theme.colors.mutedForeground,
                       height: 1.5))),

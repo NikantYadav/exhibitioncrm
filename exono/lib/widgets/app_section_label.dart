@@ -29,6 +29,8 @@ class AppSectionLabel extends StatelessWidget {
         letterSpacing: letterSpacing,
         color: color ?? c.textMuted,
       ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
