@@ -910,14 +910,15 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   Expanded(
                     child: isSearching
                               ? _buildSearchingState()
-                              : companies.isEmpty
-                            ? Center(child: Text('No companies found', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)))
-                            : ListView.builder(
+                              : companies.isEmpty && searchQuery.isEmpty
+                            ? Center(child: Text('Search for a company above', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)))
+                            : companies.isEmpty
+                            ? Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                                itemCount: companies.length + (searchQuery.isNotEmpty ? 1 : 0),
-                                itemBuilder: (_, i) {
-                                  if (searchQuery.isNotEmpty && i == companies.length) {
-                                    return GestureDetector(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    GestureDetector(
                                       onTap: () {
                                         Navigator.of(sheetCtx).pop();
                                         _showCreateCompanyDialog(searchQuery);
@@ -929,12 +930,18 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                                           const SizedBox(width: 12),
                                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                             Text('Create "$searchQuery"', style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w500)),
-                                            Text('Add as new company', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                                            Text('No match found — add as new company', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
                                           ])),
                                         ]),
                                       ),
-                                    );
-                                  }
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: companies.length,
+                                itemBuilder: (_, i) {
                                   final co = companies[i];
                                   final coName = co['name'] as String;
                                   final initials = coName.length >= 2 ? coName.substring(0, 2).toUpperCase() : coName.toUpperCase();
@@ -1042,13 +1049,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
 
   Future<void> _addCompanyAsTarget(Map<String, dynamic> company, String? booth) async {
     try {
-      await ApiService.addEventTarget(widget.event.id, company['id'] as String, boothLocation: booth);
-      // Persist the company locally so the target tile shows its name (the
-      // reference-based /sync may not deliver a company whose row predates the
-      // sync cursor; the resolver fetches the full row via GET /companies/:id
-      // and stores it). Best-effort — the tile also resolves it on render.
+      final newRow = await ApiService.addEventTarget(widget.event.id, company['id'] as String, boothLocation: booth);
+      // Upsert the returned row directly — catchUp only fetches deltas since
+      // lastSyncedAt, which may already be past this new row's created_at.
+      await _targetsRepo.applyDelta(upserts: [newRow], deletedIds: []);
       await CompanyNameResolver.resolve(company['id'] as String?);
-      await _targetsRepo.catchUp();
       if (mounted) showAppToast(context, '${company['name']} added to target list.');
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) showAppToast(context, 'Failed to add target.');
@@ -1058,7 +1063,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   Future<void> _showCreateCompanyDialog(String initialName) async {
     final nameCtrl = TextEditingController(text: initialName);
     final industryCtrl = TextEditingController();
-    Map<String, dynamic>? createdCompany;
 
     await showAppSheet(
       context: context,
@@ -1093,13 +1097,15 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   final name = nameCtrl.text.trim();
                   if (name.isEmpty) return;
                   final industry = industryCtrl.text.trim();
-                  Navigator.of(sheetCtx).pop();
                   try {
                     final companyData = <String, dynamic>{'name': name};
                     if (industry.isNotEmpty) { companyData['industry'] = industry; }
-                    createdCompany = await ApiService.createCompany(companyData);
+                    final created = await ApiService.createCompany(companyData);
+                    if (!sheetCtx.mounted) return;
+                    Navigator.of(sheetCtx).pop();
+                    await _showBoothInputDialog(created);
                   } on UnauthorizedException { rethrow; } catch (_) {
-                    if (mounted) showAppToast(context, 'Failed to add company.');
+                    if (mounted) { showAppToast(context, 'Failed to add company.'); }
                   }
                 },
               ),
@@ -1110,9 +1116,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     );
     nameCtrl.dispose();
     industryCtrl.dispose();
-    if (createdCompany != null && mounted) {
-      await _showBoothInputDialog(createdCompany!);
-    }
   }
 
   Future<void> _deleteTarget(TargetCompanyRow target) async {

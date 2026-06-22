@@ -75,28 +75,33 @@ class _FilterPill extends StatelessWidget {
     final c = AppTheme.colorsOf(context);
 
     // For outline style: active = outline variant (bordered), inactive = ghost.
-    // For filled style: active = primary (accent fill), inactive = ghost.
-    final FButtonVariant variant;
-    if (rowStyle == AppFilterRowStyle.filled) {
-      variant = isActive ? FButtonVariant.primary : FButtonVariant.ghost;
-    } else {
+    // For filled style: active = accent fill, inactive = a soft surface pill
+    // with a border so it still reads as a button (not floating text).
+    if (rowStyle != AppFilterRowStyle.filled) {
       // outline row: use a custom decorated container for precise pill styling
       return _outlinePill(context, c);
     }
 
-    return FButton(
-      variant: variant,
-      size: FButtonSizeVariant.sm,
-      onPress: onTap,
-      child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.9,
-          color: isActive
-              ? Colors.white
-              : c.textSecondary,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? c.accent : c.surfaceAlt,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isActive ? c.accent : c.border),
+        ),
+        child: Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.9,
+            color: isActive ? Colors.white : c.textSecondary,
+          ),
         ),
       ),
     );

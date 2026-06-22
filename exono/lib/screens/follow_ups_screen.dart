@@ -291,7 +291,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.1) : _c.surfaceAlt,
+          color: isSelected ? color.withValues(alpha: 0.08) : _c.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? color.withValues(alpha: 0.4) : context.theme.colors.border,
@@ -302,10 +302,10 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
             Container(
               width: 32, height: 32,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
+                color: color,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, size: 16, color: color),
+              child: Icon(icon, size: 16, color: Colors.white),
             ),
             const SizedBox(width: 12),
             Text(label, style: context.theme.typography.sm.copyWith(
@@ -391,7 +391,12 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
           ),
         ),
       ),
-    ).whenComplete(searchCtrl.dispose);
+    ).whenComplete(() {
+      // Defer dispose to the next frame so the sheet's element subtree (the
+      // AppInput depending on this controller) fully unmounts first; disposing
+      // synchronously here races teardown and trips the _dependents assertion.
+      WidgetsBinding.instance.addPostFrameCallback((_) => searchCtrl.dispose());
+    });
   }
 
   Widget _eventOption({

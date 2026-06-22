@@ -1123,7 +1123,7 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                   const SizedBox(height: 10),
                   AppButton(
                     label: 'CANCEL',
-                    variant: ButtonVariant.ghost,
+                    variant: ButtonVariant.outline,
                     fullWidth: true,
                     onPressed: widget.onCancel,
                   ),

@@ -282,7 +282,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    CompanyName(companyId: resolvedCompanyId, fallback: companyName, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4, color: context.theme.colors.foreground)),
+                                    CompanyName(companyId: resolvedCompanyId, fallback: companyName, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4, height: 1.15, color: context.theme.colors.foreground)),
                                     if (industry.isNotEmpty) ...[
                                       const SizedBox(height: 4),
                                       Text(industry, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
@@ -305,12 +305,18 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                           ),
 
                           if (_isEnriching) ...[
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
                             Row(children: [
-                              const SizedBox(width: 12, height: 12, child: FCircularProgress()),
-                              const SizedBox(width: 8),
-                              Text('Loading company details…', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground, fontStyle: FontStyle.italic)),
+                              SkeletonLoader(width: 110, height: 13, borderRadius: BorderRadius.circular(4)),
+                              const SizedBox(width: 16),
+                              SkeletonLoader(width: 90, height: 13, borderRadius: BorderRadius.circular(4)),
                             ]),
+                            const SizedBox(height: 12),
+                            SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                            const SizedBox(height: 6),
+                            SkeletonLoader(width: double.infinity, height: 13, borderRadius: BorderRadius.circular(4)),
+                            const SizedBox(height: 6),
+                            SkeletonLoader(width: 200, height: 13, borderRadius: BorderRadius.circular(4)),
                           ] else if (_enrichError != null) ...[
                             const SizedBox(height: 12),
                             _buildInfoBanner(_enrichError!, isError: true),

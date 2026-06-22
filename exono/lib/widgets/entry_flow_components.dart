@@ -315,18 +315,35 @@ class EntryPrimaryButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           boxShadow: AppTheme.softShadow(context),
         ),
-        child: FButton(
-          variant: FButtonVariant.primary,
-          onPress: loading ? null : onPressed,
-          prefix: loading
-              ? const SizedBox(width: 18, height: 18, child: FCircularProgress())
-              : Icon(icon ?? Icons.arrow_forward_rounded, size: 18),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: loading ? null : onPressed,
+              splashColor: Colors.white.withValues(alpha: 0.15),
+              highlightColor: Colors.transparent,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (loading)
+                      const SizedBox(width: 18, height: 18, child: FCircularProgress())
+                    else
+                      Icon(icon ?? Icons.arrow_forward_rounded, size: 18, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),

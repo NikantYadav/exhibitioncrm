@@ -524,7 +524,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             child: Row(children: [
               Icon(Icons.flag_outlined, size: 20, color: _c.accent),
               const SizedBox(width: 12),
-              Expanded(child: Text('No goals yet — tap ADD GOAL to create one.',
+              Expanded(child: Text('No goals yet, tap ADD GOAL to create one.',
                   style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4))),
             ]),
           )
@@ -840,9 +840,25 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   Text(name.isNotEmpty ? name : 'Unknown', style: context.theme.typography.lg.copyWith(
                       fontWeight: FontWeight.w700, letterSpacing: -0.2,
                       color: isMet ? context.theme.colors.mutedForeground : context.theme.colors.foreground)),
-                  const SizedBox(height: 3),
-                  Text([if (jobTitle.isNotEmpty) jobTitle, if (companyName.isNotEmpty) companyName].join(', '),
-                      style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground), overflow: TextOverflow.ellipsis),
+                  if (jobTitle.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(jobTitle,
+                        style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                  if (companyName.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      Icon(Icons.business_rounded, size: 13, color: _c.accent),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(companyName,
+                            style: context.theme.typography.xs.copyWith(
+                                color: _c.accent, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ]),
+                  ],
                 ]),
               ),
               const SizedBox(width: 8),
@@ -902,9 +918,9 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
               ),
               const SizedBox(width: 8),
               AppButton(
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.destructive,
                 onPressed: () => _deleteTargetContact(target, event, lep),
-                child: Icon(Icons.delete_outline_rounded, size: 18, color: _c.destructive),
+                child: Icon(Icons.delete_outline_rounded, size: 18, color: Colors.white),
               ),
             ]),
           ),
@@ -1131,7 +1147,9 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(companyName, style: context.theme.typography.lg.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground)),
+              Text(companyName,
+                  style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground, height: 1.25),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
               if (booth.isNotEmpty) ...[const SizedBox(height: 4), AppChip.label('BOOTH $booth')],
             ]),
           ),

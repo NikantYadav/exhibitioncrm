@@ -105,47 +105,6 @@ class AppButton extends StatelessWidget {
       );
     }
 
-    // Destructive variant: force solid red fill + white text. The forui
-    // destructive style uses the theme's muted error colors (pink bg / red
-    // text), which reads too soft for a delete action.
-    if (variant == ButtonVariant.destructive) {
-      return Builder(builder: (ctx) {
-        final t = ctx.theme;
-        const bg = Colors.red;
-        const fg = Colors.white;
-        Widget content;
-        if (_isLoading) {
-          content = const SizedBox(width: 16, height: 16, child: FCircularProgress());
-        } else if (prefixIcon != null) {
-          content = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconTheme(data: const IconThemeData(color: fg, size: 16), child: prefixIcon!),
-              const SizedBox(width: 6),
-              Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg)),
-            ],
-          );
-        } else if (child != null) {
-          content = child!;
-        } else {
-          content = Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg));
-        }
-
-        return GestureDetector(
-          onTap: _isLoading ? null : onPressed,
-          child: Container(
-            width: fullWidth ? double.infinity : null,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(child: content),
-          ),
-        );
-      });
-    }
-
     // Ghost variant: FButton.ghost renders white text on light backgrounds.
     // Render manually so the text always uses mutedForeground — readable on any bg.
     if (variant == ButtonVariant.ghost) {
@@ -221,10 +180,31 @@ class AppButton extends StatelessWidget {
       });
     }
 
+    // Destructive renders through the SAME FButton path as primary (so it sizes
+    // identically), with a theme override forcing solid red fill + white text.
+    // The native forui destructive style uses muted pink/red, which reads too
+    // soft for a delete action.
+    if (variant == ButtonVariant.destructive) {
+      btn = Builder(builder: (ctx) {
+        final t = ctx.theme;
+        final colors = t.colors.copyWith(
+          primary: Colors.red,
+          primaryForeground: Colors.white,
+        );
+        return FTheme(
+          data: FThemeData(colors: colors, touch: true),
+          child: FButton(
+            variant: FButtonVariant.primary,
+            size: _size,
+            onPress: _isLoading ? null : onPressed,
+            child: content,
+          ),
+        );
+      });
+    }
+
     if (fullWidth) {
-      // FButton sizes to its content; wrapping in a stretch Row forces it to
-      // fill the available width so it matches manually-built variants.
-      return Row(children: [Expanded(child: btn)]);
+      return SizedBox(width: double.infinity, child: btn);
     }
     return btn;
   }
