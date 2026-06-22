@@ -116,7 +116,8 @@ flutter:
   uses-material-design: true
 
   # flutter_uxcam and workmanager_apple don't support SPM — keep CocoaPods only
-  disable-swift-package-manager: true
+  config:
+    enable-swift-package-manager: false
 
   assets:
     - assets/images/logo-black.svg
