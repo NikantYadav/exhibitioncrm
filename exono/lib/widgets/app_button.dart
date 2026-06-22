@@ -91,9 +91,10 @@ class AppButton extends StatelessWidget {
         content = Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg));
       }
 
-      final btn = GestureDetector(
+      return GestureDetector(
         onTap: _isLoading ? null : onPressed,
         child: Container(
+          width: fullWidth ? double.infinity : null,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: bg,
@@ -102,9 +103,6 @@ class AppButton extends StatelessWidget {
           child: Center(child: content),
         ),
       );
-
-      if (fullWidth) return SizedBox(width: double.infinity, child: btn);
-      return btn;
     }
 
     // Destructive variant: force solid red fill + white text. The forui
@@ -133,9 +131,10 @@ class AppButton extends StatelessWidget {
           content = Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg));
         }
 
-        final btn = GestureDetector(
+        return GestureDetector(
           onTap: _isLoading ? null : onPressed,
           child: Container(
+            width: fullWidth ? double.infinity : null,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: bg,
@@ -144,9 +143,6 @@ class AppButton extends StatelessWidget {
             child: Center(child: content),
           ),
         );
-
-        if (fullWidth) return SizedBox(width: double.infinity, child: btn);
-        return btn;
       });
     }
 
