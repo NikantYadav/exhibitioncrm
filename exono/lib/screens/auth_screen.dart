@@ -255,8 +255,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                     suffix: IconButton(
                       onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                        color: colors.textMuted,
+                        _obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                        color: colors.accent,
                         size: 18,
                       ),
                       splashRadius: 18,

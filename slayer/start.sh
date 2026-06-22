@@ -17,13 +17,26 @@ fi
 STORAGE="$SCRIPT_DIR/slayer_data"
 SCHEMA_HASH_FILE="$STORAGE/.schema_hash"
 
+DB_HOST="aws-1-ap-northeast-2.pooler.supabase.com"
+DB_USER="slayer_readonly.ezammzqvbjgpuzleqmla"
+DB_NAME="postgres"
+
+# Self-heal: if slayer_data (or the 'exono' datasource within it) was deleted,
+# recreate the datasource config before ingesting so a fresh/partial storage
+# dir doesn't hard-fail with "Datasource 'exono' not found".
+if ! "$SCRIPT_DIR/env/bin/python" -m slayer datasources --storage "$STORAGE" show exono >/dev/null 2>&1; then
+  echo "   Datasource 'exono' missing — recreating…"
+  "$SCRIPT_DIR/env/bin/python" -m slayer datasources --storage "$STORAGE" create \
+    "postgresql://${DB_USER}:\${SLAYER_READONLY_PASSWORD}@${DB_HOST}:5432/${DB_NAME}" \
+    --name exono
+  # Force a re-ingest below regardless of the stored schema hash.
+  rm -f "$SCHEMA_HASH_FILE"
+fi
+
 # Hash only table names — column-level changes don't require a full re-ingest
 # because ingest is additive (new columns get appended) and sample profiling
 # is cached per-column (only new/uncached columns are profiled).
 # Re-ingest only when tables are added or dropped.
-DB_HOST="aws-1-ap-northeast-2.pooler.supabase.com"
-DB_USER="slayer_readonly.ezammzqvbjgpuzleqmla"
-DB_NAME="postgres"
 CURRENT_HASH=$(PGPASSWORD="$SLAYER_READONLY_PASSWORD" psql \
   -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -A \
   -c "SELECT table_name FROM information_schema.tables

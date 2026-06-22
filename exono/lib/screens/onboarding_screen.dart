@@ -502,7 +502,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: colors.border),
               ),
-              child: Icon(Icons.mark_email_read_outlined, color: colors.accentStrong, size: 20),
+              child: Icon(Icons.mark_email_read_rounded, color: colors.accentStrong, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(

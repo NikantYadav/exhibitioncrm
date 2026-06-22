@@ -3,7 +3,7 @@ import 'package:forui/forui.dart';
 
 // Imported lazily via a function reference to avoid a circular import.
 // The notifier lives in app_shell.dart.
-import '../screens/app_shell.dart' show appNavBarHidden;
+import '../screens/app_shell.dart' show navBarHide, navBarShow;
 
 /// ForUI sheet / toast / dialog helpers.
 ///
@@ -24,7 +24,7 @@ Future<T?> showAppSheet<T>({
   bool isScrollControlled = true,
   bool useRootNavigator = false,
 }) {
-  appNavBarHidden.value = true;
+  navBarHide();
   return showFSheet<T>(
     context: context,
     side: side,
@@ -37,7 +37,7 @@ Future<T?> showAppSheet<T>({
         child: ColoredBox(color: bg, child: builder(ctx)),
       );
     },
-  ).whenComplete(() => appNavBarHidden.value = false);
+  ).whenComplete(navBarShow);
 }
 
 /// Toast / snackbar. Replaces `ScaffoldMessenger.of(context).showSnackBar(...)`.
@@ -82,7 +82,7 @@ Future<bool?> showAppConfirmDialog({
   String cancelLabel = 'Cancel',
   bool destructive = false,
 }) {
-  appNavBarHidden.value = true;
+  navBarHide();
   return showFDialog<bool>(
     context: context,
     builder: (ctx, style, _) => FDialog(
@@ -106,7 +106,7 @@ Future<bool?> showAppConfirmDialog({
         ),
       ],
     ),
-  ).whenComplete(() => appNavBarHidden.value = false);
+  ).whenComplete(navBarShow);
 }
 
 /// Dialog wrapper that hides the live bar while open. Use this instead of
@@ -116,10 +116,10 @@ Future<T?> showAppDialog<T>({
   required Widget Function(BuildContext, FDialogStyle, Animation<double>) builder,
   bool barrierDismissible = true,
 }) {
-  appNavBarHidden.value = true;
+  navBarHide();
   return showFDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
     builder: builder,
-  ).whenComplete(() => appNavBarHidden.value = false);
+  ).whenComplete(navBarShow);
 }

@@ -19,6 +19,7 @@ class ContactsTable extends Table {
   TextColumn get followUpUrgency => text().withDefault(const Constant('medium'))();
   DateTimeColumn get lastContactedAt => dateTime().nullable()();
   TextColumn get contactAssetsJson => text().nullable()();
+  TextColumn get scannedDetailsJson => text().nullable()();
   TextColumn get aiInsightsJson => text().nullable()();
   TextColumn get aiContextSummary => text().nullable()();
   DateTimeColumn get createdAt => dateTime().nullable()();

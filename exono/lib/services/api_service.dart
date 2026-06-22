@@ -287,11 +287,16 @@ class ApiService {
   static Future<Map<String, dynamic>> assistantRespond({
     required String conversationId,
     required String text,
+    bool researchMode = false,
   }) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.assistant}/respond'),
       headers: await _headers(),
-      body: json.encode({'conversation_id': conversationId, 'text': text}),
+      body: json.encode({
+        'conversation_id': conversationId,
+        'text': text,
+        if (researchMode) 'research_mode': true,
+      }),
     );
 
     checkUnauthorized(response);
@@ -749,6 +754,23 @@ class ApiService {
     if (streamed.statusCode == 200) {
       final data = json.decode(body);
       return data['data'] as Map<String, dynamic>;
+    }
+    throw Exception('Import failed');
+  }
+
+  static Future<Map<String, dynamic>> importContacts(Uint8List fileBytes, String fileName) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/import');
+    final request = http.MultipartRequest('POST', uri);
+    final hdrs = await _headers();
+    if (hdrs.containsKey('Authorization')) {
+      request.headers['Authorization'] = hdrs['Authorization']!;
+    }
+    request.files.add(http.MultipartFile.fromBytes('file', fileBytes, filename: fileName));
+    final streamed = await request.send();
+    final body = await streamed.stream.bytesToString();
+    if (streamed.statusCode == 200) {
+      final data = json.decode(body);
+      return data as Map<String, dynamic>;
     }
     throw Exception('Import failed');
   }

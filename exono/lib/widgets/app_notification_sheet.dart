@@ -220,7 +220,7 @@ class _DedupCardState extends State<_DedupCard> {
                 child: Icon(
                   Icons.close_rounded,
                   size: 18,
-                  color: context.theme.colors.mutedForeground,
+                  color: c.accent,
                 ),
               ),
             ],

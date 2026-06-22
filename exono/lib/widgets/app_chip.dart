@@ -14,6 +14,7 @@ class AppChip extends StatelessWidget {
   final Color? color;
   final Color? textColor;
   final bool ellipsis;
+  final IconData? leadingIcon;
 
   const AppChip(
     this.label, {
@@ -21,6 +22,7 @@ class AppChip extends StatelessWidget {
     this.color,
     this.textColor,
     this.ellipsis = false,
+    this.leadingIcon,
   }) : _variant = _AppChipVariant.tag;
 
   const AppChip.label(
@@ -29,6 +31,7 @@ class AppChip extends StatelessWidget {
     this.color,
     this.textColor,
     this.ellipsis = false,
+    this.leadingIcon,
   }) : _variant = _AppChipVariant.labelBadge;
 
   const AppChip.status(
@@ -37,6 +40,7 @@ class AppChip extends StatelessWidget {
     required Color this.color,
     this.textColor,
     this.ellipsis = false,
+    this.leadingIcon,
   }) : _variant = _AppChipVariant.status;
 
   @override
@@ -65,9 +69,7 @@ class AppChip extends StatelessWidget {
               ),
             ),
           ),
-          child: ellipsis
-              ? Text(label.toUpperCase(), overflow: TextOverflow.ellipsis, maxLines: 1)
-              : Text(label.toUpperCase()),
+          child: _buildLabel(textColor ?? c.textMuted),
         );
 
       case _AppChipVariant.labelBadge:
@@ -91,9 +93,7 @@ class AppChip extends StatelessWidget {
               ),
             ),
           ),
-          child: ellipsis
-              ? Text(label.toUpperCase(), overflow: TextOverflow.ellipsis, maxLines: 1)
-              : Text(label.toUpperCase()),
+          child: _buildLabel(textColor ?? c.textMuted),
         );
 
       case _AppChipVariant.status:
@@ -117,11 +117,24 @@ class AppChip extends StatelessWidget {
               ),
             ),
           ),
-          child: ellipsis
-              ? Text(label.toUpperCase(), overflow: TextOverflow.ellipsis, maxLines: 1)
-              : Text(label.toUpperCase()),
+          child: _buildLabel(textColor ?? c.surface),
         );
     }
+  }
+
+  Widget _buildLabel(Color textColor) {
+    final text = ellipsis
+        ? Text(label.toUpperCase(), overflow: TextOverflow.ellipsis, maxLines: 1)
+        : Text(label.toUpperCase());
+    if (leadingIcon == null) return text;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(leadingIcon, size: 8, color: textColor),
+        const SizedBox(width: 3),
+        text,
+      ],
+    );
   }
 }
 

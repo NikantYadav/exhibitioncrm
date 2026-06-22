@@ -17,6 +17,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
@@ -774,7 +775,7 @@ class _ContactFollowUpCard extends StatelessWidget {
                       turns: isExpanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 200),
                       child: Icon(Icons.keyboard_arrow_down_rounded,
-                          color: _c.accent, size: 22),
+                          color: _c.accent, size: 18),
                     ),
                   ],
                 ],
@@ -985,11 +986,9 @@ class _TopBar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(
             children: [
-              AppButton(
+              AppHeaderActionButton(
+                icon: Icons.arrow_back_rounded,
                 onPressed: onBack,
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.sm,
-                child: Icon(Icons.arrow_back_rounded, color: c.accent, size: 22),
               ),
               Expanded(
                 child: Column(

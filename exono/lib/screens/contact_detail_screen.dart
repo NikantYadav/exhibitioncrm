@@ -42,8 +42,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   // profile in build() — they're not stored in drift (see plan.md scoping
   // for this screen: base fields + linked events migrated, timeline/AI not).
   List<ContactTimelineItem> _timelineItems = const [];
-  bool _isLoadingDetails = false;
-  bool _isLoadingInsights = false;
+  bool _isLoadingDetails = true;
+  bool _isLoadingInsights = true;
   bool _isUploadingAvatar = false;
   Map<String, dynamic>? _contactInsights;
   String? _detailsLoadedForContactId;
@@ -56,11 +56,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     _contactsRepo = context.read<SyncProvider>().contacts;
   }
 
-  Future<void> _fetchContactDetailsIfNeeded(ContactProfileData profile) async {
+  void _fetchContactDetailsIfNeeded(ContactProfileData profile) {
     if (_detailsLoadedForContactId == profile.id) return;
     _detailsLoadedForContactId = profile.id;
-    if (mounted) setState(() { _isLoadingDetails = true; _isLoadingInsights = true; });
-    _fetchContactDetails(profile);
+    Future.microtask(() => _fetchContactDetails(profile));
   }
 
   Future<void> _reloadContact() async {
@@ -331,7 +330,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               timelineItems: _timelineItems,
               linkedEvents: linkedEvents,
             );
-            WidgetsBinding.instance.addPostFrameCallback((_) => _fetchContactDetailsIfNeeded(contact));
+            _fetchContactDetailsIfNeeded(contact);
 
             return FScaffold(
               header: _buildHeader(contact),
@@ -376,6 +375,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           _buildTimelineCard(contact),
           const SizedBox(height: 12),
           _buildLinksCard(contact),
+          if (contact.scannedDetails != null && contact.scannedDetails!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildScannedDetailsCard(contact),
+          ],
           const SizedBox(height: 12),
           _buildEventsCard(contact),
         ],
@@ -611,14 +614,14 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
 
   Widget _infoRow(IconData icon, String value, VoidCallback onTap) {
     final fg = context.theme.colors.foreground;
-    final muted = context.theme.colors.mutedForeground;
+    final c = AppTheme.colorsOf(context);
     return GestureDetector(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
-            Icon(icon, size: 17, color: muted),
+            Icon(icon, size: 17, color: c.accent),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -627,7 +630,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                 style: context.theme.typography.sm.copyWith(color: fg),
               ),
             ),
-            Icon(Icons.chevron_right, size: 16, color: muted),
+            Icon(Icons.chevron_right, size: 16, color: c.accent),
           ],
         ),
       ),
@@ -947,7 +950,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         radius: 12,
         child: Row(
           children: [
-            Icon(Icons.attachment_outlined, size: 18, color: theme.colors.mutedForeground),
+            Icon(Icons.attachment_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
             const SizedBox(width: 10),
             Text('Links & Files', style: theme.typography.sm.copyWith(
                 fontWeight: FontWeight.w600, color: theme.colors.foreground)),
@@ -960,10 +963,62 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
             ),
             const SizedBox(width: 6),
             Icon(hasAssets ? Icons.chevron_right : Icons.add,
-                size: 18, color: theme.colors.mutedForeground),
+                size: 18, color: AppTheme.colorsOf(context).accent),
           ],
         ),
       ),
+    );
+  }
+
+  // ─── Additional Details Card (scanned card text that didn't map to a field) ──
+
+  Widget _buildScannedDetailsCard(ContactProfileData contact) {
+    final theme = context.theme;
+    final entries = contact.scannedDetails!.entries.toList();
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      radius: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.badge_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
+              const SizedBox(width: 10),
+              Text('Additional Details', style: theme.typography.sm.copyWith(
+                  fontWeight: FontWeight.w600, color: theme.colors.foreground)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (var i = 0; i < entries.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _scannedDetailLine(entries[i].key, entries[i].value?.toString() ?? ''),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _scannedDetailLine(String key, String value) {
+    final theme = context.theme;
+    final label = key
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 110,
+          child: Text(label, style: theme.typography.xs.copyWith(
+              color: theme.colors.mutedForeground, fontWeight: FontWeight.w600)),
+        ),
+        Expanded(
+          child: Text(value, style: theme.typography.sm.copyWith(color: theme.colors.foreground)),
+        ),
+      ],
     );
   }
 

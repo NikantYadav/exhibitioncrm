@@ -15,6 +15,7 @@ import '../providers/chat_provider.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/offline_provider.dart';
 import '../widgets/app_button.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_offline_screen.dart';
 import '../widgets/boxes_loader.dart';
 import 'app_shell.dart' show appNavBarHidden;
@@ -45,6 +46,11 @@ class _ChatScreenState extends State<ChatScreen>
   bool _initialMessageSent = false;
   bool _isComposing = false;
   bool _isSending = false;
+  bool _researchMode = false;
+  // Text shown as a dimmed bubble during the first-send flow, before the
+  // provider's optimistic message exists (conversation is being created).
+  String? _pendingText;
+  bool _pendingResearch = false;
 
   @override
   void initState() {
@@ -145,12 +151,18 @@ class _ChatScreenState extends State<ChatScreen>
 
   Future<void> _sendMessage([String? preset]) async {
     final text = (preset ?? _messageController.text).trim();
-    if (text.isEmpty || _isSending) return;
+    // Block re-entry while a send is in flight or the assistant is still
+    // responding, so the user can't queue a second message before the reply.
+    if (text.isEmpty || _isSending || context.read<ChatProvider>().isTyping) {
+      return;
+    }
 
     _messageController.clear();
     setState(() {
       _isComposing = false;
       _isSending = true;
+      _pendingText = text;
+      _pendingResearch = _researchMode;
     });
 
     final chatProvider = context.read<ChatProvider>();
@@ -177,7 +189,10 @@ class _ChatScreenState extends State<ChatScreen>
     _scrollToBottom();
 
     try {
-      final updatedConvo = await chatProvider.sendMessage(text);
+      final updatedConvo = await chatProvider.sendMessage(
+        text,
+        researchMode: _researchMode,
+      );
 
       if (updatedConvo != null) {
         final model = ConversationModel.fromJson(updatedConvo);
@@ -187,8 +202,16 @@ class _ChatScreenState extends State<ChatScreen>
           convProvider.setActive(model);
         }
       }
+      // Send failures surface inline on the message bubble ("Failed to send /
+      // Retry"), modern chat-app style — no toast or full-screen takeover.
     } finally {
-      if (mounted) setState(() => _isSending = false);
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+          _researchMode = false;
+          _pendingText = null;
+        });
+      }
     }
 
     _scrollToBottom();
@@ -234,23 +257,9 @@ class _ChatScreenState extends State<ChatScreen>
       child: Row(
         children: [
           // Back
-          AppButton(
+          AppHeaderActionButton(
+            icon: Icons.arrow_back_rounded,
             onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.sm,
-            child: Icon(Icons.arrow_back_ios_new_rounded,
-                color: _c.accent, size: 19),
-          ),
-          // AI avatar
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _c.accent,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.auto_awesome_rounded,
-                size: 16, color: Colors.white),
           ),
           const SizedBox(width: 10),
           // Title — reactive to conversation + chat updates
@@ -305,19 +314,62 @@ class _ChatScreenState extends State<ChatScreen>
   Widget _buildChatCanvas() {
     return Consumer<ChatProvider>(
       builder: (context, chat, _) {
-        // Full-screen loader only when loading EMPTY history for the first time
-        if (chat.isLoadingHistory && chat.messages.isEmpty) {
+        // Full-screen loader only when loading EMPTY history for the first time,
+        // but not when we're about to show the first sent message.
+        if (chat.isLoadingHistory && chat.messages.isEmpty && !_isSending) {
           return const Center(child: BoxesLoader(size: 28));
         }
 
-        // Error with no messages
-        if (chat.error != null && chat.messages.isEmpty) {
+        // Full error state (with Retry) only for a history-load failure on an
+        // empty conversation where there is no message and no pending/failed send
+        // to carry an inline retry. Send failures always surface inline on the
+        // bubble (modern chat-app style), never as a full-screen takeover.
+        if (chat.error != null &&
+            chat.messages.isEmpty &&
+            chat.failedMessageId == null &&
+            _pendingText == null) {
           return _buildErrorState(chat.error!);
         }
 
-        // Empty state
-        if (chat.messages.isEmpty && !_isSending) {
+        // Empty state — only when truly idle with no messages
+        if (chat.messages.isEmpty &&
+            !_isSending &&
+            !chat.isLoadingHistory &&
+            chat.failedMessageId == null &&
+            _pendingText == null) {
           return _buildEmptyState();
+        }
+
+        // First-send flow / failed first send: provider has no surviving message
+        // bubble (conversation being created, or the send failed before the
+        // optimistic bubble persisted). Show the user's message as a bubble so
+        // they never see an empty/error screen — it carries the inline retry.
+        if (chat.messages.isEmpty && (_pendingText != null || chat.failedMessageId != null)) {
+          final bubbleText = _pendingText ?? chat.failedText ?? '';
+          return ListView(
+            controller: _scrollController,
+            reverse: true,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildMessageBubble(
+                  ChatMessage(
+                    id: chat.failedMessageId ?? 'pending_local',
+                    text: bubbleText,
+                    isUser: true,
+                    timestamp: DateTime.now(),
+                    researchMode: _pendingResearch,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        // Blank canvas while creating conversation + loading (fallback)
+        if (chat.messages.isEmpty) {
+          return const SizedBox.shrink();
         }
 
         // Scroll after every rebuild
@@ -453,7 +505,15 @@ class _ChatScreenState extends State<ChatScreen>
             const SizedBox(height: 20),
             AppButton(
               label: 'Retry',
-              onPressed: _initConversation,
+              onPressed: () {
+                final chat = context.read<ChatProvider>();
+                // A failed send retries the message; otherwise re-init the convo.
+                if (chat.failedMessageId != null) {
+                  chat.retryFailedMessage();
+                } else {
+                  _initConversation();
+                }
+              },
               variant: ButtonVariant.outline,
             ),
           ],
@@ -466,7 +526,8 @@ class _ChatScreenState extends State<ChatScreen>
 
   Widget _buildMessageBubble(ChatMessage message) {
     final isUser = message.isUser;
-    final isOptimistic = message.id.startsWith('optimistic_');
+    final isOptimistic = message.id.startsWith('optimistic_') ||
+        message.id == 'pending_local';
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -572,20 +633,59 @@ class _ChatScreenState extends State<ChatScreen>
             ),
             const SizedBox(height: 4),
             // Timestamp + status
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _formatTime(message.timestamp),
-                    style: context.theme.typography.xs.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: context.theme.colors.mutedForeground,
-                    ),
+            Consumer<ChatProvider>(
+              builder: (context, chat, _) {
+                final isFailed = chat.failedMessageId == message.id;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isFailed) ...[
+                        Icon(Icons.error_outline_rounded,
+                            size: 12, color: _c.destructive),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Failed to send',
+                          style: context.theme.typography.xs.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: _c.destructive,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => chat.retryFailedMessage(),
+                          child: Text(
+                            'Retry',
+                            style: context.theme.typography.xs.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: _c.accent,
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        Text(
+                          _formatTime(message.timestamp),
+                          style: context.theme.typography.xs.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: context.theme.colors.mutedForeground,
+                          ),
+                        ),
+                        if (message.researchMode) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            'Research',
+                            style: context.theme.typography.xs.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: _c.accent,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
             if (!isUser && message.linkedEntities.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -692,38 +792,31 @@ class _ChatScreenState extends State<ChatScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Error snack
-              Consumer<ChatProvider>(
-                builder: (context, chat, child) {
-                  if (chat.error == null || chat.messages.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _c.destructive.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: _c.destructive.withValues(alpha: 0.3)),
+              // Research mode toggle
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    AppButton(
+                      prefixIcon: Icon(
+                        Icons.travel_explore_rounded,
+                        size: 14,
+                        color: _researchMode
+                            ? Colors.white
+                            : _c.accent,
+                      ),
+                      label: 'RESEARCH',
+                      size: ButtonSize.sm,
+                      variant: _researchMode
+                          ? ButtonVariant.primary
+                          : ButtonVariant.outline,
+                      onPressed: () {
+                        setState(() => _researchMode = !_researchMode);
+                      },
                     ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline_rounded,
-                            size: 14, color: _c.destructive),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Failed to send. Tap ↑ to retry.',
-                            style: context.theme.typography.xs.copyWith(
-                                color: _c.destructive),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                    const Spacer(),
+                  ],
+                ),
               ),
               // Input row
               Container(
@@ -772,8 +865,8 @@ class _ChatScreenState extends State<ChatScreen>
                       padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                       child: Consumer<ChatProvider>(
                         builder: (context, chat, child) {
-                          final canSend =
-                              _isComposing && !chat.isTyping;
+                          final isBusy = chat.isTyping || _isSending;
+                          final canSend = _isComposing && !isBusy;
                           return AnimatedContainer(
                             duration: const Duration(milliseconds: 180),
                             curve: Curves.easeOut,
@@ -789,7 +882,9 @@ class _ChatScreenState extends State<ChatScreen>
                                     width: 36,
                                     height: 36,
                                     child: Icon(
-                                      Icons.arrow_upward_rounded,
+                                      isBusy
+                                          ? Icons.block_rounded
+                                          : Icons.arrow_upward_rounded,
                                       size: 18,
                                       color: canSend
                                           ? Colors.white
@@ -930,7 +1025,7 @@ class _LinkedEntityCard extends StatelessWidget {
             ),
             if (_tappable) ...[
               const SizedBox(width: 6),
-              Icon(Icons.chevron_right_rounded, size: 16, color: context.theme.colors.mutedForeground),
+              Icon(Icons.chevron_right_rounded, size: 16, color: colors.accent),
             ],
           ],
         ),

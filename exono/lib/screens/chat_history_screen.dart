@@ -13,6 +13,7 @@ import '../widgets/app_section_label.dart';
 import '../widgets/app_offline_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import 'chat_screen.dart';
+import 'app_shell.dart' show appNavBarHidden;
 import '../utils/screen_logger.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
@@ -41,13 +42,18 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
     context.read<ConversationProvider>().setActive(convo);
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(builder: (context) => const ChatScreen()),
-    ).whenComplete(() => _navigating = false);
+    ).whenComplete(() {
+      _navigating = false;
+      // Restore the nav bar on return — the chat screen hides it on entry and
+      // its dispose can race the pop, leaving it hidden on this screen.
+      appNavBarHidden.value = false;
+    });
   }
 
   void _startNewChat() {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(builder: (context) => const ChatScreen(isNewChat: true)),
-    );
+    ).whenComplete(() => appNavBarHidden.value = false);
   }
 
   Future<void> _deleteConversation(ConversationModel convo) async {
@@ -124,13 +130,27 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
         await _deleteConversation(convo);
         return false;
       },
-      background: AppCard(
-        padding: const EdgeInsets.only(right: 20),
-        radius: 16,
-        borderColor: _c.destructive.withValues(alpha: 0.3),
-        child: Align(
-          alignment: Alignment.centerRight,
-          child: Icon(Icons.delete_outline_rounded, color: _c.destructive, size: 20),
+      background: Container(
+        decoration: BoxDecoration(
+          color: _c.destructive.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _c.destructive.withValues(alpha: 0.28)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Icon(Icons.delete_outline_rounded, color: _c.destructive, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'DELETE',
+              style: context.theme.typography.xs.copyWith(
+                color: _c.destructive,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
         ),
       ),
       child: GestureDetector(

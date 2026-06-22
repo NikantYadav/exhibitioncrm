@@ -15,6 +15,7 @@ class Contact {
   final String? notes;
   final String? avatarUrl;
   final List<Map<String, dynamic>> contactAssets;
+  final Map<String, dynamic>? scannedDetails;
   final String followUpStatus;
   final String followUpUrgency;
   final DateTime? lastContactedAt;
@@ -35,6 +36,7 @@ class Contact {
     this.notes,
     this.avatarUrl,
     this.contactAssets = const [],
+    this.scannedDetails,
     this.followUpStatus = 'not_contacted',
     this.followUpUrgency = '',
     this.lastContactedAt,
@@ -59,6 +61,9 @@ class Contact {
       contactAssets: (json['contact_assets'] as List?)
           ?.map((e) => Map<String, dynamic>.from(e as Map))
           .toList() ?? const [],
+      scannedDetails: json['scanned_details'] != null
+          ? Map<String, dynamic>.from(json['scanned_details'] as Map)
+          : null,
       followUpStatus: json['follow_up_status'] ?? 'not_contacted',
       followUpUrgency: json['follow_up_urgency'] ?? '',
       lastContactedAt: json['last_contacted_at'] != null 
@@ -107,6 +112,9 @@ class Contact {
       contactAssets: row.contactAssetsJson != null
           ? (jsonDecode(row.contactAssetsJson!) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
           : const [],
+      scannedDetails: row.scannedDetailsJson != null
+          ? Map<String, dynamic>.from(jsonDecode(row.scannedDetailsJson!) as Map)
+          : null,
       followUpStatus: row.followUpStatus,
       followUpUrgency: row.followUpUrgency,
       lastContactedAt: row.lastContactedAt,

@@ -95,7 +95,7 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
                       onPressed: () => Navigator.of(context).pop(_assets),
                       variant: ButtonVariant.ghost,
                       size: ButtonSize.sm,
-                      child: Icon(Icons.close, size: 18, color: context.theme.colors.mutedForeground),
+                      child: Icon(Icons.close, size: 18, color: _c.accent),
                     ),
                 ],
               ),

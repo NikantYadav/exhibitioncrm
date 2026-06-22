@@ -1,14 +1,18 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_theme.dart';
 import '../models/contact.dart';
+import 'app_shell.dart' show navBarHide, navBarShow;
 import '../models/contact_profile_data.dart';
 import '../providers/offline_provider.dart';
 import '../providers/sync_provider.dart';
 import '../repositories/contacts_repository.dart';
 import '../models/event.dart';
+import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_header.dart';
@@ -17,7 +21,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_offline_screen.dart';
 import '../widgets/skeleton_loader.dart';
-import 'add_contact_dialog.dart';
+import 'manual_entry_screen.dart';
 import '../utils/screen_logger.dart';
 
 class ContactsScreen extends StatefulWidget {
@@ -100,10 +104,28 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
       child: StreamBuilder<List<Contact>>(
         stream: contactsRepo.watchAllWithCompany(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          // Surface a stream error instead of skeletoning forever — a silent
+          // drift error here previously looked like an infinite load.
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Failed to load contacts: ${snapshot.error}',
+                  style: context.theme.typography.sm.copyWith(
+                    color: context.theme.colors.mutedForeground,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+          // Only skeleton before the first emission. An empty table emits [] and
+          // falls through to _buildListBody, which renders the empty state.
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
             return _buildSkeleton();
           }
-          final allContacts = snapshot.data!.map(mapContactToProfileData).toList();
+          final allContacts = (snapshot.data ?? []).map(mapContactToProfileData).toList();
           return _buildListBody(allContacts, contactsRepo);
         },
       ),
@@ -138,14 +160,14 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
               controller: _searchController,
               hint: 'Name, phone or card number',
               onChanged: (value) => setState(() => _searchQuery = value),
-              prefixIcon: Icon(Icons.search, color: theme.colors.mutedForeground, size: 20),
+              prefixIcon: Icon(Icons.search_rounded, color: AppTheme.colorsOf(context).accent, size: 18),
             ),
           ),
           const SizedBox(width: 8),
           AppButton(
             variant: _hasActiveFilters ? ButtonVariant.primary : ButtonVariant.outline,
             onPressed: () => _showFilterSheet(allContacts),
-            prefixIcon: const Icon(Icons.tune_rounded, size: 16),
+            prefixIcon: Icon(Icons.tune_rounded, size: 18, color: AppTheme.colorsOf(context).accent),
             label: activeCount > 0 ? 'Filters ($activeCount)' : 'Filter',
           ),
           if (_hasActiveFilters) ...[
@@ -158,7 +180,7 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
                 _filterStatus = null;
                 _filterEventId = null;
               }),
-              child: const Icon(Icons.close, size: 16),
+              child: Icon(Icons.close_rounded, size: 18, color: AppTheme.colorsOf(context).accent),
             ),
           ],
         ],
@@ -325,7 +347,7 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, size: 18),
+              Icon(Icons.chevron_right_rounded, size: 18, color: AppTheme.colorsOf(context).accent),
             ],
           ),
         ),
@@ -398,6 +420,143 @@ class _AddContactSheet extends StatelessWidget {
 
   const _AddContactSheet({required this.onContactAdded});
 
+  Future<void> _showBulkImportSheet(BuildContext context) async {
+    await showAppSheet(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: sheetCtx.theme.colors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.upload_file_outlined, color: sheetCtx.theme.colors.primary, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Bulk Import Contacts', style: sheetCtx.theme.typography.lg.copyWith(fontWeight: FontWeight.w700, color: sheetCtx.theme.colors.foreground)),
+                    Text('Upload a CSV or Excel file', style: sheetCtx.theme.typography.xs.copyWith(color: sheetCtx.theme.colors.mutedForeground)),
+                  ]),
+                ),
+              ]),
+              const SizedBox(height: 24),
+              Text('Supported columns', style: sheetCtx.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: sheetCtx.theme.colors.foreground)),
+              const SizedBox(height: 10),
+              _buildFieldRow(sheetCtx, Icons.person_outline, 'name / first_name', 'Contact name — required', true),
+              const SizedBox(height: 8),
+              _buildFieldRow(sheetCtx, Icons.business_outlined, 'company', 'Company name — optional', false),
+              const SizedBox(height: 8),
+              _buildFieldRow(sheetCtx, Icons.phone_outlined, 'phone', 'Phone number — optional', false),
+              const SizedBox(height: 8),
+              _buildFieldRow(sheetCtx, Icons.email_outlined, 'email', 'Email address — optional', false),
+              const SizedBox(height: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ColoredBox(
+                  color: AppTheme.colorsOf(sheetCtx).surfaceAlt,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Example', style: sheetCtx.theme.typography.xs.copyWith(fontWeight: FontWeight.w600, color: sheetCtx.theme.colors.mutedForeground, letterSpacing: 0.8)),
+                      const SizedBox(height: 8),
+                      Text(
+                        'name,company,phone,email\nJane Smith,Acme Corp,+1234567890,jane@acme.com\nJohn Doe,,,',
+                        style: sheetCtx.theme.typography.xs.copyWith(
+                          fontFamily: 'monospace',
+                          color: sheetCtx.theme.colors.foreground,
+                          height: 1.6,
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              AppButton(
+                label: 'CHOOSE FILE',
+                fullWidth: true,
+                variant: ButtonVariant.primary,
+                prefixIcon: Icon(Icons.folder_open_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
+                onPressed: () async {
+                  Navigator.of(sheetCtx).pop();
+                  await _pickAndUpload(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFieldRow(BuildContext context, IconData icon, String label, String description, bool required) {
+    final c = AppTheme.colorsOf(context);
+    return Row(children: [
+      Icon(icon, size: 16, color: required ? c.accent : context.theme.colors.mutedForeground),
+      const SizedBox(width: 10),
+      Expanded(
+        child: RichText(
+          text: TextSpan(children: [
+            TextSpan(text: label, style: context.theme.typography.sm.copyWith(fontFamily: 'monospace', fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+            TextSpan(text: '  $description', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+          ]),
+        ),
+      ),
+      if (required)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: c.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+          child: Text('required', style: context.theme.typography.xs.copyWith(color: c.accent, fontWeight: FontWeight.w600)),
+        )
+      else
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: context.theme.colors.border.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4)),
+          child: Text('optional', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground, fontWeight: FontWeight.w600)),
+        ),
+    ]);
+  }
+
+  Future<void> _pickAndUpload(BuildContext context) async {
+    FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
+    } catch (_) {
+      if (context.mounted) showAppToast(context, 'Could not open file picker.');
+      return;
+    }
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final name = file.name.toLowerCase();
+    if (!name.endsWith('.csv') && !name.endsWith('.xlsx') && !name.endsWith('.xls')) {
+      if (context.mounted) showAppToast(context, 'Please select a CSV or Excel file.');
+      return;
+    }
+    if (file.bytes == null) {
+      if (context.mounted) showAppToast(context, 'Could not read file. Try again.');
+      return;
+    }
+    try {
+      final res = await ApiService.importContacts(file.bytes!, file.name);
+      onContactAdded();
+      if (context.mounted) {
+        showAppToast(context, 'Import complete: ${res['imported']} added, ${res['skipped']} skipped.');
+      }
+    } catch (_) {
+      if (context.mounted) showAppToast(context, 'Upload failed. Check the file and try again.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
@@ -429,7 +588,7 @@ class _AddContactSheet extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             AppButton(
-              prefixIcon: const Icon(Icons.qr_code_scanner, size: 20),
+              prefixIcon: Icon(Icons.qr_code_scanner_rounded, size: 18, color: AppTheme.colorsOf(context).accent),
               label: 'Scan Card',
               variant: ButtonVariant.outline,
               fullWidth: true,
@@ -441,7 +600,7 @@ class _AddContactSheet extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             AppButton(
-              prefixIcon: const Icon(Icons.mic, size: 20),
+              prefixIcon: Icon(Icons.mic_rounded, size: 18, color: AppTheme.colorsOf(context).accent),
               label: 'Voice Entry',
               variant: ButtonVariant.outline,
               fullWidth: true,
@@ -453,14 +612,31 @@ class _AddContactSheet extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             AppButton(
-              prefixIcon: const Icon(Icons.edit, size: 20),
+              prefixIcon: Icon(Icons.edit_rounded, size: 18, color: AppTheme.colorsOf(context).accent),
               label: 'Manual Entry',
               variant: ButtonVariant.outline,
               fullWidth: true,
               onPressed: () async {
                 context.pop();
-                final result = await showManualEntrySheet(context);
-                if (result == true) { onContactAdded(); }
+                final result = await Navigator.of(context).push<ManualEntryResult>(
+                  MaterialPageRoute(
+                    builder: (_) => const ManualEntryScreen(),
+                  ),
+                );
+                if (result != null) { onContactAdded(); }
+              },
+            ),
+            const SizedBox(height: 12),
+            AppButton(
+              prefixIcon: Icon(Icons.upload_file_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
+              label: 'Bulk Import',
+              variant: ButtonVariant.outline,
+              fullWidth: true,
+              onPressed: () async {
+                navBarHide();
+                context.pop();
+                await _showBulkImportSheet(context);
+                navBarShow();
               },
             ),
           ],
@@ -635,14 +811,14 @@ class _FilterSheetState extends State<_FilterSheet> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Icon(Icons.event_available_outlined, size: 14, color: theme.colors.primary),
+                          Icon(Icons.event_available_outlined, size: 14, color: AppTheme.colorsOf(context).accent),
                           const SizedBox(width: 6),
                           Text(_eventCtrl.text, style: theme.typography.sm.copyWith(color: theme.colors.primary, fontWeight: FontWeight.w500)),
                           const Spacer(),
                           AppButton(
                             variant: ButtonVariant.ghost,
                             onPressed: () => setState(() { _tempEventId = null; _eventCtrl.clear(); }),
-                            child: Icon(Icons.close, size: 14, color: theme.colors.primary),
+                            child: Icon(Icons.close_rounded, size: 14, color: AppTheme.colorsOf(context).accent),
                           ),
                         ],
                       ),
@@ -699,9 +875,9 @@ class _FilterSheetState extends State<_FilterSheet> {
   Widget _searchField(TextEditingController ctrl, String hint) => AppInput(
     controller: ctrl,
     hint: hint,
-    prefixIcon: Icon(Icons.search, color: context.theme.colors.primary, size: 18),
+    prefixIcon: Icon(Icons.search_rounded, color: AppTheme.colorsOf(context).accent, size: 18),
     suffixIcon: ctrl.text.isNotEmpty
-        ? Icon(Icons.clear, size: 16, color: context.theme.colors.primary)
+        ? Icon(Icons.clear_rounded, size: 16, color: AppTheme.colorsOf(context).accent)
         : null,
   );
 
@@ -717,7 +893,7 @@ class _FilterSheetState extends State<_FilterSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Row(
               children: [
-                Icon(Icons.business_outlined, size: 14, color: theme.colors.primary),
+                Icon(Icons.business_outlined, size: 14, color: AppTheme.colorsOf(context).accent),
                 const SizedBox(width: 8),
                 Text(item, style: theme.typography.sm.copyWith(color: theme.colors.foreground)),
               ],
@@ -740,7 +916,7 @@ class _FilterSheetState extends State<_FilterSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Row(
               children: [
-                Icon(Icons.event_outlined, size: 14, color: theme.colors.primary),
+                Icon(Icons.event_outlined, size: 14, color: AppTheme.colorsOf(context).accent),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(

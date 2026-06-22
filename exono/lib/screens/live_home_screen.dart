@@ -376,10 +376,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             child: Column(
               children: [
                 AppHeader(
-                  actionWidget: AppHeaderActionButton(
-                    icon: Icons.arrow_back_rounded,
-                    onPressed: () => context.go('/'),
-                  ),
+                  onBack: () => context.go('/'),
                 ),
                 Expanded(child: _buildBody(event, lep)),
               ],
@@ -608,7 +605,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   color: isComplete ? _c.success : context.theme.colors.foreground,
                   decoration: isComplete ? TextDecoration.lineThrough : null,
                   decorationColor: _c.success))),
-              Icon(Icons.more_horiz_rounded, size: 14, color: context.theme.colors.mutedForeground),
+              Icon(Icons.more_horiz_rounded, size: 14, color: _c.accent),
               const SizedBox(width: 6),
               if (isCheckbox)
                 GestureDetector(
@@ -850,7 +847,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
               ),
               const SizedBox(width: 8),
               Icon(isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                  size: 18, color: context.theme.colors.mutedForeground),
+                  size: 18, color: _c.accent),
               const SizedBox(width: 10),
               GestureDetector(
                 onTap: () => _toggleTargetContactMet(target, event, lep),

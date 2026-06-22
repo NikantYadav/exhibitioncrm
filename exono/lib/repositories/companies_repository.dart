@@ -15,11 +15,21 @@ class CompaniesRepository {
 
   final AppDatabase db;
 
+  String get tableName => 'companies';
+
   Stream<List<CompaniesTableData>> watchAll() => db.select(db.companiesTable).watch();
 
   Stream<CompaniesTableData?> watchById(String id) {
     final query = db.select(db.companiesTable)..where((tbl) => tbl.id.equals(id));
     return query.watchSingleOrNull();
+  }
+
+  /// Persists a single company row fetched out-of-band (e.g. via a direct
+  /// `GET /companies/:id` lookup when the row was missing locally). Once
+  /// stored, the existing local joins resolve its name, it survives restarts,
+  /// and it stays in the user's synced set via the reference-based `/sync`.
+  Future<void> upsertOne(Map<String, dynamic> json) async {
+    await db.into(db.companiesTable).insertOnConflictUpdate(_companionFromJson(json));
   }
 
   /// Upserts the `companies.upserts` slice of a `/sync` response. There are
@@ -34,30 +44,39 @@ class CompaniesRepository {
     });
   }
 
-  /// Pulls referenced companies changed since the last successful catchUp.
-  /// `companies` shares no Realtime channel, so this is the only freshness
-  /// path — call it whenever contacts/target_companies catchUp runs too.
-  Future<void> catchUp() async {
+  Future<String?> lastSyncedAt() async {
     final stateRow = await (db.select(db.syncStateTable)
           ..where((t) => t.tableName_.equals('companies')))
         .getSingleOrNull();
-    final since = stateRow?.lastSyncedAt;
+    return stateRow?.lastSyncedAt;
+  }
 
-    final response = await ApiService.getSyncDelta(since: since, tables: 'companies');
-    final serverTime = response['server_time'] as String;
-    final delta = (response['data'] as Map<String, dynamic>)['companies'] as Map<String, dynamic>?;
-
-    if (delta != null) {
-      final upserts = (delta['upserts'] as List).cast<Map<String, dynamic>>();
-      await applyDelta(upserts: upserts);
-    }
-
+  Future<void> storeLastSyncedAt(String serverTime) async {
     await db.into(db.syncStateTable).insertOnConflictUpdate(
           SyncStateTableCompanion.insert(
             tableName_: 'companies',
             lastSyncedAt: Value(serverTime),
           ),
         );
+  }
+
+  /// Applies the `companies` slice of a `/sync` response (upserts only).
+  Future<void> applyTableDelta(Map<String, dynamic>? delta) async {
+    if (delta == null) return;
+    final upserts = (delta['upserts'] as List).cast<Map<String, dynamic>>();
+    await applyDelta(upserts: upserts);
+  }
+
+  /// Pulls referenced companies changed since the last successful catchUp.
+  /// `companies` shares no Realtime channel, so this is the only freshness
+  /// path — call it whenever contacts/target_companies catchUp runs too.
+  Future<void> catchUp() async {
+    final since = await lastSyncedAt();
+    final response = await ApiService.getSyncDelta(since: since, tables: 'companies');
+    final serverTime = response['server_time'] as String;
+    final delta = (response['data'] as Map<String, dynamic>)['companies'] as Map<String, dynamic>?;
+    await applyTableDelta(delta);
+    await storeLastSyncedAt(serverTime);
   }
 
   CompaniesTableCompanion _companionFromJson(Map<String, dynamic> json) {

@@ -11,6 +11,7 @@ import '../providers/sync_provider.dart';
 import '../repositories/contact_events_repository.dart';
 import '../repositories/target_companies_repository.dart';
 import '../services/api_service.dart';
+import '../services/company_name_resolver.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
@@ -115,6 +116,29 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
     }
   }
 
+  String get _briefingText => _talkingPoints
+      .asMap()
+      .entries
+      .map((e) => '${e.key + 1}. ${e.value}')
+      .join('\n');
+
+  bool get _briefingInNotes =>
+      _talkingPoints.isNotEmpty && _notesCtrl.text.contains(_briefingText);
+
+  Future<void> _addBriefingToNotes(String companyId) async {
+    final briefingText = _briefingText;
+    final existing = _notesCtrl.text.trim();
+    final merged = existing.isEmpty ? briefingText : '$existing\n\n$briefingText';
+    _notesCtrl.text = merged;
+    try {
+      await ApiService.updateEventTarget(widget.event.id, widget.targetId, {'notes': merged});
+      await _targetsRepo.catchUp();
+      if (mounted) { setState(() {}); showAppToast(context, 'Briefing added to notes.'); }
+    } on UnauthorizedException { rethrow; } catch (_) {
+      if (mounted) showAppToast(context, 'Failed to save notes.');
+    }
+  }
+
   Future<void> _saveNotes(String companyId) async {
     final notes = _notesCtrl.text.trim();
     try {
@@ -212,7 +236,8 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
         final foundedYear = company?.foundedYear ?? '';
         final ticker = company?.tickerSymbol ?? '';
         final size = company?.companySize ?? '';
-        final companyName = target.companyName;
+        final resolvedCompanyId = company?.id ?? target.target.companyId;
+        final companyName = CompanyNameResolver.cached(resolvedCompanyId) ?? target.companyName;
         final industry = company?.industry ?? '';
         final companyId = company?.id ?? '';
         final initials = companyName.length >= 2
@@ -257,7 +282,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(companyName, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4, color: context.theme.colors.foreground)),
+                                    CompanyName(companyId: resolvedCompanyId, fallback: companyName, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4, color: context.theme.colors.foreground)),
                                     if (industry.isNotEmpty) ...[
                                       const SizedBox(height: 4),
                                       Text(industry, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
@@ -566,6 +591,17 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                 ],
                               ),
                             )),
+                            const SizedBox(height: 16),
+                            AppButton(
+                              label: _briefingInNotes ? 'ALREADY IN NOTES' : 'ADD TO NOTES',
+                              fullWidth: true,
+                              variant: ButtonVariant.secondary,
+                              prefixIcon: Icon(
+                                _briefingInNotes ? Icons.check_rounded : Icons.notes_rounded,
+                                size: 16,
+                              ),
+                              onPressed: _briefingInNotes ? null : () => _addBriefingToNotes(companyId),
+                            ),
                           ] else if (!_isGenerating) ...[
                             const SizedBox(height: 14),
                             Text('Generate an AI briefing to get talking points for your next meeting.',
@@ -777,7 +813,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
 
   Widget _statItem(IconData icon, String label) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 14, color: context.theme.colors.mutedForeground),
+      Icon(icon, size: 14, color: _c.accent),
       const SizedBox(width: 5),
       Text(label, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
     ]);

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "630572846233",
+    "project_id": "exono-ad7a4",
+    "storage_bucket": "exono-ad7a4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:630572846233:android:9306e8feee1c17ffbe7c08",
+        "android_client_info": {
+          "package_name": "com.example.exono"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgIIV64Wj8fs7mEyazSsWFi6Cj0cDpYL0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

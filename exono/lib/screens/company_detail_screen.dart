@@ -495,15 +495,13 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
   // ── Helper widgets ────────────────────────────────────────────────────────────
 
   Widget _buildEnrichingIndicator() {
-    return Row(
+    return Wrap(
+      spacing: 16,
+      runSpacing: 10,
       children: [
-        const SizedBox(
-          width: 12,
-          height: 12,
-          child: FCircularProgress(),
-        ),
-        const SizedBox(width: 8),
-        Text('Loading company details…', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground, fontStyle: FontStyle.italic)),
+        SkeletonLoader(width: 90, height: 13, borderRadius: BorderRadius.circular(4)),
+        SkeletonLoader(width: 70, height: 13, borderRadius: BorderRadius.circular(4)),
+        SkeletonLoader(width: 60, height: 13, borderRadius: BorderRadius.circular(4)),
       ],
     );
   }

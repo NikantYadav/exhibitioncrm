@@ -54,6 +54,7 @@ class ContactProfileData {
   final String strategicContext;
   final List<ContactTimelineItem> timelineItems;
   final List<Event> linkedEvents;
+  final Map<String, dynamic>? scannedDetails;
 
   const ContactProfileData({
     required this.id,
@@ -91,6 +92,7 @@ class ContactProfileData {
     required this.strategicContext,
     this.timelineItems = const [],
     this.linkedEvents = const [],
+    this.scannedDetails,
   });
 
   ContactProfileData copyWith({
@@ -129,6 +131,7 @@ class ContactProfileData {
     String? strategicContext,
     List<ContactTimelineItem>? timelineItems,
     List<Event>? linkedEvents,
+    Map<String, dynamic>? scannedDetails,
   }) {
     return ContactProfileData(
       id: id ?? this.id,
@@ -166,6 +169,7 @@ class ContactProfileData {
       strategicContext: strategicContext ?? this.strategicContext,
       timelineItems: timelineItems ?? this.timelineItems,
       linkedEvents: linkedEvents ?? this.linkedEvents,
+      scannedDetails: scannedDetails ?? this.scannedDetails,
     );
   }
 }
@@ -227,5 +231,6 @@ ContactProfileData mapContactToProfileData(Contact contact) {
     aiInsights: const [],
     strategicContext: '',
     timelineItems: const [],
+    scannedDetails: contact.scannedDetails,
   );
 }

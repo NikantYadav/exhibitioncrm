@@ -43,21 +43,33 @@ router.get('/', async (req, res) => {
     .order('updated_at', { ascending: false });
   if (error) return res.status(400).json({ error: error.message });
 
-  // Enrich each conversation with the first user message as a preview
-  // (used as fallback title in the app when AI title hasn't been set yet)
-  const enriched = await Promise.all(
-    (data ?? []).map(async (conv) => {
-      if (conv.title) return conv; // already has a title, no need for preview
-      const { data: firstMsg } = await supabase
-        .from('messages')
-        .select('content')
-        .eq('conversation_id', conv.id)
-        .eq('sender_type', 'user')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      return { ...conv, first_message_preview: firstMsg?.content ?? null };
-    })
+  // Enrich each untitled conversation with its first user message as a preview
+  // (used as fallback title in the app when AI title hasn't been set yet).
+  // Single batched query instead of one per conversation (was an N+1): fetch
+  // user messages for all untitled conversations ordered by created_at and
+  // keep the earliest seen per conversation.
+  const conversations = data ?? [];
+  const untitledIds = conversations.filter((c) => !c.title).map((c) => c.id);
+
+  const firstMsgByConv = new Map<string, string>();
+  if (untitledIds.length > 0) {
+    const { data: msgs } = await supabase
+      .from('messages')
+      .select('conversation_id, content')
+      .in('conversation_id', untitledIds)
+      .eq('sender_type', 'user')
+      .order('created_at', { ascending: true });
+    for (const m of msgs ?? []) {
+      if (!firstMsgByConv.has(m.conversation_id)) {
+        firstMsgByConv.set(m.conversation_id, m.content);
+      }
+    }
+  }
+
+  const enriched = conversations.map((conv) =>
+    conv.title
+      ? conv
+      : { ...conv, first_message_preview: firstMsgByConv.get(conv.id) ?? null }
   );
 
   res.json({ data: enriched });

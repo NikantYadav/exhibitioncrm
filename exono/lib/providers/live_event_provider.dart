@@ -1,10 +1,22 @@
 import 'dart:async';
+import 'package:drift/drift.dart' show OrderingMode, OrderingTerm;
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../db/app_database.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 
 /// Global singleton that tracks whether an event is currently live.
-/// Polls the backend every 60 seconds. Screens listen via ChangeNotifier.
+///
+/// Freshness strategy (see also [SyncProvider]):
+///   - Idle (no ongoing event): zero network. A drift watch on the locally
+///     synced `events` table tells us when an event becomes/stops being
+///     ongoing, so we never poll `/live-session` just to learn "nothing's
+///     live" — that table is already kept fresh by sync + Realtime.
+///   - Live (an event is ongoing): subscribe to Supabase Realtime on the
+///     tables that feed the live aggregate and refresh (debounced) on any
+///     change, instead of a blind timer. A slow safety-net timer covers any
+///     dropped socket.
 class LiveEventProvider extends ChangeNotifier {
   Event? _liveEvent;
   Event? _nextEvent;
@@ -17,7 +29,23 @@ class LiveEventProvider extends ChangeNotifier {
   bool _isLoadingLive = false;
   bool _initialized = false;
 
-  Timer? _pollTimer;
+  // Idle gate: a drift watch on `events` decides whether anything is ongoing.
+  String? _userId;
+  StreamSubscription<bool>? _ongoingWatch;
+  bool _hasOngoing = false;
+
+  // Live mode: Realtime subscriptions + a debounce + a slow safety-net poll.
+  // Tables whose changes affect the live aggregate returned by /live-session.
+  static const _liveTables = [
+    'captures',
+    'event_goals',
+    'target_companies',
+    'contact_events',
+    'contacts',
+  ];
+  final List<RealtimeChannel> _liveChannels = [];
+  Timer? _debounce;
+  Timer? _safetyTimer;
 
   Event? get liveEvent => _liveEvent;
   Event? get nextEvent => _nextEvent;
@@ -33,14 +61,110 @@ class LiveEventProvider extends ChangeNotifier {
 
   int get targetsLeft => _targetContacts.where((t) => (t['status'] as String?) != 'met').length;
 
-  /// Call once after login. Starts polling.
-  Future<void> init() async {
-    await _refresh();
-    _pollTimer ??= Timer.periodic(const Duration(seconds: 60), (_) => _refresh());
+  /// Call once after login. Watches the local `events` table to decide when
+  /// an event is ongoing; only then does any network/Realtime work happen.
+  Future<void> init(AppDatabase db, String userId) async {
+    _userId = userId;
+    _ongoingWatch?.cancel();
+    _ongoingWatch = _watchOngoing(db).listen(_onOngoingChanged);
   }
 
   /// Force a refresh (e.g. after scanning a contact).
   Future<void> refresh() => _refresh();
+
+  /// Emits whether any non-deleted event is ongoing right now, recomputed
+  /// whenever the events table changes. Mirrors the backend's ongoing rule
+  /// (events.ts getEventStatus): now in [start_date, end), where end is the
+  /// end_date end-of-day, or start + 24h for single-day events.
+  Stream<bool> _watchOngoing(AppDatabase db) {
+    final query = db.select(db.eventsTable)
+      ..where((t) => t.deletedAt.isNull())
+      ..orderBy([(t) => OrderingTerm(expression: t.startDate, mode: OrderingMode.desc)]);
+    return query.watch().map((events) => events.any(_isOngoing));
+  }
+
+  bool _isOngoing(EventsTableData e) {
+    final now = DateTime.now().toUtc();
+    final start = e.startDate.toUtc();
+    final end = e.endDate != null
+        ? DateTime.utc(e.endDate!.year, e.endDate!.month, e.endDate!.day, 23, 59, 59, 999)
+        : start.add(const Duration(hours: 24)).subtract(const Duration(milliseconds: 1));
+    return !now.isBefore(start) && !now.isAfter(end);
+  }
+
+  /// Drift watch crossed the ongoing boundary: enter or leave live mode.
+  void _onOngoingChanged(bool hasOngoing) {
+    if (hasOngoing == _hasOngoing) {
+      // No boundary crossed, but this may still be the first emission from
+      // the watch — without it, idle (never-live) accounts would never flip
+      // `_initialized` and the home skeleton would spin forever.
+      if (!_initialized) {
+        _initialized = true;
+        notifyListeners();
+      }
+      return;
+    }
+    _hasOngoing = hasOngoing;
+    if (hasOngoing) {
+      _enterLiveMode();
+    } else {
+      _leaveLiveMode();
+    }
+  }
+
+  void _enterLiveMode() {
+    _refresh();
+    _subscribeLiveRealtime();
+    // Safety net in case a Realtime socket is dropped in the background.
+    _safetyTimer ??= Timer.periodic(const Duration(seconds: 60), (_) => _refresh());
+  }
+
+  void _leaveLiveMode() {
+    _teardownLiveRealtime();
+    _safetyTimer?.cancel();
+    _safetyTimer = null;
+    _debounce?.cancel();
+    _debounce = null;
+    // Clear stale live state; surface the next upcoming event instead.
+    _refresh();
+  }
+
+  void _subscribeLiveRealtime() {
+    final userId = _userId;
+    if (userId == null || _liveChannels.isNotEmpty) return;
+    final client = Supabase.instance.client;
+    for (final table in _liveTables) {
+      final channel = client
+          .channel('live:$table:user=$userId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: table,
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: userId,
+            ),
+            callback: (_) => _scheduleRefresh(),
+          )
+          .subscribe();
+      _liveChannels.add(channel);
+    }
+  }
+
+  void _teardownLiveRealtime() {
+    for (final channel in _liveChannels) {
+      channel.unsubscribe();
+    }
+    _liveChannels.clear();
+  }
+
+  /// Coalesces a burst of Realtime row events (e.g. several captures landing
+  /// at once) into a single /live-session refresh.
+  void _scheduleRefresh() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 800), _refresh);
+  }
 
   Future<void> _refresh() async {
     _isLoadingLive = true;
@@ -148,7 +272,10 @@ class LiveEventProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    _ongoingWatch?.cancel();
+    _safetyTimer?.cancel();
+    _debounce?.cancel();
+    _teardownLiveRealtime();
     super.dispose();
   }
 }

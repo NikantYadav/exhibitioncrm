@@ -10,10 +10,10 @@ import '../providers/sync_provider.dart';
 import '../repositories/contact_events_repository.dart';
 import '../repositories/target_companies_repository.dart';
 import '../services/api_service.dart';
+import '../services/company_name_resolver.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
-import '../widgets/app_chip.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
@@ -182,6 +182,118 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   }
 
   Future<void> _importTargets() async {
+    await showAppSheet(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: _c.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.upload_file_outlined, color: _c.accent, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Import Target Companies', style: context.theme.typography.lg.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground)),
+                    Text('Upload a CSV or Excel file to bulk-add companies', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                  ]),
+                ),
+              ]),
+              const SizedBox(height: 24),
+              Text('Required columns', style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+              const SizedBox(height: 10),
+              _buildCsvFieldRow(
+                icon: Icons.business_outlined,
+                label: 'company_name',
+                description: 'Company name — required',
+                required: true,
+              ),
+              const SizedBox(height: 8),
+              _buildCsvFieldRow(
+                icon: Icons.location_on_outlined,
+                label: 'booth_number',
+                description: 'Booth / stand number — optional',
+                required: false,
+              ),
+              const SizedBox(height: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ColoredBox(
+                  color: _c.surfaceAlt,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Example', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.mutedForeground, letterSpacing: 0.8)),
+                      const SizedBox(height: 8),
+                      Text(
+                        'company_name,booth_number\nAcme Corp,A-12\nGlobex,\nInitech,Hall 3 B04',
+                        style: context.theme.typography.xs.copyWith(
+                          fontFamily: 'monospace',
+                          color: context.theme.colors.foreground,
+                          height: 1.6,
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              AppButton(
+                label: 'CHOOSE FILE',
+                fullWidth: true,
+                variant: ButtonVariant.primary,
+                prefixIcon: const Icon(Icons.folder_open_outlined, size: 18),
+                onPressed: () async {
+                  Navigator.of(sheetCtx).pop();
+                  await _pickAndUploadCsv();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCsvFieldRow({required IconData icon, required String label, required String description, required bool required}) {
+    return Row(children: [
+      Icon(icon, size: 16, color: required ? _c.accent : context.theme.colors.mutedForeground),
+      const SizedBox(width: 10),
+      Expanded(
+        child: RichText(
+          text: TextSpan(children: [
+            TextSpan(text: label, style: context.theme.typography.sm.copyWith(fontFamily: 'monospace', fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+            TextSpan(text: '  $description', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+          ]),
+        ),
+      ),
+      if (required)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: _c.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+          child: Text('required', style: context.theme.typography.xs.copyWith(color: _c.accent, fontWeight: FontWeight.w600)),
+        )
+      else
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: context.theme.colors.border.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4)),
+          child: Text('optional', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground, fontWeight: FontWeight.w600)),
+        ),
+    ]);
+  }
+
+  Future<void> _pickAndUploadCsv() async {
     FilePickerResult? result;
     try {
       result = await FilePicker.platform.pickFiles(
@@ -519,11 +631,25 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(name, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
-                if (jobTitle.isNotEmpty || companyName.isNotEmpty)
+                if (jobTitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
                   Text(
-                    [if (jobTitle.isNotEmpty) jobTitle, if (companyName.isNotEmpty) companyName].join(' · '),
-                    style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
+                    jobTitle,
+                    style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: context.theme.colors.mutedForeground,
+                    ),
                   ),
+                ],
+                if (companyName.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    companyName,
+                    style: context.theme.typography.xs.copyWith(
+                      color: _c.accent,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -716,7 +842,12 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   ),
                 )
               else
-                ...targets.map(_buildTargetRow),
+                ...targets.map((t) => _TargetCompanyTile(
+                  key: ValueKey(t.id),
+                  target: t,
+                  onManage: () => _openTargetDetail(t),
+                  onDelete: () => _deleteTarget(t),
+                )),
             ],
           ),
         );
@@ -724,64 +855,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     );
   }
 
-  Widget _buildTargetRow(TargetCompanyRow target) {
-    final companyName = target.companyName;
-    final booth = target.boothLocation;
-    return GestureDetector(
-      onTap: () => _openTargetDetail(target),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: context.theme.colors.border)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    companyName,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                AppButton(
-                  variant: ButtonVariant.ghost,
-                  size: ButtonSize.sm,
-                  onPressed: () => _deleteTarget(target),
-                  child: Icon(Icons.delete_outline, color: _c.destructive, size: 20),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                if (booth != null && booth.isNotEmpty)
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: AppChip.label('BOOTH $booth', ellipsis: true),
-                    ),
-                  )
-                else
-                  const Spacer(),
-                const SizedBox(width: 8),
-                AppButton(
-                  prefixIcon: Icon(Icons.open_in_new_rounded, size: 14),
-                  label: 'MANAGE',
-                  variant: ButtonVariant.outline,
-                  size: ButtonSize.sm,
-                  onPressed: () => _openTargetDetail(target),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Future<void> _showAddTargetDialog() async {
     String searchQuery = '';
@@ -844,14 +917,22 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                                 itemCount: companies.length + (searchQuery.isNotEmpty ? 1 : 0),
                                 itemBuilder: (_, i) {
                                   if (searchQuery.isNotEmpty && i == companies.length) {
-                                    return ListTile(
-                                      leading: Icon(Icons.add_circle_outline, color: _c.accent),
-                                      title: Text('Create "$searchQuery"', style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w500)),
-                                      subtitle: Text('Add as new company', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                                    return GestureDetector(
                                       onTap: () {
                                         Navigator.of(sheetCtx).pop();
                                         _showCreateCompanyDialog(searchQuery);
                                       },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                        child: Row(children: [
+                                          Icon(Icons.add_circle_outline, color: _c.accent, size: 22),
+                                          const SizedBox(width: 12),
+                                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                            Text('Create "$searchQuery"', style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w500)),
+                                            Text('Add as new company', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                                          ])),
+                                        ]),
+                                      ),
                                     );
                                   }
                                   final co = companies[i];
@@ -962,6 +1043,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   Future<void> _addCompanyAsTarget(Map<String, dynamic> company, String? booth) async {
     try {
       await ApiService.addEventTarget(widget.event.id, company['id'] as String, boothLocation: booth);
+      // Persist the company locally so the target tile shows its name (the
+      // reference-based /sync may not deliver a company whose row predates the
+      // sync cursor; the resolver fetches the full row via GET /companies/:id
+      // and stores it). Best-effort — the tile also resolves it on render.
+      await CompanyNameResolver.resolve(company['id'] as String?);
       await _targetsRepo.catchUp();
       if (mounted) showAppToast(context, '${company['name']} added to target list.');
     } on UnauthorizedException { rethrow; } catch (_) {
@@ -1114,6 +1200,120 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _TargetCompanyTile extends StatefulWidget {
+  final TargetCompanyRow target;
+  final VoidCallback onManage;
+  final VoidCallback onDelete;
+
+  const _TargetCompanyTile({super.key, required this.target, required this.onManage, required this.onDelete});
+
+  @override
+  State<_TargetCompanyTile> createState() => _TargetCompanyTileState();
+}
+
+class _TargetCompanyTileState extends State<_TargetCompanyTile> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppTheme.colorsOf(context);
+    final companyId = widget.target.target.companyId;
+    final cachedName = CompanyNameResolver.cached(companyId) ?? widget.target.companyName;
+    final booth = widget.target.boothLocation;
+    final initials = cachedName.length >= 2 ? cachedName.substring(0, 2).toUpperCase() : cachedName.toUpperCase();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: ColoredBox(
+          color: c.surfaceAlt,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  child: Row(
+                    children: [
+                      AppAvatar(initials: initials, size: 36),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CompanyName(
+                              companyId: companyId,
+                              fallback: cachedName,
+                              overflow: TextOverflow.ellipsis,
+                              style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground),
+                            ),
+                            if (booth != null && booth.isNotEmpty)
+                              Text(
+                                'Booth $booth',
+                                style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      AnimatedRotation(
+                        turns: _expanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: AppTheme.colorsOf(context).accent),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              AnimatedCrossFade(
+                duration: const Duration(milliseconds: 200),
+                crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                firstChild: const SizedBox(width: double.infinity),
+                secondChild: Column(
+                  children: [
+                    Container(height: 1, color: context.theme.colors.border),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: AppButton(
+                              prefixIcon: const Icon(Icons.delete_outline, size: 16),
+                              label: 'Delete',
+                              variant: ButtonVariant.destructive,
+                              size: ButtonSize.sm,
+                              fullWidth: true,
+                              onPressed: widget.onDelete,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: AppButton(
+                              prefixIcon: const Icon(Icons.open_in_new_rounded, size: 14),
+                              label: 'MANAGE',
+                              variant: ButtonVariant.primary,
+                              size: ButtonSize.sm,
+                              fullWidth: true,
+                              onPressed: widget.onManage,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

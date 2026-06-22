@@ -107,6 +107,49 @@ class AppButton extends StatelessWidget {
       return btn;
     }
 
+    // Destructive variant: force solid red fill + white text. The forui
+    // destructive style uses the theme's muted error colors (pink bg / red
+    // text), which reads too soft for a delete action.
+    if (variant == ButtonVariant.destructive) {
+      return Builder(builder: (ctx) {
+        final t = ctx.theme;
+        const bg = Colors.red;
+        const fg = Colors.white;
+        Widget content;
+        if (_isLoading) {
+          content = const SizedBox(width: 16, height: 16, child: FCircularProgress());
+        } else if (prefixIcon != null) {
+          content = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconTheme(data: const IconThemeData(color: fg, size: 16), child: prefixIcon!),
+              const SizedBox(width: 6),
+              Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg)),
+            ],
+          );
+        } else if (child != null) {
+          content = child!;
+        } else {
+          content = Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg));
+        }
+
+        final btn = GestureDetector(
+          onTap: _isLoading ? null : onPressed,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(child: content),
+          ),
+        );
+
+        if (fullWidth) return SizedBox(width: double.infinity, child: btn);
+        return btn;
+      });
+    }
+
     // Ghost variant: FButton.ghost renders white text on light backgrounds.
     // Render manually so the text always uses mutedForeground — readable on any bg.
     if (variant == ButtonVariant.ghost) {

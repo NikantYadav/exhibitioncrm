@@ -28,10 +28,11 @@ import 'screens/voice_contact_capture_screen.dart';
 /// that were pushed onto the shell navigator before switching tabs.
 final shellNavigatorKey = GlobalKey<NavigatorState>();
 
-GoRouter buildRouter(AuthProvider auth) {
+GoRouter buildRouter(AuthProvider auth, {List<NavigatorObserver>? observers}) {
   return GoRouter(
     initialLocation: kIsWeb ? '/' : '/splash',
     refreshListenable: auth,
+    observers: observers ?? [],
     redirect: (context, state) {
       final loggedIn = auth.isAuthenticated;
       final onboarded = auth.onboardingCompleted;

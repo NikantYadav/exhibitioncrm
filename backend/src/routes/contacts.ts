@@ -8,6 +8,15 @@ const router = Router();
 // Apply auth middleware to all routes in this file
 router.use(requireAuth);
 
+// Strips spaces/dashes/etc, keeping a leading "+" (country code marker), so
+// scanned numbers ("+91-9876543210") match manually typed ones during
+// duplicate detection and stay consistent when stored.
+function normalizePhone(phone: string): string {
+  const hasPlus = phone.trim().startsWith('+');
+  const digits = phone.replace(/\D/g, '');
+  return hasPlus ? `+${digits}` : digits;
+}
+
 // GET /api/contacts
 router.get('/', async (req, res, next) => {
   try {
@@ -49,15 +58,18 @@ router.post('/check-duplicate', async (req, res, next) => {
       .from('contacts')
       .select('*, company:companies(*)')
       .eq('user_id', req.user!.id)
-      .is('deleted_at', null)
-      .limit(5);
+      .is('deleted_at', null);
 
-    if (email && phone) {
-      query = query.or(`email.eq.${email},phone.eq.${phone}`);
+    const normalizedPhone = phone ? normalizePhone(phone) : undefined;
+
+    if (email && normalizedPhone) {
+      // Phone is compared in app code below (stored numbers may contain
+      // spaces/dashes), so the query only needs to narrow by email here.
+      query = query.or(`email.eq.${email},phone.not.is.null`);
     } else if (email) {
       query = query.eq('email', email);
-    } else if (phone) {
-      query = query.eq('phone', phone);
+    } else if (normalizedPhone) {
+      query = query.not('phone', 'is', null);
     } else if (name) {
       const nameParts = name.trim().split(/\s+/);
       const firstName = nameParts[0];
@@ -69,11 +81,20 @@ router.post('/check-duplicate', async (req, res, next) => {
       }
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(name && !email && !normalizedPhone ? 5 : 200);
 
     if (error) throw error;
 
-    const matches = data || [];
+    let matches = data || [];
+
+    if (normalizedPhone) {
+      matches = matches.filter((c: any) =>
+        (c.email && email && c.email === email) ||
+        (c.phone && normalizePhone(c.phone) === normalizedPhone)
+      );
+      matches = matches.slice(0, 5);
+    }
+
     res.json({ data: matches, has_duplicates: matches.length > 0 });
   } catch (error) {
     next(error);
@@ -153,7 +174,7 @@ router.post('/', async (req, res, next) => {
         first_name: body.first_name,
         last_name: body.last_name,
         email: body.email,
-        phone: body.phone,
+        phone: body.phone ? normalizePhone(body.phone) : body.phone,
         job_title: body.job_title,
         linkedin_url: body.linkedin_url,
         company_id,
@@ -223,6 +244,10 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const { company_name, ...contactFields } = req.body;
 
+    if (contactFields.phone) {
+      contactFields.phone = normalizePhone(contactFields.phone);
+    }
+
     if (company_name !== undefined) {
       const normalizedName = (company_name as string).trim() || 'INDEPENDENT';
 
@@ -264,6 +289,10 @@ router.patch('/:id', async (req, res, next) => {
 // PUT /api/contacts/:id
 router.put('/:id', async (req, res, next) => {
   try {
+    if (req.body.phone) {
+      req.body.phone = normalizePhone(req.body.phone);
+    }
+
     const { data, error } = await supabase
       .from('contacts')
       .update(req.body)

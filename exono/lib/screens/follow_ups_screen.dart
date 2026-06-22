@@ -348,7 +348,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                 AppInput(
                   hint: 'Search events...',
                   controller: searchCtrl,
-                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: ctx.theme.colors.mutedForeground),
+                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: AppTheme.colorsOf(ctx).accent),
                   onChanged: (_) => setSheet(() {}),
                 ),
                 const SizedBox(height: 12),
@@ -447,9 +447,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
         bottom: false,
         child: Column(
           children: [
-            FHeader(
+            FHeader.nested(
               title: const SizedBox.shrink(),
-              suffixes: [
+              prefixes: [
                 AppHeaderActionButton(
                   icon: Icons.arrow_back_rounded,
                   onPressed: () => widget.event != null || widget.eventId != null

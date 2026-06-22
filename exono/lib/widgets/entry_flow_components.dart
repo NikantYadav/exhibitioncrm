@@ -131,7 +131,7 @@ class EntryThemeToggleButton extends StatelessWidget {
         icon: Icon(
           theme.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
           size: 20,
-          color: colors.textPrimary,
+          color: colors.accent,
         ),
         style: IconButton.styleFrom(
           backgroundColor: colors.surface.withValues(alpha: colors.isDark ? 0.92 : 0.98),
@@ -439,7 +439,7 @@ class EntryBullet extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: colors.border),
           ),
-          child: Icon(Icons.check_rounded, size: 14, color: colors.accentStrong),
+          child: Icon(Icons.check_rounded, size: 14, color: colors.success),
         ),
         const SizedBox(width: 12),
         Expanded(

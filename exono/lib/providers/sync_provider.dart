@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import '../db/app_database.dart';
+import '../services/api_service.dart';
+import '../services/company_name_resolver.dart';
 import '../repositories/captures_repository.dart';
 import '../repositories/companies_repository.dart';
 import '../repositories/contact_events_repository.dart';
@@ -53,6 +55,8 @@ class SyncProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   SyncProvider() {
     WidgetsBinding.instance.addObserver(this);
+    // Let the direct-API company-name resolver persist fetched rows locally.
+    CompanyNameResolver.repo = companies;
   }
 
   /// Runs catchUp on every repository (companies first, since contacts and
@@ -61,10 +65,7 @@ class SyncProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// the same user (e.g. on resume) — catchUp is idempotent.
   Future<void> start(String userId) async {
     _userId = userId;
-    await companies.catchUp();
-    for (final repo in _realtimeRepos) {
-      await repo.catchUp();
-    }
+    await catchUpAll();
     if (!_started) {
       for (final repo in _realtimeRepos) {
         repo.subscribeRealtime(userId);
@@ -76,10 +77,40 @@ class SyncProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// Re-syncs without touching Realtime subscriptions — call on app resume.
   Future<void> resume() async {
     if (_userId == null) return;
-    await companies.catchUp();
-    for (final repo in _realtimeRepos) {
-      await repo.catchUp();
+    await catchUpAll();
+  }
+
+  /// Fetches every synced table (plus `companies`) in a single `/sync`
+  /// request and distributes each table's delta to its repository. Replaces
+  /// the old per-repo loop that fired one HTTP request per table.
+  ///
+  /// One request needs one `since`. Each table keeps its own watermark in
+  /// `sync_state`; we use the oldest across all tables so none misses a
+  /// change. Tables already past that point harmlessly re-receive a few rows
+  /// — `_upsertOne`'s last-write-wins guard drops anything not newer.
+  Future<void> catchUpAll() async {
+    final watermarks = await Future.wait([
+      companies.lastSyncedAt(),
+      ..._realtimeRepos.map((r) => r.lastSyncedAt()),
+    ]);
+
+    // Oldest watermark; null (never synced) forces a full pull from epoch 0.
+    String? since;
+    if (!watermarks.contains(null)) {
+      since = watermarks.whereType<String>().reduce((a, b) => a.compareTo(b) <= 0 ? a : b);
     }
+
+    final tables = [..._realtimeRepos.map((r) => r.tableName), companies.tableName].join(',');
+    final response = await ApiService.getSyncDelta(since: since, tables: tables);
+    final serverTime = response['server_time'] as String;
+    final data = response['data'] as Map<String, dynamic>;
+
+    for (final repo in _realtimeRepos) {
+      await repo.applyTableDelta(data[repo.tableName] as Map<String, dynamic>?);
+      await repo.storeLastSyncedAt(serverTime);
+    }
+    await companies.applyTableDelta(data[companies.tableName] as Map<String, dynamic>?);
+    await companies.storeLastSyncedAt(serverTime);
   }
 
   /// Closes Realtime subscriptions and wipes the local cache. Call on logout.

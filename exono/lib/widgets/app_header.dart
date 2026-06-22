@@ -176,7 +176,7 @@ class AppHeaderActionButton extends StatelessWidget {
           border: Border.all(color: context.theme.colors.border, width: 1.5),
         ),
         alignment: Alignment.center,
-        child: Icon(icon, size: 18, color: context.theme.colors.foreground),
+        child: Icon(icon, size: 18, color: AppTheme.colorsOf(context).accent),
       ),
     );
   }
@@ -201,7 +201,7 @@ class _HeaderActionFHeaderAction extends StatelessWidget {
           border: Border.all(color: context.theme.colors.border, width: 1.5),
         ),
         alignment: Alignment.center,
-        child: Icon(icon, size: 18, color: context.theme.colors.foreground),
+        child: Icon(icon, size: 18, color: AppTheme.colorsOf(context).accent),
       ),
     );
   }
@@ -235,7 +235,7 @@ class _NotificationBell extends StatelessWidget {
               child: Icon(
                 Icons.notifications_rounded,
                 size: 18,
-                color: context.theme.colors.foreground,
+                color: AppTheme.colorsOf(context).accent,
               ),
             ),
             if (count > 0)

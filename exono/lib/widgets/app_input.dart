@@ -26,6 +26,15 @@ class AppInput extends StatelessWidget {
   final String? labelText;
   final String? hintText;
   final TextCapitalization textCapitalization;
+  /// Strips the field's border/fill/content padding so it reads as plain
+  /// editable text — for inline edit-in-place rows already inside a card
+  /// (e.g. a list row that supplies its own background/border).
+  final bool bare;
+
+  /// Value text style for [bare] mode (the typed/value text). Defaults to the
+  /// theme's foreground at the default field size. Pass to match a design's
+  /// value prominence (e.g. `context.theme.typography.lg`).
+  final TextStyle? bareTextStyle;
 
   const AppInput({
     super.key,
@@ -52,6 +61,8 @@ class AppInput extends StatelessWidget {
     this.labelText,
     this.hintText,
     this.textCapitalization = TextCapitalization.none,
+    this.bare = false,
+    this.bareTextStyle,
   });
 
   @override
@@ -67,6 +78,38 @@ class AppInput extends StatelessWidget {
     return FTextField(
       autofocus: autofocus,
       control: control,
+      style: bare
+          ? FTextFieldStyleDelta.delta(
+              border: FVariantsValueDelta.delta([
+                FVariantValueDeltaOperation.all(InputBorder.none),
+              ]),
+              // base must be null (not transparent) so InputDecorator's
+              // `filled` resolves false and draws no container at all.
+              color: FVariantsValueDelta.delta([
+                FVariantValueDeltaOperation.all(null),
+              ]),
+              contentPadding:
+                  EdgeInsetsGeometryDelta.value(EdgeInsets.zero),
+              contentTextStyle: bareTextStyle != null
+                  ? FVariantsDelta.delta([
+                      FVariantOperation.all(
+                        TextStyleDelta.value(bareTextStyle!),
+                      ),
+                    ])
+                  : null,
+              hintTextStyle: bareTextStyle != null
+                  ? FVariantsDelta.delta([
+                      FVariantOperation.all(
+                        TextStyleDelta.value(
+                          bareTextStyle!.copyWith(
+                            color: context.theme.colors.mutedForeground,
+                          ),
+                        ),
+                      ),
+                    ])
+                  : null,
+            )
+          : const FTextFieldStyleDelta.context(),
       label: resolvedLabel != null ? Text(resolvedLabel) : null,
       hint: resolvedHint,
       textCapitalization: textCapitalization,

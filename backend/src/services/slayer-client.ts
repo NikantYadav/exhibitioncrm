@@ -28,15 +28,21 @@ const ALLOWED_MODELS = [
   'captures', 'companies', 'interactions',
   'messages', 'conversations', 'attachments',
   'contact_documents', 'user_profiles',
-  'target_companies',
+  'target_companies', 'event_goals',
   'message_attachments',
 ] as const;
 
 type AllowedModel = typeof ALLOWED_MODELS[number];
 
 // Tables that carry user_id — the authenticated user's ownership filter is injected for these
-const USER_ID_TABLES = new Set<string>([
+export const USER_ID_TABLES = new Set<string>([
   'contacts', 'events', 'user_profiles', 'captures', 'conversations', 'messages',
+]);
+
+// Tables with soft deletes — deleted_at IS NULL is always injected so the LLM never sees deleted rows
+const SOFT_DELETE_TABLES = new Set<string>([
+  'contacts', 'events', 'captures', 'companies', 'interactions',
+  'email_drafts', 'target_companies', 'event_goals',
 ]);
 
 // ─── Zod schema for SlayerQuery ───────────────────────────────────────────────
@@ -75,20 +81,41 @@ export interface SlayerResponse {
 // ─── Ownership injection ──────────────────────────────────────────────────────
 
 /**
+ * Repair common malformations the LLM introduces into a filter string.
+ * Small models (gemini flash-lite) frequently leak JSON-array punctuation into
+ * the individual filter values — e.g. emitting `start_date < '2026-06-22T00:00:00Z']`
+ * with a stray trailing `]`, or wrapping a value in extra brackets/quotes. Slayer
+ * rejects these with a 400 "unmatched ']'" syntax error, which otherwise surfaces
+ * to the user as a hard failure. We strip the obvious leaked punctuation here.
+ */
+function sanitiseFilter(raw: string): string {
+  let f = raw.trim();
+  // Strip array/object brackets that leaked onto the ends of a single filter value.
+  f = f.replace(/[[\]]+$/g, '').replace(/^[[\]]+/g, '');
+  // Re-trim and drop a dangling trailing comma the model sometimes appends.
+  f = f.trim().replace(/,+$/g, '').trim();
+  return f;
+}
+
+/**
  * Strip any user_id filters the LLM may have hallucinated,
  * then inject the real authenticated user's ownership filter.
  */
 function applyOwnership(query: SlayerQuery, userId: string): SlayerQuery {
-  // Strip LLM-hallucinated ownership filters
-  const cleanFilters = (query.filters ?? []).filter(
-    (f) => !/\buser_id\s*=/i.test(f)
-  );
+  // Strip LLM-hallucinated ownership filters; repair leaked JSON punctuation.
+  const cleanFilters = (query.filters ?? [])
+    .map(sanitiseFilter)
+    .filter((f) => f.length > 0 && !/\buser_id\s*=/i.test(f));
 
-  if (USER_ID_TABLES.has(query.source_model as AllowedModel)) {
-    return { ...query, filters: [`user_id = '${userId}'`, ...cleanFilters] };
-  }
+  const withOwnership = USER_ID_TABLES.has(query.source_model as AllowedModel)
+    ? [`user_id = '${userId}'`, ...cleanFilters]
+    : cleanFilters;
 
-  return { ...query, filters: cleanFilters };
+  const withSoftDelete = SOFT_DELETE_TABLES.has(query.source_model as AllowedModel)
+    ? [`deleted_at IS NULL`, ...withOwnership]
+    : withOwnership;
+
+  return { ...query, filters: withSoftDelete };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -146,4 +173,38 @@ export async function slayerListModels(): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Fetch the non-hidden column names for one Slayer model.
+ * GET /models/{name} already filters out hidden columns server-side.
+ * Returns [] on any failure so callers can degrade gracefully.
+ */
+export async function slayerGetModelColumns(model: string): Promise<string[]> {
+  try {
+    const res = await fetch(`${SLAYER_URL}/models/${encodeURIComponent(model)}`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { columns?: Array<{ name: string }> };
+    return (data.columns ?? []).map((c) => c.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Build a {model -> column names} map across every allowlisted model.
+ * Used to ground the LLM in the real schema so it never invents column
+ * names. Models that fail to load are simply omitted.
+ */
+export async function slayerSchemaMap(): Promise<Record<string, string[]>> {
+  const entries = await Promise.all(
+    ALLOWED_MODELS.map(async (m) => [m, await slayerGetModelColumns(m)] as const),
+  );
+  const map: Record<string, string[]> = {};
+  for (const [model, cols] of entries) {
+    if (cols.length > 0) map[model] = cols;
+  }
+  return map;
 }

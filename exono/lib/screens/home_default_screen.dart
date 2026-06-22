@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
@@ -36,11 +38,13 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
 
   int? _followUpsDue;
 
+  StreamSubscription? _eventsSub;
+
   @override
   void initState() {
     super.initState();
     captureReturnSignalHome.addListener(_onCaptureReturn);
-    _loadUpcomingEvents();
+    _subscribeUpcomingEvents();
     _loadPriorities();
   }
 
@@ -54,6 +58,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
   @override
   void dispose() {
     captureReturnSignalHome.removeListener(_onCaptureReturn);
+    _eventsSub?.cancel();
     super.dispose();
   }
 
@@ -84,17 +89,18 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     }
   }
 
-  Future<void> _loadUpcomingEvents() async {
-    final rows = await context.read<SyncProvider>().events.watchAll().first;
-    if (!mounted) return;
-    final all = rows.map(Event.fromDrift).toList();
-    final upcoming = all
-        .where((e) => e.status == 'upcoming')
-        .toList()
-      ..sort((a, b) => a.startDate.compareTo(b.startDate));
-    setState(() {
-      _upcomingEvents = upcoming.take(3).toList();
-      _eventsLoaded = true;
+  void _subscribeUpcomingEvents() {
+    _eventsSub = context.read<SyncProvider>().events.watchAll().listen((rows) {
+      if (!mounted) return;
+      final all = rows.map(Event.fromDrift).toList();
+      final upcoming = all
+          .where((e) => e.status == 'upcoming')
+          .toList()
+        ..sort((a, b) => a.startDate.compareTo(b.startDate));
+      setState(() {
+        _upcomingEvents = upcoming.take(3).toList();
+        _eventsLoaded = true;
+      });
     });
   }
 
@@ -104,16 +110,6 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     if (hour < 12) return 'Good Morning';
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
-  }
-
-  String _relativeDays(DateTime date) {
-    final today = DateTime.now();
-    final diff = date.difference(DateTime(today.year, today.month, today.day)).inDays;
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Tomorrow';
-    if (diff < 7) return 'in $diff days';
-    if (diff < 14) return 'next week';
-    return 'in ${(diff / 7).round()} weeks';
   }
 
   @override
@@ -140,12 +136,14 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
                   color: _c.accent,
                   backgroundColor: context.theme.colors.background,
                   onRefresh: () async {
+                    final offline = context.read<OfflineProvider>();
+                    final sync = context.read<SyncProvider>();
                     // Re-verify connectivity first so the offline/sync badge
                     // updates immediately on pull-to-refresh.
-                    await context.read<OfflineProvider>().recheckConnectivity();
+                    await offline.recheckConnectivity();
                     await Future.wait([
                       lep.refresh(),
-                      _loadUpcomingEvents(),
+                      sync.resume(),
                       _loadPriorities(),
                     ]);
                   },
@@ -259,8 +257,6 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
             '${_greeting()}, $firstName',
             style: context.theme.typography.xl2.copyWith(fontWeight: FontWeight.w700, letterSpacing: -1.0, color: context.theme.colors.foreground, height: 1.1),
           ),
-          const SizedBox(height: 6),
-          _buildContextLine(lep),
           const SizedBox(height: 28),
           AppButton(
             label: 'LOG INTERACTION',
@@ -443,25 +439,6 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     );
   }
 
-  // ── Context line ──────────────────────────────────────────────────────────
-
-  Widget _buildContextLine(LiveEventProvider lep) {
-    final next = lep.nextEvent;
-    if (next != null) {
-      return GestureDetector(
-        onTap: () => _openEvent(next),
-        child: Row(children: [
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: _c.accent, shape: BoxShape.circle)),
-          const SizedBox(width: 8),
-          Expanded(child: Text('Next: ${next.name}  ·  ${_relativeDays(next.startDate)}',
-              style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4), overflow: TextOverflow.ellipsis)),
-          Icon(Icons.chevron_right_rounded, size: 16, color: context.theme.colors.mutedForeground),
-        ]),
-      );
-    }
-    return Text('No upcoming events scheduled.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4));
-  }
-
   // ── Priority tiles ────────────────────────────────────────────────────────
 
   Widget _buildPriorityTile({required IconData icon, required String value, required String label, required VoidCallback onTap}) {
@@ -477,14 +454,17 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
             child: Icon(icon, color: _c.accent, size: 20),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value, style: context.theme.typography.xl2.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground, height: 1)),
-              const SizedBox(height: 4),
-              Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.mutedForeground)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value, style: context.theme.typography.xl2.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground, height: 1)),
+                const SizedBox(height: 4),
+                Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.mutedForeground)),
+              ],
+            ),
           ),
+          Icon(Icons.chevron_right_rounded, size: 18, color: _c.accent),
         ]),
       ),
     );
@@ -527,7 +507,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
               ],
             ),
           ),
-          Icon(Icons.chevron_right_rounded, size: 18, color: context.theme.colors.mutedForeground),
+          Icon(Icons.chevron_right_rounded, size: 18, color: _c.accent),
         ]),
       ),
     );
@@ -559,7 +539,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           Icon(Icons.calendar_today_outlined, color: _c.accent, size: 20),
           const SizedBox(width: 12),
           Expanded(child: Text('No upcoming events. Tap to add one.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.4))),
-          Icon(Icons.chevron_right_rounded, size: 18, color: context.theme.colors.mutedForeground),
+          Icon(Icons.chevron_right_rounded, size: 18, color: _c.accent),
         ]),
       ),
     );
@@ -698,7 +678,7 @@ class _SyncSection extends StatelessWidget {
                     child: FittedBox(fit: BoxFit.contain, child: FCircularProgress()),
                   )
                 else
-                  Icon(Icons.chevron_right_rounded, color: context.theme.colors.mutedForeground),
+                  Icon(Icons.chevron_right_rounded, size: 18, color: c.accent),
               ],
             ),
           ),

@@ -11,6 +11,7 @@ import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
@@ -149,11 +150,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
       ),
       child: Row(
         children: [
-          AppButton(
+          AppHeaderActionButton(
+            icon: Icons.arrow_back_rounded,
             onPressed: () => context.go('/'),
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.sm,
-            child: Icon(Icons.arrow_back_rounded, color: context.theme.colors.foreground, size: 20),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -481,34 +480,29 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
           ),
         ),
         const SizedBox(height: 8),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: _toneOptions.map((tone) {
             final active = _aiTone == tone;
-            final isLast = tone == _toneOptions.last;
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(right: isLast ? 0 : 8),
-                child: GestureDetector(
-                  onTap: () => setState(() => _aiTone = tone),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: active ? _c.accent : _c.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: active ? _c.accent : context.theme.colors.border,
-                        width: active ? 1.5 : 1,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      tone[0].toUpperCase() + tone.substring(1),
-                      style: context.theme.typography.xs.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: active ? Colors.white : context.theme.colors.secondaryForeground,
-                      ),
-                    ),
+            return GestureDetector(
+              onTap: () => setState(() => _aiTone = tone),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: active ? _c.accent : _c.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: active ? _c.accent : context.theme.colors.border,
+                    width: active ? 1.5 : 1,
+                  ),
+                ),
+                child: Text(
+                  tone[0].toUpperCase() + tone.substring(1),
+                  style: context.theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: active ? Colors.white : context.theme.colors.foreground,
                   ),
                 ),
               ),
@@ -661,7 +655,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, size: 18, color: context.theme.colors.mutedForeground),
+            Icon(Icons.chevron_right_rounded, size: 18, color: _c.accent),
           ],
         ),
       ),

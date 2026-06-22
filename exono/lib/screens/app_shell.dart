@@ -35,9 +35,21 @@ const _navBarPaths = {'/', '/events', '/contacts', '/profile', '/chat-history', 
 // Paths where bottom nav + live bar should be hidden
 bool _isNoNavPath(String location) => location == '/chat' || location.startsWith('/chat?') || location.startsWith('/chat/');
 
-/// Lets a descendant screen (e.g. an in-page detail view that lives on an
-/// allowed route) temporarily hide the shell's bottom nav bar.
+/// Counts open sheets/overlays — nav bar is hidden whenever count > 0.
+/// Using a counter instead of a bool prevents sequential sheets from
+/// accidentally resetting to visible between open/close transitions.
+int _navHideCount = 0;
 final ValueNotifier<bool> appNavBarHidden = ValueNotifier<bool>(false);
+
+void navBarHide() {
+  _navHideCount++;
+  appNavBarHidden.value = true;
+}
+
+void navBarShow() {
+  _navHideCount = (_navHideCount - 1).clamp(0, 99);
+  if (_navHideCount == 0) appNavBarHidden.value = false;
+}
 
 /// Incremented each time the capture screen is popped — listeners can refresh.
 final ValueNotifier<int> captureReturnSignal = ValueNotifier<int>(0);
@@ -201,7 +213,7 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
             mainAxisAlignment: _sidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
               Icon(_sidebarCollapsed ? Icons.menu_open_rounded : Icons.menu_rounded,
-                  size: 18, color: context.theme.colors.mutedForeground),
+                  size: 18, color: _c.accent),
               if (!_sidebarCollapsed) ...[
                 const SizedBox(width: 10),
                 Text('Collapse', style: context.theme.typography.sm.copyWith(

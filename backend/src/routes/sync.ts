@@ -43,19 +43,25 @@ router.get('/', async (req, res) => {
 
     const data: Record<string, TableDelta> = {};
 
-    for (const table of tables) {
-      const { data: rows, error } = await supabase
-        .from(table)
-        .select('*')
-        .eq('user_id', userId)
-        .gt('updated_at', since)
-        .order('updated_at', { ascending: true });
+    // Fetch every requested table in parallel. Previously this was a serial
+    // `for await` loop — 9 sequential round-trips to the Supabase REST gateway,
+    // which dominated latency (~6s). Parallel collapses it to ~1 round-trip.
+    const tableResults = await Promise.all(
+      tables.map(async (table) => {
+        const { data: rows, error } = await supabase
+          .from(table)
+          .select('*')
+          .eq('user_id', userId)
+          .gt('updated_at', since)
+          .order('updated_at', { ascending: true });
+        if (error) throw error;
+        return { table, rows: rows ?? [] };
+      })
+    );
 
-      if (error) throw error;
-
-      const upserts = (rows ?? []).filter((r: any) => r.deleted_at == null);
-      const deletedIds = (rows ?? []).filter((r: any) => r.deleted_at != null).map((r: any) => r.id);
-
+    for (const { table, rows } of tableResults) {
+      const upserts = rows.filter((r: any) => r.deleted_at == null);
+      const deletedIds = rows.filter((r: any) => r.deleted_at != null).map((r: any) => r.id);
       data[table] = { upserts, deleted_ids: deletedIds };
     }
 

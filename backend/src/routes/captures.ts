@@ -150,6 +150,11 @@ router.post('/', async (req, res, next) => {
         }
       }
 
+      // Collect extra scanned fields not mapped to standard columns
+      const scannedDetails = extracted_data.scanned_details && Object.keys(extracted_data.scanned_details).length > 0
+        ? extracted_data.scanned_details
+        : null;
+
       // Create contact
       const { data: contact, error: contactError } = await supabase
         .from('contacts')
@@ -164,7 +169,8 @@ router.post('/', async (req, res, next) => {
           company_id: companyId,
           notes: `${raw_text}\n\n[System Note: Captured at ${eventName}]`,
           follow_up_status: 'not_contacted',
-          follow_up_urgency: null
+          follow_up_urgency: null,
+          ...(scannedDetails ? { scanned_details: scannedDetails } : {}),
         })
         .select()
         .single();

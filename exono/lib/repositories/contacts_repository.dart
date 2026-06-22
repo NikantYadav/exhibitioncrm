@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../db/app_database.dart';
 import '../models/contact.dart' as model;
+import '../services/company_name_resolver.dart';
 import 'synced_repository.dart';
 
 class ContactsRepository extends SyncedRepository<ContactsTableData, $ContactsTableTable> {
@@ -39,6 +40,9 @@ class ContactsRepository extends SyncedRepository<ContactsTableData, $ContactsTa
       if (row == null) return null;
       final contactRow = row.readTable(db.contactsTable);
       final companyRow = row.readTableOrNull(db.companiesTable);
+      if (companyRow == null && contactRow.companyId != null) {
+        CompanyNameResolver.resolve(contactRow.companyId);
+      }
       return model.Contact.fromDrift(
         contactRow,
         company: companyRow != null ? model.Company.fromDrift(companyRow) : null,
@@ -56,6 +60,9 @@ class ContactsRepository extends SyncedRepository<ContactsTableData, $ContactsTa
     return query.watch().map((rows) => rows.map((row) {
           final contactRow = row.readTable(db.contactsTable);
           final companyRow = row.readTableOrNull(db.companiesTable);
+          if (companyRow == null && contactRow.companyId != null) {
+            CompanyNameResolver.resolve(contactRow.companyId);
+          }
           return model.Contact.fromDrift(
             contactRow,
             company: companyRow != null ? model.Company.fromDrift(companyRow) : null,
@@ -88,6 +95,7 @@ class ContactsRepository extends SyncedRepository<ContactsTableData, $ContactsTa
           ? DateTime.parse(json['last_contacted_at'] as String)
           : null),
       contactAssetsJson: Value(encodeJson(json['contact_assets'])),
+      scannedDetailsJson: Value(encodeJson(json['scanned_details'])),
       aiInsightsJson: Value(encodeJson(json['ai_insights'])),
       aiContextSummary: Value(json['ai_context_summary'] as String?),
       createdAt: Value(json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : null),

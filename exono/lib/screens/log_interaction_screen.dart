@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
+import 'package:audioplayers/audioplayers.dart' show AudioPlayer, DeviceFileSource, UrlSource;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../widgets/app_feedback.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -53,7 +57,8 @@ class _LogInteractionSheet extends StatefulWidget {
   State<_LogInteractionSheet> createState() => _LogInteractionSheetState();
 }
 
-class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenLogger {
+class _LogInteractionSheetState extends State<_LogInteractionSheet>
+    with ScreenLogger, SingleTickerProviderStateMixin {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
   late final TextEditingController _modeController;
@@ -77,11 +82,21 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
   String? _recordingPath;
   double _amplitude = 0.0;
   StreamSubscription<Amplitude>? _ampSub;
+  late final AnimationController _waveCtrl;
+
+  // ── Playback of the recorded note ────────────────────────────────────────
+  final AudioPlayer _player = AudioPlayer();
+  bool _isPlaying = false;
+  StreamSubscription<void>? _playerCompleteSub;
 
   @override
   void initState() {
     super.initState();
     _modeController = TextEditingController(text: widget.initialMode ?? '');
+    _waveCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800))..repeat();
+    _playerCompleteSub = _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _isPlaying = false);
+    });
   }
 
   @override
@@ -91,25 +106,55 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
     _recTimer?.cancel();
     _ampSub?.cancel();
     _recorder.dispose();
+    _waveCtrl.dispose();
+    _playerCompleteSub?.cancel();
+    _player.dispose();
     super.dispose();
   }
 
   // ── Voice ──────────────────────────────────────────────────────────────────
 
   Future<void> _startRecording() async {
-    final status = await Permission.microphone.request();
-    if (status != PermissionStatus.granted) {
+    // Use the record plugin's own permission check — it requests the OS
+    // permission internally and stays consistent with the recorder's state.
+    // (Mixing this with permission_handler can leave the two out of sync.)
+    bool hasPermission;
+    try {
+      hasPermission = await _recorder.hasPermission();
+    } catch (e) {
+      debugPrint('[VOICE] hasPermission failed: $e');
+      hasPermission = false;
+    }
+    if (!hasPermission) {
       if (mounted) showAppToast(context, 'Microphone permission required');
       return;
     }
 
-    final dir = await getTemporaryDirectory();
-    _recordingPath = '${dir.path}/voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    // path_provider is not supported on web; record ignores the path on web
+    // anyway and returns a blob URL from stop().
+    final String targetPath;
+    if (kIsWeb) {
+      targetPath = 'voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    } else {
+      final dir = await getTemporaryDirectory();
+      targetPath = '${dir.path}/voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    }
 
-    await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 16000),
-      path: _recordingPath!,
-    );
+    // Browsers don't support AAC — use Opus (webm) on web.
+    final config = kIsWeb
+        ? const RecordConfig(encoder: AudioEncoder.opus)
+        : const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 16000);
+
+    try {
+      await _recorder.start(config, path: targetPath);
+    } catch (e) {
+      debugPrint('[VOICE] start failed: $e');
+      if (mounted) showAppToast(context, 'Could not start recording: $e');
+      return;
+    }
+    _recordingPath = targetPath;
+
+    HapticFeedback.mediumImpact();
 
     _ampSub = _recorder.onAmplitudeChanged(const Duration(milliseconds: 100)).listen((amp) {
       if (mounted) setState(() => _amplitude = ((amp.current + 60) / 60).clamp(0.0, 1.0));
@@ -119,14 +164,39 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
       if (mounted) setState(() => _recDuration += const Duration(seconds: 1));
     });
 
+    // Flip UI into the recording state immediately so the user sees feedback.
     setState(() { _isRecording = true; _recDuration = Duration.zero; });
   }
 
   Future<void> _stopRecording() async {
+    HapticFeedback.lightImpact();
     _recTimer?.cancel();
     _ampSub?.cancel();
-    await _recorder.stop();
+    // stop() returns the recording's location: a blob URL on web, the file
+    // path on native. Use it as the source of truth for reading bytes later.
+    final url = await _recorder.stop();
+    if (url != null) _recordingPath = url;
     setState(() { _isRecording = false; _amplitude = 0; });
+  }
+
+  Future<void> _togglePlayback() async {
+    if (_recordingPath == null) return;
+    if (_isPlaying) {
+      await _player.pause();
+      setState(() => _isPlaying = false);
+      return;
+    }
+    try {
+      if (kIsWeb) {
+        await _player.play(UrlSource(_recordingPath!));
+      } else {
+        await _player.play(DeviceFileSource(_recordingPath!));
+      }
+      setState(() => _isPlaying = true);
+    } catch (e) {
+      debugPrint('[VOICE] playback failed: $e');
+      if (mounted) showAppToast(context, 'Could not play recording');
+    }
   }
 
   String? get _effectiveContactId => widget.contactId ?? _pickedContactId;
@@ -136,8 +206,15 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
     setState(() => _isSaving = true);
 
     try {
-      // 1. Read audio file
-      final audioBytes = await File(_recordingPath!).readAsBytes();
+      // 1. Read audio bytes — on web the path is a blob URL fetched over http;
+      //    on native it is a real file path.
+      final Uint8List audioBytes;
+      if (kIsWeb) {
+        final resp = await http.get(Uri.parse(_recordingPath!));
+        audioBytes = resp.bodyBytes;
+      } else {
+        audioBytes = await File(_recordingPath!).readAsBytes();
+      }
       final base64Audio = base64Encode(audioBytes);
 
       // 2. Post the interaction immediately with placeholder summary
@@ -219,21 +296,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      builder: (context, child) {
-        final c = AppTheme.colorsOf(context);
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              surface: c.surfaceAlt,
-              primary: c.accent,
-              onPrimary: Colors.white,
-              onSurface: c.textSecondary,
-            ),
-            dialogTheme: DialogThemeData(backgroundColor: c.background),
-          ),
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
+      builder: AppTheme.datePickerBuilder,
     );
     if (picked != null) setState(() => _selectedDate = picked);
   }
@@ -493,37 +556,30 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
         const SizedBox(height: 28),
         Center(
           child: AppCard(
-            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
             radius: 20,
             child: Column(
               children: [
-                // Waveform visualiser — simple amplitude bars
-                SizedBox(
-                  height: 48,
-                  child: _isRecording
-                      ? _buildWaveform()
-                      : _recordingPath != null
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.check_circle_outline, color: _c.success, size: 20),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Recording ready  (${_formatDuration(_recDuration)})',
-                                  style: context.theme.typography.sm.copyWith(
-                                    color: context.theme.colors.foreground),
-                                ),
-                              ],
-                            )
-                          : Text(
-                              'Tap to start recording',
-                              style: context.theme.typography.sm.copyWith(
-                                color: context.theme.colors.mutedForeground),
-                            ),
-                ),
-                const SizedBox(height: 20),
-                // Timer
+                // Timer (recording only) or waveform — shown above the button when active.
                 if (_isRecording) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _RecBlinkDot(color: _c.destructive),
+                      const SizedBox(width: 6),
+                      Text(
+                        'RECORDING',
+                        style: context.theme.typography.xs.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
+                          color: _c.destructive,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildWaveform(),
+                  const SizedBox(height: 12),
                   Text(
                     _formatDuration(_recDuration),
                     style: context.theme.typography.xl2.copyWith(
@@ -532,7 +588,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                       color: context.theme.colors.foreground,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                 ],
                 // Record / stop button
                 GestureDetector(
@@ -544,6 +600,9 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: _isRecording ? _c.destructive : _c.accent,
+                      boxShadow: _isRecording
+                          ? [BoxShadow(color: _c.destructive.withValues(alpha: 0.35), blurRadius: 16, spreadRadius: 4)]
+                          : null,
                     ),
                     child: Icon(
                       _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
@@ -552,11 +611,50 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                if (!_isRecording)
+                  _recordingPath != null
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_outline, color: _c.success, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Recording ready  (${_formatDuration(_recDuration)})',
+                              style: context.theme.typography.sm.copyWith(
+                                color: context.theme.colors.foreground),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          'Tap to start recording',
+                          style: context.theme.typography.sm.copyWith(
+                            color: context.theme.colors.mutedForeground),
+                        ),
                 if (!_isRecording && _recordingPath != null) ...[
                   const SizedBox(height: 16),
                   GestureDetector(
-                    onTap: () {
-                      setState(() { _recordingPath = null; _recDuration = Duration.zero; });
+                    onTap: _togglePlayback,
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: _c.accent),
+                      child: Icon(
+                        _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: () async {
+                      await _player.stop();
+                      setState(() {
+                        _recordingPath = null;
+                        _recDuration = Duration.zero;
+                        _isPlaying = false;
+                      });
                     },
                     child: Text(
                       'Record again',
@@ -575,7 +673,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(
             children: [
-              Icon(Icons.info_outline, size: 13, color: context.theme.colors.mutedForeground),
+              Icon(Icons.info_outline, size: 13, color: _c.accent),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -593,27 +691,34 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet> with ScreenL
   }
 
   Widget _buildWaveform() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: List.generate(20, (i) {
-        final center = 9.5;
-        final dist = (i - center).abs() / center;
-        final base = 0.15 + (1 - dist) * 0.4;
-        final height = (base + _amplitude * (1 - dist) * 0.45).clamp(0.05, 1.0);
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 100),
-            width: 3,
-            height: 48 * height,
-            decoration: BoxDecoration(
-              color: _c.accent.withValues(alpha: 0.7 + height * 0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        );
-      }),
+    return SizedBox(
+      height: 48,
+      child: AnimatedBuilder(
+        animation: _waveCtrl,
+        builder: (context, _) {
+          // Blend sine-wave animation with live amplitude (min 0.15 so bars are visible)
+          final amp = math.max(_amplitude, 0.15);
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(13, (i) {
+              final phase = _waveCtrl.value * math.pi * 2 + i * 0.6;
+              final wave = math.sin(phase).abs();
+              final isCenter = i >= 4 && i <= 8;
+              final h = (6.0 + wave * 34.0 * amp).clamp(6.0, 40.0);
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 60),
+                width: isCenter ? 5.0 : 4.0,
+                height: h,
+                margin: const EdgeInsets.symmetric(horizontal: 2.0),
+                decoration: BoxDecoration(
+                  color: _c.destructive,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              );
+            }),
+          );
+        },
+      ),
     );
   }
 
@@ -750,6 +855,44 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Small blinking dot used next to the "RECORDING" label.
+class _RecBlinkDot extends StatefulWidget {
+  final Color color;
+  const _RecBlinkDot({required this.color});
+
+  @override
+  State<_RecBlinkDot> createState() => _RecBlinkDotState();
+}
+
+class _RecBlinkDotState extends State<_RecBlinkDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _controller.drive(Tween(begin: 0.3, end: 1.0)),
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color),
       ),
     );
   }

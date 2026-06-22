@@ -21,7 +21,6 @@ import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
-import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_feedback.dart';
@@ -66,6 +65,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
 
   // ── Transcript ───────────────────────────────────────────────
   String _transcript = '';
+  final _transcriptCtrl = TextEditingController();
 
   // ── Animations ───────────────────────────────────────────────
   late final AnimationController _pulseCtrl1;
@@ -131,6 +131,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _titleCtrl.dispose();
+    _transcriptCtrl.dispose();
     super.dispose();
   }
 
@@ -260,6 +261,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       setState(() {
         _phase = _Phase.recording;
         _transcript = '';
+        _transcriptCtrl.clear();
         _isRecording = false;
         _recDuration = Duration.zero;
         _amplitude = 0.0;
@@ -470,26 +472,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                   height: 108,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: _isRecording
-                        ? LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [_c.destructive, _c.destructive],
-                          )
-                        : LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [_c.accent, _c.accentStrong],
-                          ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _isRecording
-                            ? _c.destructive.withValues(alpha: 0.4)
-                            : _c.accent.withValues(alpha: 0.5),
-                        blurRadius: 28,
-                        spreadRadius: 4,
-                      ),
-                    ],
+                    color: _isRecording ? _c.destructive : _c.accent,
                   ),
                   child: Icon(
                     _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
@@ -591,30 +574,13 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             // Pulsing AI orb
-            AnimatedBuilder(
-              animation: _pulseCtrl1,
-              builder: (context, _) {
-                final glow = 0.3 + _pulseCtrl1.value * 0.4;
-                return Container(
-                  width: 96, height: 96,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [_c.accent, _c.accentStrong],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _c.accent.withValues(alpha: glow),
-                        blurRadius: 36,
-                        spreadRadius: 6,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 38),
-                );
-              },
+            Container(
+              width: 96, height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _c.accent,
+              ),
+              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 38),
             ),
             const SizedBox(height: 32),
             Text(
@@ -775,7 +741,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           const SizedBox(height: 8),
           AppButton(
             label: 'Retake Recording',
-            variant: ButtonVariant.ghost,
+            variant: ButtonVariant.outline,
+            fullWidth: true,
             onPressed: _onBack,
           ),
         ],
@@ -796,37 +763,117 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
 
   Widget _buildEventSelector() {
     final theme = context.theme;
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colors.background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.colors.border),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-      child: Row(
-        children: [
-          Icon(Icons.event_outlined, size: 15, color: _c.accent),
-          const SizedBox(width: 10),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _eventId,
-                isExpanded: true,
-                dropdownColor: _c.surfaceAlt,
-                icon: Icon(Icons.keyboard_arrow_down_rounded, color: theme.colors.mutedForeground, size: 18),
-                style: theme.typography.sm.copyWith(color: theme.colors.foreground),
-                hint: Text(
-                  'Select event',
-                  style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground),
+    final selectedName = _eventId == null
+        ? 'Select event'
+        : _events.firstWhere((e) => e.id == _eventId, orElse: () => _events.first).name;
+    return GestureDetector(
+      onTap: _showEventPickerSheet,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _c.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.colors.border),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.event_outlined, size: 15, color: _c.accent),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                selectedName,
+                overflow: TextOverflow.ellipsis,
+                style: theme.typography.sm.copyWith(
+                  color: _eventId == null ? theme.colors.mutedForeground : theme.colors.foreground,
                 ),
-                items: _events
-                    .map((e) => DropdownMenuItem(value: e.id, child: Text(e.name)))
-                    .toList(),
-                onChanged: (v) => setState(() => _eventId = v),
               ),
             ),
+            Icon(Icons.keyboard_arrow_down_rounded, color: _c.accent, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showEventPickerSheet() async {
+    await showAppSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'EVENT',
+                  style: context.theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.8,
+                    color: context.theme.colors.foreground,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 360),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _eventOptionTile(
+                          label: 'No event',
+                          selected: _eventId == null,
+                          onTap: () {
+                            setState(() => _eventId = null);
+                            Navigator.of(ctx).pop();
+                          },
+                        ),
+                        for (final e in _events)
+                          _eventOptionTile(
+                            label: e.name,
+                            selected: _eventId == e.id,
+                            onTap: () {
+                              setState(() => _eventId = e.id);
+                              Navigator.of(ctx).pop();
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _eventOptionTile({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: context.theme.typography.lg.copyWith(
+                  color: context.theme.colors.foreground,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (selected) Icon(Icons.check_rounded, color: _c.accent, size: 20),
+          ],
+        ),
       ),
     );
   }
@@ -856,14 +903,16 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                   color: theme.colors.foreground,
                 ),
               ),
-              const SizedBox(width: 6),
-              AppChip.label('AI'),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            _transcript,
-            style: theme.typography.sm.copyWith(
+          AppInput(
+            controller: _transcriptCtrl,
+            maxLines: 6,
+            minLines: 2,
+            hint: 'Transcript…',
+            bare: true,
+            bareTextStyle: theme.typography.sm.copyWith(
               color: theme.colors.mutedForeground,
               height: 1.65,
             ),
@@ -1134,6 +1183,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       final transcript = await ApiService.transcribeAudio(b64);
       if (!mounted) return;
       _transcript = transcript;
+      _transcriptCtrl.text = transcript;
       _parseTranscript(transcript);
       setState(() => _phase = _Phase.review);
     } on UnauthorizedException { rethrow; } catch (e) {
@@ -1232,9 +1282,10 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
 
   Future<void> _doSave() async {
     try {
+      final transcriptText = _transcriptCtrl.text.trim();
       await ApiService.createCapture(
         captureType: 'voice',
-        rawText: _transcript.isNotEmpty ? _transcript : null,
+        rawText: transcriptText.isNotEmpty ? transcriptText : null,
         eventId: _eventId,
         extractedData: {
           'first_name': _fnCtrl.text.trim(),

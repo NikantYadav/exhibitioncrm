@@ -778,6 +778,17 @@ class $ContactsTableTable extends ContactsTable
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _scannedDetailsJsonMeta =
+      const VerificationMeta('scannedDetailsJson');
+  @override
+  late final GeneratedColumn<String> scannedDetailsJson =
+      GeneratedColumn<String>(
+        'scanned_details_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _aiInsightsJsonMeta = const VerificationMeta(
     'aiInsightsJson',
   );
@@ -850,6 +861,7 @@ class $ContactsTableTable extends ContactsTable
     followUpUrgency,
     lastContactedAt,
     contactAssetsJson,
+    scannedDetailsJson,
     aiInsightsJson,
     aiContextSummary,
     createdAt,
@@ -974,6 +986,15 @@ class $ContactsTableTable extends ContactsTable
         ),
       );
     }
+    if (data.containsKey('scanned_details_json')) {
+      context.handle(
+        _scannedDetailsJsonMeta,
+        scannedDetailsJson.isAcceptableOrUnknown(
+          data['scanned_details_json']!,
+          _scannedDetailsJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('ai_insights_json')) {
       context.handle(
         _aiInsightsJsonMeta,
@@ -1081,6 +1102,10 @@ class $ContactsTableTable extends ContactsTable
         DriftSqlType.string,
         data['${effectivePrefix}contact_assets_json'],
       ),
+      scannedDetailsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scanned_details_json'],
+      ),
       aiInsightsJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}ai_insights_json'],
@@ -1127,6 +1152,7 @@ class ContactsTableData extends DataClass
   final String followUpUrgency;
   final DateTime? lastContactedAt;
   final String? contactAssetsJson;
+  final String? scannedDetailsJson;
   final String? aiInsightsJson;
   final String? aiContextSummary;
   final DateTime? createdAt;
@@ -1148,6 +1174,7 @@ class ContactsTableData extends DataClass
     required this.followUpUrgency,
     this.lastContactedAt,
     this.contactAssetsJson,
+    this.scannedDetailsJson,
     this.aiInsightsJson,
     this.aiContextSummary,
     this.createdAt,
@@ -1193,6 +1220,9 @@ class ContactsTableData extends DataClass
     }
     if (!nullToAbsent || contactAssetsJson != null) {
       map['contact_assets_json'] = Variable<String>(contactAssetsJson);
+    }
+    if (!nullToAbsent || scannedDetailsJson != null) {
+      map['scanned_details_json'] = Variable<String>(scannedDetailsJson);
     }
     if (!nullToAbsent || aiInsightsJson != null) {
       map['ai_insights_json'] = Variable<String>(aiInsightsJson);
@@ -1249,6 +1279,9 @@ class ContactsTableData extends DataClass
       contactAssetsJson: contactAssetsJson == null && nullToAbsent
           ? const Value.absent()
           : Value(contactAssetsJson),
+      scannedDetailsJson: scannedDetailsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scannedDetailsJson),
       aiInsightsJson: aiInsightsJson == null && nullToAbsent
           ? const Value.absent()
           : Value(aiInsightsJson),
@@ -1288,6 +1321,9 @@ class ContactsTableData extends DataClass
       contactAssetsJson: serializer.fromJson<String?>(
         json['contactAssetsJson'],
       ),
+      scannedDetailsJson: serializer.fromJson<String?>(
+        json['scannedDetailsJson'],
+      ),
       aiInsightsJson: serializer.fromJson<String?>(json['aiInsightsJson']),
       aiContextSummary: serializer.fromJson<String?>(json['aiContextSummary']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
@@ -1314,6 +1350,7 @@ class ContactsTableData extends DataClass
       'followUpUrgency': serializer.toJson<String>(followUpUrgency),
       'lastContactedAt': serializer.toJson<DateTime?>(lastContactedAt),
       'contactAssetsJson': serializer.toJson<String?>(contactAssetsJson),
+      'scannedDetailsJson': serializer.toJson<String?>(scannedDetailsJson),
       'aiInsightsJson': serializer.toJson<String?>(aiInsightsJson),
       'aiContextSummary': serializer.toJson<String?>(aiContextSummary),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
@@ -1338,6 +1375,7 @@ class ContactsTableData extends DataClass
     String? followUpUrgency,
     Value<DateTime?> lastContactedAt = const Value.absent(),
     Value<String?> contactAssetsJson = const Value.absent(),
+    Value<String?> scannedDetailsJson = const Value.absent(),
     Value<String?> aiInsightsJson = const Value.absent(),
     Value<String?> aiContextSummary = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
@@ -1363,6 +1401,9 @@ class ContactsTableData extends DataClass
     contactAssetsJson: contactAssetsJson.present
         ? contactAssetsJson.value
         : this.contactAssetsJson,
+    scannedDetailsJson: scannedDetailsJson.present
+        ? scannedDetailsJson.value
+        : this.scannedDetailsJson,
     aiInsightsJson: aiInsightsJson.present
         ? aiInsightsJson.value
         : this.aiInsightsJson,
@@ -1400,6 +1441,9 @@ class ContactsTableData extends DataClass
       contactAssetsJson: data.contactAssetsJson.present
           ? data.contactAssetsJson.value
           : this.contactAssetsJson,
+      scannedDetailsJson: data.scannedDetailsJson.present
+          ? data.scannedDetailsJson.value
+          : this.scannedDetailsJson,
       aiInsightsJson: data.aiInsightsJson.present
           ? data.aiInsightsJson.value
           : this.aiInsightsJson,
@@ -1430,6 +1474,7 @@ class ContactsTableData extends DataClass
           ..write('followUpUrgency: $followUpUrgency, ')
           ..write('lastContactedAt: $lastContactedAt, ')
           ..write('contactAssetsJson: $contactAssetsJson, ')
+          ..write('scannedDetailsJson: $scannedDetailsJson, ')
           ..write('aiInsightsJson: $aiInsightsJson, ')
           ..write('aiContextSummary: $aiContextSummary, ')
           ..write('createdAt: $createdAt, ')
@@ -1440,7 +1485,7 @@ class ContactsTableData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     userId,
     companyId,
@@ -1456,12 +1501,13 @@ class ContactsTableData extends DataClass
     followUpUrgency,
     lastContactedAt,
     contactAssetsJson,
+    scannedDetailsJson,
     aiInsightsJson,
     aiContextSummary,
     createdAt,
     updatedAt,
     deletedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1481,6 +1527,7 @@ class ContactsTableData extends DataClass
           other.followUpUrgency == this.followUpUrgency &&
           other.lastContactedAt == this.lastContactedAt &&
           other.contactAssetsJson == this.contactAssetsJson &&
+          other.scannedDetailsJson == this.scannedDetailsJson &&
           other.aiInsightsJson == this.aiInsightsJson &&
           other.aiContextSummary == this.aiContextSummary &&
           other.createdAt == this.createdAt &&
@@ -1504,6 +1551,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
   final Value<String> followUpUrgency;
   final Value<DateTime?> lastContactedAt;
   final Value<String?> contactAssetsJson;
+  final Value<String?> scannedDetailsJson;
   final Value<String?> aiInsightsJson;
   final Value<String?> aiContextSummary;
   final Value<DateTime?> createdAt;
@@ -1526,6 +1574,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     this.followUpUrgency = const Value.absent(),
     this.lastContactedAt = const Value.absent(),
     this.contactAssetsJson = const Value.absent(),
+    this.scannedDetailsJson = const Value.absent(),
     this.aiInsightsJson = const Value.absent(),
     this.aiContextSummary = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1549,6 +1598,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     this.followUpUrgency = const Value.absent(),
     this.lastContactedAt = const Value.absent(),
     this.contactAssetsJson = const Value.absent(),
+    this.scannedDetailsJson = const Value.absent(),
     this.aiInsightsJson = const Value.absent(),
     this.aiContextSummary = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1574,6 +1624,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     Expression<String>? followUpUrgency,
     Expression<DateTime>? lastContactedAt,
     Expression<String>? contactAssetsJson,
+    Expression<String>? scannedDetailsJson,
     Expression<String>? aiInsightsJson,
     Expression<String>? aiContextSummary,
     Expression<DateTime>? createdAt,
@@ -1597,6 +1648,8 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
       if (followUpUrgency != null) 'follow_up_urgency': followUpUrgency,
       if (lastContactedAt != null) 'last_contacted_at': lastContactedAt,
       if (contactAssetsJson != null) 'contact_assets_json': contactAssetsJson,
+      if (scannedDetailsJson != null)
+        'scanned_details_json': scannedDetailsJson,
       if (aiInsightsJson != null) 'ai_insights_json': aiInsightsJson,
       if (aiContextSummary != null) 'ai_context_summary': aiContextSummary,
       if (createdAt != null) 'created_at': createdAt,
@@ -1622,6 +1675,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     Value<String>? followUpUrgency,
     Value<DateTime?>? lastContactedAt,
     Value<String?>? contactAssetsJson,
+    Value<String?>? scannedDetailsJson,
     Value<String?>? aiInsightsJson,
     Value<String?>? aiContextSummary,
     Value<DateTime?>? createdAt,
@@ -1645,6 +1699,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
       followUpUrgency: followUpUrgency ?? this.followUpUrgency,
       lastContactedAt: lastContactedAt ?? this.lastContactedAt,
       contactAssetsJson: contactAssetsJson ?? this.contactAssetsJson,
+      scannedDetailsJson: scannedDetailsJson ?? this.scannedDetailsJson,
       aiInsightsJson: aiInsightsJson ?? this.aiInsightsJson,
       aiContextSummary: aiContextSummary ?? this.aiContextSummary,
       createdAt: createdAt ?? this.createdAt,
@@ -1702,6 +1757,9 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     if (contactAssetsJson.present) {
       map['contact_assets_json'] = Variable<String>(contactAssetsJson.value);
     }
+    if (scannedDetailsJson.present) {
+      map['scanned_details_json'] = Variable<String>(scannedDetailsJson.value);
+    }
     if (aiInsightsJson.present) {
       map['ai_insights_json'] = Variable<String>(aiInsightsJson.value);
     }
@@ -1741,6 +1799,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
           ..write('followUpUrgency: $followUpUrgency, ')
           ..write('lastContactedAt: $lastContactedAt, ')
           ..write('contactAssetsJson: $contactAssetsJson, ')
+          ..write('scannedDetailsJson: $scannedDetailsJson, ')
           ..write('aiInsightsJson: $aiInsightsJson, ')
           ..write('aiContextSummary: $aiContextSummary, ')
           ..write('createdAt: $createdAt, ')
@@ -7509,6 +7568,7 @@ typedef $$ContactsTableTableCreateCompanionBuilder =
       Value<String> followUpUrgency,
       Value<DateTime?> lastContactedAt,
       Value<String?> contactAssetsJson,
+      Value<String?> scannedDetailsJson,
       Value<String?> aiInsightsJson,
       Value<String?> aiContextSummary,
       Value<DateTime?> createdAt,
@@ -7533,6 +7593,7 @@ typedef $$ContactsTableTableUpdateCompanionBuilder =
       Value<String> followUpUrgency,
       Value<DateTime?> lastContactedAt,
       Value<String?> contactAssetsJson,
+      Value<String?> scannedDetailsJson,
       Value<String?> aiInsightsJson,
       Value<String?> aiContextSummary,
       Value<DateTime?> createdAt,
@@ -7622,6 +7683,11 @@ class $$ContactsTableTableFilterComposer
 
   ColumnFilters<String> get contactAssetsJson => $composableBuilder(
     column: $table.contactAssetsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scannedDetailsJson => $composableBuilder(
+    column: $table.scannedDetailsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7735,6 +7801,11 @@ class $$ContactsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get scannedDetailsJson => $composableBuilder(
+    column: $table.scannedDetailsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get aiInsightsJson => $composableBuilder(
     column: $table.aiInsightsJson,
     builder: (column) => ColumnOrderings(column),
@@ -7825,6 +7896,11 @@ class $$ContactsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get scannedDetailsJson => $composableBuilder(
+    column: $table.scannedDetailsJson,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get aiInsightsJson => $composableBuilder(
     column: $table.aiInsightsJson,
     builder: (column) => column,
@@ -7895,6 +7971,7 @@ class $$ContactsTableTableTableManager
                 Value<String> followUpUrgency = const Value.absent(),
                 Value<DateTime?> lastContactedAt = const Value.absent(),
                 Value<String?> contactAssetsJson = const Value.absent(),
+                Value<String?> scannedDetailsJson = const Value.absent(),
                 Value<String?> aiInsightsJson = const Value.absent(),
                 Value<String?> aiContextSummary = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -7917,6 +7994,7 @@ class $$ContactsTableTableTableManager
                 followUpUrgency: followUpUrgency,
                 lastContactedAt: lastContactedAt,
                 contactAssetsJson: contactAssetsJson,
+                scannedDetailsJson: scannedDetailsJson,
                 aiInsightsJson: aiInsightsJson,
                 aiContextSummary: aiContextSummary,
                 createdAt: createdAt,
@@ -7941,6 +8019,7 @@ class $$ContactsTableTableTableManager
                 Value<String> followUpUrgency = const Value.absent(),
                 Value<DateTime?> lastContactedAt = const Value.absent(),
                 Value<String?> contactAssetsJson = const Value.absent(),
+                Value<String?> scannedDetailsJson = const Value.absent(),
                 Value<String?> aiInsightsJson = const Value.absent(),
                 Value<String?> aiContextSummary = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -7963,6 +8042,7 @@ class $$ContactsTableTableTableManager
                 followUpUrgency: followUpUrgency,
                 lastContactedAt: lastContactedAt,
                 contactAssetsJson: contactAssetsJson,
+                scannedDetailsJson: scannedDetailsJson,
                 aiInsightsJson: aiInsightsJson,
                 aiContextSummary: aiContextSummary,
                 createdAt: createdAt,

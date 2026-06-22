@@ -175,7 +175,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     return AppInput(
       hint: 'Search events...',
       controller: _searchController,
-      prefixIcon: Icon(Icons.search_rounded, size: 20, color: context.theme.colors.mutedForeground),
+      prefixIcon: Icon(Icons.search_rounded, size: 18, color: _c.accent),
       onChanged: (val) => setState(() => _searchQuery = val),
     );
   }
@@ -362,7 +362,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
             const SizedBox(height: 24),
             AppButton(
               label: 'Create Event',
-              prefixIcon: const Icon(Icons.add_rounded, size: 18),
+              prefixIcon: Icon(Icons.add_rounded, size: 18, color: _c.accent),
               variant: ButtonVariant.outline,
               onPressed: _showNewEventSheet,
             ),
@@ -431,7 +431,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.schedule_rounded, size: 14, color: context.theme.colors.primary),
+                  Icon(Icons.schedule_rounded, size: 14, color: _c.accent),
                   const SizedBox(width: 6),
                   Text(
                     isToday ? 'TODAY' : isTomorrow ? 'TOMORROW' : 'IN $daysUntil DAYS',
@@ -470,7 +470,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                         width: 44,
                         height: 44,
                         child: Center(
-                          child: Icon(Icons.more_vert_rounded, color: context.theme.colors.mutedForeground, size: 20),
+                          child: Icon(Icons.more_vert_rounded, color: _c.accent, size: 18),
                         ),
                       ),
                     ),
@@ -555,7 +555,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsets.all(4),
-                  child: Icon(Icons.more_vert_rounded, color: context.theme.colors.mutedForeground, size: 20),
+                  child: Icon(Icons.more_vert_rounded, color: _c.accent, size: 18),
                 ),
               ),
             ],
@@ -619,7 +619,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
           const SizedBox(height: 14),
           AppButton(
             label: 'FOLLOW-UP QUEUE',
-            prefixIcon: const Icon(Icons.checklist_rounded, size: 18),
+            prefixIcon: Icon(Icons.checklist_rounded, size: 18, color: _c.accent),
             variant: isComplete ? ButtonVariant.secondary : ButtonVariant.primary,
             fullWidth: true,
             onPressed: () => _openFollowUpQueue(event),
@@ -660,7 +660,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   Widget _buildMetaRow(IconData icon, String value) {
     return Row(
       children: [
-        Icon(icon, color: context.theme.colors.mutedForeground, size: 14),
+        Icon(icon, color: _c.accent, size: 14),
         const SizedBox(width: 7),
         Expanded(
           child: Text(
@@ -858,10 +858,11 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
                   event.name,
+                  textAlign: TextAlign.center,
                   style: context.theme.typography.sm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: context.theme.colors.foreground,
@@ -872,6 +873,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                 const SizedBox(height: 2),
                 Text(
                   _formatDateRange(event.startDate, event.endDate),
+                  textAlign: TextAlign.center,
                   style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
                 ),
               ],
@@ -884,7 +886,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
               children: [
                 AppButton(
                   label: 'Edit Event',
-                  prefixIcon: const Icon(Icons.edit_outlined, size: 18),
+                  prefixIcon: Icon(Icons.edit_outlined, size: 18, color: _c.accent),
                   variant: ButtonVariant.secondary,
                   fullWidth: true,
                   onPressed: () {
@@ -895,7 +897,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                 const SizedBox(height: 8),
                 AppButton(
                   label: 'Delete Event',
-                  prefixIcon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  prefixIcon: Icon(Icons.delete_outline_rounded, size: 18, color: _c.destructive),
                   variant: ButtonVariant.destructive,
                   fullWidth: true,
                   onPressed: () async {
@@ -1030,28 +1032,13 @@ class _NewEventSheetState extends State<_NewEventSheet> {
           initialDate: DateTime.now(),
           firstDate: DateTime(2024),
           lastDate: DateTime(2030),
-          builder: (context, child) => Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: ColorScheme(
-                brightness: widget.colors.isDark ? Brightness.dark : Brightness.light,
-                primary: widget.colors.accent,
-                onPrimary: Colors.white,
-                secondary: widget.colors.accent,
-                onSecondary: Colors.white,
-                error: widget.colors.destructive,
-                onError: Colors.white,
-                surface: widget.colors.surface,
-                onSurface: widget.colors.textPrimary,
-              ),
-            ),
-            child: child!,
-          ),
+          builder: AppTheme.datePickerBuilder,
         );
         if (date != null) {
           controller.text = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
         }
       },
-      prefixIcon: Icon(Icons.calendar_today_outlined, size: 18, color: context.theme.colors.primary),
+      prefixIcon: Icon(Icons.calendar_today_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
     );
   }
 
@@ -1109,7 +1096,7 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                     label: 'Location',
                     hint: 'Venue or city',
                     controller: widget.locationController,
-                    prefixIcon: Icon(Icons.location_on_outlined, size: 20, color: context.theme.colors.primary),
+                    prefixIcon: Icon(Icons.location_on_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
                   ),
                   const SizedBox(height: 16),
                   _buildDateField(label: 'Start Date', controller: widget.startDateController),

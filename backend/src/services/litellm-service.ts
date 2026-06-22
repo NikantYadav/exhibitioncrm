@@ -251,13 +251,21 @@ export class LiteLLMService {
             parameters: t.parameters as any,
         }));
 
+        // When no tools are offered (e.g. the loop-exhaustion summary call), Gemini
+        // rejects a request that still carries a functionCalling toolConfig with
+        // "Function calling config is set without function_declarations". Only attach
+        // tools/toolConfig when there is at least one declaration.
+        const hasTools = functionDeclarations.length > 0;
+
         const model = genAI.getGenerativeModel({
             model: this.config.model!,
             systemInstruction: systemPrompt,
-            tools: [{ functionDeclarations }],
-            toolConfig: {
-                functionCallingConfig: { mode: FunctionCallingMode.AUTO },
-            },
+            ...(hasTools && {
+                tools: [{ functionDeclarations }],
+                toolConfig: {
+                    functionCallingConfig: { mode: FunctionCallingMode.AUTO },
+                },
+            }),
             generationConfig: { temperature: 0.2 },
         });
 

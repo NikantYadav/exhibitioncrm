@@ -162,7 +162,11 @@ router.get('/live-session', async (req, res, next) => {
         .order('created_at', { ascending: true }),
       supabase
         .from('captures')
-        .select('*, contact:contacts(*)')
+        // Only the columns the live "Scanned" list renders, plus the contact
+        // fields it reads. Was `*, contact:contacts(*)` which pulled every
+        // column of both tables over the wire. company_name is joined from
+        // companies (contacts has no company_name column) and flattened below.
+        .select('id, created_at, contact:contacts(id, first_name, last_name, job_title, email, phone, company_id, deleted_at, company_name:companies(name))')
         .eq('event_id', eventId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),
@@ -235,11 +239,17 @@ router.get('/live-session', async (req, res, next) => {
           targets: priorityTargets,
           target_contacts: targetContacts,
         },
-        // contact:contacts(*) is a left join; drop the embedded contact if it's
-        // soft-deleted rather than surfacing a deleted contact's data here.
-        captures: (captures || []).map((c: any) =>
-          c.contact?.deleted_at != null ? { ...c, contact: null } : c
-        ),
+        // Drop the embedded contact if it's soft-deleted; flatten the joined
+        // company name ({name} -> string) to match what the live list reads
+        // (contact['company_name'] as String).
+        captures: (captures || []).map((c: any) => {
+          const contact = c.contact;
+          if (!contact || contact.deleted_at != null) return { ...c, contact: null };
+          return {
+            ...c,
+            contact: { ...contact, company_name: contact.company_name?.name ?? '' },
+          };
+        }),
       },
     });
   } catch (error) {
@@ -842,6 +852,7 @@ router.post('/:id/targets/import', upload.single('file'), async (req: any, res, 
       const industry = (row['industry'] || row['Industry'] || row['sector'] || row['Sector'] || '').toString().trim();
       const website = (row['website'] || row['Website'] || row['url'] || '').toString().trim();
       const description = (row['description'] || row['Description'] || '').toString().trim();
+      const boothNumber = (row['booth_number'] || row['booth'] || row['Booth'] || row['Booth Number'] || row['stand'] || '').toString().trim();
 
       if (!rawName) {
         results.skipped++;
@@ -876,7 +887,7 @@ router.post('/:id/targets/import', upload.single('file'), async (req: any, res, 
         // Add as target (ignore duplicate)
         const { error: targetError } = await supabase
           .from('target_companies')
-          .insert({ event_id: eventId, company_id: companyId, priority: 'medium', status: 'not_contacted', user_id: req.user!.id });
+          .insert({ event_id: eventId, company_id: companyId, priority: 'medium', status: 'not_contacted', user_id: req.user!.id, booth_location: boothNumber || null });
 
         if (targetError && targetError.code !== '23505') {
           results.errors.push(`Failed to add ${rawName} as target`);
@@ -898,11 +909,32 @@ router.post('/:id/targets/import', upload.single('file'), async (req: any, res, 
 router.post('/:id/targets', async (req, res, next) => {
   try {
     const { company_id, priority, notes, booth_location } = req.body;
+    const eventId = req.params.id;
+
+    // Check for a soft-deleted row first and restore it
+    const { data: softDeleted } = await supabase
+      .from('target_companies')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('company_id', company_id)
+      .not('deleted_at', 'is', null)
+      .single();
+
+    if (softDeleted) {
+      const { data: restored } = await supabase
+        .from('target_companies')
+        .update({ deleted_at: null, priority: priority || 'medium', booth_location: booth_location || null, status: 'not_contacted' })
+        .eq('id', softDeleted.id)
+        .select('*, company:companies(*)')
+        .single();
+      res.json({ data: restored });
+      return;
+    }
 
     const { data, error } = await supabase
       .from('target_companies')
       .insert({
-        event_id: req.params.id,
+        event_id: eventId,
         company_id,
         priority: priority || 'medium',
         status: 'not_contacted',
@@ -913,7 +945,20 @@ router.post('/:id/targets', async (req, res, next) => {
       .select('*, company:companies(*)')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505') {
+        // Active row already exists — return it
+        const { data: existing } = await supabase
+          .from('target_companies')
+          .select('*, company:companies(*)')
+          .eq('event_id', eventId)
+          .eq('company_id', company_id)
+          .single();
+        res.json({ data: existing });
+        return;
+      }
+      throw error;
+    }
 
     res.json({ data });
   } catch (error) {

@@ -11,8 +11,8 @@ import '../services/offline/write_gateway.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
-import '../widgets/app_chip.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import '../utils/screen_logger.dart';
@@ -42,6 +42,15 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
   final _linkedinCtrl = TextEditingController();
   final _notesCtrl   = TextEditingController();
 
+  // ── Focus (drives the active-row accent tint per field) ─────
+  final _fnFocus      = FocusNode();
+  final _lnFocus      = FocusNode();
+  final _coFocus      = FocusNode();
+  final _titleFocus   = FocusNode();
+  final _emailFocus   = FocusNode();
+  final _phoneFocus   = FocusNode();
+  final _linkedinFocus = FocusNode();
+
   // ── State ──────────────────────────────────────────────────
   List<Event> _events    = [];
   String?     _eventId;
@@ -50,13 +59,17 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
   // Dedup (online only — offline dedup goes through notifications).
   bool        _showDedup = false;
   List<Map<String, dynamic>> _dupes = [];
-  final List<String> _tags = [];
 
   @override
   void initState() {
     super.initState();
     _loadEvents();
+    for (final node in [_fnFocus, _lnFocus, _coFocus, _titleFocus, _emailFocus, _phoneFocus, _linkedinFocus]) {
+      node.addListener(_onFocusChange);
+    }
   }
+
+  void _onFocusChange() => setState(() {});
 
   @override
   void dispose() {
@@ -68,6 +81,13 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     _titleCtrl.dispose();
     _linkedinCtrl.dispose();
     _notesCtrl.dispose();
+    _fnFocus.dispose();
+    _lnFocus.dispose();
+    _coFocus.dispose();
+    _titleFocus.dispose();
+    _emailFocus.dispose();
+    _phoneFocus.dispose();
+    _linkedinFocus.dispose();
     super.dispose();
   }
 
@@ -75,10 +95,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     final rows = await context.read<SyncProvider>().events.watchAll().first;
     if (!mounted) return;
     final events = rows.map(Event.fromDrift).toList();
-    setState(() {
-      _events = events;
-      if (events.isNotEmpty) _eventId = events.first.id;
-    });
+    setState(() => _events = events);
   }
 
   // ── Build ───────────────────────────────────────────────────
@@ -99,59 +116,17 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildIdentityCard(),
+                      _buildAvatarRow(),
                       const SizedBox(height: 20),
-                      AppSectionLabel('Work'),
-                      const SizedBox(height: 10),
-                      _buildWorkCard(),
-                      const SizedBox(height: 20),
+                      _buildPersonalWorkGrid(),
+                      const SizedBox(height: 24),
                       AppSectionLabel('Contact Info'),
                       const SizedBox(height: 10),
                       _buildContactInfoCard(),
-                      if (_events.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        AppSectionLabel('Event'),
-                        const SizedBox(height: 10),
-                        _buildEventSelector(),
-                      ],
-                      const SizedBox(height: 20),
-                      AppSectionLabel('Notes'),
+                      const SizedBox(height: 24),
+                      AppSectionLabel('Context'),
                       const SizedBox(height: 10),
-                      _buildNotesCard(),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          AppSectionLabel('Tags'),
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: _showAddTagSheet,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.add_rounded, size: 12, color: _c.accent),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'ADD TAG',
-                                  style: context.theme.typography.xs.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.2,
-                                    color: _c.accent,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      if (_tags.isNotEmpty)
-                        _buildTagsRow()
-                      else
-                        Text(
-                          'No tags yet — tap Add Tag to label this contact.',
-                          style: context.theme.typography.xs.copyWith(
-                            color: context.theme.colors.mutedForeground, height: 1.5),
-                        ),
+                      _buildContextCard(),
                     ],
                   ),
                 ),
@@ -183,13 +158,9 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
-              IconButton(
+              AppHeaderActionButton(
+                icon: Icons.arrow_back_rounded,
                 onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: _c.accent,
-                  size: 18,
-                ),
               ),
               const Spacer(),
               Column(
@@ -224,264 +195,245 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     );
   }
 
-  // ── Identity card ──────────────────────────────────────────
+  // ── Avatar (auto-derived initials) ───────────────────────────
 
-  Widget _buildIdentityCard() {
+  Widget _buildAvatarRow() {
     final fn = _fnCtrl.text;
     final ln = _lnCtrl.text;
     final initials = (fn.isNotEmpty ? fn[0] : '') + (ln.isNotEmpty ? ln[0] : '');
-    final subtitle = [_titleCtrl.text, _coCtrl.text]
-        .where((s) => s.isNotEmpty)
-        .join(' · ');
+    return Center(
+      child: AppAvatar(initials: initials.isEmpty ? '?' : initials.toUpperCase(), size: 64),
+    );
+  }
 
-    return AppCard(
-      radius: 28,
-      padding: const EdgeInsets.all(20),
-      borderColor: _c.border,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppAvatar(
-            initials: initials.isEmpty ? '?' : initials.toUpperCase(),
-            size: 72,
+  // ── Personal & work grid ────────────────────────────────────
+
+  Widget _buildPersonalWorkGrid() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppSectionLabel('First Name'),
+              const SizedBox(height: 6),
+              AppInput(
+                controller: _fnCtrl,
+                focusNode: _fnFocus,
+                hint: 'Jane',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              AppSectionLabel('Company'),
+              const SizedBox(height: 6),
+              AppInput(controller: _coCtrl, focusNode: _coFocus, hint: 'Acme Corp'),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppChip.label('Manual Entry', color: _c.surfaceElevated, textColor: _c.textMuted),
-                const SizedBox(height: 8),
-                _inlineField(_fnCtrl, 'First name'),
-                const SizedBox(height: 2),
-                _inlineField(_lnCtrl, 'Last name'),
-                if (subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    subtitle,
-                    style: context.theme.typography.xs.copyWith(
-                      color: context.theme.colors.mutedForeground, height: 1.3),
-                  ),
-                ],
-              ],
-            ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppSectionLabel('Last Name'),
+              const SizedBox(height: 6),
+              AppInput(
+                controller: _lnCtrl,
+                focusNode: _lnFocus,
+                hint: 'Doe',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              AppSectionLabel('Title'),
+              const SizedBox(height: 6),
+              AppInput(controller: _titleCtrl, focusNode: _titleFocus, hint: 'Director'),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _inlineField(TextEditingController ctrl, String hint) {
-    return AppInput(
-      controller: ctrl,
-      hint: hint,
-      onChanged: (_) => setState(() {}),
-    );
-  }
-
-  // ── Field cards ────────────────────────────────────────────
-
-  Widget _buildWorkCard() {
-    return AppCard(
-      elevated: true,
-      radius: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Column(
-        children: _stripeRows([
-          _fieldRow(Icons.business_outlined, _coCtrl, 'Company'),
-          _fieldRow(Icons.work_outline_rounded, _titleCtrl, 'Job title'),
-        ]),
-      ),
-    );
-  }
+  // ── Contact info card ────────────────────────────────────────
 
   Widget _buildContactInfoCard() {
     return AppCard(
-      elevated: true,
       radius: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        children: _stripeRows([
-          _fieldRow(Icons.email_outlined, _emailCtrl, 'Email', kbd: TextInputType.emailAddress),
-          _fieldRow(Icons.phone_outlined, _phoneCtrl, 'Phone', kbd: TextInputType.phone),
-          _fieldRow(Icons.link_outlined, _linkedinCtrl, 'LinkedIn URL', kbd: TextInputType.url),
-        ]),
-      ),
-    );
-  }
-
-  List<Widget> _stripeRows(List<Widget> rows) {
-    return [
-      for (var i = 0; i < rows.length; i++)
-        Container(
-          decoration: i.isOdd ? BoxDecoration(color: _c.surfaceAlt, borderRadius: BorderRadius.circular(10)) : null,
-          child: rows[i],
-        ),
-    ];
-  }
-
-  Widget _fieldRow(
-    IconData icon,
-    TextEditingController ctrl,
-    String hint, {
-    TextInputType? kbd,
-  }) {
-    return SizedBox(
-      height: 50,
-      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(width: 4),
-          Icon(icon, size: 15, color: _c.accent),
-          const SizedBox(width: 12),
-          Expanded(
-            child: AppInput(
-              controller: ctrl,
-              keyboardType: kbd,
-              hint: hint,
-            ),
+          AppSectionLabel('Email'),
+          const SizedBox(height: 6),
+          AppInput(
+            controller: _emailCtrl,
+            focusNode: _emailFocus,
+            keyboardType: TextInputType.emailAddress,
+            hint: 'jane.doe@example.com',
+          ),
+          const SizedBox(height: 16),
+          AppSectionLabel('Phone'),
+          const SizedBox(height: 6),
+          AppInput(
+            controller: _phoneCtrl,
+            focusNode: _phoneFocus,
+            keyboardType: TextInputType.phone,
+            hint: '+1 (555) 000-0000',
+          ),
+          const SizedBox(height: 16),
+          AppSectionLabel('LinkedIn'),
+          const SizedBox(height: 6),
+          AppInput(
+            controller: _linkedinCtrl,
+            focusNode: _linkedinFocus,
+            keyboardType: TextInputType.url,
+            hint: 'linkedin.com/in/...',
           ),
         ],
       ),
     );
   }
 
-  // ── Event selector ─────────────────────────────────────────
+  // ── Context card (event + notes) ─────────────────────────────
+
+  Widget _buildContextCard() {
+    return AppCard(
+      radius: 20,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionLabel('Event'),
+          const SizedBox(height: 6),
+          _buildEventSelector(),
+          const SizedBox(height: 16),
+          AppSectionLabel('Notes'),
+          const SizedBox(height: 6),
+          AppInput(
+            controller: _notesCtrl,
+            maxLines: 5,
+            hint: 'Key takeaways, context, or follow-up items…',
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildEventSelector() {
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          Icon(Icons.event_outlined, size: 15, color: _c.accent),
-          const SizedBox(width: 12),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _eventId,
-                isExpanded: true,
-                dropdownColor: _c.surfaceAlt,
-                icon: Icon(Icons.expand_more, color: _c.accent, size: 18),
-                style: context.theme.typography.sm.copyWith(
-                  color: context.theme.colors.foreground),
-                hint: Text(
-                  'Select event',
-                  style: context.theme.typography.sm.copyWith(
-                    color: context.theme.colors.mutedForeground),
+    final selectedName = _eventId == null
+        ? 'No event'
+        : _events.firstWhere((e) => e.id == _eventId, orElse: () => _events.first).name;
+    return GestureDetector(
+      onTap: _showEventPickerSheet,
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: _c.surfaceAlt,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                selectedName,
+                overflow: TextOverflow.ellipsis,
+                style: context.theme.typography.lg.copyWith(
+                  color: _eventId == null
+                      ? context.theme.colors.mutedForeground
+                      : context.theme.colors.foreground,
+                  fontWeight: FontWeight.w500,
                 ),
-                items: _events
-                    .map(
-                      (e) => DropdownMenuItem(value: e.id, child: Text(e.name)),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _eventId = v),
               ),
             ),
-          ),
-        ],
+            Icon(Icons.expand_more_rounded, color: _c.accent, size: 18),
+          ],
+        ),
       ),
     );
   }
 
-  // ── Notes ──────────────────────────────────────────────────
-
-  Widget _buildNotesCard() {
-    return AppCard(
-      elevated: true,
-      radius: 20,
-      padding: const EdgeInsets.all(4),
-      child: AppInput(
-        controller: _notesCtrl,
-        maxLines: 5,
-        hint: 'Context, talking points, next steps…',
-      ),
-    );
-  }
-
-  // ── Tags ───────────────────────────────────────────────────
-
-  Widget _buildTagsRow() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: _tags
-            .map(
-              (tag) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onLongPress: () => setState(() => _tags.remove(tag)),
-                  child: AppChip(tag),
-                ),
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-
-  Future<void> _showAddTagSheet() async {
-    final ctrl = TextEditingController();
+  Future<void> _showEventPickerSheet() async {
     await showAppSheet<void>(
       context: context,
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: context.theme.colors.border,
-                    borderRadius: BorderRadius.circular(999),
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'EVENT',
+                  style: context.theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.8,
+                    color: context.theme.colors.foreground,
                   ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'ADD TAG',
-                style: context.theme.typography.xs.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.8,
-                  color: context.theme.colors.foreground,
+                const SizedBox(height: 14),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 360),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _eventOptionTile(
+                          label: 'No event',
+                          selected: _eventId == null,
+                          onTap: () {
+                            setState(() => _eventId = null);
+                            Navigator.of(ctx).pop();
+                          },
+                        ),
+                        for (final e in _events)
+                          _eventOptionTile(
+                            label: e.name,
+                            selected: _eventId == e.id,
+                            onTap: () {
+                              setState(() => _eventId = e.id);
+                              Navigator.of(ctx).pop();
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              AppInput(
-                controller: ctrl,
-                hint: 'e.g. investor, follow-up, warm-lead',
-                onSubmitted: (val) {
-                  final tag = val.trim();
-                  if (tag.isNotEmpty && !_tags.contains(tag)) {
-                    setState(() => _tags.add(tag));
-                  }
-                  Navigator.of(ctx).pop();
-                },
-              ),
-              const SizedBox(height: 16),
-              AppButton(
-                label: 'ADD',
-                fullWidth: true,
-                variant: ButtonVariant.primary,
-                onPressed: () {
-                  final tag = ctrl.text.trim();
-                  if (tag.isNotEmpty && !_tags.contains(tag)) {
-                    setState(() => _tags.add(tag));
-                  }
-                  Navigator.of(ctx).pop();
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _eventOptionTile({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: context.theme.typography.lg.copyWith(
+                  color: context.theme.colors.foreground,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (selected) Icon(Icons.check_rounded, color: _c.accent, size: 20),
+          ],
+        ),
+      ),
     );
   }
 

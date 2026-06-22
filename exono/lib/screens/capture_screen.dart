@@ -31,6 +31,7 @@ import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
+import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import 'app_shell.dart';
@@ -90,6 +91,8 @@ class _CaptureScreenState extends State<CaptureScreen>
   final _titleCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final _voiceCtrl = TextEditingController();
+  Map<String, dynamic>? _scannedDetails;
+  final Map<String, TextEditingController> _scannedDetailCtrls = {};
 
   // ── Events ─────────────────────────────────────────────────
   List<Event> _events = [];
@@ -129,6 +132,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     _fnCtrl.dispose(); _lnCtrl.dispose(); _coCtrl.dispose();
     _emailCtrl.dispose(); _phoneCtrl.dispose(); _titleCtrl.dispose();
     _notesCtrl.dispose(); _voiceCtrl.dispose();
+    for (final c in _scannedDetailCtrls.values) { c.dispose(); }
     super.dispose();
   }
 
@@ -136,10 +140,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     final rows = await context.read<SyncProvider>().events.watchAll().first;
     if (!mounted) return;
     final events = rows.map(Event.fromDrift).toList();
-    setState(() {
-      _events = events;
-      if (events.isNotEmpty) _eventId = events.first.id;
-    });
+    setState(() => _events = events);
   }
 
   // ── Build ───────────────────────────────────────────────────
@@ -559,14 +560,24 @@ class _CaptureScreenState extends State<CaptureScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildContactHeroCard(),
-                      const SizedBox(height: 12),
-                      _buildContactFieldsCard(),
-                      if (_events.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        _buildEventSelector(),
-                      ],
+                      _buildAvatarRow(),
                       const SizedBox(height: 20),
+                      _buildPersonalWorkGrid(),
+                      const SizedBox(height: 24),
+                      AppSectionLabel('Contact Info'),
+                      const SizedBox(height: 10),
+                      _buildContactFieldsCard(),
+                      const SizedBox(height: 24),
+                      AppSectionLabel('Event'),
+                      const SizedBox(height: 10),
+                      _buildEventSelector(),
+                      if (_scannedDetails != null && _scannedDetails!.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        AppSectionLabel('Additional Details'),
+                        const SizedBox(height: 10),
+                        _buildScannedDetailsCard(),
+                      ],
+                      const SizedBox(height: 24),
                       AppSectionLabel('Meeting Notes'),
                       const SizedBox(height: 12),
                       AppFilterRow(
@@ -604,11 +615,13 @@ class _CaptureScreenState extends State<CaptureScreen>
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
-              AppButton(
-                onPressed: () => setState(() => _stage = _Stage.scan),
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.sm,
-                child: Icon(Icons.arrow_back_ios_new_rounded, color: _c.accent, size: 18),
+              AppHeaderActionButton(
+                icon: Icons.arrow_back_rounded,
+                onPressed: () async {
+                  await _stopRecordingAndDiscard();
+                  if (!mounted) return;
+                  setState(() => _stage = _Stage.scan);
+                },
               ),
               const Spacer(),
               Column(
@@ -646,135 +659,271 @@ class _CaptureScreenState extends State<CaptureScreen>
     );
   }
 
-  Widget _buildContactHeroCard() {
+  // ── Avatar (auto-derived initials) ────────────────────────────
+
+  Widget _buildAvatarRow() {
     final fn = _fnCtrl.text;
     final ln = _lnCtrl.text;
     final initials = (fn.isNotEmpty ? fn[0] : '') + (ln.isNotEmpty ? ln[0] : '');
-
-    return AppCard(
-      radius: 20,
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+    return Center(
+      child: Column(
         children: [
-          AppAvatar(initials: initials.isEmpty ? '?' : initials, size: 60),
-          const SizedBox(width: 16),
-          // Editable name fields
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _inlineField(_fnCtrl, 'First name',
-                    style: context.theme.typography.xl, bold: true),
-                const SizedBox(height: 2),
-                _inlineField(_lnCtrl, 'Last name',
-                    style: context.theme.typography.lg),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Rescan chip
-          GestureDetector(
-            onTap: () => setState(() => _stage = _Stage.scan),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: _c.accentSoft,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: _c.accent.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.camera_alt_rounded, size: 12, color: _c.accent),
-                  const SizedBox(width: 5),
-                  Text(
-                    'RESCAN',
-                    style: context.theme.typography.xs.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                      color: _c.accent,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          AppAvatar(initials: initials.isEmpty ? '?' : initials.toUpperCase(), size: 64),
         ],
       ),
     );
   }
+
+  // ── Personal & work grid ───────────────────────────────────────
+
+  Widget _buildPersonalWorkGrid() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppSectionLabel('First Name'),
+              const SizedBox(height: 6),
+              AppInput(
+                controller: _fnCtrl,
+                hint: 'Jane',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              AppSectionLabel('Company'),
+              const SizedBox(height: 6),
+              AppInput(controller: _coCtrl, hint: 'Acme Corp'),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppSectionLabel('Last Name'),
+              const SizedBox(height: 6),
+              AppInput(
+                controller: _lnCtrl,
+                hint: 'Doe',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              AppSectionLabel('Title'),
+              const SizedBox(height: 6),
+              AppInput(controller: _titleCtrl, hint: 'Director'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Contact info card ───────────────────────────────────────────
 
   Widget _buildContactFieldsCard() {
     return AppCard(
-      elevated: true,
       radius: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        children: _stripeRows([
-          _fieldRow(Icons.business_outlined, _coCtrl, 'Company'),
-          _fieldRow(Icons.work_outline_rounded, _titleCtrl, 'Job title'),
-          _fieldRow(Icons.email_outlined, _emailCtrl, 'Email', kbd: TextInputType.emailAddress),
-          _fieldRow(Icons.phone_outlined, _phoneCtrl, 'Phone', kbd: TextInputType.phone),
-        ]),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionLabel('Email'),
+          const SizedBox(height: 6),
+          AppInput(
+            controller: _emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            hint: 'jane.doe@example.com',
+          ),
+          const SizedBox(height: 16),
+          AppSectionLabel('Phone'),
+          const SizedBox(height: 6),
+          AppInput(
+            controller: _phoneCtrl,
+            keyboardType: TextInputType.phone,
+            hint: '+1 (555) 000-0000',
+          ),
+        ],
       ),
     );
   }
 
-  List<Widget> _stripeRows(List<Widget> rows) {
-    return [
-      for (var i = 0; i < rows.length; i++)
-        Container(
-          decoration: i.isOdd ? BoxDecoration(color: _c.surfaceAlt, borderRadius: BorderRadius.circular(10)) : null,
-          child: rows[i],
-        ),
-    ];
-  }
+  // ── Additional details (scanned card text that didn't map to a field) ──
 
-  Widget _fieldRow(IconData icon, TextEditingController ctrl, String hint, {TextInputType? kbd}) {
-    return SizedBox(
-      height: 50,
-      child: Row(
+  Widget _buildScannedDetailsCard() {
+    final keys = _scannedDetails!.keys.toList();
+    return AppCard(
+      radius: 20,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(width: 4),
-          Icon(icon, size: 15, color: _c.accent),
-          const SizedBox(width: 12),
-          Expanded(
-            child: AppInput(
-              controller: ctrl,
-              keyboardType: kbd,
-              hint: hint,
-            ),
-          ),
+          for (var i = 0; i < keys.length; i++) ...[
+            if (i > 0) const SizedBox(height: 16),
+            _scannedDetailRow(keys[i]),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _scannedDetailRow(String key) {
+    final label = key
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+    final ctrl = _scannedDetailCtrls.putIfAbsent(
+      key,
+      () => TextEditingController(text: _scannedDetails![key]?.toString() ?? ''),
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppSectionLabel(label),
+              const SizedBox(height: 6),
+              AppInput(
+                controller: ctrl,
+                onChanged: (v) => _scannedDetails![key] = v,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        AppButton(
+          onPressed: () => setState(() {
+            _scannedDetails!.remove(key);
+            _scannedDetailCtrls.remove(key)?.dispose();
+          }),
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.sm,
+          child: Icon(Icons.close_rounded, size: 16, color: _c.accent),
+        ),
+      ],
     );
   }
 
   Widget _buildEventSelector() {
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          Icon(Icons.event_outlined, size: 15, color: _c.accent),
-          const SizedBox(width: 12),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _eventId,
-                isExpanded: true,
-                dropdownColor: _c.surfaceAlt,
-                icon: Icon(Icons.expand_more, color: _c.accent, size: 18),
-                style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground),
-                hint: Text('Select event', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
-                items: _events
-                    .map((e) => DropdownMenuItem(value: e.id, child: Text(e.name)))
-                    .toList(),
-                onChanged: (v) => setState(() => _eventId = v),
+    final selectedName = _eventId == null
+        ? 'No event'
+        : _events.firstWhere((e) => e.id == _eventId, orElse: () => _events.first).name;
+    return GestureDetector(
+      onTap: _showEventPickerSheet,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _c.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.theme.colors.border),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.event_outlined, size: 15, color: _c.accent),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                selectedName,
+                overflow: TextOverflow.ellipsis,
+                style: context.theme.typography.sm.copyWith(
+                  color: _eventId == null
+                      ? context.theme.colors.mutedForeground
+                      : context.theme.colors.foreground,
+                ),
               ),
             ),
+            Icon(Icons.keyboard_arrow_down_rounded, color: _c.accent, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showEventPickerSheet() async {
+    await showAppSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'EVENT',
+                  style: context.theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.8,
+                    color: context.theme.colors.foreground,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 360),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _eventOptionTile(
+                          label: 'No event',
+                          selected: _eventId == null,
+                          onTap: () {
+                            setState(() => _eventId = null);
+                            Navigator.of(ctx).pop();
+                          },
+                        ),
+                        for (final e in _events)
+                          _eventOptionTile(
+                            label: e.name,
+                            selected: _eventId == e.id,
+                            onTap: () {
+                              setState(() => _eventId = e.id);
+                              Navigator.of(ctx).pop();
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _eventOptionTile({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: context.theme.typography.lg.copyWith(
+                  color: context.theme.colors.foreground,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (selected) Icon(Icons.check_rounded, color: _c.accent, size: 20),
+          ],
+        ),
       ),
     );
   }
@@ -1100,31 +1249,6 @@ class _CaptureScreenState extends State<CaptureScreen>
     );
   }
 
-  Widget _inlineField(
-    TextEditingController ctrl,
-    String hint, {
-    TextStyle? style,
-    bool bold = false,
-  }) {
-    final base = style ?? context.theme.typography.sm;
-    return TextField(
-      controller: ctrl,
-      style: base.copyWith(
-        fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
-        color: context.theme.colors.foreground,
-      ),
-      cursorColor: _c.accent,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: base.copyWith(color: context.theme.colors.mutedForeground),
-        isDense: true,
-        border: InputBorder.none,
-        contentPadding: EdgeInsets.zero,
-      ),
-      onChanged: (_) => setState(() {}),
-    );
-  }
-
   // ── Actions ────────────────────────────────────────────────
 
   void _close() {
@@ -1303,6 +1427,13 @@ class _CaptureScreenState extends State<CaptureScreen>
     }
   }
 
+  Future<void> _stopRecordingAndDiscard() async {
+    if (!_isRecording) return;
+    _recTimer?.cancel();
+    await _recorder.stop();
+    setState(() { _isRecording = false; _isTranscribing = false; });
+  }
+
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       _recTimer?.cancel();
@@ -1357,6 +1488,13 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Future<void> _save() async {
+    if (_isRecording) {
+      _recTimer?.cancel();
+      final path = await _recorder.stop();
+      setState(() { _isRecording = false; _isTranscribing = true; });
+      if (path != null) await _transcribe(path);
+      if (!mounted) return;
+    }
     final name = '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();
     if (name.isEmpty) {
       showAppToast(context, 'Enter at least a name');
@@ -1406,6 +1544,8 @@ class _CaptureScreenState extends State<CaptureScreen>
         'email':      _emailCtrl.text.trim(),
         'phone':      _phoneCtrl.text.trim(),
         'job_title':  _titleCtrl.text.trim(),
+        if (_scannedDetails != null && _scannedDetails!.isNotEmpty)
+          'scanned_details': _scannedDetails,
       };
 
       // Use WriteGateway so offline scans get queued with their image bytes.
@@ -1430,11 +1570,14 @@ class _CaptureScreenState extends State<CaptureScreen>
       }
 
       final captureName = '${_fnCtrl.text.trim()} (${_coCtrl.text.trim()})'.trim();
+      for (final c in _scannedDetailCtrls.values) { c.dispose(); }
+      _scannedDetailCtrls.clear();
       setState(() {
         _saved = true;
         _isSaving = false;
         _lastCapture = captureName;
         _pendingImageBytes = null;
+        _scannedDetails = null;
       });
       captureReturnSignal.value++;
       await Future<void>.delayed(const Duration(milliseconds: 1800));
@@ -1575,6 +1718,12 @@ class _CaptureScreenState extends State<CaptureScreen>
     _emailCtrl.text = (d['email']     as String?)?.trim() ?? '';
     _phoneCtrl.text = (d['phone']     as String?)?.trim() ?? '';
     _titleCtrl.text = (d['job_title'] as String?)?.trim() ?? (d['title'] as String?)?.trim() ?? '';
+    for (final c in _scannedDetailCtrls.values) { c.dispose(); }
+    _scannedDetailCtrls.clear();
+    final extra = d['scanned_details'];
+    _scannedDetails = (extra is Map && extra.isNotEmpty)
+        ? Map<String, dynamic>.from(extra)
+        : null;
   }
 
   String _fmtDur(Duration d) {

@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../db/app_database.dart';
+import '../services/company_name_resolver.dart';
 import 'combine_latest.dart';
 import 'synced_repository.dart';
 
@@ -14,6 +15,7 @@ class FollowUpRow {
   final String? email;
   final String? jobTitle;
   final String followUpStatus;
+  final String? companyId;
   final String? companyName;
   final String? draftSubject;
   final String? draftBody;
@@ -25,6 +27,7 @@ class FollowUpRow {
     this.email,
     this.jobTitle,
     required this.followUpStatus,
+    this.companyId,
     this.companyName,
     this.draftSubject,
     this.draftBody,
@@ -38,6 +41,7 @@ class TargetContactRow {
   final String contactId;
   final String name;
   final String jobTitle;
+  final String? companyId;
   final String companyName;
   final String status;
   final String? notes;
@@ -47,6 +51,7 @@ class TargetContactRow {
     required this.contactId,
     required this.name,
     required this.jobTitle,
+    this.companyId,
     required this.companyName,
     required this.status,
     this.notes,
@@ -96,11 +101,15 @@ class ContactEventsRepository extends SyncedRepository<ContactEventsTableData, $
           final ce = row.readTable(db.contactEventsTable);
           final contact = row.readTableOrNull(db.contactsTable);
           final company = row.readTableOrNull(db.companiesTable);
+          if (company == null && contact?.companyId != null) {
+            CompanyNameResolver.resolve(contact!.companyId);
+          }
           return TargetContactRow(
             id: ce.id,
             contactId: ce.contactId,
             name: contact != null ? '${contact.firstName} ${contact.lastName ?? ''}'.trim() : '',
             jobTitle: contact?.jobTitle ?? '',
+            companyId: contact?.companyId,
             companyName: company?.name ?? '',
             status: ce.status,
             notes: ce.notes,
@@ -159,6 +168,9 @@ class ContactEventsRepository extends SyncedRepository<ContactEventsTableData, $
 
       return contacts.map((c) {
         final company = c.companyId != null ? companiesById[c.companyId] : null;
+        if (company == null && c.companyId != null) {
+          CompanyNameResolver.resolve(c.companyId);
+        }
         final draft = latestDraftByContact[c.id];
         return FollowUpRow(
           contactId: c.id,
@@ -167,6 +179,7 @@ class ContactEventsRepository extends SyncedRepository<ContactEventsTableData, $
           email: c.email,
           jobTitle: c.jobTitle,
           followUpStatus: c.followUpStatus,
+          companyId: c.companyId,
           companyName: company?.name,
           draftSubject: draft?.subject,
           draftBody: draft?.body,

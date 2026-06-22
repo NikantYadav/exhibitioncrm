@@ -53,14 +53,14 @@ abstract class SyncedRepository<T extends Object, Tbl extends Table> {
   OrderingTerm _orderByUpdatedAt(Tbl tbl) =>
       OrderingTerm.desc((tbl as dynamic).updatedAt);
 
-  Future<String?> _lastSyncedAt() async {
+  Future<String?> lastSyncedAt() async {
     final row = await (db.select(db.syncStateTable)
           ..where((t) => t.tableName_.equals(tableName)))
         .getSingleOrNull();
     return row?.lastSyncedAt;
   }
 
-  Future<void> _storeLastSyncedAt(String serverTime) async {
+  Future<void> storeLastSyncedAt(String serverTime) async {
     await db.into(db.syncStateTable).insertOnConflictUpdate(
           SyncStateTableCompanion.insert(
             tableName_: tableName,
@@ -72,19 +72,27 @@ abstract class SyncedRepository<T extends Object, Tbl extends Table> {
   /// Pulls everything changed since the last successful catchUp, upserts
   /// into drift, hard-deletes locally-cached tombstones, then advances
   /// sync_state. Idempotent — safe to call repeatedly (e.g. on every resume).
+  ///
+  /// Single-table path: used by screen-level callers that intentionally
+  /// refresh one table (e.g. after adding a contact). The batched provider
+  /// path is [SyncProvider.catchUpAll], which fetches every table in one
+  /// request and feeds each delta to [applyTableDelta].
   Future<void> catchUp() async {
-    final since = await _lastSyncedAt();
+    final since = await lastSyncedAt();
     final response = await ApiService.getSyncDelta(since: since, tables: tableName);
     final serverTime = response['server_time'] as String;
     final tableDelta = (response['data'] as Map<String, dynamic>)[tableName] as Map<String, dynamic>?;
+    await applyTableDelta(tableDelta);
+    await storeLastSyncedAt(serverTime);
+  }
 
-    if (tableDelta != null) {
-      final upserts = (tableDelta['upserts'] as List).cast<Map<String, dynamic>>();
-      final deletedIds = (tableDelta['deleted_ids'] as List).cast<String>();
-      await applyDelta(upserts: upserts, deletedIds: deletedIds);
-    }
-
-    await _storeLastSyncedAt(serverTime);
+  /// Applies one table's delta map (`{upserts, deleted_ids}`) from a `/sync`
+  /// response. Tolerates a null delta (table absent from the response).
+  Future<void> applyTableDelta(Map<String, dynamic>? tableDelta) async {
+    if (tableDelta == null) return;
+    final upserts = (tableDelta['upserts'] as List).cast<Map<String, dynamic>>();
+    final deletedIds = (tableDelta['deleted_ids'] as List).cast<String>();
+    await applyDelta(upserts: upserts, deletedIds: deletedIds);
   }
 
   /// Upserts a batch of rows and hard-deletes tombstoned ids from the local

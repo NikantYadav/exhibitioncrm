@@ -254,6 +254,28 @@ class AppTheme {
     );
   }
 
+  /// Shared `showDatePicker` theming — pass as the `builder:` callback so every
+  /// date picker in the app renders with the same colors (see DESIGN.md).
+  static Widget datePickerBuilder(BuildContext context, Widget? child) {
+    final colors = colorsOf(context);
+    return Theme(
+      data: Theme.of(context).copyWith(
+        colorScheme: ColorScheme(
+          brightness: colors.isDark ? Brightness.dark : Brightness.light,
+          primary: colors.accent,
+          onPrimary: Colors.white,
+          secondary: colors.accent,
+          onSecondary: Colors.white,
+          error: colors.destructive,
+          onError: Colors.white,
+          surface: colors.surface,
+          onSurface: colors.textPrimary,
+        ),
+      ),
+      child: child!,
+    );
+  }
+
   static ThemeData get lightTheme => _buildTheme(lightColors, Brightness.light);
 
   static ThemeData get darkTheme => _buildTheme(darkColors, Brightness.dark);

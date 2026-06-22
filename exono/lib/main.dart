@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:workmanager/workmanager.dart';
 import 'config/app_theme.dart';
 import 'config/supabase_config.dart';
+import 'firebase_options.dart';
+import 'services/analytics_service.dart';
 import 'services/offline/background_sync.dart';
 import 'services/offline/connectivity_service.dart';
 import 'services/offline/offline_queue.dart';
@@ -49,6 +52,9 @@ void _callbackDispatcher() {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await AnalyticsService.instance.initialize();
 
   SupabaseConfig.validate();
   await Supabase.initialize(
@@ -102,7 +108,10 @@ class _ExonoRouterState extends State<_ExonoRouter> {
   @override
   void initState() {
     super.initState();
-    _router = buildRouter(context.read<AuthProvider>());
+    _router = buildRouter(
+      context.read<AuthProvider>(),
+      observers: [AnalyticsService.instance.observer],
+    );
     // Start polling live event once auth is resolved
     _initLiveEventOnAuth();
     // Forward sync-time duplicate detections into the notification center.
@@ -118,16 +127,18 @@ class _ExonoRouterState extends State<_ExonoRouter> {
     // cycles); start/stop the local drift cache in step with it.
     auth.addListener(() {
       if (auth.isAuthenticated) {
-        context.read<LiveEventProvider>().init();
-        sync.start(auth.user!['id'] as String);
+        final userId = auth.user!['id'] as String;
+        context.read<LiveEventProvider>().init(sync.db, userId);
+        sync.start(userId);
       } else if (wasAuthenticated) {
         sync.stop();
       }
       wasAuthenticated = auth.isAuthenticated;
     });
     if (auth.isAuthenticated) {
-      context.read<LiveEventProvider>().init();
-      sync.start(auth.user!['id'] as String);
+      final userId = auth.user!['id'] as String;
+      context.read<LiveEventProvider>().init(sync.db, userId);
+      sync.start(userId);
     }
   }
 
