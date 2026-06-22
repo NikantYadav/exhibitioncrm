@@ -6,11 +6,11 @@ workflows:
 
     environment:
       vars:
-        FLUTTER_VERSION: "3.32.0"
+        FLUTTER_VERSION: "3.44.2"
         BUNDLE_ID: com.example.exono
         API_BASE_URL: https://exhibitioncrm.vercel.app/api
-      # Add SUPABASE_URL and SUPABASE_ANON_KEY as secret environment variables
-      # in the Codemagic UI under Environment variables (mark both as "Secret")
+      groups:
+        - app_secrets   # group name you created in Codemagic UI (holds SUPABASE_URL, SUPABASE_ANON_KEY)
       flutter: $FLUTTER_VERSION
       xcode: latest
       cocoapods: default
