@@ -222,7 +222,9 @@ class AppButton extends StatelessWidget {
     }
 
     if (fullWidth) {
-      return SizedBox(width: double.infinity, child: btn);
+      // FButton sizes to its content; wrapping in a stretch Row forces it to
+      // fill the available width so it matches manually-built variants.
+      return Row(children: [Expanded(child: btn)]);
     }
     return btn;
   }

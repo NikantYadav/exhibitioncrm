@@ -90,6 +90,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
   }
 
   void _subscribeUpcomingEvents() {
+    bool firstEmission = true;
     _eventsSub = context.read<SyncProvider>().events.watchAll().listen((rows) {
       if (!mounted) return;
       final all = rows.map(Event.fromDrift).toList();
@@ -97,6 +98,13 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           .where((e) => e.status == 'upcoming')
           .toList()
         ..sort((a, b) => a.startDate.compareTo(b.startDate));
+      // Skip the first empty emission — it fires before sync has pulled data.
+      // Wait for either a non-empty result or a second emission (sync done).
+      if (firstEmission && upcoming.isEmpty) {
+        firstEmission = false;
+        return;
+      }
+      firstEmission = false;
       setState(() {
         _upcomingEvents = upcoming.take(3).toList();
         _eventsLoaded = true;
@@ -274,12 +282,15 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         // Priorities
         AppSectionLabel("Today's Priorities"),
         const SizedBox(height: 12),
-        _buildPriorityTile(
-          icon: Icons.schedule_rounded,
-          value: _followUpsDue == null ? '—' : '$_followUpsDue',
-          label: 'Follow-ups Due',
-          onTap: () => context.go('/follow-ups'),
-        ),
+        if (_followUpsDue == null)
+          _buildPriorityTileSkeleton()
+        else
+          _buildPriorityTile(
+            icon: Icons.schedule_rounded,
+            value: '$_followUpsDue',
+            label: 'Follow-ups Due',
+            onTap: () => context.go('/follow-ups'),
+          ),
         const SizedBox(height: 28),
 
         // Upcoming events
@@ -440,6 +451,22 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
   }
 
   // ── Priority tiles ────────────────────────────────────────────────────────
+
+  Widget _buildPriorityTileSkeleton() {
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      radius: 12,
+      child: Row(children: [
+        SkeletonLoader(width: 40, height: 40, borderRadius: BorderRadius.circular(10)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SkeletonLoader(width: 48, height: 24, borderRadius: BorderRadius.circular(4)),
+          const SizedBox(height: 6),
+          SkeletonLoader(width: 100, height: 11, borderRadius: BorderRadius.circular(4)),
+        ])),
+      ]),
+    );
+  }
 
   Widget _buildPriorityTile({required IconData icon, required String value, required String label, required VoidCallback onTap}) {
     return GestureDetector(
