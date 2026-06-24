@@ -36,6 +36,9 @@ class EventsScreen extends StatefulWidget {
 class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
+  static bool _isValidEventName(String name) => name.length <= 200;
+  static bool _isValidLocation(String location) => location.length <= 300;
+
   bool _showUpcoming = true;
   String _searchQuery = '';
 
@@ -740,6 +743,15 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
       showAppToast(sheetContext, 'Event name is required.');
       return;
     }
+    if (!_isValidEventName(name)) {
+      showAppToast(sheetContext, 'Event name must be 200 characters or fewer');
+      return;
+    }
+    final location = _locationController.text.trim();
+    if (location.isNotEmpty && !_isValidLocation(location)) {
+      showAppToast(sheetContext, 'Location must be 300 characters or fewer');
+      return;
+    }
 
     final startText = _startDateController.text;
     final startDate = startText.isNotEmpty
@@ -807,6 +819,15 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     final name = _eventNameController.text.trim();
     if (name.isEmpty) {
       showAppToast(sheetContext, 'Event name is required.');
+      return;
+    }
+    if (!_isValidEventName(name)) {
+      showAppToast(sheetContext, 'Event name must be 200 characters or fewer');
+      return;
+    }
+    final location = _locationController.text.trim();
+    if (location.isNotEmpty && !_isValidLocation(location)) {
+      showAppToast(sheetContext, 'Location must be 300 characters or fewer');
       return;
     }
     final startText = _startDateController.text;

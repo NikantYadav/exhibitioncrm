@@ -1,10 +1,62 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase';
 import { LiteLLMService } from '../services/litellm-service';
 import { TavilyService } from '../services/tavily-service';
 import { requireAuth } from '../middleware/requireAuth';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
+
+const uuidSchema = z.string().uuid();
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]*)?$/, 'Invalid date format').optional();
+const optText = (max: number) => z.string().trim().max(max).optional().or(z.literal(''));
+
+const eventWriteSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  location: optText(300),
+  start_date: isoDate,
+  end_date: isoDate,
+});
+
+const eventPatchSchema = eventWriteSchema.partial();
+
+const targetWriteSchema = z.object({
+  company_id: uuidSchema,
+  priority: z.enum(['high', 'medium', 'low']).optional(),
+  booth_location: optText(100),
+  notes: optText(2000),
+  status: z.enum(['not_contacted', 'contacted', 'researched', 'met']).optional(),
+  use_notes_for_briefing: z.boolean().optional(),
+});
+
+const targetPatchSchema = targetWriteSchema.partial();
+
+const goalWriteSchema = z.object({
+  label: z.string().trim().min(1).max(200),
+  total: z.number().int().min(1).max(10000).optional(),
+});
+
+const goalPatchSchema = z.object({
+  label: z.string().trim().min(1).max(200).optional(),
+  current: z.number().int().min(0).max(100000).optional(),
+  total: z.number().int().min(1).max(10000).optional(),
+}).refine(d => d.label !== undefined || d.current !== undefined || d.total !== undefined, {
+  message: 'At least one field required',
+});
+
+const followUpActionSchema = z.object({
+  action: z.enum(['send', 'skip', 'unskip']),
+  subject: z.string().trim().max(300).optional(),
+  body: z.string().trim().max(50000).optional(),
+});
+
+const contactEventStatusSchema = z.object({
+  status: z.enum(['not_contacted', 'met', 'contacted']).optional(),
+  notes: optText(5000),
+  talking_points: optText(5000),
+}).refine(d => d.status !== undefined || d.notes !== undefined || d.talking_points !== undefined, {
+  message: 'At least one field required',
+});
 
 const router = Router();
 
@@ -290,7 +342,9 @@ router.get('/stats/batch', async (req, res, next) => {
   try {
     const userId = req.user!.id;
     const idsParam = (req.query.ids as string) || '';
-    const eventIds = idsParam.split(',').map(s => s.trim()).filter(Boolean);
+    const rawIds = idsParam.split(',').map(s => s.trim()).filter(Boolean);
+    // Only keep valid UUIDs to prevent injection
+    const eventIds = rawIds.filter(id => uuidSchema.safeParse(id).success);
 
     if (eventIds.length === 0) {
       res.json({ data: {} });
@@ -415,22 +469,21 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    if (req.body.start_date) {
+    const parsedBody = eventWriteSchema.safeParse(req.body);
+    if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
+
+    const { name, location, start_date, end_date } = parsedBody.data;
+
+    if (start_date) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
-      if (new Date(req.body.start_date) < today) {
+      if (new Date(start_date) < today) {
         return res.status(400).json({ error: 'Event start date cannot be in the past.' });
       }
     }
 
     const { data, error } = await supabase
       .from('events')
-      .insert({
-        user_id: req.user!.id,
-        name: req.body.name,
-        location: req.body.location,
-        start_date: req.body.start_date,
-        end_date: req.body.end_date,
-      })
+      .insert({ user_id: req.user!.id, name, location, start_date, end_date })
       .select()
       .single();
 
@@ -444,16 +497,20 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
-    if (req.body.start_date) {
+    const parsedBody = eventPatchSchema.safeParse(req.body);
+    if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
+
+    const updates = parsedBody.data;
+    if (updates.start_date) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
-      if (new Date(req.body.start_date) < today) {
+      if (new Date(updates.start_date) < today) {
         return res.status(400).json({ error: 'Event start date cannot be in the past.' });
       }
     }
 
     const { data, error } = await supabase
       .from('events')
-      .update(req.body)
+      .update(updates)
       .eq('id', req.params.id)
       .eq('user_id', req.user!.id)
       .select()
@@ -469,9 +526,12 @@ router.patch('/:id', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
+    const parsedBody = eventWriteSchema.safeParse(req.body);
+    if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
+
     const { data, error } = await supabase
       .from('events')
-      .update(req.body)
+      .update(parsedBody.data)
       .eq('id', req.params.id)
       .eq('user_id', req.user!.id)
       .select()
@@ -739,8 +799,9 @@ router.get('/:id/goals', async (req, res, next) => {
 // POST /api/events/:id/ask
 router.post('/:id/ask', async (req, res, next) => {
   try {
-    const { question } = req.body;
-    if (!question) { res.status(400).json({ error: 'question required' }); return; }
+    const parsed = z.object({ question: z.string().trim().min(1).max(1000) }).safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+    const { question } = parsed.data;
     const [{ data: event }, { data: targets }] = await Promise.all([
       supabase.from('events').select('name, location, start_date, end_date').eq('id', req.params.id).is('deleted_at', null).single(),
       supabase.from('target_companies').select('company:companies(name, industry), booth_location, status, priority').eq('event_id', req.params.id).is('deleted_at', null).limit(20),
@@ -782,8 +843,9 @@ router.post('/:id/ask', async (req, res, next) => {
 // POST /api/events/:id/goals
 router.post('/:id/goals', async (req, res, next) => {
   try {
-    const { label, total } = req.body;
-    if (!label) { res.status(400).json({ error: 'label required' }); return; }
+    const parsed = goalWriteSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+    const { label, total } = parsed.data;
     const { data, error } = await supabase
       .from('event_goals')
       .insert({ event_id: req.params.id, label, total: total ?? 1, current: 0, user_id: req.user!.id })
@@ -796,10 +858,15 @@ router.post('/:id/goals', async (req, res, next) => {
 // PATCH /api/events/:id/goals/:goalId
 router.patch('/:id/goals/:goalId', async (req, res, next) => {
   try {
+    const parsedBody = goalPatchSchema.safeParse(req.body);
+    if (!parsedBody.success) { res.status(400).json({ error: parsedBody.error.flatten() }); return; }
+    const parsedGoalId = uuidSchema.safeParse(req.params.goalId);
+    if (!parsedGoalId.success) { res.status(400).json({ error: 'Invalid goalId' }); return; }
+
     const updates: any = {};
-    if (req.body.current !== undefined) updates.current = req.body.current;
-    if (req.body.label !== undefined) updates.label = req.body.label;
-    if (req.body.total !== undefined) updates.total = req.body.total;
+    if (parsedBody.data.current !== undefined) updates.current = parsedBody.data.current;
+    if (parsedBody.data.label !== undefined) updates.label = parsedBody.data.label;
+    if (parsedBody.data.total !== undefined) updates.total = parsedBody.data.total;
     updates.updated_at = new Date().toISOString();
     const { data, error } = await supabase
       .from('event_goals')
@@ -908,7 +975,9 @@ router.post('/:id/targets/import', upload.single('file'), async (req: any, res, 
 // POST /api/events/:id/targets
 router.post('/:id/targets', async (req, res, next) => {
   try {
-    const { company_id, priority, notes, booth_location } = req.body;
+    const parsedBody = targetWriteSchema.safeParse(req.body);
+    if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
+    const { company_id, priority, notes, booth_location } = parsedBody.data;
     const eventId = req.params.id;
 
     // Check for a soft-deleted row first and restore it
@@ -969,9 +1038,14 @@ router.post('/:id/targets', async (req, res, next) => {
 // PUT /api/events/:id/targets/:targetId
 router.put('/:id/targets/:targetId', async (req, res, next) => {
   try {
+    const parsedBody = targetPatchSchema.safeParse(req.body);
+    if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
+    const parsedTargetId = uuidSchema.safeParse(req.params.targetId);
+    if (!parsedTargetId.success) return res.status(400).json({ error: 'Invalid targetId' });
+
     const { data, error } = await supabase
       .from('target_companies')
-      .update(req.body)
+      .update(parsedBody.data)
       .eq('id', req.params.targetId)
       .eq('event_id', req.params.id)
       .select('*, company:companies(*)')
@@ -1061,16 +1135,12 @@ router.delete('/:id/targets/:targetId', async (req, res, next) => {
 router.patch('/:id/follow-ups/:contactId', async (req, res, next) => {
   try {
     const { id: eventId, contactId } = req.params;
-    const { subject, body, action } = req.body as {
-      subject?: string;
-      body?: string;
-      action: 'send' | 'skip' | 'unskip';
-    };
+    const parsedContactId = uuidSchema.safeParse(contactId);
+    if (!parsedContactId.success) { res.status(400).json({ error: 'Invalid contactId' }); return; }
 
-    if (!action) {
-      res.status(400).json({ error: 'action is required (send | skip | unskip)' });
-      return;
-    }
+    const parsedBody = followUpActionSchema.safeParse(req.body);
+    if (!parsedBody.success) { res.status(400).json({ error: parsedBody.error.flatten() }); return; }
+    const { subject, body, action } = parsedBody.data;
 
     if (action === 'send') {
       // Mark contact as contacted
@@ -1293,8 +1363,9 @@ router.get('/:id/targets/:targetId/contacts', async (req, res, next) => {
 router.post('/:id/targets/:targetId/contacts', async (req, res, next) => {
   try {
     const { id: eventId } = req.params;
-    const { contact_id } = req.body;
-    if (!contact_id) { res.status(400).json({ error: 'contact_id required' }); return; }
+    const parsed = z.object({ contact_id: uuidSchema }).safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+    const { contact_id } = parsed.data;
 
     const { error } = await supabase
       .from('contact_events')
@@ -1373,8 +1444,9 @@ router.get('/:id/contacts', async (req, res, next) => {
 // POST /api/events/:id/contacts — link a contact directly to an event
 router.post('/:id/contacts', async (req, res, next) => {
   try {
-    const { contact_id } = req.body;
-    if (!contact_id) { res.status(400).json({ error: 'contact_id required' }); return; }
+    const parsed = z.object({ contact_id: uuidSchema }).safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+    const { contact_id } = parsed.data;
 
     const { error } = await supabase
       .from('contact_events')
@@ -1390,11 +1462,12 @@ router.post('/:id/contacts', async (req, res, next) => {
 router.patch('/:id/contacts/:contactId', async (req, res, next) => {
   try {
     const { id: eventId, contactId } = req.params;
-    const { status, notes, talking_points } = req.body as {
-      status?: string;
-      notes?: string;
-      talking_points?: string;
-    };
+    const parsedContactId = uuidSchema.safeParse(contactId);
+    if (!parsedContactId.success) { res.status(400).json({ error: 'Invalid contactId' }); return; }
+
+    const parsedBody = contactEventStatusSchema.safeParse(req.body);
+    if (!parsedBody.success) { res.status(400).json({ error: parsedBody.error.flatten() }); return; }
+    const { status, notes, talking_points } = parsedBody.data;
 
     const updates: Record<string, any> = {};
     if (status !== undefined) updates.status = status;

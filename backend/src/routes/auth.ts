@@ -1,7 +1,33 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase';
 import { supabaseAuth } from '../config/supabaseClients';
 import { logInfo, logError, logSuccess, logWarning } from '../middleware/logger';
+
+const signupSchema = z.object({
+  email: z.string().trim().email().max(254),
+  password: z.string().min(8).max(128),
+  name: z.string().trim().min(1).max(100),
+});
+
+const loginSchema = z.object({
+  email: z.string().trim().email().max(254),
+  password: z.string().min(1).max(128),
+});
+
+const safeText = (max: number) => z.string().trim().max(max).optional();
+
+const completeProfileSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  profile_type: z.enum(['individual', 'company']).optional(),
+  designation: safeText(150),
+  products_services: safeText(1000),
+  value_proposition: safeText(1000),
+  website: z.string().url().max(500).optional().or(z.literal('')),
+  linkedin_url: z.string().url().max(500).optional().or(z.literal('')),
+  ai_tone: z.enum(['professional', 'casual', 'formal', 'friendly']).optional(),
+  additional_context: safeText(2000),
+});
 
 const router = Router();
 
@@ -11,16 +37,14 @@ const router = Router();
  */
 router.post('/signup', async (req: Request, res: Response) => {
   try {
-    const { email, password, name } = req.body;
+    const parsed = signupSchema.safeParse(req.body);
+    if (!parsed.success) {
+      logWarning('Signup failed: Validation error');
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const { email, password, name } = parsed.data;
 
     logInfo('Signup attempt', { email, name });
-
-    if (!email || !password || !name) {
-      logWarning('Signup failed: Missing required fields');
-      return res.status(400).json({
-        error: 'Email, password, and name are required',
-      });
-    }
 
     // Create user in Supabase Auth
     const { data: authData, error: authError } = await supabaseAuth.auth.signUp({
@@ -97,6 +121,11 @@ router.post('/complete-profile', async (req: Request, res: Response) => {
 
     logInfo('Completing profile', { userId: user.id });
 
+    const bodyParsed = completeProfileSchema.safeParse(req.body);
+    if (!bodyParsed.success) {
+      return res.status(400).json({ error: bodyParsed.error.flatten() });
+    }
+
     const {
       name,
       profile_type,
@@ -107,7 +136,7 @@ router.post('/complete-profile', async (req: Request, res: Response) => {
       linkedin_url,
       ai_tone,
       additional_context,
-    } = req.body;
+    } = bodyParsed.data;
 
     // Update user profile
     const { data: profile, error: profileError } = await supabase
@@ -156,16 +185,14 @@ router.post('/complete-profile', async (req: Request, res: Response) => {
  */
 router.post('/login', async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      logWarning('Login failed: Validation error');
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const { email, password } = parsed.data;
 
     logInfo('Login attempt', { email });
-
-    if (!email || !password) {
-      logWarning('Login failed: Missing credentials');
-      return res.status(400).json({
-        error: 'Email and password are required',
-      });
-    }
 
     const { data, error } = await supabaseAuth.auth.signInWithPassword({
       email,
@@ -277,14 +304,14 @@ router.get('/session', async (req: Request, res: Response) => {
  */
 router.post('/refresh', async (req: Request, res: Response) => {
   try {
-    const { refresh_token } = req.body;
-
-    logInfo('Token refresh attempt');
-
-    if (!refresh_token) {
+    const bodyParsed = z.object({ refresh_token: z.string().min(1).max(2048) }).safeParse(req.body);
+    if (!bodyParsed.success) {
       logWarning('Refresh failed: No refresh token provided');
       return res.status(400).json({ error: 'Refresh token required' });
     }
+    const { refresh_token } = bodyParsed.data;
+
+    logInfo('Token refresh attempt');
 
     const { data, error } = await supabaseAuth.auth.refreshSession({
       refresh_token,

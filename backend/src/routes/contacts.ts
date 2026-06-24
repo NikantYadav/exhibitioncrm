@@ -1,7 +1,32 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase';
 import { TavilyService } from '../services/tavily-service';
 import { requireAuth } from '../middleware/requireAuth';
+
+const uuidSchema = z.string().uuid();
+const optUrl = z.string().url().max(500).optional().or(z.literal(''));
+
+const contactWriteSchema = z.object({
+  first_name: z.string().trim().min(1).max(100),
+  last_name: z.string().trim().max(100).optional().or(z.literal('')),
+  email: z.string().trim().email().max(254).optional().or(z.literal('')),
+  phone: z.string().trim().max(30).optional().or(z.literal('')),
+  job_title: z.string().trim().max(150).optional().or(z.literal('')),
+  linkedin_url: optUrl,
+  notes: z.string().trim().max(5000).optional().or(z.literal('')),
+  company_id: uuidSchema.optional(),
+  company_name: z.string().trim().max(200).optional(),
+  event_id: uuidSchema.optional(),
+});
+
+const contactPatchSchema = contactWriteSchema.partial();
+
+const duplicateCheckSchema = z.object({
+  name: z.string().trim().max(200).optional(),
+  email: z.string().trim().email().max(254).optional().or(z.literal('')),
+  phone: z.string().trim().max(30).optional(),
+}).refine(d => d.name || d.email || d.phone, { message: 'At least one of name, email, or phone is required' });
 
 const router = Router();
 
@@ -48,11 +73,11 @@ router.get('/', async (req, res, next) => {
 // POST /api/contacts/check-duplicate
 router.post('/check-duplicate', async (req, res, next) => {
   try {
-    const { name, email, phone } = req.body as { name?: string; email?: string; phone?: string };
-
-    if (!name && !email && !phone) {
-      return res.status(400).json({ error: 'At least one of name, email, or phone is required' });
+    const parsed = duplicateCheckSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
     }
+    const { name, email, phone } = parsed.data;
 
     let query = supabase
       .from('contacts')
@@ -123,7 +148,11 @@ router.get('/:id', async (req, res, next) => {
 // POST /api/contacts
 router.post('/', async (req, res, next) => {
   try {
-    const body = req.body;
+    const parsed = contactWriteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
+    const body = parsed.data;
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     let company_id = body.company_id;
 
@@ -242,7 +271,13 @@ router.post('/', async (req, res, next) => {
 // re-points company_id — never renames an existing company record.
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { company_name, ...contactFields } = req.body;
+    const parsedId = uuidSchema.safeParse(req.params.id);
+    if (!parsedId.success) return res.status(400).json({ error: 'Invalid contact id' });
+
+    const parsedBody = contactPatchSchema.safeParse(req.body);
+    if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
+
+    const { company_name, ...contactFields } = parsedBody.data as any;
 
     if (contactFields.phone) {
       contactFields.phone = normalizePhone(contactFields.phone);
@@ -289,13 +324,20 @@ router.patch('/:id', async (req, res, next) => {
 // PUT /api/contacts/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    if (req.body.phone) {
-      req.body.phone = normalizePhone(req.body.phone);
+    const parsedId = uuidSchema.safeParse(req.params.id);
+    if (!parsedId.success) return res.status(400).json({ error: 'Invalid contact id' });
+
+    const parsedBody = contactWriteSchema.safeParse(req.body);
+    if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
+
+    const safeBody = parsedBody.data;
+    if (safeBody.phone) {
+      (safeBody as any).phone = normalizePhone(safeBody.phone);
     }
 
     const { data, error } = await supabase
       .from('contacts')
-      .update(req.body)
+      .update(safeBody)
       .eq('id', req.params.id)
       .eq('user_id', req.user!.id)
       .select(`
@@ -682,8 +724,9 @@ router.get('/:id/events', async (req, res, next) => {
 // Body: { event_id: string }
 router.post('/:id/events', async (req, res, next) => {
   try {
-    const { event_id } = req.body;
-    if (!event_id) return res.status(400).json({ error: 'event_id required' });
+    const parsed = z.object({ event_id: uuidSchema }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const { event_id } = parsed.data;
 
     // Verify contact ownership.
     const { data: contactCheck } = await supabase

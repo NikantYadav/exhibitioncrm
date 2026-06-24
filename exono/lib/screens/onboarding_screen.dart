@@ -20,6 +20,9 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
+  static bool _isValidUrl(String url) =>
+      url.startsWith('http://') || url.startsWith('https://');
+
   final PageController _pageController = PageController();
 
   final _nameController = TextEditingController();
@@ -140,6 +143,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
 
     if (effectiveName.isEmpty) {
       _showError('Please provide a valid name before continuing.');
+      return;
+    }
+    if (effectiveName.length > 100) {
+      _showError('Name must be 100 characters or fewer');
+      return;
+    }
+    final website = _websiteController.text.trim();
+    if (website.isNotEmpty && !_isValidUrl(website)) {
+      _showError('Website URL must start with http:// or https://');
+      return;
+    }
+    final linkedinUrl = _linkedinController.text.trim();
+    if (linkedinUrl.isNotEmpty && !_isValidUrl(linkedinUrl)) {
+      _showError('LinkedIn URL must start with http:// or https://');
       return;
     }
 

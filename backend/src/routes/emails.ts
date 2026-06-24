@@ -1,7 +1,22 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase';
 import { AIService } from '../config/ai';
 import { requireAuth } from '../middleware/requireAuth';
+
+const uuidSchema = z.string().uuid();
+
+const draftSchema = z.object({
+  contact_id: uuidSchema,
+  event_id: uuidSchema.optional(),
+  email_type: z.enum(['follow_up', 'introduction', 'reconnect', 'thank_you', 'proposal', 'general']),
+  custom_context: z.string().trim().max(2000).optional(),
+});
+
+const improveSchema = z.object({
+  text: z.string().trim().min(1).max(10000),
+  instructions: z.string().trim().max(2000).optional(),
+});
 
 const router = Router();
 router.use(requireAuth);
@@ -9,11 +24,9 @@ router.use(requireAuth);
 // POST /api/emails/draft
 router.post('/draft', async (req, res, next) => {
   try {
-    const { contact_id, event_id, email_type, custom_context } = req.body;
-
-    if (!contact_id || !email_type) {
-      return res.status(400).json({ error: 'contact_id and email_type are required' });
-    }
+    const parsed = draftSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const { contact_id, event_id, email_type, custom_context } = parsed.data;
 
     const userId = req.user!.id;
 
@@ -109,11 +122,9 @@ Write a natural, personalised email that reflects the sender's voice and offerin
 // POST /api/emails/improve
 router.post('/improve', async (req, res, next) => {
   try {
-    const { text, instructions } = req.body;
-
-    if (!text) {
-      return res.status(400).json({ error: 'Original text is required' });
-    }
+    const parsed = improveSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const { text, instructions } = parsed.data;
 
     const prompt = `Improve this email text:
 ${text}
@@ -147,6 +158,8 @@ Return the improved version.`;
 // DELETE /api/emails/drafts/:id
 router.delete('/drafts/:id', async (req, res, next) => {
   try {
+    const parsedId = uuidSchema.safeParse(req.params.id);
+    if (!parsedId.success) return res.status(400).json({ error: 'Invalid draft id' });
     const { id } = req.params;
 
     // Verify ownership via the linked contact.

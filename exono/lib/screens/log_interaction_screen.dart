@@ -264,6 +264,10 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
       showAppToast(context, 'Please add some notes');
       return;
     }
+    if (notes.length > 5000) {
+      showAppToast(context, 'Notes must be 5000 characters or fewer');
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {

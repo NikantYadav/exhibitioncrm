@@ -1,10 +1,32 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase';
+import { requireAuth } from '../middleware/requireAuth';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+
+router.use(requireAuth);
+
+const ALLOWED_MIME_TYPES = new Set([
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/octet-stream',
+]);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (_req, file, cb) => {
+    const ext = file.originalname.split('.').pop()?.toLowerCase() ?? '';
+    if (ALLOWED_MIME_TYPES.has(file.mimetype) || ['csv', 'xlsx', 'xls'].includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV, XLSX, and XLS files are allowed'));
+    }
+  },
+});
 
 // POST /api/import
 // Accepts CSV / XLSX / XLS with columns: name/first_name, last_name, company/company_name, phone, email

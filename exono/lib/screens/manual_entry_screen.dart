@@ -32,6 +32,15 @@ class ManualEntryResult {
 class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
+  static bool _isValidEmail(String email) {
+    final atIdx = email.indexOf('@');
+    if (atIdx < 1) return false;
+    return email.indexOf('.', atIdx) > atIdx + 1;
+  }
+
+  static bool _isValidUrl(String url) =>
+      url.startsWith('http://') || url.startsWith('https://');
+
   // ── Controllers ────────────────────────────────────────────
   final _fnCtrl      = TextEditingController();
   final _lnCtrl      = TextEditingController();
@@ -449,6 +458,25 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     final name = '$fn $ln'.trim();
     if (name.isEmpty) {
       showAppToast(context, 'Enter at least a name');
+      return;
+    }
+    if (fn.length > 100) {
+      showAppToast(context, 'First name must be 100 characters or fewer');
+      return;
+    }
+    final email = _emailCtrl.text.trim();
+    if (email.isNotEmpty && !_isValidEmail(email)) {
+      showAppToast(context, 'Please enter a valid email address');
+      return;
+    }
+    final phone = _phoneCtrl.text.trim();
+    if (phone.isNotEmpty && phone.length > 30) {
+      showAppToast(context, 'Phone number must be 30 characters or fewer');
+      return;
+    }
+    final linkedin = _linkedinCtrl.text.trim();
+    if (linkedin.isNotEmpty && !_isValidUrl(linkedin)) {
+      showAppToast(context, 'LinkedIn URL must start with http:// or https://');
       return;
     }
     setState(() => _isSaving = true);

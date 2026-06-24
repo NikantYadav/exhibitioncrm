@@ -34,6 +34,8 @@ class PreEventPrepScreen extends StatefulWidget {
 class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogger {
   ExonoColors get _c => AppTheme.colorsOf(context);
 
+  static bool _isValidGoalLabel(String label) => label.length <= 200;
+
   late final TargetCompaniesRepository _targetsRepo;
   late final ContactEventsRepository _contactEventsRepo;
   late final SyncProvider _sync;
@@ -125,7 +127,21 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                 onPressed: () async {
                   final label = labelCtrl.text.trim();
                   if (label.isEmpty) return;
-                  final total = isCheckbox ? 0 : (int.tryParse(totalCtrl.text.trim()) ?? 1);
+                  if (!_isValidGoalLabel(label)) {
+                    showAppToast(ctx, 'Goal label must be 200 characters or fewer');
+                    return;
+                  }
+                  int total;
+                  if (isCheckbox) {
+                    total = 0;
+                  } else {
+                    final parsed = int.tryParse(totalCtrl.text.trim());
+                    if (parsed == null || parsed <= 0) {
+                      showAppToast(ctx, 'Please enter a valid target count greater than 0');
+                      return;
+                    }
+                    total = parsed;
+                  }
                   Navigator.pop(ctx);
                   try {
                     await ApiService.createEventGoal(widget.event.id, label, total);

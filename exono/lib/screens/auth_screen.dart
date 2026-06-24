@@ -23,6 +23,12 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  static bool _isValidEmail(String email) {
+    final atIdx = email.indexOf('@');
+    if (atIdx < 1) return false;
+    return email.indexOf('.', atIdx) > atIdx + 1;
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -225,6 +231,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                       textCapitalization: TextCapitalization.words,
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return 'Please enter your name';
+                        if (v.trim().length > 100) return 'Name must be 100 characters or fewer';
                         return null;
                       },
                     ),
@@ -239,7 +246,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                     textInputAction: TextInputAction.next,
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Please enter your email';
-                      if (!v.contains('@')) return 'Please enter a valid email';
+                      if (!_isValidEmail(v.trim())) return 'Please enter a valid email';
                       return null;
                     },
                   ),
@@ -265,7 +272,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                     ),
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Please enter your password';
-                      if (v.length < 6) return 'Password must be at least 6 characters';
+                      if (v.length < 8) return 'Password must be at least 8 characters';
                       return null;
                     },
                   ),

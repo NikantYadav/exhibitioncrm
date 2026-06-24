@@ -1105,6 +1105,15 @@ class _EditContactSheetState extends State<_EditContactSheet> {
   late final _companyCtrl   = TextEditingController(text: widget.contact.company);
   bool _isSaving = false;
 
+  static bool _isValidEmail(String email) {
+    final atIdx = email.indexOf('@');
+    if (atIdx < 1) return false;
+    return email.indexOf('.', atIdx) > atIdx + 1;
+  }
+
+  static bool _isValidUrl(String url) =>
+      url.startsWith('http://') || url.startsWith('https://');
+
   List<String> _splitName(String fullName) {
     final parts = fullName.trim().split(' ');
     if (parts.length == 1) return [parts[0], ''];
@@ -1121,6 +1130,25 @@ class _EditContactSheetState extends State<_EditContactSheet> {
   Future<void> _save() async {
     final firstName = _firstNameCtrl.text.trim();
     if (firstName.isEmpty) return;
+    if (firstName.length > 100) {
+      showAppToast(context, 'First name must be 100 characters or fewer');
+      return;
+    }
+    final email = _emailCtrl.text.trim();
+    if (email.isNotEmpty && !_isValidEmail(email)) {
+      showAppToast(context, 'Please enter a valid email address');
+      return;
+    }
+    final phone = _phoneCtrl.text.trim();
+    if (phone.isNotEmpty && phone.length > 30) {
+      showAppToast(context, 'Phone number must be 30 characters or fewer');
+      return;
+    }
+    final linkedin = _linkedinCtrl.text.trim();
+    if (linkedin.isNotEmpty && !_isValidUrl(linkedin)) {
+      showAppToast(context, 'LinkedIn URL must start with http:// or https://');
+      return;
+    }
     setState(() => _isSaving = true);
     try {
       final payload = <String, dynamic>{

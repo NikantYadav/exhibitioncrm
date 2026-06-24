@@ -1,6 +1,25 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase';
 import { requireAuth } from '../middleware/requireAuth';
+
+const uuidSchema = z.string().uuid();
+
+const interactionCreateSchema = z.object({
+  contact_id: uuidSchema,
+  event_id: uuidSchema.optional(),
+  interaction_type: z.enum(['manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note']).optional(),
+  summary: z.string().trim().max(5000).optional(),
+  interaction_date: z.string().datetime().optional(),
+  details: z.record(z.unknown()).optional(),
+});
+
+const interactionPatchSchema = z.object({
+  summary: z.string().trim().max(5000).optional(),
+  interaction_date: z.string().datetime().optional(),
+  details: z.record(z.unknown()).optional(),
+  interaction_type: z.enum(['manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note']).optional(),
+});
 
 const router = Router();
 
@@ -20,11 +39,9 @@ async function ownsContact(userId: string, contactId: string): Promise<boolean> 
 // POST /api/interactions
 router.post('/', async (req, res, next) => {
   try {
-    const { contact_id, event_id, interaction_type, summary, interaction_date, details } = req.body;
-
-    if (!contact_id) {
-      return res.status(400).json({ error: 'contact_id is required' });
-    }
+    const parsed = interactionCreateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const { contact_id, event_id, interaction_type, summary, interaction_date, details } = parsed.data;
 
     if (!(await ownsContact(req.user!.id, contact_id))) {
       return res.status(403).json({ error: 'Forbidden' });
@@ -55,6 +72,12 @@ router.post('/', async (req, res, next) => {
 // PATCH /api/interactions/:id — used to update transcript after background processing
 router.patch('/:id', async (req, res, next) => {
   try {
+    const parsedId = uuidSchema.safeParse(req.params.id);
+    if (!parsedId.success) return res.status(400).json({ error: 'Invalid interaction id' });
+
+    const parsedBody = interactionPatchSchema.safeParse(req.body);
+    if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
+
     const { id } = req.params;
 
     // Verify the interaction belongs to the user via its contact.
@@ -75,7 +98,7 @@ router.patch('/:id', async (req, res, next) => {
 
     const { data, error } = await supabase
       .from('interactions')
-      .update(req.body)
+      .update(parsedBody.data)
       .eq('id', id)
       .select()
       .single();

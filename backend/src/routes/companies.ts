@@ -1,7 +1,26 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../config/supabase';
 import { LiteLLMService } from '../services/litellm-service';
 import { TavilyService } from '../services/tavily-service';
+
+const uuidSchema = z.string().uuid();
+const optText = (max: number) => z.string().trim().max(max).optional().or(z.literal(''));
+
+const companyWriteSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  industry: optText(150),
+  description: optText(2000),
+  headquarters: optText(200),
+  employee_count: optText(50),
+  founded_year: optText(10),
+  linkedin_url: z.string().url().max(500).optional().or(z.literal('')),
+  ticker_symbol: optText(20),
+  products_services: optText(2000),
+  website: z.string().url().max(500).optional().or(z.literal('')),
+});
+
+const companyPatchSchema = companyWriteSchema.partial();
 
 const router = Router();
 
@@ -55,8 +74,11 @@ router.get('/:id', async (req, res, next) => {
 // Called on first open of company detail page. Skips if already enriched.
 router.post('/:id/enrich', async (req, res, next) => {
   try {
+    const parsedId = uuidSchema.safeParse(req.params.id);
+    if (!parsedId.success) return res.status(400).json({ error: 'Invalid company id' });
+
     const { id } = req.params;
-    const { force } = req.body;
+    const { force } = z.object({ force: z.boolean().optional() }).parse(req.body);
 
     const { data: company, error } = await supabase
       .from('companies')
@@ -137,8 +159,13 @@ Return only valid JSON, no markdown.`;
 // Generates AI talking points, saves to DB, returns them.
 router.post('/:id/briefing', async (req, res, next) => {
   try {
+    const parsedId = uuidSchema.safeParse(req.params.id);
+    if (!parsedId.success) return res.status(400).json({ error: 'Invalid company id' });
+
     const { id } = req.params;
-    const { notes } = req.body as { notes?: string };
+    const bodyParsed = z.object({ notes: z.string().trim().max(5000).optional() }).safeParse(req.body);
+    if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.flatten() });
+    const { notes } = bodyParsed.data;
     const { data: company, error } = await supabase
       .from('companies')
       .select('*')
@@ -189,9 +216,12 @@ router.post('/:id/briefing', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
+    const parsed = companyWriteSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
     const { data, error } = await supabase
       .from('companies')
-      .insert(req.body)
+      .insert(parsed.data)
       .select()
       .single();
 
@@ -207,9 +237,15 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
+    const parsedId = uuidSchema.safeParse(req.params.id);
+    if (!parsedId.success) return res.status(400).json({ error: 'Invalid company id' });
+
+    const parsed = companyPatchSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
     const { data, error } = await supabase
       .from('companies')
-      .update(req.body)
+      .update(parsed.data)
       .eq('id', req.params.id)
       .select()
       .single();

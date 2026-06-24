@@ -50,6 +50,12 @@
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Exono needs camera access to scan business cards and QR codes.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Exono needs photo library access to import business card images.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Exono needs microphone access to record voice notes for interactions.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>exono.background_sync</string>

@@ -86,12 +86,35 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     setState(() => _editing = false);
   }
 
+  static bool _isValidUrl(String url) =>
+      url.startsWith('http://') || url.startsWith('https://');
+
   Future<void> _saveProfile() async {
     if (_isSavingProfile) return;
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
       showAppToast(context, 'Display name is required.');
       return;
+    }
+    if (name.length > 100) {
+      showAppToast(context, 'Display name must be 100 characters or fewer');
+      return;
+    }
+    final website = _websiteCtrl.text.trim();
+    if (website.isNotEmpty && !_isValidUrl(website)) {
+      showAppToast(context, 'Website URL must start with http:// or https://');
+      return;
+    }
+    final linkedinUrl = _linkedinCtrl.text.trim();
+    if (linkedinUrl.isNotEmpty) {
+      if (!_isValidUrl(linkedinUrl)) {
+        showAppToast(context, 'LinkedIn URL must start with http:// or https://');
+        return;
+      }
+      if (!linkedinUrl.contains('linkedin.com')) {
+        showAppToast(context, 'Please enter a valid LinkedIn URL');
+        return;
+      }
     }
     setState(() => _isSavingProfile = true);
     try {
