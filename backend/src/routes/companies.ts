@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { supabase } from '../config/supabase';
+import { supabaseAdmin as supabase } from '../config/supabase';
 import { LiteLLMService } from '../services/litellm-service';
 import { TavilyService } from '../services/tavily-service';
 

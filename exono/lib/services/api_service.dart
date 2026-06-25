@@ -987,6 +987,7 @@ class ApiService {
     String? rawText,
     Map<String, dynamic>? extractedData,
     String? eventId,
+    String? meetingContext,
     String? idempotencyKey,
   }) async {
     final body = <String, dynamic>{'capture_type': captureType};
@@ -994,6 +995,7 @@ class ApiService {
     if (rawText != null) body['raw_text'] = rawText;
     if (extractedData != null) body['extracted_data'] = extractedData;
     if (eventId != null) body['event_id'] = eventId;
+    if (meetingContext != null && meetingContext.isNotEmpty) body['meeting_context'] = meetingContext;
 
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.captures}'),

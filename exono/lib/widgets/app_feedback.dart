@@ -25,6 +25,15 @@ Future<T?> showAppSheet<T>({
   bool useRootNavigator = false,
 }) {
   navBarHide();
+  // Capture the system bottom inset from the outer context. Under Android's
+  // forced edge-to-edge, an ancestor SafeArea/Scaffold may already have
+  // consumed `padding.bottom` (leaving it 0) while the real inset still lives
+  // in `viewPadding.bottom`. forui's sheet keeps `padding.bottom` intact but
+  // that value is already 0 here, so a builder's `SafeArea(bottom: true)` adds
+  // nothing and content slides under the nav bar. We restate the true inset as
+  // `padding.bottom` inside the sheet so those SafeAreas work again. iOS was
+  // unaffected because its home-indicator inset stays in `padding.bottom`.
+  final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
   return showFSheet<T>(
     context: context,
     side: side,
@@ -32,9 +41,17 @@ Future<T?> showAppSheet<T>({
     mainAxisMaxRatio: isScrollControlled ? null : 9 / 16,
     builder: (ctx) {
       final bg = ctx.theme.colors.background;
-      return ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        child: ColoredBox(color: bg, child: builder(ctx)),
+      final mq = MediaQuery.of(ctx);
+      return MediaQuery(
+        data: mq.copyWith(
+          padding: mq.padding.copyWith(
+            bottom: mq.padding.bottom < bottomInset ? bottomInset : mq.padding.bottom,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: ColoredBox(color: bg, child: builder(ctx)),
+        ),
       );
     },
   ).whenComplete(navBarShow);

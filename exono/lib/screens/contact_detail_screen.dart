@@ -143,9 +143,16 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     }
   }
 
+  static const _allowedUrlSchemes = {'http', 'https', 'mailto', 'tel'};
+
   Future<void> _launchUrl(String url) async {
     final uri = Uri.tryParse(url);
-    if (uri == null) return;
+    // Only allow safe schemes — server/import-controlled strings could carry
+    // javascript:, intent:, or file: which must never reach launchUrl.
+    if (uri == null || !_allowedUrlSchemes.contains(uri.scheme.toLowerCase())) {
+      if (mounted) _toast('Cannot open this link');
+      return;
+    }
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) _toast('Could not open $url');
     }

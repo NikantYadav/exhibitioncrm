@@ -14,8 +14,20 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
   : [];
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Fail closed in production: an unset/empty allowlist must NOT mean
+// "allow every origin". Misconfiguration should deny cross-origin browser
+// requests, not silently open CORS to the world with credentials: true.
+if (isProduction && allowedOrigins.length === 0) {
+  console.warn(
+    '[security] ALLOWED_ORIGINS is empty in production — all cross-origin ' +
+    'browser requests will be rejected. Set ALLOWED_ORIGINS to your frontend origin(s).'
+  );
+}
 
 // Security headers
 app.use(helmet());
@@ -25,7 +37,12 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, Postman in dev)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    // In non-production with no allowlist configured, allow all (dev convenience).
+    // In production, an empty allowlist fails closed (deny).
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    if (!isProduction && allowedOrigins.length === 0) {
       return callback(null, true);
     }
     callback(new Error(`Origin ${origin} not allowed by CORS`));

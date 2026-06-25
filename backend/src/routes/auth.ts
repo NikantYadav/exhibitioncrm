@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { supabase } from '../config/supabase';
+import { supabaseAdmin as supabase } from '../config/supabase';
 import { supabaseAuth } from '../config/supabaseClients';
 import { logInfo, logError, logSuccess, logWarning } from '../middleware/logger';
 

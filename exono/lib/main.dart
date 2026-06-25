@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:workmanager/workmanager.dart';
 import 'config/app_theme.dart';
 import 'config/supabase_config.dart';
+import 'config/api_config.dart';
 import 'firebase_options.dart';
 import 'services/analytics_service.dart';
 import 'services/offline/background_sync.dart';
@@ -57,6 +58,7 @@ Future<void> main() async {
   await AnalyticsService.instance.initialize();
 
   SupabaseConfig.validate();
+  ApiConfig.assertSecure();
   await Supabase.initialize(
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.anonKey,

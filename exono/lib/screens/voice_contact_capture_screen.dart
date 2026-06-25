@@ -31,7 +31,9 @@ import '../utils/screen_logger.dart';
 
 class VoiceContactResult {
   final String savedName;
-  const VoiceContactResult(this.savedName);
+  final bool goManual;
+  const VoiceContactResult(this.savedName, {this.goManual = false});
+  const VoiceContactResult.manual() : savedName = '', goManual = true;
 }
 
 // ── Phase enum ─────────────────────────────────────────────────────────────────
@@ -83,6 +85,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   // ── Events ───────────────────────────────────────────────────
   List<Event> _events = [];
   String? _eventId;
+  final _meetContextCtrl = TextEditingController();
 
   // ── Save state ───────────────────────────────────────────────
   bool _isSaving = false;
@@ -132,6 +135,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     _phoneCtrl.dispose();
     _titleCtrl.dispose();
     _transcriptCtrl.dispose();
+    _meetContextCtrl.dispose();
     super.dispose();
   }
 
@@ -285,7 +289,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     if (_phase == _Phase.transcribing) return _buildTranscribingBody();
 
     return SingleChildScrollView(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 24),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom + 24),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           minHeight: MediaQuery.of(context).size.height
@@ -620,7 +624,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     final fn = _fnCtrl.text;
     final ln = _lnCtrl.text;
     final initials = '${fn.isNotEmpty ? fn[0] : ''}${ln.isNotEmpty ? ln[0] : ''}';
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 20, 16, bottomInset + 16),
@@ -720,6 +724,13 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             _sectionHeader(context, 'Event'),
             const SizedBox(height: 10),
             _buildEventSelector(),
+            if (_eventId == null) ...[
+              const SizedBox(height: 10),
+              AppInput(
+                controller: _meetContextCtrl,
+                label: 'How did you meet? (optional)',
+              ),
+            ],
           ],
 
           if (_transcript.isNotEmpty) ...[
@@ -1033,7 +1044,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                       20,
                       0,
                       20,
-                      MediaQuery.of(context).padding.bottom + 16,
+                      MediaQuery.of(context).viewPadding.bottom + 16,
                     ),
                     child: Column(
                       children: [
@@ -1099,17 +1110,18 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         _recTimer?.cancel();
         await _ampSub?.cancel();
         _ampSub = null;
+        final duration = _recDuration;
         final path = await _recorder.stop();
+        if (duration.inSeconds < 1 || path == null) {
+          if (mounted) setState(() { _isRecording = false; _amplitude = 0.0; });
+          return;
+        }
         setState(() {
           _isRecording = false;
           _amplitude = 0.0;
           _phase = _Phase.transcribing;
         });
-        if (path != null) {
-          await _transcribeAndParse(path);
-        } else {
-          if (mounted) setState(() => _phase = _Phase.recording);
-        }
+        await _transcribeAndParse(path);
         return;
       }
 
@@ -1178,6 +1190,10 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       } else {
         bytes = await File(path).readAsBytes();
       }
+      if (bytes.length < 4096) {
+        if (mounted) setState(() => _phase = _Phase.recording);
+        return;
+      }
       final b64 = base64Encode(bytes);
       final transcript = await ApiService.transcribeAudio(b64);
       if (!mounted) return;
@@ -1243,8 +1259,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   }
 
   void _goManual() {
-    // Pop this screen — parent scan page will open manual entry
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(const VoiceContactResult.manual());
   }
 
   Future<void> _save() async {
@@ -1286,6 +1301,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         captureType: 'voice',
         rawText: transcriptText.isNotEmpty ? transcriptText : null,
         eventId: _eventId,
+        meetingContext: _eventId == null ? _meetContextCtrl.text.trim() : null,
         extractedData: {
           'first_name': _fnCtrl.text.trim(),
           'last_name': _lnCtrl.text.trim(),

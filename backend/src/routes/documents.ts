@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { supabase } from '../config/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { AIService } from '../config/ai';
 
 const router = Router();
 
-async function ownsContact(userId: string, contactId: string): Promise<boolean> {
-  const { data } = await supabase
+async function ownsContact(db: SupabaseClient, userId: string, contactId: string): Promise<boolean> {
+  const { data } = await db
     .from('contacts')
     .select('id')
     .eq('id', contactId)
@@ -17,9 +17,10 @@ async function ownsContact(userId: string, contactId: string): Promise<boolean> 
 
 router.post('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { contact_id, name, file_url, description } = req.body;
 
-    if (contact_id && !(await ownsContact(req.user!.id, contact_id))) {
+    if (contact_id && !(await ownsContact(supabase, req.user!.id, contact_id))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -71,13 +72,14 @@ router.post('/', async (req, res, next) => {
 
 router.get('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { contact_id } = req.query;
 
     if (!contact_id) {
       return res.status(400).json({ error: 'Contact ID required' });
     }
 
-    if (!(await ownsContact(req.user!.id, contact_id as string))) {
+    if (!(await ownsContact(supabase, req.user!.id, contact_id as string))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -100,6 +102,7 @@ router.get('/', async (req, res, next) => {
 // POST /api/documents/summarize
 router.post('/summarize', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { document_id, content } = req.body;
 
     if (!content) {
@@ -118,7 +121,7 @@ router.post('/summarize', async (req, res, next) => {
         return res.status(404).json({ error: 'Document not found' });
       }
 
-      if (doc.contact_id && !(await ownsContact(req.user!.id, doc.contact_id))) {
+      if (doc.contact_id && !(await ownsContact(supabase, req.user!.id, doc.contact_id))) {
         return res.status(403).json({ error: 'Forbidden' });
       }
     }

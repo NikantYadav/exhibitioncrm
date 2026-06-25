@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { supabase } from '../config/supabase';
 import { litellm } from '../services/litellm-service';
 
 const router = Router();
@@ -7,6 +6,7 @@ const router = Router();
 // POST /api/captures/voice-transcribe
 router.post('/voice-transcribe', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { audio_data } = req.body;
     if (!audio_data) {
       return res.status(400).json({ error: 'audio_data is required' });
@@ -21,6 +21,7 @@ router.post('/voice-transcribe', async (req, res, next) => {
 
 router.get('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { event_id } = req.query;
     const userId = req.user!.id;
 
@@ -49,7 +50,8 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { image, capture_type, event_id, extracted_data, raw_text } = req.body;
+    const supabase = req.supabase!;
+    const { image, capture_type, event_id, extracted_data, raw_text, meeting_context } = req.body;
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     const userId = req.user!.id;
 
@@ -66,6 +68,23 @@ router.post('/', async (req, res, next) => {
     } else if (type === 'manual') {
       if (!extracted_data || !extracted_data.name) {
         return res.status(400).json({ error: 'extracted_data with at least a name is required for manual captures' });
+      }
+    }
+
+    // Ownership: a capture may reference an event_id, but RLS on `captures`
+    // only checks the row's own user_id — it does NOT stop a caller from
+    // attaching their capture to another tenant's event. Verify ownership of
+    // the referenced event explicitly before writing the foreign key.
+    if (event_id) {
+      const { data: ownedEvent } = await supabase
+        .from('events')
+        .select('id')
+        .eq('id', event_id)
+        .eq('user_id', userId)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (!ownedEvent) {
+        return res.status(403).json({ error: 'Forbidden' });
       }
     }
 
@@ -117,15 +136,18 @@ router.post('/', async (req, res, next) => {
       const lastName = extracted_data.last_name || extracted_data.name?.split(' ').slice(1).join(' ') || '';
 
       // Fetch event name
-      let eventName = 'an event';
+      let eventName: string | null = null;
       if (event_id) {
         const { data: eventData } = await supabase
           .from('events')
           .select('name')
           .eq('id', event_id)
+          .eq('user_id', req.user!.id)
           .is('deleted_at', null)
           .single();
         if (eventData) eventName = eventData.name;
+      } else if (meeting_context?.trim()) {
+        eventName = meeting_context.trim();
       }
 
       // Check if company exists, create if not
@@ -167,7 +189,9 @@ router.post('/', async (req, res, next) => {
           job_title: extracted_data.job_title || extracted_data.title || null,
           linkedin_url: extracted_data.linkedin_url || null,
           company_id: companyId,
-          notes: `${raw_text}\n\n[System Note: Captured at ${eventName}]`,
+          notes: eventName
+            ? `${raw_text}\n\n[System Note: Captured at ${eventName}]`
+            : raw_text || null,
           follow_up_status: 'not_contacted',
           follow_up_urgency: null,
           ...(scannedDetails ? { scanned_details: scannedDetails } : {}),
@@ -193,6 +217,10 @@ router.post('/', async (req, res, next) => {
 
         const captureDate = new Date().toISOString();
 
+        const summary = eventName
+          ? `Captured via ${humanCaptureType} at ${eventName}`
+          : `Captured via ${humanCaptureType}`;
+
         await supabase
           .from('interactions')
           .insert({
@@ -200,7 +228,7 @@ router.post('/', async (req, res, next) => {
             event_id: event_id || null,
             interaction_type: 'capture',
             interaction_date: captureDate,
-            summary: `Captured via ${humanCaptureType} at ${eventName}`,
+            summary,
             details: {
               source: capture_type,
               note: raw_text?.trim() || null,
@@ -255,6 +283,7 @@ router.post('/', async (req, res, next) => {
 // DELETE /api/captures/:id
 router.delete('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { error } = await supabase
       .from('captures')
       .update({ deleted_at: new Date().toISOString() })

@@ -239,9 +239,18 @@ class _ContactLinksFilesSheetState extends State<_ContactLinksFilesSheet> with S
     );
   }
 
+  static const _allowedUrlSchemes = {'http', 'https', 'mailto', 'tel'};
+
   Future<void> _openAsset(ContactAsset asset) async {
     final url = Uri.tryParse(asset.url);
-    if (url == null) return;
+    // Only allow safe schemes — asset URLs come from server/import data and
+    // could carry javascript:, intent:, or file: which must never be launched.
+    if (url == null || !_allowedUrlSchemes.contains(url.scheme.toLowerCase())) {
+      if (mounted) {
+        showAppToast(context, 'Cannot open this link');
+      }
+      return;
+    }
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         showAppToast(context, 'Could not open ${asset.url}');

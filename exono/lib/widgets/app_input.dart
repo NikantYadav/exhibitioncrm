@@ -116,6 +116,10 @@ class AppInput extends StatelessWidget {
       description: helperText != null ? Text(helperText!) : null,
       error: error != null ? Text(error!) : null,
       keyboardType: keyboardType,
+      // Tap anywhere outside the field to dismiss the keyboard. iOS number pads
+      // and multiline notes fields render no return/done key, so this is the
+      // consistent dismiss affordance across all field types on both platforms.
+      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
       obscureText: obscureText,
       readOnly: readOnly,
       enabled: enabled,

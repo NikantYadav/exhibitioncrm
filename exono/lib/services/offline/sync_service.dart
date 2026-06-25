@@ -21,6 +21,12 @@ class SyncService {
 
   static const int _maxAttempts = 5;
 
+  /// Minimum spacing between successive transcription calls, so a backlog of
+  /// queued voice notes doesn't burst the transcribe endpoint when the device
+  /// reconnects. Ops sync sequentially, so this is enforced per-call.
+  static const Duration _transcribeMinInterval = Duration(seconds: 3);
+  DateTime? _lastTranscribeAt;
+
   Future<void> sync() async {
     if (kIsWeb) return;
     if (_isSyncing) return;
@@ -60,8 +66,14 @@ class SyncService {
           serverId = await _syncContact(op);
         case 'log_interaction':
           serverId = await _syncInteraction(op);
+        case 'log_voice_note':
+          serverId = await _syncVoiceNote(op);
         case 'create_event':
           serverId = await _syncEvent(op);
+        case 'update_event_goal':
+          await _syncUpdateEventGoal(op);
+        case 'update_target_contact_status':
+          await _syncUpdateTargetContactStatus(op);
         default:
           // Unknown op type — mark failed, don't retry.
           await OfflineQueue.markFailed(op.id, 'Unknown op_type: ${op.opType}');
@@ -70,6 +82,7 @@ class SyncService {
 
       await OfflineQueue.markDone(op.id, serverId: serverId);
       await OfflineQueue.deleteImageAfterSync(op);
+      await OfflineQueue.deleteAudioAfterSync(op);
     } on _NeedsReview catch (e) {
       // A likely duplicate was detected at sync time. Park the op; the user
       // resolves it via a notification (see OfflineProvider).
@@ -145,6 +158,7 @@ class SyncService {
       rawText: payload['rawText'] as String?,
       extractedData: extractedData,
       eventId: eventId,
+      meetingContext: payload['meetingContext'] as String?,
       idempotencyKey: op.id,
     );
     return result['data']?['id'] as String?;
@@ -205,9 +219,67 @@ class SyncService {
       type: payload['type'] as String? ?? 'meeting',
       summary: payload['summary'] as String? ?? '',
       interactionDate: payload['interactionDate'] as String?,
+      details: payload['details'] as Map<String, dynamic>?,
       idempotencyKey: op.id,
     );
     return result['data']?['id'] as String?;
+  }
+
+  /// Replays a deferred voice note: creates the interaction (idempotent), then
+  /// transcribes the saved audio under a rate limit and patches the summary.
+  /// A transcription failure is non-fatal — the interaction is still created
+  /// with its placeholder summary, so the op is considered done.
+  Future<String?> _syncVoiceNote(OutboxOp op) async {
+    final payload = op.payload;
+    final durationSeconds = payload['durationSeconds'] as int? ?? 0;
+
+    final result = await ApiService.logInteraction(
+      contactId: payload['contactId'] as String,
+      eventId: payload['eventId'] as String?,
+      type: 'voice_note',
+      summary: 'Voice note - transcript pending...',
+      interactionDate: payload['interactionDate'] as String?,
+      details: {'duration_seconds': durationSeconds, 'has_audio': true},
+      idempotencyKey: op.id,
+    );
+    final interactionId = result['data']?['id'] as String?;
+
+    final audioBytes = await OfflineQueue.readAudio(op);
+    if (interactionId != null && audioBytes != null) {
+      try {
+        await _throttleTranscription();
+        final transcript =
+            await ApiService.transcribeAudio(base64Encode(audioBytes));
+        if (transcript.isNotEmpty) {
+          await ApiService.updateInteraction(interactionId, {
+            'summary': transcript,
+            'details': {
+              'duration_seconds': durationSeconds,
+              'has_audio': true,
+              'transcript': transcript,
+            },
+          });
+        }
+      } catch (_) {
+        // Transcription failed (rate limit / transient). The interaction is
+        // already saved with its placeholder; don't fail the whole op.
+      }
+    }
+
+    return interactionId;
+  }
+
+  /// Spaces transcription calls by [_transcribeMinInterval] to avoid bursting
+  /// the endpoint when a backlog of voice notes syncs at once.
+  Future<void> _throttleTranscription() async {
+    final last = _lastTranscribeAt;
+    if (last != null) {
+      final elapsed = DateTime.now().difference(last);
+      if (elapsed < _transcribeMinInterval) {
+        await Future.delayed(_transcribeMinInterval - elapsed);
+      }
+    }
+    _lastTranscribeAt = DateTime.now();
   }
 
   Future<String?> _syncEvent(OutboxOp op) async {
@@ -216,6 +288,22 @@ class SyncService {
       idempotencyKey: op.id,
     );
     return event.id;
+  }
+
+  Future<void> _syncUpdateEventGoal(OutboxOp op) async {
+    final eventId = op.payload['eventId'] as String;
+    final goalId = op.payload['goalId'] as String;
+    final data = Map<String, dynamic>.from(op.payload)
+      ..remove('eventId')
+      ..remove('goalId');
+    await ApiService.updateEventGoal(eventId, goalId, data);
+  }
+
+  Future<void> _syncUpdateTargetContactStatus(OutboxOp op) async {
+    final eventId = op.payload['eventId'] as String;
+    final contactId = op.payload['contactId'] as String;
+    final status = op.payload['status'] as String;
+    await ApiService.updateTargetContactStatus(eventId, contactId, status);
   }
 
 }

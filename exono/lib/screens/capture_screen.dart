@@ -97,6 +97,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   // ── Events ─────────────────────────────────────────────────
   List<Event> _events = [];
   String? _eventId;
+  final _meetContextCtrl = TextEditingController();
 
   // ── Dedup (online only — offline dedup goes through notifications) ─────
   bool _showDedup = false;
@@ -131,7 +132,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     _recorder.dispose();
     _fnCtrl.dispose(); _lnCtrl.dispose(); _coCtrl.dispose();
     _emailCtrl.dispose(); _phoneCtrl.dispose(); _titleCtrl.dispose();
-    _notesCtrl.dispose(); _voiceCtrl.dispose();
+    _notesCtrl.dispose(); _voiceCtrl.dispose(); _meetContextCtrl.dispose();
     for (final c in _scannedDetailCtrls.values) { c.dispose(); }
     super.dispose();
   }
@@ -379,7 +380,9 @@ class _CaptureScreenState extends State<CaptureScreen>
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 0, 28, 16),
+          padding: EdgeInsets.fromLTRB(
+            28, 0, 28, 16 + MediaQuery.of(context).viewPadding.bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -558,7 +561,9 @@ class _CaptureScreenState extends State<CaptureScreen>
               _buildNotesHeader(),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+                  padding: EdgeInsets.fromLTRB(
+                    16, 20, 16, 100 + MediaQuery.of(context).viewPadding.bottom,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -573,6 +578,13 @@ class _CaptureScreenState extends State<CaptureScreen>
                       AppSectionLabel('Event'),
                       const SizedBox(height: 10),
                       _buildEventSelector(),
+                      if (_eventId == null) ...[
+                        const SizedBox(height: 10),
+                        AppInput(
+                          controller: _meetContextCtrl,
+                          label: 'How did you meet? (optional)',
+                        ),
+                      ],
                       if (_scannedDetails != null && _scannedDetails!.isNotEmpty) ...[
                         const SizedBox(height: 24),
                         AppSectionLabel('Additional Details'),
@@ -946,7 +958,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   Widget _buildFixedSaveButton() {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        16, 12, 16, MediaQuery.of(context).padding.bottom + 12,
+        16, 12, 16, MediaQuery.of(context).viewPadding.bottom + 12,
       ),
       decoration: BoxDecoration(
         color: _c.background,
@@ -1205,7 +1217,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                   ),
                   Padding(
                     padding: EdgeInsets.fromLTRB(
-                      20, 0, 20, MediaQuery.of(context).padding.bottom + 16,
+                      20, 0, 20, MediaQuery.of(context).viewPadding.bottom + 16,
                     ),
                     child: Column(
                       children: [
@@ -1322,7 +1334,10 @@ class _CaptureScreenState extends State<CaptureScreen>
         builder: (_) => const VoiceContactCaptureScreen(),
       ),
     );
-    if (result != null && mounted) {
+    if (!mounted) return;
+    if (result != null && result.goManual) {
+      await _onManual();
+    } else if (result != null) {
       setState(() => _lastCapture = result.savedName);
     }
   }
@@ -1436,9 +1451,17 @@ class _CaptureScreenState extends State<CaptureScreen>
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       _recTimer?.cancel();
+      final duration = _recDuration;
       final path = await _recorder.stop();
-      setState(() { _isRecording = false; _isTranscribing = true; });
-      if (path != null) await _transcribe(path);
+      setState(() { _isRecording = false; _isTranscribing = duration.inSeconds >= 1; });
+      if (path != null && duration.inSeconds >= 1) await _transcribe(path);
+      return;
+    }
+    // The voice memo only exists to fill the notes field via transcription,
+    // which needs the network. Block recording offline rather than silently
+    // discard the audio (mirrors voice_contact_capture_screen).
+    if (!context.read<OfflineProvider>().isOnline) {
+      showAppToast(context, 'Voice notes require an internet connection');
       return;
     }
     if (!kIsWeb) {
@@ -1476,6 +1499,13 @@ class _CaptureScreenState extends State<CaptureScreen>
       } else {
         bytes = await File(path).readAsBytes();
       }
+      // Guard: skip files too small to contain real speech (silence/near-empty
+      // recordings cause Whisper to hallucinate text).
+      if (bytes.length < 4096) {
+        if (!mounted) return;
+        setState(() => _isTranscribing = false);
+        return;
+      }
       final b64 = base64Encode(bytes);
       final transcript = await ApiService.transcribeAudio(b64);
       if (!mounted) return;
@@ -1489,9 +1519,10 @@ class _CaptureScreenState extends State<CaptureScreen>
   Future<void> _save() async {
     if (_isRecording) {
       _recTimer?.cancel();
+      final duration = _recDuration;
       final path = await _recorder.stop();
-      setState(() { _isRecording = false; _isTranscribing = true; });
-      if (path != null) await _transcribe(path);
+      setState(() { _isRecording = false; _isTranscribing = duration.inSeconds >= 1; });
+      if (path != null && duration.inSeconds >= 1) await _transcribe(path);
       if (!mounted) return;
     }
     final name = '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();
@@ -1554,6 +1585,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         imageBytes: _pendingImageBytes,
         rawText: rawText.isEmpty ? null : rawText,
         eventId: _eventId,
+        meetingContext: _eventId == null ? _meetContextCtrl.text.trim() : null,
         extractedData: extractedData,
       );
 
@@ -1609,7 +1641,16 @@ class _CaptureScreenState extends State<CaptureScreen>
           .where((s) => s.isNotEmpty)
           .join('\n')
           .trim();
-      final summary = rawNotes.isNotEmpty ? rawNotes : 'Met at event';
+      final contextHint = _eventId != null
+          ? null
+          : _meetContextCtrl.text.trim().isNotEmpty
+              ? _meetContextCtrl.text.trim()
+              : null;
+      final summary = rawNotes.isNotEmpty
+          ? rawNotes
+          : contextHint != null
+              ? 'Met: $contextHint'
+              : 'Met';
 
       await WriteGateway().logInteraction(
         contactId: existingId,

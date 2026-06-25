@@ -1,6 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { supabase } from '../config/supabase';
 import { LiteLLMService } from '../services/litellm-service';
 import { TavilyService } from '../services/tavily-service';
 import { requireAuth } from '../middleware/requireAuth';
@@ -68,6 +67,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 // Runs automatically before any handler that has an :id param.
 router.param('id', async (req: Request, res: Response, next: NextFunction, id: string) => {
   try {
+    const supabase = req.supabase!;
     const { data: event } = await supabase
       .from('events')
       .select('id, user_id')
@@ -108,6 +108,7 @@ const getEventStatus = (event: any): string => {
 
 router.get('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const userId = req.user!.id;
 
     const { data, error } = await supabase
@@ -136,6 +137,7 @@ router.get('/', async (req, res, next) => {
 // Returns the current ongoing event if any
 router.get('/ongoing/current', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const userId = req.user!.id;
     const { data: events, error } = await supabase
       .from('events')
@@ -165,6 +167,7 @@ router.get('/ongoing/current', async (req, res, next) => {
 // Replaces 3 sequential calls (ongoing/current → /:id/live → /:id/captures) with one round trip.
 router.get('/live-session', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const userId = req.user!.id;
 
     // 1. Find ongoing event (same query as /ongoing/current)
@@ -313,6 +316,7 @@ router.get('/live-session', async (req, res, next) => {
 // Returns the next upcoming event (soonest start_date in the future)
 router.get('/upcoming/next', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const userId = req.user!.id;
     const { data: events, error } = await supabase
       .from('events')
@@ -340,6 +344,7 @@ router.get('/upcoming/next', async (req, res, next) => {
 // Returns stats for multiple events in one round trip.
 router.get('/stats/batch', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const userId = req.user!.id;
     const idsParam = (req.query.ids as string) || '';
     const rawIds = idsParam.split(',').map(s => s.trim()).filter(Boolean);
@@ -448,6 +453,7 @@ router.get('/stats/batch', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { data: event, error } = await supabase
       .from('events')
       .select('*')
@@ -469,6 +475,7 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedBody = eventWriteSchema.safeParse(req.body);
     if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
 
@@ -497,6 +504,7 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedBody = eventPatchSchema.safeParse(req.body);
     if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
 
@@ -526,6 +534,7 @@ router.patch('/:id', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedBody = eventWriteSchema.safeParse(req.body);
     if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
 
@@ -548,6 +557,7 @@ router.put('/:id', async (req, res, next) => {
 // GET /api/events/:id/stats
 router.get('/:id/stats', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const eventId = req.params.id;
 
     // Get total captures
@@ -624,6 +634,7 @@ router.get('/:id/stats', async (req, res, next) => {
 // GET /api/events/:id/targets
 router.get('/:id/targets', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { data, error } = await supabase
       .from('target_companies')
       .select('*, company:companies(*)')
@@ -642,6 +653,7 @@ router.get('/:id/targets', async (req, res, next) => {
 // GET /api/events/:id/targets/:targetId
 router.get('/:id/targets/:targetId', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { data, error } = await supabase
       .from('target_companies')
       .select('*, company:companies(*)')
@@ -661,6 +673,7 @@ router.get('/:id/targets/:targetId', async (req, res, next) => {
 // GET /api/events/:id/live
 router.get('/:id/live', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const eventId = req.params.id;
     console.log(`[GET /events/:id/live] eventId: ${eventId}`);
 
@@ -788,6 +801,7 @@ router.get('/:id/live', async (req, res, next) => {
 // GET /api/events/:id/goals
 router.get('/:id/goals', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { data, error } = await supabase
       .from('event_goals').select('*')
       .eq('event_id', req.params.id).is('deleted_at', null).order('created_at', { ascending: true });
@@ -799,6 +813,7 @@ router.get('/:id/goals', async (req, res, next) => {
 // POST /api/events/:id/ask
 router.post('/:id/ask', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsed = z.object({ question: z.string().trim().min(1).max(1000) }).safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
     const { question } = parsed.data;
@@ -843,6 +858,7 @@ router.post('/:id/ask', async (req, res, next) => {
 // POST /api/events/:id/goals
 router.post('/:id/goals', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsed = goalWriteSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
     const { label, total } = parsed.data;
@@ -858,6 +874,7 @@ router.post('/:id/goals', async (req, res, next) => {
 // PATCH /api/events/:id/goals/:goalId
 router.patch('/:id/goals/:goalId', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedBody = goalPatchSchema.safeParse(req.body);
     if (!parsedBody.success) { res.status(400).json({ error: parsedBody.error.flatten() }); return; }
     const parsedGoalId = uuidSchema.safeParse(req.params.goalId);
@@ -882,6 +899,7 @@ router.patch('/:id/goals/:goalId', async (req, res, next) => {
 // DELETE /api/events/:id/goals/:goalId
 router.delete('/:id/goals/:goalId', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { error } = await supabase
       .from('event_goals')
       .update({ deleted_at: new Date().toISOString() })
@@ -895,6 +913,7 @@ router.delete('/:id/goals/:goalId', async (req, res, next) => {
 // POST /api/events/:id/targets/import
 router.post('/:id/targets/import', upload.single('file'), async (req: any, res, next) => {
   try {
+    const supabase = req.supabase!;
     const eventId = req.params.id;
     if (!req.file) {
       res.status(400).json({ error: 'No file uploaded' });
@@ -975,6 +994,7 @@ router.post('/:id/targets/import', upload.single('file'), async (req: any, res, 
 // POST /api/events/:id/targets
 router.post('/:id/targets', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedBody = targetWriteSchema.safeParse(req.body);
     if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
     const { company_id, priority, notes, booth_location } = parsedBody.data;
@@ -1038,6 +1058,7 @@ router.post('/:id/targets', async (req, res, next) => {
 // PUT /api/events/:id/targets/:targetId
 router.put('/:id/targets/:targetId', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedBody = targetPatchSchema.safeParse(req.body);
     if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
     const parsedTargetId = uuidSchema.safeParse(req.params.targetId);
@@ -1062,6 +1083,7 @@ router.put('/:id/targets/:targetId', async (req, res, next) => {
 // POST /api/events/:id/targets/:targetId/briefing
 router.post('/:id/targets/:targetId/briefing', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { targetId } = req.params;
     const { data: target, error } = await supabase
       .from('target_companies')
@@ -1111,6 +1133,7 @@ router.post('/:id/targets/:targetId/briefing', async (req, res, next) => {
 // DELETE /api/events/:id/targets/:targetId
 router.delete('/:id/targets/:targetId', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { error } = await supabase
       .from('target_companies')
       .update({ deleted_at: new Date().toISOString() })
@@ -1134,6 +1157,7 @@ router.delete('/:id/targets/:targetId', async (req, res, next) => {
 // Body: { subject?, body?, action: 'send' | 'skip' }
 router.patch('/:id/follow-ups/:contactId', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id: eventId, contactId } = req.params;
     const parsedContactId = uuidSchema.safeParse(contactId);
     if (!parsedContactId.success) { res.status(400).json({ error: 'Invalid contactId' }); return; }
@@ -1220,6 +1244,7 @@ router.patch('/:id/follow-ups/:contactId', async (req, res, next) => {
 // Returns existing draft if one exists, otherwise generates via AI, saves, and returns it.
 router.post('/:id/follow-ups/:contactId/draft', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id: eventId, contactId } = req.params;
 
     // Return existing draft immediately if one exists
@@ -1322,6 +1347,7 @@ Respond in JSON with exactly two fields: "subject" (string) and "body" (string).
 // GET /api/events/:id/targets/:targetId/contacts
 router.get('/:id/targets/:targetId/contacts', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id: eventId, targetId } = req.params;
 
     // Get the target to find company_id
@@ -1362,10 +1388,17 @@ router.get('/:id/targets/:targetId/contacts', async (req, res, next) => {
 // POST /api/events/:id/targets/:targetId/contacts
 router.post('/:id/targets/:targetId/contacts', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id: eventId } = req.params;
     const parsed = z.object({ contact_id: uuidSchema }).safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
     const { contact_id } = parsed.data;
+
+    // RLS on contact_events only checks the new row's user_id, not the foreign
+    // contact_id — verify the caller owns the contact before linking it.
+    const { data: ownedContact } = await supabase
+      .from('contacts').select('id').eq('id', contact_id).eq('user_id', req.user!.id).is('deleted_at', null).maybeSingle();
+    if (!ownedContact) { res.status(403).json({ error: 'Forbidden' }); return; }
 
     const { error } = await supabase
       .from('contact_events')
@@ -1380,6 +1413,7 @@ router.post('/:id/targets/:targetId/contacts', async (req, res, next) => {
 // DELETE /api/events/:id/targets/:targetId/contacts/:contactId
 router.delete('/:id/targets/:targetId/contacts/:contactId', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id: eventId, contactId } = req.params;
 
     const { error } = await supabase
@@ -1396,6 +1430,7 @@ router.delete('/:id/targets/:targetId/contacts/:contactId', async (req, res, nex
 // DELETE /api/events/:id/contacts/:contactId — unlink a contact from an event
 router.delete('/:id/contacts/:contactId', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { error } = await supabase
       .from('contact_events')
       .update({ deleted_at: new Date().toISOString() })
@@ -1409,6 +1444,7 @@ router.delete('/:id/contacts/:contactId', async (req, res, next) => {
 // GET /api/events/:id/contacts — list target contacts for an event
 router.get('/:id/contacts', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { data, error } = await supabase
       .from('contact_events')
       .select(`
@@ -1444,9 +1480,16 @@ router.get('/:id/contacts', async (req, res, next) => {
 // POST /api/events/:id/contacts — link a contact directly to an event
 router.post('/:id/contacts', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsed = z.object({ contact_id: uuidSchema }).safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
     const { contact_id } = parsed.data;
+
+    // RLS on contact_events only checks the new row's user_id, not the foreign
+    // contact_id — verify the caller owns the contact before linking it.
+    const { data: ownedContact } = await supabase
+      .from('contacts').select('id').eq('id', contact_id).eq('user_id', req.user!.id).is('deleted_at', null).maybeSingle();
+    if (!ownedContact) { res.status(403).json({ error: 'Forbidden' }); return; }
 
     const { error } = await supabase
       .from('contact_events')
@@ -1461,6 +1504,7 @@ router.post('/:id/contacts', async (req, res, next) => {
 // PATCH /api/events/:id/contacts/:contactId — update target contact status/notes
 router.patch('/:id/contacts/:contactId', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id: eventId, contactId } = req.params;
     const parsedContactId = uuidSchema.safeParse(contactId);
     if (!parsedContactId.success) { res.status(400).json({ error: 'Invalid contactId' }); return; }
@@ -1492,6 +1536,7 @@ router.patch('/:id/contacts/:contactId', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { error } = await supabase
       .from('events')
       .update({ deleted_at: new Date().toISOString() })

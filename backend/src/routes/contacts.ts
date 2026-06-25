@@ -1,6 +1,5 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { supabase } from '../config/supabase';
 import { TavilyService } from '../services/tavily-service';
 import { requireAuth } from '../middleware/requireAuth';
 
@@ -33,6 +32,35 @@ const router = Router();
 // Apply auth middleware to all routes in this file
 router.use(requireAuth);
 
+// Verify the contact identified by :id belongs to the authenticated user.
+// Runs automatically before any handler that has an :id param. This is a
+// route-layer ownership guard (defense-in-depth on top of RLS) that also
+// closes the IDOR on sub-resource reads like /:id/timeline, which query
+// child tables (interactions/captures) by contact_id.
+router.param('id', async (req: Request, res: Response, next: NextFunction, id: string) => {
+  try {
+    const supabase = req.supabase!;
+    const { data: contact } = await supabase
+      .from('contacts')
+      .select('id, user_id')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    if (contact.user_id !== req.user!.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    next();
+  } catch {
+    res.status(500).json({ error: 'Failed to verify contact ownership' });
+  }
+});
+
 // Strips spaces/dashes/etc, keeping a leading "+" (country code marker), so
 // scanned numbers ("+91-9876543210") match manually typed ones during
 // duplicate detection and stay consistent when stored.
@@ -45,6 +73,7 @@ function normalizePhone(phone: string): string {
 // GET /api/contacts
 router.get('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { company_id } = req.query;
 
     let query = supabase
@@ -73,6 +102,7 @@ router.get('/', async (req, res, next) => {
 // POST /api/contacts/check-duplicate
 router.post('/check-duplicate', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsed = duplicateCheckSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
@@ -129,6 +159,7 @@ router.post('/check-duplicate', async (req, res, next) => {
 // GET /api/contacts/:id
 router.get('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { data, error } = await supabase
       .from('contacts')
       .select('*, company:companies(*)')
@@ -148,6 +179,7 @@ router.get('/:id', async (req, res, next) => {
 // POST /api/contacts
 router.post('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsed = contactWriteSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
@@ -271,6 +303,7 @@ router.post('/', async (req, res, next) => {
 // re-points company_id — never renames an existing company record.
 router.patch('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedId = uuidSchema.safeParse(req.params.id);
     if (!parsedId.success) return res.status(400).json({ error: 'Invalid contact id' });
 
@@ -324,6 +357,7 @@ router.patch('/:id', async (req, res, next) => {
 // PUT /api/contacts/:id
 router.put('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedId = uuidSchema.safeParse(req.params.id);
     if (!parsedId.success) return res.status(400).json({ error: 'Invalid contact id' });
 
@@ -357,6 +391,7 @@ router.put('/:id', async (req, res, next) => {
 // GET /api/contacts/:id/timeline
 router.get('/:id/timeline', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id } = req.params;
     const { type } = req.query;
 
@@ -426,6 +461,7 @@ router.get('/:id/timeline', async (req, res, next) => {
 // DELETE /api/contacts/:id
 router.delete('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { error } = await supabase
       .from('contacts')
       .update({ deleted_at: new Date().toISOString() })
@@ -453,6 +489,7 @@ const RECENT_WINDOW_CHARS = Math.floor(TIMELINE_BUDGET_CHARS * 0.30);           
 // Implements rolling-summary context management for Gemini 2.5 Pro's 1M token window.
 router.get('/:id/insights', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id } = req.params;
 
     // Fetch contact with company — scoped to this user
@@ -674,6 +711,7 @@ router.get('/:id/insights', async (req, res, next) => {
     // AI call failed — fall back to stale cached insights if available, otherwise return null
     console.error('AI completion error:', error);
     try {
+      const supabase = req.supabase!;
       const { data: contact } = await supabase
         .from('contacts')
         .select('ai_insights')
@@ -693,6 +731,7 @@ router.get('/:id/insights', async (req, res, next) => {
 // Returns distinct events this contact has been linked to (via interactions OR contact_events).
 router.get('/:id/events', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     // Verify contact ownership first.
     const { data: contactCheck } = await supabase
       .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).is('deleted_at', null).maybeSingle();
@@ -724,6 +763,7 @@ router.get('/:id/events', async (req, res, next) => {
 // Body: { event_id: string }
 router.post('/:id/events', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsed = z.object({ event_id: uuidSchema }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     const { event_id } = parsed.data;
@@ -732,6 +772,13 @@ router.post('/:id/events', async (req, res, next) => {
     const { data: contactCheck } = await supabase
       .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).is('deleted_at', null).maybeSingle();
     if (!contactCheck) return res.status(403).json({ error: 'Forbidden' });
+
+    // Verify the body-supplied event is also owned by the caller — RLS on
+    // `interactions` only checks the new row's user_id, not the foreign event_id,
+    // so without this a user could link their contact to another tenant's event.
+    const { data: eventCheck } = await supabase
+      .from('events').select('id').eq('id', event_id).eq('user_id', req.user!.id).is('deleted_at', null).maybeSingle();
+    if (!eventCheck) return res.status(403).json({ error: 'Forbidden' });
 
     // Upsert: if already linked via event_link interaction, skip.
     const { data: existing } = await supabase
@@ -769,6 +816,7 @@ router.post('/:id/events', async (req, res, next) => {
 // Unlinks a contact from an event (removes event_link interaction).
 router.delete('/:id/events/:event_id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     // Verify contact ownership.
     const { data: contactCheck } = await supabase
       .from('contacts').select('id').eq('id', req.params.id).eq('user_id', req.user!.id).is('deleted_at', null).maybeSingle();

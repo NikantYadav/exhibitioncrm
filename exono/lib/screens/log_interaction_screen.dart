@@ -11,6 +11,7 @@ import 'package:forui/forui.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../widgets/app_feedback.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -18,6 +19,7 @@ import '../config/app_theme.dart';
 import '../models/contact.dart';
 import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
+import '../services/offline/write_gateway.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -115,19 +117,28 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
   // ── Voice ──────────────────────────────────────────────────────────────────
 
   Future<void> _startRecording() async {
-    // Use the record plugin's own permission check — it requests the OS
-    // permission internally and stays consistent with the recorder's state.
-    // (Mixing this with permission_handler can leave the two out of sync.)
-    bool hasPermission;
-    try {
-      hasPermission = await _recorder.hasPermission();
-    } catch (e) {
-      debugPrint('[VOICE] hasPermission failed: $e');
-      hasPermission = false;
-    }
-    if (!hasPermission) {
-      if (mounted) showAppToast(context, 'Microphone permission required');
-      return;
+    // On iOS, record's hasPermission() returns false for "not-determined" status
+    // before the user responds to the system prompt, causing an immediate bail.
+    // Use permission_handler to explicitly request first, then verify.
+    if (!kIsWeb) {
+      final status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        if (mounted) showAppToast(context, 'Microphone permission required');
+        return;
+      }
+    } else {
+      // Web: fall back to record's native check (browser asks natively)
+      bool hasPermission;
+      try {
+        hasPermission = await _recorder.hasPermission();
+      } catch (e) {
+        debugPrint('[VOICE] hasPermission failed: $e');
+        hasPermission = false;
+      }
+      if (!hasPermission) {
+        if (mounted) showAppToast(context, 'Microphone permission required');
+        return;
+      }
     }
 
     // path_provider is not supported on web; record ignores the path on web
@@ -215,27 +226,35 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
       } else {
         audioBytes = await File(_recordingPath!).readAsBytes();
       }
-      final base64Audio = base64Encode(audioBytes);
-
-      // 2. Post the interaction immediately with placeholder summary
-      final result = await ApiService.logInteraction(
+      if (audioBytes.length < 4096) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          showAppToast(context, 'Recording too short — please try again');
+        }
+        return;
+      }
+      // 2. Save via the gateway. Online: posts the interaction immediately and
+      //    returns its id for background transcription. Offline: persists the
+      //    audio to disk and queues both create + transcription for sync time.
+      final result = await WriteGateway().logVoiceNote(
         contactId: _effectiveContactId!,
-        type: 'voice_note',
-        summary: '🎙 Voice note — transcript pending...',
+        audioBytes: audioBytes,
         interactionDate: _selectedDate.toIso8601String(),
-        details: {'duration_seconds': _recDuration.inSeconds, 'has_audio': true},
+        durationSeconds: _recDuration.inSeconds,
       );
 
-      final interactionId = result['data']?['id'] as String?;
+      final interactionId = result.data?['data']?['id'] as String?;
 
       if (mounted) {
-        showAppToast(context, 'Interaction logged.');
+        showAppToast(context, result.savedOffline
+            ? 'Saved offline - will transcribe and sync when online'
+            : 'Interaction logged.');
         Navigator.of(context).pop(true);
       }
 
-      // 3. Transcribe in background — no await, fire and forget
+      // 3. Online only: transcribe in background — fire and forget.
       if (interactionId != null) {
-        _transcribeInBackground(interactionId, base64Audio);
+        _transcribeInBackground(interactionId, base64Encode(audioBytes));
       }
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
@@ -272,7 +291,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
     setState(() => _isSaving = true);
     try {
       final mode = _modeController.text.trim();
-      await ApiService.logInteraction(
+      final result = await WriteGateway().logInteraction(
         contactId: _effectiveContactId!,
         type: mode.isNotEmpty ? mode.toLowerCase().replaceAll(' ', '_') : 'manual',
         summary: notes,
@@ -281,7 +300,9 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
       );
 
       if (mounted) {
-        showAppToast(context, 'Interaction logged.');
+        showAppToast(context, result.savedOffline
+            ? 'Saved offline - will sync when online'
+            : 'Interaction logged.');
         Navigator.of(context).pop(true);
       }
     } on UnauthorizedException { rethrow; } catch (_) {

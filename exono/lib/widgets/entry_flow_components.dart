@@ -418,6 +418,10 @@ class EntryTextField extends StatelessWidget {
           minLines: isMultiline ? maxLines : 1,
           maxLines: maxLines,
           onFieldSubmitted: onSubmitted,
+          // Tap anywhere outside to dismiss — number pads and multiline notes
+          // render no return/done key on iOS, so this is the consistent way to
+          // close the keyboard across all field types on both platforms.
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w500,

@@ -4,6 +4,7 @@ class OutboxOp {
   final String opType;
   final Map<String, dynamic> payload;
   final String? imageRef;
+  final String? audioRef;
   final String? eventId;
   final String status;
   final int attempts;
@@ -20,6 +21,7 @@ class OutboxOp {
     required this.opType,
     required this.payload,
     this.imageRef,
+    this.audioRef,
     this.eventId,
     required this.status,
     required this.attempts,

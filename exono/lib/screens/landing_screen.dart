@@ -5,32 +5,39 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/screen_logger.dart';
 
-// ─── Dark navy palette ────────────────────────────────────────────────────────
-const _bg    = Color(0xFF010C1C);   // very dark navy canvas
-const _card  = Color(0xFF071627);   // card / section surface
-const _card2 = Color(0xFF0B1E33);   // slightly raised card
-const _bdr   = Color(0x1AFFFFFF);   // 10 % white border
-const _text  = Color(0xFFFFFFFF);
-const _sub   = Color(0x99FFFFFF);   // 60 % white body text
-const _muted = Color(0x55FFFFFF);   // 33 % white muted text
-const _blue  = Color(0xFF4478F5);   // bright navy-blue accent
-const _blueT = Color(0x1A4478F5);   // blue 10 % tint
-const _blueDp = Color(0xFF0F1F4A);  // deep navy (button / header)
+// ─── Glass Cockpit palette (DESIGN.md, true-black dark) ───────────────────────
+const _bg    = Color(0xFF000000);   // true-black canvas (instrument panel at night)
+const _card  = Color(0xFF0B1422);   // panel surface
+const _card2 = Color(0xFF0F1B2E);   // surface alt / raised
+const _bdr   = Color(0xFF1C2F4A);   // hairline border
+const _bdrSt = Color(0xFF283F62);   // hairline border strong
+const _text  = Color(0xFFF0F6FF);   // readout ink
+const _sub   = Color(0xFFB5C6E4);   // readout secondary
+const _muted = Color(0xFF7A90B5);   // readout muted (WCAG AA on dark surfaces)
+const _blue  = Color(0xFF2B8BFF);   // Trust Blue (dark)
+const _blueSt = Color(0xFF0672EF);  // Trust Blue strong
+const _blueT = Color(0x262B8BFF);   // Trust Blue 15 % tint
+const _blueDp = Color(0xFF071C3A);  // accent glow dark (featured surface)
 const _white = Color(0xFFFFFFFF);
-const _amber = Color(0xFFF59E0B);
-const _green = Color(0xFF4ADE80);
+const _amber = Color(0xFFF59E0B);   // functional: testimonial stars only
+const _green = Color(0xFF5DC89A);   // functional: live / success only
 
-// ─── Typography ──────────────────────────────────────────────────────────────
-TextStyle _d(double sz, {FontWeight w = FontWeight.w800, Color c = _text}) =>
-    GoogleFonts.plusJakartaSans(fontSize: sz, fontWeight: w, color: c,
-        letterSpacing: -(sz * 0.025), height: 1.06);
+// ─── Typography: single Inter family, weight-size hierarchy (DESIGN.md §3) ───
+TextStyle _d(double sz, {FontWeight w = FontWeight.w700, Color c = _text}) =>
+    GoogleFonts.inter(fontSize: sz, fontWeight: w, color: c,
+        letterSpacing: -(sz * 0.022), height: 1.08);
 
 TextStyle _b(double sz, {Color c = _sub, FontWeight w = FontWeight.w400}) =>
-    GoogleFonts.inter(fontSize: sz, fontWeight: w, color: c, height: 1.65);
+    GoogleFonts.inter(fontSize: sz, fontWeight: w, color: c, height: 1.6);
 
+// Label role: bold small-caps, 0.8px tracking, the one "loud at small size" move.
 TextStyle _mono(double sz, {Color c = _muted}) =>
-    GoogleFonts.ibmPlexMono(fontSize: sz, fontWeight: FontWeight.w500, color: c,
-        letterSpacing: 0.4);
+    GoogleFonts.inter(fontSize: sz, fontWeight: FontWeight.w800, color: c,
+        letterSpacing: 0.8);
+
+// Honor prefers-reduced-motion (Section 6.B, mandatory above MOTION_INTENSITY 3).
+bool _reduceMotion(BuildContext context) =>
+    MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
 // ─── Max-width wrapper ────────────────────────────────────────────────────────
 class _W extends StatelessWidget {
@@ -85,6 +92,7 @@ class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
     if (box == null || !box.attached) return;
     if (box.localToGlobal(Offset.zero).dy < MediaQuery.of(context).size.height * 0.94) {
       _done = true;
+      if (_reduceMotion(context)) { _c.value = 1.0; return; }
       Future.delayed(widget.delay, () { if (mounted) _c.forward(); });
     }
   }
@@ -147,16 +155,16 @@ class _BtnState extends State<_Btn> {
             horizontal: widget.small ? 18 : 26, vertical: widget.small ? 10 : 14),
         decoration: BoxDecoration(
           color: widget.primary
-              ? (_h ? const Color(0xFF5588FF) : _blue)
-              : (_h ? _bdr : Colors.transparent),
-          borderRadius: BorderRadius.circular(10),
-          border: widget.primary ? null : Border.all(color: _bdr),
+              ? (_h ? _blueSt : _blue)
+              : (_h ? _card2 : Colors.transparent),
+          borderRadius: BorderRadius.circular(999),
+          border: widget.primary ? null : Border.all(color: _bdrSt),
         ),
         child: Text(widget.label,
             style: GoogleFonts.inter(
                 fontSize: widget.small ? 13 : 15,
                 fontWeight: FontWeight.w600,
-                color: _white,
+                color: widget.primary ? _white : _blue,
                 letterSpacing: -0.1)),
       ),
     ),
@@ -189,19 +197,19 @@ class _Logo extends StatelessWidget {
   }
 }
 
-// ─── Mono chip label ──────────────────────────────────────────────────────────
+// ─── Chip label: squared 4px, bold small-caps (DESIGN.md AppChip) ────────────
 class _Chip extends StatelessWidget {
   final String text;
   const _Chip(this.text);
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
       color: _blueT,
-      borderRadius: BorderRadius.circular(99),
+      borderRadius: BorderRadius.circular(4),
       border: Border.all(color: _blue.withValues(alpha: 0.30)),
     ),
-    child: Text(text, style: _mono(11, c: _blue.withValues(alpha: 0.90))),
+    child: Text(text.toUpperCase(), style: _mono(10, c: _blue.withValues(alpha: 0.90))),
   );
 }
 
@@ -233,7 +241,7 @@ class _Nav extends StatelessWidget {
             Row(mainAxisSize: MainAxisSize.min, children: [
               const _Logo(size: 24),
               const SizedBox(width: 9),
-              Text('Exono', style: GoogleFonts.plusJakartaSans(
+              Text('Exono', style: GoogleFonts.inter(
                   fontSize: 19, fontWeight: FontWeight.w800, color: _text, letterSpacing: -0.4)),
             ]),
             if (wide) ...[
@@ -310,7 +318,10 @@ class _HeroState extends State<_Hero> with SingleTickerProviderStateMixin {
     _slides = List.generate(5, (i) =>
         Tween(begin: const Offset(0, 0.05), end: Offset.zero).animate(CurvedAnimation(
             parent: _c, curve: Interval(i * 0.12, (i * 0.12 + 0.55).clamp(0.0, 1.0), curve: Curves.easeOutCubic))));
-    _c.forward();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_reduceMotion(context)) { _c.value = 1.0; } else { _c.forward(); }
+    });
   }
 
   @override
@@ -337,7 +348,7 @@ class _HeroState extends State<_Hero> with SingleTickerProviderStateMixin {
           _a(2, ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Text(
-              'Scan any badge or card in under three seconds. Record a voice memo immediately after. Exono structures it, enriches the contact, and follows up for you — before the next flight home.',
+              'Scan any badge in seconds, add a voice memo, and let Exono follow up for you before the flight home.',
               textAlign: TextAlign.center,
               style: _b(17, c: _sub),
             ),
@@ -347,43 +358,11 @@ class _HeroState extends State<_Hero> with SingleTickerProviderStateMixin {
             _Btn('Get started free', widget.onCta),
             _Btn('See how it works', widget.onDemo, primary: false),
           ])),
-          const SizedBox(height: 28),
-          _a(4, _TrustRow()),
           SizedBox(height: wide ? 64 : 48),
           _a(4, _AppWindow()),
         ]),
       ),
     );
-  }
-}
-
-class _TrustRow extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final colors = [
-      [const Color(0xFF6D9DC5), const Color(0xFF5A8B78)],
-      [const Color(0xFFD4A56A), const Color(0xFF9B6B9E)],
-      [const Color(0xFF7AC7D4), const Color(0xFF4A90B8)],
-      [const Color(0xFFE8A87C), const Color(0xFFD4687E)],
-      [const Color(0xFF8FBE8F), const Color(0xFF5A9E6D)],
-    ];
-    return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      SizedBox(
-        width: 28 + 4 * 20.0, height: 28,
-        child: Stack(children: List.generate(5, (i) => Positioned(
-          left: i * 20.0,
-          child: Container(
-            width: 28, height: 28,
-            decoration: BoxDecoration(shape: BoxShape.circle,
-              border: Border.all(color: _bg, width: 2),
-              gradient: LinearGradient(colors: colors[i]),
-            ),
-          ),
-        ))),
-      ),
-      const SizedBox(width: 12),
-      Text('10,000+ sales professionals worldwide', style: _b(13, c: _sub, w: FontWeight.w500)),
-    ]);
   }
 }
 
@@ -410,7 +389,10 @@ class _AppWindowState extends State<_AppWindow> with SingleTickerProviderStateMi
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat();
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_reduceMotion(context)) _pulse.repeat();
+    });
   }
 
   @override
@@ -487,7 +469,7 @@ class _Sidebar extends StatelessWidget {
         child: Row(children: [
           const _Logo(size: 18),
           const SizedBox(width: 7),
-          Text('Exono', style: GoogleFonts.plusJakartaSans(
+          Text('Exono', style: GoogleFonts.inter(
               fontSize: 14, fontWeight: FontWeight.w800, color: _text, letterSpacing: -0.3)),
         ]),
       ),
@@ -541,7 +523,7 @@ class _MainPane extends StatelessWidget {
       Row(children: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('DevWorld 2025 · Hall B',
-              style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
+              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
           Text('Day 2 of 3 · Stand 214',
               style: _b(12, c: _muted)),
         ]),
@@ -617,7 +599,7 @@ class _MiniStat extends StatelessWidget {
     decoration: BoxDecoration(color: _card2, borderRadius: BorderRadius.circular(7),
         border: Border.all(color: _bdr)),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(value, style: GoogleFonts.plusJakartaSans(
+      Text(value, style: GoogleFonts.inter(
           fontSize: 15, fontWeight: FontWeight.w800, color: _blue, height: 1)),
       Text(label, style: _mono(9, c: _muted)),
     ]),
@@ -697,7 +679,10 @@ class _MarqueeState extends State<_Marquee> with SingleTickerProviderStateMixin 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 55000))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 55000));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_reduceMotion(context)) _c.repeat();
+    });
   }
 
   @override
@@ -759,12 +744,10 @@ class _Philosophy extends StatelessWidget {
       child: _W(max: 760,
         child: _Reveal(sc: sc,
           child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            const _Chip('Why Exono'),
-            const SizedBox(height: 36),
             Text(
-              '"Every deal starts with a conversation on the exhibition floor. Most of them die on the plane home — buried under 80 business cards, half-remembered names, and follow-up emails that never get sent."',
+              '"Every deal starts with a conversation on the exhibition floor. Most of them die on the plane home, buried under 80 business cards, half-remembered names, and follow-up emails that never get sent."',
               textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                   fontSize: wide ? 24 : 19, fontWeight: FontWeight.w500,
                   color: _text, height: 1.55, letterSpacing: -0.5),
             ),
@@ -772,7 +755,7 @@ class _Philosophy extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                  color: _card, borderRadius: BorderRadius.circular(10),
+                  color: _card, borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: _bdr)),
               child: Text(
                 'Exono exists to close that gap. One tool, built for the field.',
@@ -788,7 +771,7 @@ class _Philosophy extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FEATURES — tab switcher
+// FEATURES: tab switcher
 // ═══════════════════════════════════════════════════════════════════════════════
 class _Features extends StatefulWidget {
   final GlobalKey sectionKey;
@@ -820,8 +803,11 @@ class _FeaturesState extends State<_Features> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 4),
-        (_) { if (mounted) setState(() => _active = (_active + 1) % _tabs.length); });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _reduceMotion(context)) return;
+      _timer = Timer.periodic(const Duration(seconds: 4),
+          (_) { if (mounted) setState(() => _active = (_active + 1) % _tabs.length); });
+    });
   }
 
   @override
@@ -847,7 +833,7 @@ class _FeaturesState extends State<_Features> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Everything you need to capture, enrich, and follow up — without switching tools.',
+                'Everything you need to capture, enrich, and follow up, without switching tools.',
                 textAlign: TextAlign.center, style: _b(16, c: _sub),
               ),
             ]),
@@ -914,8 +900,8 @@ class _FTabItemState extends State<_FTabItem> {
           margin: const EdgeInsets.only(bottom: 4),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: sel ? _blueT : (_h ? _bdr : Colors.transparent),
-            borderRadius: BorderRadius.circular(10),
+            color: sel ? _blueT : (_h ? _card2 : Colors.transparent),
+            borderRadius: BorderRadius.circular(16),
             border: sel ? Border.all(color: _blue.withValues(alpha: 0.30)) : null,
           ),
           child: Row(children: [
@@ -954,7 +940,7 @@ class _FTabPanel extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           width: 52, height: 52,
-          decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(14),
+          decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _blue.withValues(alpha: 0.20))),
           child: Icon(tab.icon, color: _blue, size: 26),
         ),
@@ -973,11 +959,11 @@ class _FMobileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(color: _card2, borderRadius: BorderRadius.circular(14),
+    decoration: BoxDecoration(color: _card2, borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _bdr)),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(width: 36, height: 36,
-        decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(12)),
         child: Icon(tab.icon, color: _blue, size: 18)),
       const SizedBox(width: 14),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -994,7 +980,7 @@ class _FMobileCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FEATURE STRIPS — alternating, Fora "what you get" style
+// FEATURE STRIPS: alternating capability sections
 // ═══════════════════════════════════════════════════════════════════════════════
 class _Strips extends StatelessWidget {
   final ScrollController sc;
@@ -1010,8 +996,8 @@ class _Strips extends StatelessWidget {
           sc: sc, wide: wide, reverse: false,
           chip: 'Your front door',
           title: 'A capture flow built\nfor the exhibition floor.',
-          body: 'No fumbling with apps mid-conversation. Open Exono, point your camera, tap once. The contact profile appears in seconds — with company, role, and email already filled in.',
-          points: const ['Works on printed cards and digital badges', 'Offline-first — no exhibition WiFi required', 'Duplicate detection across your whole team'],
+          body: 'No fumbling with apps mid-conversation. Open Exono, point your camera, tap once. The contact profile appears in seconds, with company, role, and email already filled in.',
+          points: const ['Works on printed cards and digital badges', 'Offline-first, no exhibition WiFi required', 'Duplicate detection across your whole team'],
           visual: const _ScanVisual(),
         ),
         Container(height: 1, color: _bdr),
@@ -1019,16 +1005,16 @@ class _Strips extends StatelessWidget {
           sc: sc, wide: wide, reverse: true,
           chip: 'Capture context',
           title: 'Your voice, structured\nautomatically.',
-          body: 'Walk away from the stand, hit record. Talk for 30 seconds. Exono transcribes your words, tags topics, and links the memo to the contact — so nothing gets lost between the show floor and your desk.',
+          body: 'Walk away from the stand, hit record. Talk for 30 seconds. Exono transcribes your words, tags topics, and links the memo to the contact, so nothing gets lost between the show floor and your desk.',
           points: const ['Instant transcription in 30+ languages', 'Auto-tagged: budget, timeline, interest, follow-up', 'Attached to the contact within seconds'],
           visual: const _VoiceVisual(),
         ),
         Container(height: 1, color: _bdr),
         _Strip(
-          sc: sc, wide: wide, reverse: false,
+          sc: sc, wide: wide, reverse: false, stacked: true,
           chip: 'Close the loop',
-          title: 'The follow-up writes\nitself.',
-          body: 'At the right moment — a day, a week, a quarter later — Exono surfaces the lead with a suggested message drawn from your own notes. It sounds like you, because it is your words.',
+          title: 'The follow-up writes itself.',
+          body: 'At the right moment, a day, a week, a quarter later, Exono surfaces the lead with a suggested message drawn from your own notes. It sounds like you, because it is your words.',
           points: const ['Timing based on what you said in the memo', 'Draft uses your exact language and context', 'One tap to edit and send from your email client'],
           visual: const _FollowUpVisual(),
         ),
@@ -1046,17 +1032,19 @@ class _Strip extends StatelessWidget {
   final String body;
   final List<String> points;
   final Widget visual;
+  final bool stacked;
   const _Strip({required this.sc, required this.wide, required this.reverse,
       required this.chip, required this.title, required this.body,
-      required this.points, required this.visual});
+      required this.points, required this.visual, this.stacked = false});
 
   @override
   Widget build(BuildContext context) {
+    if (stacked) return _buildStacked(context);
     final textSide = _Reveal(
       sc: sc, dx: reverse ? 0.05 : -0.05, dy: 0,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _Chip(chip),
-        const SizedBox(height: 20),
+        Text(chip, style: _b(14, c: _blue, w: FontWeight.w700)),
+        const SizedBox(height: 12),
         Text(title, style: _d(30, w: FontWeight.w800)),
         const SizedBox(height: 14),
         Text(body, style: _b(16, c: _sub)),
@@ -1093,6 +1081,33 @@ class _Strip extends StatelessWidget {
       ),
     );
   }
+
+  // Full-width centered layout: breaks the image+text zigzag (Section 4.7 cap).
+  Widget _buildStacked(BuildContext context) => Container(
+    padding: EdgeInsets.symmetric(vertical: wide ? 88 : 64),
+    child: _W(max: 720,
+      child: _Reveal(
+        sc: sc, dy: 0.06,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Text(chip, textAlign: TextAlign.center, style: _b(14, c: _blue, w: FontWeight.w700)),
+          const SizedBox(height: 12),
+          Text(title, textAlign: TextAlign.center, style: _d(wide ? 36 : 30, w: FontWeight.w800)),
+          const SizedBox(height: 14),
+          Text(body, textAlign: TextAlign.center, style: _b(16, c: _sub)),
+          const SizedBox(height: 28),
+          Wrap(spacing: 10, runSpacing: 10, alignment: WrapAlignment.center,
+            children: points.map((p) => Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 18, height: 18, margin: const EdgeInsets.only(right: 8),
+                decoration: const BoxDecoration(color: _blueT, shape: BoxShape.circle),
+                child: Icon(Icons.check, color: _blue, size: 11)),
+              Text(p, style: _b(13, c: _sub)),
+            ])).toList()),
+          const SizedBox(height: 36),
+          visual,
+        ]),
+      ),
+    ),
+  );
 }
 
 // ─── Strip visuals ────────────────────────────────────────────────────────────
@@ -1159,7 +1174,10 @@ class _VoiceVisualState extends State<_VoiceVisual> with SingleTickerProviderSta
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_reduceMotion(context)) _c.repeat(reverse: true);
+    });
   }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
@@ -1206,7 +1224,7 @@ class _VoiceVisualState extends State<_VoiceVisual> with SingleTickerProviderSta
         decoration: BoxDecoration(color: _card2, borderRadius: BorderRadius.circular(10),
             border: Border.all(color: _bdr)),
         child: Text(
-          '"...interested in our enterprise tier, budget approved for Q1, said to ping her EA to schedule — mention the Amsterdam summit..."',
+          '"...interested in our enterprise tier, budget approved for Q1, said to ping her EA to schedule, mention the Amsterdam summit..."',
           style: _b(12, c: _sub),
         ),
       ),
@@ -1262,7 +1280,7 @@ class _FollowUpVisual extends StatelessWidget {
           Container(height: 1, color: _bdr),
           const SizedBox(height: 8),
           Text(
-            'Hi Sarah,\n\nGreat meeting you at DevWorld. Following up on our chat about the enterprise tier — Q1 fits our timeline well.\n\nWould a 30-minute intro call work this week?',
+            'Hi Sarah,\n\nGreat meeting you at DevWorld. Following up on our chat about the enterprise tier. Q1 fits our timeline well.\n\nWould a 30-minute intro call work this week?',
             style: _b(12, c: _sub),
           ),
         ]),
@@ -1289,14 +1307,13 @@ class _FollowUpVisual extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STATS STRIP — animated countup
+// STATS STRIP: animated countup
 // ═══════════════════════════════════════════════════════════════════════════════
 class _SI {
   final int end;
   final String suffix;
   final String label;
-  final bool tenths;
-  const _SI(this.end, this.suffix, this.label, {this.tenths = false});
+  const _SI(this.end, this.suffix, this.label);
 }
 
 class _Stats extends StatelessWidget {
@@ -1304,10 +1321,10 @@ class _Stats extends StatelessWidget {
   const _Stats({required this.sc});
 
   static const _items = [
-    _SI(50, 'K+', 'Contacts captured\nacross exhibitions'),
-    _SI(10, '+', 'Events per sales team\nper year on average'),
-    _SI(68, '%', 'More follow-ups done\nwithin 30 days'),
-    _SI(48, '★', 'Average app rating\nfrom sales teams', tenths: true),
+    _SI(3, 's', 'To scan a badge\nor business card'),
+    _SI(30, '+', 'Languages for\nvoice transcription'),
+    _SI(100, '%', 'Capture works\noffline on the floor'),
+    _SI(1, '-tap', 'From suggested draft\nto sent follow-up'),
   ];
 
   @override
@@ -1368,6 +1385,7 @@ class _CountStatState extends State<_CountStat> with SingleTickerProviderStateMi
     if (box == null || !box.attached) return;
     if (box.localToGlobal(Offset.zero).dy < MediaQuery.of(context).size.height * 0.92) {
       _done = true;
+      if (_reduceMotion(context)) { _c.value = 1.0; return; }
       final delay = Duration(milliseconds: widget.index * 120);
       Future.delayed(delay, () { if (mounted) _c.forward(); });
     }
@@ -1389,9 +1407,7 @@ class _CountStatState extends State<_CountStat> with SingleTickerProviderStateMi
           animation: _count,
           builder: (_, _) {
             final n = _count.value;
-            final display = widget.item.tenths
-                ? '${n ~/ 10}.${n % 10}${widget.item.suffix}'
-                : '$n${widget.item.suffix}';
+            final display = '$n${widget.item.suffix}';
             return Text(display, style: _d(44, w: FontWeight.w900, c: _blue));
           },
         ),
@@ -1418,7 +1434,7 @@ class _TestimonialsState extends State<_Testimonials> {
 
   static const _quotes = [
     _Quote(
-      '"I used to come back from exhibitions with 80 cards and follow up on maybe five. With Exono I actually remembered every conversation — and closed three deals the following month."',
+      '"I used to come back from exhibitions with 80 cards and follow up on maybe five. With Exono I actually remembered every conversation, and closed three deals the following month."',
       'James Thornton', 'Head of Sales · Meridian Software',
     ),
     _Quote(
@@ -1441,8 +1457,6 @@ class _TestimonialsState extends State<_Testimonials> {
       child: _W(max: 860,
         child: _Reveal(sc: widget.sc,
           child: Column(children: [
-            const _Chip('Testimonials'),
-            const SizedBox(height: 48),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 400),
               child: Container(
@@ -1458,14 +1472,14 @@ class _TestimonialsState extends State<_Testimonials> {
                       Icon(Icons.star_rounded, color: _amber, size: 16))),
                   const SizedBox(height: 20),
                   Text(_quotes[_i].quote,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                           fontSize: wide ? 21 : 17, fontWeight: FontWeight.w500,
                           color: _text, height: 1.55, letterSpacing: -0.3)),
                   const SizedBox(height: 28),
                   Row(children: [
                     Container(
                       width: 40, height: 40,
-                      decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(10),
+                      decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: _blue.withValues(alpha: 0.20))),
                       alignment: Alignment.center,
                       child: Text(
@@ -1602,13 +1616,13 @@ class _PlanCard extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 12),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(5)),
-            child: Text('Most popular', style: _mono(9, c: _white)),
+            decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(4)),
+            child: Text('Most popular'.toUpperCase(), style: _mono(9, c: _white)),
           ),
         ),
       Text(plan.name, style: _d(18, w: FontWeight.w800)),
       const SizedBox(height: 4),
-      Text(plan.price, style: GoogleFonts.plusJakartaSans(
+      Text(plan.price, style: GoogleFonts.inter(
           fontSize: 28, fontWeight: FontWeight.w900, color: plan.featured ? _white : _blue, letterSpacing: -1)),
       const SizedBox(height: 8),
       Text(plan.desc, style: _b(13, c: _sub)),
@@ -1632,12 +1646,13 @@ class _PlanCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
             color: plan.featured ? _blue : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: plan.featured ? null : Border.all(color: _bdr),
+            borderRadius: BorderRadius.circular(999),
+            border: plan.featured ? null : Border.all(color: _bdrSt),
           ),
           alignment: Alignment.center,
           child: Text(plan.featured ? 'Get started' : 'Get started free',
-              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: _white)),
+              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600,
+                  color: plan.featured ? _white : _blue)),
         ),
       ),
     ]),
@@ -1659,9 +1674,9 @@ class _FAQState extends State<_FAQ> {
 
   static const _items = [
     _FQ('Does it work offline at exhibitions?',
-        'Yes. Card scanning and voice memo recording work fully offline. Everything syncs automatically when you reconnect — usually before you leave the hall.'),
+        'Yes. Card scanning and voice memo recording work fully offline. Everything syncs automatically when you reconnect, usually before you leave the hall.'),
     _FQ('How does the AI enrichment work?',
-        'After you capture a contact, Exono searches public sources — LinkedIn, company websites, news — and adds role history, company context, and recent news to the profile. It takes about 30–60 seconds after capture.'),
+        'After you capture a contact, Exono searches public sources (LinkedIn, company websites, news) and adds role history, company context, and recent news to the profile. It takes about 30 to 60 seconds after capture.'),
     _FQ('Can my whole team use it at the same event?',
         'Yes. On Growth and Teams plans, everyone on your team can capture leads at the same exhibition, and duplicates are automatically detected and merged.'),
     _FQ('Does it integrate with our CRM?',
@@ -1669,7 +1684,7 @@ class _FAQState extends State<_FAQ> {
     _FQ('What happens to my data?',
         'Your contacts and notes are private to your account. Exono never uses your data for training AI models. You can export or delete everything at any time.'),
     _FQ('Is there a limit on how many events I can attend?',
-        'Starter accounts get up to 3 exhibitions per year. Growth and Teams plans are unlimited — use it at every trade show, conference, and networking event you attend.'),
+        'Starter accounts get up to 3 exhibitions per year. Growth and Teams plans are unlimited, so use it at every trade show, conference, and networking event you attend.'),
   ];
 
   @override
@@ -1682,8 +1697,6 @@ class _FAQState extends State<_FAQ> {
         child: Column(children: [
           _Reveal(sc: widget.sc,
             child: Column(children: [
-              const _Chip('FAQ'),
-              const SizedBox(height: 20),
               Text('Answers to the questions\nthat come up most.',
                   textAlign: TextAlign.center, style: _d(wide ? 38 : 30, w: FontWeight.w800)),
             ]),
@@ -1720,7 +1733,7 @@ class _FAQItem extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 8),
     decoration: BoxDecoration(
       color: open ? _card : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       border: Border.all(color: open ? _blue.withValues(alpha: 0.25) : _bdr),
     ),
     child: MouseRegion(
@@ -1779,11 +1792,11 @@ class _CtaBanner extends StatelessWidget {
                 style: _d(wide ? 52 : 40, w: FontWeight.w900)),
             const SizedBox(height: 16),
             Text(
-              'Join thousands of sales teams who close more by following up on every lead from every exhibition.',
+              'Close more by following up on every lead from every exhibition, while the conversation is still fresh.',
               textAlign: TextAlign.center, style: _b(17, c: _sub),
             ),
             const SizedBox(height: 36),
-            _Btn('Get started free — takes 2 minutes', onCta),
+            _Btn('Get started free in 2 minutes', onCta),
           ]),
         ),
       ),
@@ -1850,7 +1863,7 @@ class _FooterBrand extends StatelessWidget {
     Row(mainAxisSize: MainAxisSize.min, children: [
       const _Logo(size: 20),
       const SizedBox(width: 8),
-      Text('Exono', style: GoogleFonts.plusJakartaSans(
+      Text('Exono', style: GoogleFonts.inter(
           fontSize: 16, fontWeight: FontWeight.w800, color: _text, letterSpacing: -0.3)),
     ]),
     const SizedBox(height: 6),
@@ -1888,6 +1901,7 @@ class _LandingScreenState extends State<LandingScreen> {
   final _featuresKey = GlobalKey();
   final _howKey = GlobalKey();
   final _pricingKey = GlobalKey();
+  final _testimonialsKey = GlobalKey();
 
   void _goAuth() => context.go('/auth');
 
@@ -1916,10 +1930,10 @@ class _LandingScreenState extends State<LandingScreen> {
               _Hero(onCta: _goAuth, onDemo: () => _scrollTo(_howKey), sc: _sc),
               const _Marquee(),
               _Philosophy(sc: _sc),
-              _Features(sectionKey: _howKey, sc: _sc),
-              _Strips(sc: _sc),
+              _Features(sectionKey: _featuresKey, sc: _sc),
+              KeyedSubtree(key: _howKey, child: _Strips(sc: _sc)),
               _Stats(sc: _sc),
-              _Testimonials(sectionKey: _featuresKey, sc: _sc),
+              _Testimonials(sectionKey: _testimonialsKey, sc: _sc),
               _Pricing(sectionKey: _pricingKey, onCta: _goAuth, sc: _sc),
               _FAQ(sc: _sc),
               _CtaBanner(onCta: _goAuth, sc: _sc),

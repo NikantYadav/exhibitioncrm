@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { supabase } from '../config/supabase';
 import { AIService } from '../config/ai';
 import { requireAuth } from '../middleware/requireAuth';
 
@@ -24,6 +23,7 @@ router.use(requireAuth);
 // POST /api/emails/draft
 router.post('/draft', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsed = draftSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     const { contact_id, event_id, email_type, custom_context } = parsed.data;
@@ -122,6 +122,7 @@ Write a natural, personalised email that reflects the sender's voice and offerin
 // POST /api/emails/improve
 router.post('/improve', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsed = improveSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     const { text, instructions } = parsed.data;
@@ -158,6 +159,7 @@ Return the improved version.`;
 // DELETE /api/emails/drafts/:id
 router.delete('/drafts/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedId = uuidSchema.safeParse(req.params.id);
     if (!parsedId.success) return res.status(400).json({ error: 'Invalid draft id' });
     const { id } = req.params;

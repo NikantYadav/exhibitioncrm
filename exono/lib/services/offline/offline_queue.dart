@@ -18,10 +18,12 @@ class OfflineQueue {
     required String opType,
     required Map<String, dynamic> payload,
     Uint8List? imageBytes,
+    Uint8List? audioBytes,
     String? eventId,
   }) async {
     final id = _uuid.v4();
     String? imageRef;
+    String? audioRef;
 
     if (imageBytes != null) {
       final dir = await getApplicationDocumentsDirectory();
@@ -34,12 +36,24 @@ class OfflineQueue {
       imageRef = '$id.jpg';
     }
 
+    if (audioBytes != null) {
+      final dir = await getApplicationDocumentsDirectory();
+      final audioDir = Directory('${dir.path}/offline_audio');
+      if (!audioDir.existsSync()) {
+        audioDir.createSync(recursive: true);
+      }
+      final file = File('${audioDir.path}/$id.m4a');
+      await file.writeAsBytes(audioBytes);
+      audioRef = '$id.m4a';
+    }
+
     final db = await LocalDb.db;
     await db.insert('outbox', {
       'id': id,
       'op_type': opType,
       'payload': jsonEncode(payload),
       'image_ref': imageRef,
+      'audio_ref': audioRef,
       'event_id': eventId,
       'status': 'pending',
       'attempts': 0,
@@ -201,11 +215,13 @@ class OfflineQueue {
   static Future<void> delete(String id) async {
     final db = await LocalDb.db;
     await db.delete('outbox', where: 'id = ?', whereArgs: [id]);
-    // Best-effort image cleanup.
+    // Best-effort blob cleanup.
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/offline_images/$id.jpg');
-      if (file.existsSync()) file.deleteSync();
+      final image = File('${dir.path}/offline_images/$id.jpg');
+      if (image.existsSync()) image.deleteSync();
+      final audio = File('${dir.path}/offline_audio/$id.m4a');
+      if (audio.existsSync()) audio.deleteSync();
     } catch (_) {}
   }
 
@@ -213,6 +229,14 @@ class OfflineQueue {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final file = File('${dir.path}/offline_images/$opId.jpg');
+      if (file.existsSync()) await file.delete();
+    } catch (_) {}
+  }
+
+  static Future<void> _deleteAudioForOp(String opId) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/offline_audio/$opId.m4a');
       if (file.existsSync()) await file.delete();
     } catch (_) {}
   }
@@ -230,7 +254,22 @@ class OfflineQueue {
     }
   }
 
+  /// Reads the saved audio bytes for an op (returns null if none).
+  static Future<Uint8List?> readAudio(OutboxOp op) async {
+    if (op.audioRef == null) return null;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/offline_audio/${op.audioRef}');
+      if (!file.existsSync()) return null;
+      return file.readAsBytes();
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<void> deleteImageAfterSync(OutboxOp op) => _deleteImageForOp(op.id);
+
+  static Future<void> deleteAudioAfterSync(OutboxOp op) => _deleteAudioForOp(op.id);
 
   static OutboxOp _fromRow(Map<String, dynamic> row) {
     final payloadStr = row['payload'] as String? ?? '{}';
@@ -245,6 +284,7 @@ class OfflineQueue {
       opType: row['op_type'] as String,
       payload: payload,
       imageRef: row['image_ref'] as String?,
+      audioRef: row['audio_ref'] as String?,
       eventId: row['event_id'] as String?,
       status: row['status'] as String,
       attempts: row['attempts'] as int? ?? 0,

@@ -63,6 +63,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
   // ── State ──────────────────────────────────────────────────
   List<Event> _events    = [];
   String?     _eventId;
+  final _meetContextCtrl = TextEditingController();
   bool        _isSaving  = false;
   bool        _saved     = false;
   // Dedup (online only — offline dedup goes through notifications).
@@ -97,6 +98,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     _emailFocus.dispose();
     _phoneFocus.dispose();
     _linkedinFocus.dispose();
+    _meetContextCtrl.dispose();
     super.dispose();
   }
 
@@ -121,7 +123,9 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
               _buildHeader(),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 110),
+                  padding: EdgeInsets.fromLTRB(
+                    16, 20, 16, 110 + MediaQuery.of(context).viewPadding.bottom,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -136,6 +140,13 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                       AppSectionLabel('Event'),
                       const SizedBox(height: 10),
                       _buildEventSelector(),
+                      if (_eventId == null) ...[
+                        const SizedBox(height: 10),
+                        AppInput(
+                          controller: _meetContextCtrl,
+                          label: 'How did you meet? (optional)',
+                        ),
+                      ],
                       const SizedBox(height: 24),
                       AppSectionLabel('Notes'),
                       const SizedBox(height: 10),
@@ -433,7 +444,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     return Container(
       padding: EdgeInsets.fromLTRB(
         16, 14, 16,
-        MediaQuery.of(context).padding.bottom + 14,
+        MediaQuery.of(context).viewPadding.bottom + 14,
       ),
       decoration: BoxDecoration(
         color: context.theme.colors.background,
@@ -521,6 +532,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
         captureType: 'manual',
         rawText: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
         eventId: _eventId,
+        meetingContext: _eventId == null ? _meetContextCtrl.text.trim() : null,
         extractedData: {
           'first_name':   fn,
           'last_name':    ln,
@@ -665,7 +677,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                   ),
                   Padding(
                     padding: EdgeInsets.fromLTRB(
-                      20, 0, 20, MediaQuery.of(context).padding.bottom + 16,
+                      20, 0, 20, MediaQuery.of(context).viewPadding.bottom + 16,
                     ),
                     child: Column(
                       children: [

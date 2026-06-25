@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { supabase } from '../config/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const router = Router();
 
-async function ownsContact(userId: string, contactId: string): Promise<boolean> {
-  const { data } = await supabase
+async function ownsContact(db: SupabaseClient, userId: string, contactId: string): Promise<boolean> {
+  const { data } = await db
     .from('contacts')
     .select('id')
     .eq('id', contactId)
@@ -16,9 +16,10 @@ async function ownsContact(userId: string, contactId: string): Promise<boolean> 
 
 router.post('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { contact_id, file_url, file_name, file_type } = req.body;
 
-    if (contact_id && !(await ownsContact(req.user!.id, contact_id))) {
+    if (contact_id && !(await ownsContact(supabase, req.user!.id, contact_id))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -46,13 +47,14 @@ router.post('/', async (req, res, next) => {
 
 router.get('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { contact_id } = req.query;
 
     if (!contact_id) {
       return res.status(400).json({ error: 'Contact ID required' });
     }
 
-    if (!(await ownsContact(req.user!.id, contact_id as string))) {
+    if (!(await ownsContact(supabase, req.user!.id, contact_id as string))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 

@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { supabase } from '../config/supabase';
 import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
@@ -28,6 +27,7 @@ interface TableDelta {
 
 router.get('/', async (req, res) => {
   try {
+    const supabase = req.supabase!;
     const userId = req.user!.id;
     const serverTime = new Date().toISOString();
 

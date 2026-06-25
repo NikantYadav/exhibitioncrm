@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { supabase } from '../config/supabase';
 import { requireAuth } from '../middleware/requireAuth';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
@@ -32,6 +31,7 @@ const upload = multer({
 // Accepts CSV / XLSX / XLS with columns: name/first_name, last_name, company/company_name, phone, email
 router.post('/', upload.single('file'), async (req: any, res, next) => {
   try {
+    const supabase = req.supabase!;
     if (!req.file) {
       res.status(400).json({ error: 'File is required' });
       return;

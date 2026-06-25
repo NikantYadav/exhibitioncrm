@@ -16,13 +16,18 @@ class LocalDb {
     final path = p.join(dbPath, 'exono_offline.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           // review_data holds the duplicate-match payload when an op is parked
           // as 'needs_review' during sync. Guard against the column already
           // existing (e.g. a build that added it in onCreate before the bump).
           await _addColumnIfMissing(db, 'outbox', 'review_data', 'TEXT');
+        }
+        if (oldVersion < 3) {
+          // audio_ref holds the on-disk filename of a deferred voice-note
+          // recording, mirroring image_ref for offline card scans.
+          await _addColumnIfMissing(db, 'outbox', 'audio_ref', 'TEXT');
         }
       },
       onCreate: (db, version) async {
@@ -32,6 +37,7 @@ class LocalDb {
             op_type TEXT NOT NULL,
             payload TEXT NOT NULL,
             image_ref TEXT,
+            audio_ref TEXT,
             event_id TEXT,
             status TEXT NOT NULL DEFAULT 'pending',
             attempts INTEGER NOT NULL DEFAULT 0,

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { supabaseAuth } from '../config/supabaseClients';
+import { createSupabaseUserClient, supabaseAuth } from '../config/supabaseClients';
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
@@ -20,6 +20,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     req.user = data.user;
     req.accessToken = accessToken;
+    // Per-request RLS-enforced client. Routes use this instead of the service_role
+    // client so Postgres RLS structurally enforces tenant isolation.
+    req.supabase = createSupabaseUserClient(accessToken);
     next();
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Auth error' });

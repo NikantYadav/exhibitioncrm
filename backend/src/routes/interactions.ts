@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { supabase } from '../config/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireAuth } from '../middleware/requireAuth';
 
 const uuidSchema = z.string().uuid();
@@ -25,8 +25,8 @@ const router = Router();
 
 router.use(requireAuth);
 
-async function ownsContact(userId: string, contactId: string): Promise<boolean> {
-  const { data } = await supabase
+async function ownsContact(db: SupabaseClient, userId: string, contactId: string): Promise<boolean> {
+  const { data } = await db
     .from('contacts')
     .select('id')
     .eq('id', contactId)
@@ -39,11 +39,12 @@ async function ownsContact(userId: string, contactId: string): Promise<boolean> 
 // POST /api/interactions
 router.post('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsed = interactionCreateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     const { contact_id, event_id, interaction_type, summary, interaction_date, details } = parsed.data;
 
-    if (!(await ownsContact(req.user!.id, contact_id))) {
+    if (!(await ownsContact(supabase, req.user!.id, contact_id))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -72,6 +73,7 @@ router.post('/', async (req, res, next) => {
 // PATCH /api/interactions/:id — used to update transcript after background processing
 router.patch('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const parsedId = uuidSchema.safeParse(req.params.id);
     if (!parsedId.success) return res.status(400).json({ error: 'Invalid interaction id' });
 
@@ -92,7 +94,7 @@ router.patch('/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Interaction not found' });
     }
 
-    if (existing.contact_id && !(await ownsContact(req.user!.id, existing.contact_id))) {
+    if (existing.contact_id && !(await ownsContact(supabase, req.user!.id, existing.contact_id))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 

@@ -58,10 +58,12 @@ class AppBottomNav extends StatelessWidget {
       return _buildScannerNav(colors, context);
     }
 
-    final nav = FBottomNavigationBar(
-      index: _forIndex,
-      onChange: _handleChange,
-      safeAreaBottom: true,
+    final nav = _safeArea(
+      context,
+      FBottomNavigationBar(
+        index: _forIndex,
+        onChange: _handleChange,
+        safeAreaBottom: false,
       children: const [
         FBottomNavigationBarItem(
           icon: Icon(Icons.home_outlined),
@@ -85,6 +87,7 @@ class AppBottomNav extends StatelessWidget {
           label: Text('Events'),
         ),
       ],
+    ),
     );
 
     // Wrap with the QR center button overlay
@@ -117,11 +120,31 @@ class AppBottomNav extends StatelessWidget {
     );
   }
 
+  // Applies a clean bottom safe-area inset. forui's FBottomNavigationBar adds
+  // only `viewPadding.bottom * 2/3` of the system inset internally, which —
+  // combined with safeAreaBottom — over-pads on both Android and iOS. We zero
+  // out viewPadding so forui adds nothing, then apply the real inset ourselves.
+  Widget _safeArea(BuildContext context, Widget child) {
+    final mq = MediaQuery.of(context);
+    return MediaQuery(
+      data: mq.copyWith(
+        viewPadding: mq.viewPadding.copyWith(bottom: 0),
+        padding: mq.padding.copyWith(bottom: 0),
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: mq.viewPadding.bottom),
+        child: child,
+      ),
+    );
+  }
+
   Widget _buildScannerNav(ExonoColors colors, BuildContext context) {
-    return FBottomNavigationBar(
+    return _safeArea(
+      context,
+      FBottomNavigationBar(
       index: -1,
       onChange: _handleChange,
-      safeAreaBottom: true,
+      safeAreaBottom: false,
       children: const [
         FBottomNavigationBarItem(
           icon: Icon(Icons.home_outlined),
@@ -144,6 +167,7 @@ class AppBottomNav extends StatelessWidget {
           label: Text('Events'),
         ),
       ],
+    ),
     );
   }
 }

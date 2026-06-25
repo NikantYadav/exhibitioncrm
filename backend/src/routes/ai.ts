@@ -6,6 +6,7 @@ const router = Router();
 // POST /api/ai/analyze-card
 router.post('/analyze-card', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const image: string | undefined = req.body?.image ?? req.body?.imageData;
 
     if (!image) {
@@ -53,6 +54,7 @@ router.post('/analyze-card', async (req, res, next) => {
 // POST /api/ai/transcribe
 router.post('/transcribe', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { audio_data } = req.body;
 
     if (!audio_data) {

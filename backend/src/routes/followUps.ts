@@ -1,12 +1,22 @@
 import { Router } from 'express';
-import { supabase } from '../config/supabase';
+import { z } from 'zod';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
 router.use(requireAuth);
 
-async function ownsContact(userId: string, contactId: string): Promise<boolean> {
-  const { data } = await supabase
+// Mutable fields a follow-up PUT may touch. Prevents mass-assignment of
+// ownership/foreign-key columns (contact_id, event_id, user_id, id).
+const followUpUpdateSchema = z.object({
+  summary: z.string().trim().max(2000).optional(),
+  details: z.any().optional(),
+  interaction_type: z.string().trim().max(50).optional(),
+  interaction_date: z.string().optional(),
+}).strict();
+
+async function ownsContact(db: SupabaseClient, userId: string, contactId: string): Promise<boolean> {
+  const { data } = await db
     .from('contacts')
     .select('id')
     .eq('id', contactId)
@@ -16,8 +26,8 @@ async function ownsContact(userId: string, contactId: string): Promise<boolean> 
   return data !== null;
 }
 
-async function ownsInteraction(userId: string, interactionId: string): Promise<boolean> {
-  const { data } = await supabase
+async function ownsInteraction(db: SupabaseClient, userId: string, interactionId: string): Promise<boolean> {
+  const { data } = await db
     .from('interactions')
     .select('contact_id, contacts!inner(user_id)')
     .eq('id', interactionId)
@@ -32,6 +42,7 @@ async function ownsInteraction(userId: string, interactionId: string): Promise<b
 
 router.get('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { event_id, status } = req.query;
     const userId = req.user!.id;
 
@@ -119,9 +130,10 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const body = req.body;
 
-    if (body.contact_id && !(await ownsContact(req.user!.id, body.contact_id))) {
+    if (body.contact_id && !(await ownsContact(supabase, req.user!.id, body.contact_id))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -150,15 +162,21 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id } = req.params;
 
-    if (!(await ownsInteraction(req.user!.id, id))) {
+    if (!(await ownsInteraction(supabase, req.user!.id, id))) {
       return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const parsed = followUpUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() });
     }
 
     const { data, error } = await supabase
       .from('interactions')
-      .update(req.body)
+      .update(parsed.data)
       .eq('id', id)
       .select()
       .single();
@@ -175,9 +193,10 @@ router.put('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const { id } = req.params;
 
-    if (!(await ownsInteraction(req.user!.id, id))) {
+    if (!(await ownsInteraction(supabase, req.user!.id, id))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 

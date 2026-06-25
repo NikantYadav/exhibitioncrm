@@ -783,7 +783,7 @@ class _ChatScreenState extends State<ChatScreen>
             16,
             12,
             16,
-            MediaQuery.of(context).padding.bottom + 16,
+            MediaQuery.of(context).viewPadding.bottom + 16,
           ),
           decoration: BoxDecoration(
             color: _c.background.withValues(alpha: 0.92),

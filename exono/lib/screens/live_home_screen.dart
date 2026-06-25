@@ -11,6 +11,7 @@ import '../models/event.dart';
 import '../providers/live_event_provider.dart';
 import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
+import '../services/offline/write_gateway.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
@@ -100,7 +101,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     final updated = {...goal, 'current': newVal};
     lep.updateGoalLocally(updated);
     try {
-      await ApiService.updateEventGoal(event.id, goal['id'] as String, {'current': newVal});
+      await WriteGateway().updateEventGoal(event.id, goal['id'] as String, {'current': newVal});
     } on UnauthorizedException { rethrow; } catch (_) {
       lep.revertGoal(goal);
     }
@@ -111,7 +112,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     final updated = {...goal, 'current': newVal};
     lep.updateGoalLocally(updated);
     try {
-      await ApiService.updateEventGoal(event.id, goal['id'] as String, {'current': newVal});
+      await WriteGateway().updateEventGoal(event.id, goal['id'] as String, {'current': newVal});
     } on UnauthorizedException { rethrow; } catch (_) {
       lep.revertGoal(goal);
     }
@@ -239,7 +240,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
       if (nowMet) _expandedTargetIds.remove(contactId);
     });
     try {
-      await ApiService.updateTargetContactStatus(event.id, contactId, nowMet ? 'met' : 'not_contacted');
+      await WriteGateway().updateTargetContactStatus(event.id, contactId, nowMet ? 'met' : 'not_contacted');
       lep.updateTargetContactStatusLocally(contactId, nowMet ? 'met' : 'not_contacted');
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
@@ -261,7 +262,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
       _expandedTargetIds.remove(contactId);
     });
     try {
-      await ApiService.updateTargetContactStatus(event.id, contactId, 'met');
+      await WriteGateway().updateTargetContactStatus(event.id, contactId, 'met');
       lep.updateTargetContactStatusLocally(contactId, 'met');
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) setState(() => _targetContactMetOverrides.remove(contactId));
@@ -390,7 +391,13 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   Widget _buildBody(Event event, LiveEventProvider lep) {
     final scanned = lep.scannedContacts.length;
     final targetsLeft = lep.targetContacts.where((t) => !_isTargetContactMet(t)).length;
-    final goalsLeft = lep.liveGoals.where((g) => (g['status'] as String?) != 'completed').length;
+    final goalsLeft = lep.liveGoals.where((g) {
+      final current = g['current'] as int;
+      final total = g['total'] as int;
+      final isCheckbox = total == 0;
+      final isComplete = isCheckbox ? current == 1 : (total > 0 && current >= total);
+      return !isComplete;
+    }).length;
 
     final location = event.location ?? '';
 
@@ -607,8 +614,6 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   color: isComplete ? _c.success : context.theme.colors.foreground,
                   decoration: isComplete ? TextDecoration.lineThrough : null,
                   decorationColor: _c.success))),
-              Icon(Icons.more_horiz_rounded, size: 14, color: _c.accent),
-              const SizedBox(width: 6),
               if (isCheckbox)
                 GestureDetector(
                   onTap: () => _toggleCheckboxGoal(goal, event, lep),

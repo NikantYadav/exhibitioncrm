@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { supabase } from '../config/supabase';
 import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
@@ -8,6 +7,7 @@ router.use(requireAuth);
 // Returns counts for the home screen "Today's Priorities" tiles
 router.get('/priorities', async (req, res, next) => {
   try {
+    const supabase = req.supabase!;
     const userId = req.user!.id;
 
     // Follow-ups due: contacts with needs_followup / needs_follow_up status
