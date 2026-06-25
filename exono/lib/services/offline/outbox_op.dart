@@ -31,7 +31,8 @@ class OutboxOp {
     this.reviewData,
   });
 
-  bool get isPending => status == 'pending' || status == 'syncing';
+  bool get isPending =>
+      status == 'pending' || status == 'syncing' || status == 'retry_manual';
   bool get isFailed => status == 'failed';
   bool get needsReview => status == 'needs_review';
 }

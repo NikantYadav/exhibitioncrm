@@ -433,7 +433,10 @@ export class LiteLLMService {
 
         const text = await this.withGemini(async (apiKey) => {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: this.config.model! });
+            const model = genAI.getGenerativeModel({
+                model: this.config.model!,
+                generationConfig: { responseMimeType: 'application/json' },
+            });
 
             const base64Data = base64Image.split(',')[1] || base64Image;
             const mimeType = base64Image.split(';')[0].split(':')[1] || 'image/jpeg';

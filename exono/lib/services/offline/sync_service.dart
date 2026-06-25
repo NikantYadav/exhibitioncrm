@@ -49,7 +49,12 @@ class SyncService {
   }
 
   Future<void> _processOp(OutboxOp op) async {
-    if (op.attempts >= _maxAttempts) {
+    // A manual Retry requeues the op as 'retry_manual'. That pass bypasses the
+    // attempts cap and does not increment the counter, so user-initiated retries
+    // never count toward the automatic-retry limit.
+    final isManualRetry = op.status == 'retry_manual';
+
+    if (!isManualRetry && op.attempts >= _maxAttempts) {
       await OfflineQueue.markFailed(op.id, 'Max retry attempts reached');
       return;
     }
@@ -90,12 +95,18 @@ class SyncService {
     } on _PermanentError catch (e) {
       await OfflineQueue.markFailed(op.id, e.message);
     } catch (e) {
-      // Transient error. The op's attempts counter was already checked at the
-      // top of this method; bumping past the cap marks it failed, otherwise it
-      // returns to pending (with attempts incremented) for the next sync pass.
-      if (op.attempts + 1 >= _maxAttempts) {
+      // Transient error.
+      if (isManualRetry) {
+        // The user triggered this pass; it doesn't count toward the cap. Park
+        // it back as failed (no increment) so the Retry button shows again.
+        await OfflineQueue.markFailedNoIncrement(op.id, e.toString());
+      } else if (op.attempts + 1 >= _maxAttempts) {
+        // The op's attempts counter was already checked at the top of this
+        // method; bumping past the cap marks it failed.
         await OfflineQueue.markFailed(op.id, e.toString());
       } else {
+        // Otherwise it returns to pending (with attempts incremented) for the
+        // next sync pass.
         await OfflineQueue.resetToPending(op.id, error: e.toString());
       }
     }
@@ -211,14 +222,36 @@ class SyncService {
     }
   }
 
+  /// Backend enum for interaction_type. Free-text modes fall back to 'manual'.
+  static const _allowedInteractionTypes = {
+    'manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note',
+  };
+
+  /// Coerces a stored type to a value the backend accepts. Older queued ops may
+  /// hold a free-text mode (e.g. 'coffee_chat') that predates the screen-side
+  /// fix; normalize it here so the replay doesn't 400.
+  static String _safeType(String? type) {
+    final t = (type ?? '').toLowerCase();
+    return _allowedInteractionTypes.contains(t) ? t : 'manual';
+  }
+
+  /// Ensures a stored date is a backend-valid RFC3339 timestamp WITH timezone.
+  /// Older ops stored a local ISO string with no 'Z'/offset (rejected by Zod);
+  /// re-parse and emit UTC. Returns null if absent/unparseable (server defaults).
+  static String? _safeDate(String? date) {
+    if (date == null || date.isEmpty) return null;
+    final parsed = DateTime.tryParse(date);
+    return parsed?.toUtc().toIso8601String();
+  }
+
   Future<String?> _syncInteraction(OutboxOp op) async {
     final payload = op.payload;
     final result = await ApiService.logInteraction(
       contactId: payload['contactId'] as String,
       eventId: payload['eventId'] as String?,
-      type: payload['type'] as String? ?? 'meeting',
+      type: _safeType(payload['type'] as String?),
       summary: payload['summary'] as String? ?? '',
-      interactionDate: payload['interactionDate'] as String?,
+      interactionDate: _safeDate(payload['interactionDate'] as String?),
       details: payload['details'] as Map<String, dynamic>?,
       idempotencyKey: op.id,
     );
@@ -238,7 +271,7 @@ class SyncService {
       eventId: payload['eventId'] as String?,
       type: 'voice_note',
       summary: 'Voice note - transcript pending...',
-      interactionDate: payload['interactionDate'] as String?,
+      interactionDate: _safeDate(payload['interactionDate'] as String?),
       details: {'duration_seconds': durationSeconds, 'has_audio': true},
       idempotencyKey: op.id,
     );

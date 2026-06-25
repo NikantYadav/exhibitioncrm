@@ -220,6 +220,16 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
         _buildLiveBanner(event, location),
         const SizedBox(height: 12),
 
+        // ── Log interaction (auto-links to the live event in the sheet) ──
+        AppButton(
+          label: 'LOG INTERACTION',
+          prefixIcon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+          variant: ButtonVariant.branded,
+          fullWidth: true,
+          onPressed: () => showLogInteractionSheet(context),
+        ),
+        const SizedBox(height: 12),
+
         // ── Stat strip ──
         _buildStatStrip(scanned, targetsLeft, goalsLeft),
         const SizedBox(height: 20),

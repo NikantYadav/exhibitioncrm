@@ -1,7 +1,51 @@
 import { Router } from 'express';
 import { litellm } from '../services/litellm-service';
+import { supabase as supabaseAdmin } from '../config/supabase';
+import { decodeAndValidateImage, ImageValidationError } from '../utils/imageValidation';
+import {
+  checkScopedRateLimit,
+  IMAGE_UPLOAD_SCOPE,
+  IMAGE_UPLOAD_MAX,
+  IMAGE_UPLOAD_WINDOW_MS,
+} from '../utils/rateLimit';
 
 const router = Router();
+
+const CARD_BUCKET = 'contact-cards';
+
+// Decode + validate the client-supplied image string and upload it to the
+// private contact-cards bucket. Path is prefixed with the owner's user id so
+// storage RLS enforces per-user isolation, and the object key is the
+// server-generated capture id (never client-controlled), so path traversal is
+// impossible. The stored content-type is the SNIFFED type, never the
+// client-claimed one — so the bucket can never serve HTML/SVG/script.
+//
+// Returns the storage path on success, or null if there is no image to store.
+// Throws ImageValidationError for malformed/disallowed input (caller returns 4xx).
+async function uploadCardImage(
+  image: string,
+  userId: string,
+  captureId: string,
+): Promise<string | null> {
+  // Already-stored references are passed through untouched by the caller.
+  if (image.startsWith('http')) return null;
+
+  const { buffer, type } = decodeAndValidateImage(image);
+  const path = `${userId}/${captureId}.${type.ext}`;
+
+  const { error } = await supabaseAdmin.storage
+    .from(CARD_BUCKET)
+    .upload(path, buffer, {
+      contentType: type.mime, // sniffed type, never client-claimed
+      upsert: true,
+    });
+
+  if (error) {
+    console.error('Card image upload failed:', error.message);
+    return null;
+  }
+  return path;
+}
 
 // POST /api/captures/voice-transcribe
 router.post('/voice-transcribe', async (req, res, next) => {
@@ -56,6 +100,18 @@ router.post('/', async (req, res, next) => {
     const userId = req.user!.id;
 
     const type = capture_type || 'card_scan';
+
+    // Throttle image uploads per user (shared budget with analyze-card). Only
+    // image-bearing captures count; manual/voice captures are exempt.
+    if ((type === 'card_scan' || type === 'file_scan') && image) {
+      const limit = await checkScopedRateLimit(
+        userId, IMAGE_UPLOAD_SCOPE, IMAGE_UPLOAD_MAX, IMAGE_UPLOAD_WINDOW_MS,
+      );
+      if (!limit.ok) {
+        res.setHeader('Retry-After', String(limit.retryAfterSeconds));
+        return res.status(429).json({ error: 'Too many image uploads. Please slow down.' });
+      }
+    }
 
     if (type === 'card_scan' || type === 'file_scan') {
       if (!image) {
@@ -121,6 +177,30 @@ router.post('/', async (req, res, next) => {
     if (error) {
       console.error('Database error:', error);
       return res.status(500).json({ error: 'Failed to save capture' });
+    }
+
+    // For scans/uploads, move the base64 image out of the DB row and into the
+    // private contact-cards bucket; store the storage path instead. If upload
+    // fails we keep going (capture/contact still created, just without a card).
+    let cardPath: string | null = null;
+    if ((type === 'card_scan' || type === 'file_scan') && image) {
+      try {
+        cardPath = await uploadCardImage(image, userId, capture.id);
+      } catch (e) {
+        if (e instanceof ImageValidationError) {
+          // Reject the whole request for malformed/disallowed images, and roll
+          // back the just-created capture so we don't leave an orphan row.
+          await supabase.from('captures').delete().eq('id', capture.id);
+          return res.status(400).json({ error: e.message });
+        }
+        throw e;
+      }
+      if (cardPath) {
+        await supabase
+          .from('captures')
+          .update({ image_url: cardPath })
+          .eq('id', capture.id);
+      }
     }
 
     // Try to create a contact from extracted data
@@ -233,7 +313,7 @@ router.post('/', async (req, res, next) => {
               source: capture_type,
               note: raw_text?.trim() || null,
               event_name: eventName,
-              image_url: image
+              image_url: cardPath || image
             },
             user_id: userId,
           });

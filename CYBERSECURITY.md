@@ -347,6 +347,23 @@ A malicious imported contact/asset could carry `javascript:`, `intent:`, or `fil
 No evidence of code obfuscation, root/jailbreak detection, or integrity checks. For a CRM this is lower priority than C1/C2 but worth noting under the 2024 mobile list, especially given secrets like Firebase keys ship in the binary.
 **Fix (optional):** build with `--obfuscate --split-debug-info`; consider root/jailbreak detection if threat model warrants.
 
+### C9. Offline session restore from cached identity — M9: Insecure Data Storage / M1: Improper Credential Usage — 🟡 **MITIGATED IN CODE 2026-06-26; cache-at-rest hardening still OPEN**
+> **Context — why this exists.** Previously, resuming the app while offline logged the user out: `AuthProvider.initialize()` called `getSession(token)`, the network call failed, and the failure was indistinguishable from a rejected token, so it fell through to `_clearSession()`. Since you cannot log in while offline, this stranded offline users. The fix (2026-06-26) restores an authenticated session from cached identity when — and only when — the session check failed due to *no connectivity*, not a server rejection.
+>
+> **Threat model — what this does and does NOT grant.** Offline-restore grants **no new access to server data**: the backend `requireAuth` ([requireAuth.ts](backend/src/middleware/requireAuth.ts)) re-verifies the token via `supabaseAuth.auth.getUser()` and 401s any expired/revoked/invalid token on the next online request — so every real fetch/write is still server-enforced. The cached token was already in `SharedPreferences` before this change (cf. **C1**), so an attacker with the device gained nothing new there. The one *new* exposure it could have introduced is **indefinite offline access**: a stolen device kept in airplane mode reading cached CRM data / queuing writes forever with a dead session.
+>
+> **Controls enforced in code** ([auth_provider.dart](exono/lib/providers/auth_provider.dart), [auth_service.dart](exono/lib/services/auth_service.dart)):
+> - **Network vs. rejection is explicit, not inferred.** `getSession`/`refresh` tag genuine network failures with `'network': true`. A server rejection (`success:false` *without* the flag) still routes straight to `_clearSession()` → logout. Only a true offline failure keeps the session.
+> - **Offline grace window** (`_offlineGraceDuration = 7 days`). Every *confirmed server verification* stamps `session_last_verified_ms`. Offline restore is refused once that timestamp is older than the window, bounding how long a device can stay authenticated without ever reaching the server. Tune to risk appetite.
+> - **Fail closed.** Missing/garbled timestamp ⇒ no restore. Negative elapsed time (clock rolled back to dodge the cap) ⇒ no restore.
+> - **Full teardown on logout / real 401.** `_clearSession` removes `cached_user`, `cached_profile`, and `session_last_verified_ms` alongside the tokens; `onUnauthorized` (a real server 401) still forces logout.
+> - **Deliberate non-control:** the *access* token's `exp` is NOT hard-gated, because access tokens are ~1h and cannot be refreshed offline — enforcing it would break legitimate offline use after an hour. The grace window is the lifetime control instead.
+>
+> **Residual risk — STILL OPEN (this is the `flutter_secure_storage` follow-up):**
+> - `cached_user` / `cached_profile` live in **plaintext `SharedPreferences`** and are attacker-writable on a rooted device or via backup extraction (same root cause as **C1** tokens / **C2** offline DB). Tampering impact is currently limited to **client-side navigation** (e.g. flipping `onboarding_completed` to skip an onboarding screen) — it grants **zero** server access, since the backend never trusts client state. But it is unverified trust at rest.
+> - The `session_last_verified_ms` timestamp is likewise plaintext and editable, so a determined local attacker can extend the offline grace window by rewriting it. The grace window is a *speed bump*, not a cryptographic control.
+> **Fix (follow-up):** move tokens **and** the auth identity cache (`cached_user`, `cached_profile`, `session_last_verified_ms`) into `flutter_secure_storage` (Keychain / Android Keystore-backed `EncryptedSharedPreferences`). This is the same remediation as **C1** and should be done together — once the cache is integrity-protected at rest, the tamper residue above closes too. Larger change (touches every read/write of these keys); flagged, not yet done.
+
 ---
 
 # Good practices observed 🟢
@@ -375,7 +392,7 @@ No evidence of code obfuscation, root/jailbreak detection, or integrity checks. 
 1. ~~**B1 / B5 / B6 — Broken Access Control + mass-assignment (A01:2025).**~~ ✅ **DONE 2026-06-24** via the RLS migration (B1/B5 closed structurally by the user client; B6 by an allowlist Zod schema) — see "Remediation applied". The migration also uncovered and fixed **B12** (`contact_events` `{public}` allow-all policy). **B2 (companies write authorization) is NOT done** — see item 1b. Remaining A01 priority is now B2.
 1b. **B2 — `companies` write authorization (A01:2025).** Still open. Reads are RLS-scoped but `POST`/`PATCH /companies` run as service_role with no linkage check — any user can poison any company. Decide shared-reference-with-controlled-writes vs per-tenant `user_id`, then enforce it.
 2. **B3 — Patch the supply chain (A03:2025).** `npm audit fix` for `ws`; replace/pin `xlsx`; add audit to CI. (Reachable via import path.)
-3. **C1 / C2 — Encrypt tokens and the offline DB** on the client (`flutter_secure_storage` + SQLCipher).
+3. **C1 / C2 / C9 — Encrypt tokens, the auth identity cache, and the offline DB** on the client (`flutter_secure_storage` + SQLCipher). C9 (offline session restore) is mitigated in code via a network-vs-rejection split + a 7-day offline grace window, but the cached identity/timestamp it relies on are still plaintext — move them into secure storage alongside the C1 tokens.
 4. **C3 — Fix the base URL scheme** (also a functional bug) and assert HTTPS.
 5. **B4 / B8 — Stop leaking error details; fail-closed CORS (A10:2025).**
 6. **B9 / B10 — Revoke the public RPC; lock the avatars bucket (A02:2025)** (one-line Supabase changes each).

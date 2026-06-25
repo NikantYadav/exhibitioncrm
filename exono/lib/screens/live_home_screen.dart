@@ -44,6 +44,8 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   String _targetSearch = '';
   String _targetFilter = 'All';
   String _scannedSearch = '';
+  final TextEditingController _companySearchCtrl = TextEditingController();
+  String _companySearch = '';
   String _activeTab = 'targets';
 
   @override
@@ -56,6 +58,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   void dispose() {
     captureReturnSignal.removeListener(_onCaptureReturn);
     _targetSearchCtrl.dispose();
+    _companySearchCtrl.dispose();
     super.dispose();
   }
 
@@ -319,6 +322,246 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     }
   }
 
+  // ── Add target company (live) ──────────────────────────────────────────────
+
+  Future<void> _showAddCompanyDialog(Event event, LiveEventProvider lep) async {
+    String searchQuery = '';
+    List<Map<String, dynamic>> companies = [];
+    bool isSearching = true;
+    bool initialLoaded = false;
+    final searchCtrl = TextEditingController();
+
+    await showAppSheet(
+      context: context,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            if (!initialLoaded) {
+              initialLoaded = true;
+              ApiService.getCompanies(query: '').then((results) {
+                results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
+                setModalState(() { companies = results; isSearching = false; });
+              }).catchError((_) { setModalState(() => isSearching = false); });
+            }
+            return SafeArea(
+              top: false,
+              child: SizedBox(
+                height: MediaQuery.of(ctx).size.height * 0.7,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Add Target Company', style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+                          const SizedBox(height: 16),
+                          AppInput(
+                            controller: searchCtrl,
+                            autofocus: true,
+                            hint: 'Search companies...',
+                            prefixIcon: Icon(Icons.search, color: _c.accent),
+                            onChanged: (val) async {
+                              setModalState(() { searchQuery = val; isSearching = true; });
+                              try {
+                                final results = await ApiService.getCompanies(query: val);
+                                results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
+                                setModalState(() { companies = results; isSearching = false; });
+                              } on UnauthorizedException { rethrow; } catch (_) {
+                                setModalState(() => isSearching = false);
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: isSearching
+                          ? const Center(child: FCircularProgress())
+                          : companies.isEmpty && searchQuery.isEmpty
+                              ? Center(child: Text('Search for a company above', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)))
+                              : companies.isEmpty
+                                  ? Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          Navigator.of(sheetCtx).pop();
+                                          _showCreateCompanyDialog(event, lep, searchQuery);
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                          child: Row(children: [
+                                            Icon(Icons.add_circle_outline, color: _c.accent, size: 22),
+                                            const SizedBox(width: 12),
+                                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                              Text('Create "$searchQuery"', style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w500)),
+                                              Text('No match found — add as new company', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                                            ])),
+                                          ]),
+                                        ),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      itemCount: companies.length,
+                                      itemBuilder: (_, i) {
+                                        final co = companies[i];
+                                        final coName = co['name'] as String;
+                                        final initials = coName.length >= 2 ? coName.substring(0, 2).toUpperCase() : coName.toUpperCase();
+                                        return GestureDetector(
+                                          onTap: () {
+                                            Navigator.of(sheetCtx).pop();
+                                            _showBoothInputDialog(event, lep, co);
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            child: Row(children: [
+                                              AppAvatar(initials: initials, size: 40),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                                  Text(coName, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
+                                                  if (co['industry'] != null)
+                                                    Text(co['industry'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+                                                ]),
+                                              ),
+                                              Icon(Icons.add_circle_outline, color: _c.accent, size: 22),
+                                            ]),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    searchCtrl.dispose();
+  }
+
+  Future<void> _showBoothInputDialog(Event event, LiveEventProvider lep, Map<String, dynamic> company) async {
+    final boothCtrl = TextEditingController();
+
+    await showAppSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 20, 16, MediaQuery.of(ctx).viewInsets.bottom + 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(company['name'] as String, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+              const SizedBox(height: 4),
+              Text('Adding to target list', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+              const SizedBox(height: 20),
+              AppInput(
+                controller: boothCtrl,
+                autofocus: true,
+                hint: 'e.g. A-12, Hall 3 B04',
+                label: 'Booth Number (optional)',
+                prefixIcon: Icon(Icons.location_on_outlined, color: _c.accent),
+                textCapitalization: TextCapitalization.characters,
+              ),
+              const SizedBox(height: 16),
+              Row(children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'SKIP',
+                    variant: ButtonVariant.outline,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _addCompanyAsTarget(event, lep, company, null);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: AppButton(
+                    label: 'ADD TO LIST',
+                    variant: ButtonVariant.primary,
+                    onPressed: () {
+                      final booth = boothCtrl.text.trim();
+                      Navigator.of(ctx).pop();
+                      _addCompanyAsTarget(event, lep, company, booth.isEmpty ? null : booth);
+                    },
+                  ),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+    boothCtrl.dispose();
+  }
+
+  Future<void> _showCreateCompanyDialog(Event event, LiveEventProvider lep, String initialName) async {
+    final nameCtrl = TextEditingController(text: initialName);
+    final industryCtrl = TextEditingController();
+
+    await showAppSheet(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 20, 16, MediaQuery.of(sheetCtx).viewInsets.bottom + 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('New Company', style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
+              const SizedBox(height: 20),
+              AppInput(controller: nameCtrl, autofocus: true, label: 'Company Name'),
+              const SizedBox(height: 12),
+              AppInput(controller: industryCtrl, label: 'Industry (optional)'),
+              const SizedBox(height: 20),
+              AppButton(
+                label: 'CONTINUE',
+                fullWidth: true,
+                variant: ButtonVariant.primary,
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) return;
+                  final industry = industryCtrl.text.trim();
+                  try {
+                    final companyData = <String, dynamic>{'name': name};
+                    if (industry.isNotEmpty) { companyData['industry'] = industry; }
+                    final created = await ApiService.createCompany(companyData);
+                    if (!sheetCtx.mounted) return;
+                    Navigator.of(sheetCtx).pop();
+                    await _showBoothInputDialog(event, lep, created);
+                  } on UnauthorizedException { rethrow; } catch (_) {
+                    _toast('Failed to add company.');
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    nameCtrl.dispose();
+    industryCtrl.dispose();
+  }
+
+  Future<void> _addCompanyAsTarget(Event event, LiveEventProvider lep, Map<String, dynamic> company, String? booth) async {
+    try {
+      await ApiService.addEventTarget(event.id, company['id'] as String, boothLocation: booth);
+      // Re-fetch live targets so the new row shows with its resolved company name.
+      await lep.refresh();
+      _toast('${company['name']} added to target list.');
+    } on UnauthorizedException { rethrow; } catch (_) {
+      _toast('Failed to add target.');
+    }
+  }
+
   Future<void> _deleteTargetContact(Map<String, dynamic> target, Event event, LiveEventProvider lep) async {
     final contactId = target['contact_id'] as String? ?? '';
     final name = target['name'] as String? ?? 'Target';
@@ -412,6 +655,16 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildLiveBanner(event, location),
+            const SizedBox(height: 12),
+            // Screen-level log interaction — not tied to a specific contact.
+            // The sheet auto-selects this live event (changeable to No event).
+            AppButton(
+              label: 'LOG INTERACTION',
+              prefixIcon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+              variant: ButtonVariant.branded,
+              fullWidth: true,
+              onPressed: () => showLogInteractionSheet(context, onSaved: () => lep.refresh()),
+            ),
             const SizedBox(height: 12),
             _buildStatGrid(scanned, targetsLeft, goalsLeft),
             const SizedBox(height: 24),
@@ -751,7 +1004,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
       children: [
         AppInput(
           controller: _targetSearchCtrl,
-          hint: 'Search people, companies…',
+          hint: 'Search people…',
           onChanged: (v) => setState(() => _targetSearch = v),
           prefixIcon: Icon(Icons.search_rounded, size: 18, color: _c.accent),
         ),
@@ -1114,22 +1367,70 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   // ── Companies ──────────────────────────────────────────────────────────────
 
   Widget _buildCompaniesList(Event event, LiveEventProvider lep) {
-    if (lep.liveTargets.isEmpty) {
-      return AppCard(
-        padding: const EdgeInsets.all(20),
-        child: Center(child: Column(children: [
-          Icon(Icons.business_outlined, color: _c.accent, size: 32),
-          const SizedBox(height: 10),
-          Text('No target companies for this event.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
-        ])),
-      );
-    }
+    final q = _companySearch.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? lep.liveTargets
+        : lep.liveTargets
+            .where((t) => (t['company_name'] as String? ?? '').toLowerCase().contains(q))
+            .toList();
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (int i = 0; i < lep.liveTargets.length; i++) ...[
-          _buildCompanyCard(lep.liveTargets[i], event),
-          if (i < lep.liveTargets.length - 1) const SizedBox(height: 8),
-        ],
+        Row(
+          children: [
+            Expanded(
+              child: AppInput(
+                controller: _companySearchCtrl,
+                hint: 'Search companies…',
+                onChanged: (v) => setState(() => _companySearch = v),
+                prefixIcon: Icon(Icons.search_rounded, size: 18, color: _c.accent),
+              ),
+            ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () => _showAddCompanyDialog(event, lep),
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: _c.accentSoft,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.add_business_outlined, size: 13, color: _c.accent),
+                  const SizedBox(width: 5),
+                  Text('ADD', style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w700, letterSpacing: 0.8, color: _c.accent)),
+                ]),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (lep.liveTargets.isEmpty)
+          AppCard(
+            padding: const EdgeInsets.all(20),
+            child: Center(child: Column(children: [
+              Icon(Icons.business_outlined, color: _c.accent, size: 32),
+              const SizedBox(height: 10),
+              Text('No target companies for this event.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+            ])),
+          )
+        else if (filtered.isEmpty)
+          AppCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              Icon(Icons.search_off_rounded, color: _c.accent, size: 20),
+              const SizedBox(width: 12),
+              Text('No companies match.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
+            ]),
+          )
+        else
+          for (int i = 0; i < filtered.length; i++) ...[
+            _buildCompanyCard(filtered[i], event),
+            if (i < filtered.length - 1) const SizedBox(height: 8),
+          ],
       ],
     );
   }

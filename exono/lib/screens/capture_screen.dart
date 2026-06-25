@@ -1280,7 +1280,12 @@ class _CaptureScreenState extends State<CaptureScreen>
         return;
       }
       await _processImageBytes(bytes);
-    } on UnauthorizedException { rethrow; } catch (_) {
+    } on UnauthorizedException { rethrow; }
+    on RateLimitException catch (e) {
+      if (!mounted) return;
+      setState(() { _isCapturing = false; });
+      showAppToast(context, 'You\'re scanning too fast. Please wait ${e.retryAfterSeconds}s and try again.');
+    } catch (_) {
       if (!mounted) return;
       setState(() { _isCapturing = false; _stage = _Stage.notes; });
     }
@@ -1380,7 +1385,10 @@ class _CaptureScreenState extends State<CaptureScreen>
       final res = await ApiService.analyzeCard(b64);
       _applyExtracted(res['data'] as Map<String, dynamic>? ?? {});
       if (!mounted) return;
-      setState(() { _isCapturing = false; _stage = _Stage.notes; });
+      // Hold the scanned image so _save() persists it as a card_scan capture
+      // (which uploads it to the contact-cards bucket). Without this the save
+      // falls back to a manual capture with no image.
+      setState(() { _isCapturing = false; _stage = _Stage.notes; _pendingImageBytes = bytes; });
     } else {
       // Offline: queue the image immediately — no manual entry required.
       // AI extraction runs at sync time.
@@ -1614,7 +1622,12 @@ class _CaptureScreenState extends State<CaptureScreen>
       await Future<void>.delayed(const Duration(milliseconds: 1800));
       if (!mounted) return;
       setState(() { _saved = false; _stage = _Stage.scan; });
-    } on UnauthorizedException { rethrow; } catch (_) {
+    } on UnauthorizedException { rethrow; }
+    on RateLimitException catch (e) {
+      if (!mounted) return;
+      setState(() { _isSaving = false; });
+      showAppToast(context, 'Too many scans saved at once. Please wait ${e.retryAfterSeconds}s and try again.');
+    } catch (_) {
       if (!mounted) return;
       setState(() { _isSaving = false; _saved = false; });
     }

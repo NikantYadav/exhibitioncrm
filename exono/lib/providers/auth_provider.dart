@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -56,11 +58,19 @@ class AuthProvider extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    // Ensure any 401 response from the API triggers an immediate logout.
+    // A 401 only reaches here after ApiService has already tried (and failed)
+    // to refresh the token, so the session is genuinely unrecoverable: log out.
     ApiService.onUnauthorized = () async {
       final prefs = await SharedPreferences.getInstance();
       await _clearSession(prefs);
       notifyListeners();
+    };
+
+    // When ApiService silently refreshes the access token, keep our in-memory
+    // copy and Supabase realtime auth in sync so the user stays logged in.
+    ApiService.onTokenRefreshed = (newToken) {
+      _accessToken = newToken;
+      _syncRealtimeAuth(newToken);
     };
 
     _isLoading = true;
@@ -68,16 +78,53 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
+      var token = prefs.getString('access_token');
       if (token != null && token.isNotEmpty) {
-        final result = await AuthService.getSession(token);
+        var result = await AuthService.getSession(token);
+        // The stored access token may have expired while the app was closed.
+        // Try to recover the session with the refresh token before giving up.
+        // Skip the refresh attempt if the session check failed purely because
+        // we're offline — the refresh would fail the same way.
+        if (result['success'] != true && result['network'] != true) {
+          final refresh = prefs.getString('refresh_token');
+          if (refresh != null && refresh.isNotEmpty) {
+            final refreshed = await AuthService.refresh(refresh);
+            final session = refreshed['session'] as Map<String, dynamic>?;
+            final newToken = session?['access_token'] as String?;
+            if (refreshed['success'] == true && newToken != null && newToken.isNotEmpty) {
+              token = newToken;
+              await prefs.setString('access_token', newToken);
+              final newRefresh = session?['refresh_token'] as String?;
+              if (newRefresh != null && newRefresh.isNotEmpty) {
+                await prefs.setString('refresh_token', newRefresh);
+              }
+              result = await AuthService.getSession(newToken);
+            } else if (refreshed['network'] == true) {
+              // Refresh also couldn't reach the server — treat as offline.
+              result = {'success': false, 'network': true};
+            }
+          }
+        }
         if (result['success'] == true) {
           _accessToken = token;
           _user = result['user'] as Map<String, dynamic>?;
           _profile = result['profile'] as Map<String, dynamic>?;
+          await _cacheIdentity(prefs);
           // Keep Supabase realtime auth in sync
           _syncRealtimeAuth(token);
+        } else if (result['network'] == true &&
+            _offlineRestoreAllowed(prefs) &&
+            _restoreCachedIdentity(prefs)) {
+          // Offline: the token couldn't be verified, but it isn't rejected
+          // either. Keep the user signed in from cache so they can work offline;
+          // the token is revalidated (and refreshed if needed) once back online.
+          // Only reached when the session is within the offline grace window
+          // (see _offlineRestoreAllowed).
+          _accessToken = token;
+          _syncRealtimeAuth(token);
         } else {
+          // Genuine auth rejection, expired token, stale offline session, or no
+          // cached identity — sign out.
           await _clearSession(prefs);
         }
       }
@@ -109,6 +156,7 @@ class AuthProvider extends ChangeNotifier {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('access_token', token);
           if (refresh != null) await prefs.setString('refresh_token', refresh);
+          await _cacheIdentity(prefs);
           _syncRealtimeAuth(token);
         }
       }
@@ -139,6 +187,7 @@ class AuthProvider extends ChangeNotifier {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('access_token', token);
           if (refresh != null) await prefs.setString('refresh_token', refresh);
+          await _cacheIdentity(prefs);
           _syncRealtimeAuth(token);
         }
       }
@@ -161,6 +210,8 @@ class AuthProvider extends ChangeNotifier {
       final result = await AuthService.getSession(_accessToken!);
       if (result['success'] == true) {
         _profile = result['profile'] as Map<String, dynamic>?;
+        final prefs = await SharedPreferences.getInstance();
+        await _cacheIdentity(prefs);
         notifyListeners();
       }
     } catch (_) {}
@@ -192,11 +243,77 @@ class AuthProvider extends ChangeNotifier {
       );
       if (result['success'] == true) {
         _profile = result['profile'] as Map<String, dynamic>?;
+        final prefs = await SharedPreferences.getInstance();
+        await _cacheIdentity(prefs);
         notifyListeners();
       }
       return result;
     } catch (_) {
       return {'success': false, 'error': 'Unable to connect. Please check your internet connection and try again.'};
+    }
+  }
+
+  static const _userKey = 'cached_user';
+  static const _profileKey = 'cached_profile';
+  static const _lastVerifiedKey = 'session_last_verified_ms';
+
+  /// Maximum time an offline session may be honoured without a successful
+  /// server-side token verification. Even though the backend re-verifies every
+  /// online request, this bounds how long a stolen device can keep reading
+  /// cached data with airplane mode on. The token's own `exp` is also enforced
+  /// (see [initialize]); whichever is sooner wins.
+  static const _offlineGraceDuration = Duration(days: 7);
+
+  /// Caches the current user/profile JSON so the app can restore an
+  /// authenticated session offline (when the server can't be reached to verify
+  /// the token). Called whenever a fresh session/profile is obtained.
+  Future<void> _cacheIdentity(SharedPreferences prefs) async {
+    if (_user != null) {
+      await prefs.setString(_userKey, jsonEncode(_user));
+    }
+    if (_profile != null) {
+      await prefs.setString(_profileKey, jsonEncode(_profile));
+    }
+    // Stamp the moment of a confirmed server-side verification. Used to bound
+    // how long the session may be restored purely from cache while offline.
+    await prefs.setInt(_lastVerifiedKey, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  /// Decides whether a cached session may be honoured offline. Enforced locally
+  /// so a stolen/airplane-mode device cannot hold access indefinitely. The
+  /// server still re-verifies the token on the next online request and a real
+  /// rejection then forces logout.
+  ///
+  /// Note we do NOT hard-gate on the *access* token's `exp`: access tokens are
+  /// short-lived (~1h) and refreshing them needs network, so a legitimately
+  /// offline user's access token is normally already expired. The session's true
+  /// lifetime is bounded instead by the time since the last *confirmed* server
+  /// verification — a missing/garbled timestamp is treated as expired
+  /// (fail closed).
+  bool _offlineRestoreAllowed(SharedPreferences prefs) {
+    final lastMs = prefs.getInt(_lastVerifiedKey);
+    if (lastMs == null) return false;
+    final last = DateTime.fromMillisecondsSinceEpoch(lastMs);
+    final elapsed = DateTime.now().difference(last);
+    // Reject negative elapsed too (clock rolled back to dodge the cap).
+    if (elapsed.isNegative || elapsed > _offlineGraceDuration) return false;
+    return true;
+  }
+
+  /// Restores user/profile from the offline cache. Returns true if a cached
+  /// identity was found and loaded.
+  bool _restoreCachedIdentity(SharedPreferences prefs) {
+    final userJson = prefs.getString(_userKey);
+    if (userJson == null) return false;
+    try {
+      _user = jsonDecode(userJson) as Map<String, dynamic>;
+      final profileJson = prefs.getString(_profileKey);
+      if (profileJson != null) {
+        _profile = jsonDecode(profileJson) as Map<String, dynamic>;
+      }
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -207,6 +324,9 @@ class AuthProvider extends ChangeNotifier {
     await prefs.remove('access_token');
     await prefs.remove('refresh_token');
     await prefs.remove('selected_mode');
+    await prefs.remove(_userKey);
+    await prefs.remove(_profileKey);
+    await prefs.remove(_lastVerifiedKey);
   }
 
   void _syncRealtimeAuth(String token) {

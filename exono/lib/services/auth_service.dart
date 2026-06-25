@@ -162,8 +162,44 @@ class AuthService {
         };
       }
     } on UnauthorizedException { rethrow; } catch (_) {
+      // Network failure (offline / unreachable) — NOT an auth rejection. The
+      // 'network' flag lets callers keep the stored session instead of logging
+      // the user out when they're simply offline.
       return {
         'success': false,
+        'network': true,
+        'error': 'Unable to connect. Please check your internet connection and try again.',
+      };
+    }
+  }
+
+  /// Exchange a refresh token for a fresh session.
+  static Future<Map<String, dynamic>> refresh(String refreshToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh_token': refreshToken}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'session': data['session'],
+        };
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Refresh failed',
+        };
+      }
+    } catch (_) {
+      // Network failure, not a rejected refresh token — see getSession.
+      return {
+        'success': false,
+        'network': true,
         'error': 'Unable to connect. Please check your internet connection and try again.',
       };
     }

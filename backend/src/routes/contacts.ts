@@ -2,6 +2,10 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { TavilyService } from '../services/tavily-service';
 import { requireAuth } from '../middleware/requireAuth';
+import { supabase as supabaseAdmin } from '../config/supabase';
+import { decodeAndValidateImage } from '../utils/imageValidation';
+
+const CARD_BUCKET = 'contact-cards';
 
 const uuidSchema = z.string().uuid();
 const optUrl = z.string().url().max(500).optional().or(z.literal(''));
@@ -453,6 +457,72 @@ router.get('/:id/timeline', async (req, res, next) => {
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     res.json({ data: timeline });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/contacts/:id/card-url
+// Returns a short-lived signed URL for the contact's most recent scanned/
+// uploaded business card image, or 404 if the contact has none. Ownership is
+// enforced by RLS (req.supabase) on the captures lookup; signing is done with
+// the admin client since the bucket is private. Cross-tenant access is not
+// possible: the capture must belong to the caller for the lookup to return it.
+router.get('/:id/card-url', async (req, res, next) => {
+  try {
+    const supabase = req.supabase!;
+    const { id } = req.params;
+
+    const { data: capture, error } = await supabase
+      .from('captures')
+      .select('image_url')
+      .eq('contact_id', id)
+      .in('capture_type', ['card_scan', 'file_scan'])
+      .not('image_url', 'is', null)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return res.status(400).json({ error: error.message });
+    if (!capture?.image_url) {
+      return res.status(404).json({ error: 'No card image for this contact' });
+    }
+
+    const stored: string = capture.image_url;
+
+    // A real storage path looks like "{userId}/{captureId}.{ext}". Legacy rows
+    // instead hold an inline image: an http URL or (older clients) bare base64 /
+    // a data: URI. Only sign true storage paths.
+    const isStoragePath = /^[^/]+\/[^/]+\.[a-z0-9]+$/i.test(stored);
+
+    if (!isStoragePath) {
+      // Pass through trusted remote URLs untouched.
+      if (stored.startsWith('http')) {
+        return res.json({ data: { url: stored } });
+      }
+
+      // Inline data (legacy bare base64 or data: URI). Never trust a stored
+      // data: prefix — it could be data:text/html / data:image/svg+xml (stored
+      // XSS). Decode, sniff the real magic bytes, and re-emit only a known
+      // raster type. Anything else is rejected.
+      try {
+        const { buffer, type } = decodeAndValidateImage(stored);
+        return res.json({ data: { url: `data:${type.mime};base64,${buffer.toString('base64')}` } });
+      } catch {
+        return res.status(404).json({ error: 'No card image for this contact' });
+      }
+    }
+
+    const { data: signed, error: signErr } = await supabaseAdmin.storage
+      .from(CARD_BUCKET)
+      .createSignedUrl(stored, 60 * 60);
+
+    if (signErr || !signed) {
+      return res.status(500).json({ error: signErr?.message || 'Failed to sign card URL' });
+    }
+
+    res.json({ data: { url: signed.signedUrl } });
   } catch (error) {
     next(error);
   }

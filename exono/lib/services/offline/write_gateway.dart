@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import '../api_service.dart';
@@ -32,9 +33,12 @@ class WriteGateway {
     bool skipDuplicateCheck = false,
   }) async {
     if (isOnline) {
+      // Online callers may pass raw bytes (camera/upload) instead of a base64
+      // string; encode them so the image reaches the backend and gets stored.
+      final onlineImageData = imageData ?? (imageBytes != null ? base64Encode(imageBytes) : null);
       final result = await ApiService.createCapture(
         captureType: captureType,
-        imageData: imageData,
+        imageData: onlineImageData,
         rawText: rawText,
         extractedData: extractedData,
         eventId: eventId,

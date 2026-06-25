@@ -39,10 +39,18 @@ class _SyncIssuesScreenState extends State<SyncIssuesScreen> {
   }
 
   Future<void> _retry(OutboxOp op) async {
-    await OfflineQueue.resetToPending(op.id);
+    await OfflineQueue.retryFailed(op.id);
     if (!mounted) return;
     context.read<OfflineProvider>().triggerSync();
-    showAppToast(context, 'Queued for retry');
+    showAppToast(context, 'Retrying…');
+    await _load();
+  }
+
+  Future<void> _retryAll() async {
+    await OfflineQueue.retryAllFailed();
+    if (!mounted) return;
+    context.read<OfflineProvider>().triggerSync();
+    showAppToast(context, 'Retrying all failed items…');
     await _load();
   }
 
@@ -69,7 +77,10 @@ class _SyncIssuesScreenState extends State<SyncIssuesScreen> {
         bottom: false,
         child: Column(
           children: [
-            AppHeader(onBack: () => Navigator.of(context).pop()),
+            AppHeader(
+              title: 'Sync',
+              onBack: () => Navigator.of(context).pop(),
+            ),
             Expanded(child: _buildBody()),
           ],
         ),
@@ -90,7 +101,7 @@ class _SyncIssuesScreenState extends State<SyncIssuesScreen> {
       );
     }
 
-    final pending = _ops.where((o) => o.status == 'pending' || o.status == 'syncing').toList();
+    final pending = _ops.where((o) => o.isPending).toList();
     final failed = _ops.where((o) => o.status == 'failed').toList();
 
     return RefreshIndicator(
@@ -98,10 +109,23 @@ class _SyncIssuesScreenState extends State<SyncIssuesScreen> {
       backgroundColor: context.theme.colors.background,
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
+          _StatusBanner(failed: failed.length, pending: pending.length),
+          const SizedBox(height: 20),
           if (failed.isNotEmpty) ...[
-            const AppSectionLabel('Failed'),
+            Row(
+              children: [
+                const Expanded(child: AppSectionLabel('Failed')),
+                if (failed.length > 1)
+                  AppButton(
+                    label: 'Retry all',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.sm,
+                    onPressed: _retryAll,
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             ...failed.map((op) => _OpCard(op: op, onRetry: _retry, onDiscard: _discard)),
             const SizedBox(height: 20),
@@ -117,7 +141,65 @@ class _SyncIssuesScreenState extends State<SyncIssuesScreen> {
   }
 }
 
-class _OpCard extends StatelessWidget {
+/// Context line at the top of the list summarising overall sync state. Mirrors
+/// the live connectivity from [OfflineProvider] and the on-screen op counts.
+class _StatusBanner extends StatelessWidget {
+  final int failed;
+  final int pending;
+  const _StatusBanner({required this.failed, required this.pending});
+
+  @override
+  Widget build(BuildContext context) {
+    final offline = context.watch<OfflineProvider>();
+    final c = AppTheme.colorsOf(context);
+
+    final (IconData icon, Color tint, String text) = switch (offline.state) {
+      SyncState.offline => (
+        Icons.cloud_off_rounded,
+        c.textMuted,
+        'You are offline. Items will sync automatically when you reconnect.',
+      ),
+      SyncState.syncing => (
+        Icons.sync_rounded,
+        c.accent,
+        'Syncing $pending item${pending == 1 ? '' : 's'}…',
+      ),
+      SyncState.online => failed > 0
+          ? (
+              Icons.error_outline_rounded,
+              c.destructive,
+              '$failed item${failed == 1 ? '' : 's'} failed to sync. Retry or discard below.',
+            )
+          : (
+              Icons.schedule_rounded,
+              c.textMuted,
+              '$pending item${pending == 1 ? '' : 's'} waiting to sync.',
+            ),
+    };
+
+    return AppCard(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: tint),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                text,
+                style: context.theme.typography.sm.copyWith(
+                  color: context.theme.colors.foreground,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OpCard extends StatefulWidget {
   final OutboxOp op;
   final Future<void> Function(OutboxOp)? onRetry;
   final Future<void> Function(OutboxOp) onDiscard;
@@ -127,6 +209,15 @@ class _OpCard extends StatelessWidget {
     this.onRetry,
     required this.onDiscard,
   });
+
+  @override
+  State<_OpCard> createState() => _OpCardState();
+}
+
+class _OpCardState extends State<_OpCard> {
+  bool _errorExpanded = false;
+
+  OutboxOp get op => widget.op;
 
   String get _opLabel {
     switch (op.opType) {
@@ -220,26 +311,51 @@ class _OpCard extends StatelessWidget {
                 ),
               ],
               if (isFailed && op.lastError != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  op.lastError!,
-                  style: context.theme.typography.xs.copyWith(
-                    color: context.theme.colors.error,
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => setState(() => _errorExpanded = !_errorExpanded),
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: c.destructive.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          op.lastError!,
+                          style: context.theme.typography.xs.copyWith(
+                            color: context.theme.colors.error,
+                          ),
+                          maxLines: _errorExpanded ? null : 2,
+                          overflow: _errorExpanded ? null : TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _errorExpanded ? 'Tap to collapse' : 'Tap to see full error',
+                          style: context.theme.typography.xs.copyWith(
+                            color: context.theme.colors.mutedForeground,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  if (isFailed && onRetry != null) ...[
+                  if (isFailed && widget.onRetry != null) ...[
                     AppButton(
                       label: 'Retry',
                       variant: ButtonVariant.secondary,
                       size: ButtonSize.sm,
-                      onPressed: () => onRetry!(op),
+                      onPressed: () => widget.onRetry!(op),
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -247,7 +363,7 @@ class _OpCard extends StatelessWidget {
                     label: 'Discard',
                     variant: ButtonVariant.destructive,
                     size: ButtonSize.sm,
-                    onPressed: () => onDiscard(op),
+                    onPressed: () => widget.onDiscard(op),
                   ),
                 ],
               ),

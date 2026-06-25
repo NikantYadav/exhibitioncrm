@@ -8,7 +8,7 @@ const uuidSchema = z.string().uuid();
 const interactionCreateSchema = z.object({
   contact_id: uuidSchema,
   event_id: uuidSchema.optional(),
-  interaction_type: z.enum(['manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note']).optional(),
+  interaction_type: z.enum(['manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note', 'voice_note', 'document_upload']).optional(),
   summary: z.string().trim().max(5000).optional(),
   interaction_date: z.string().datetime().optional(),
   details: z.record(z.unknown()).optional(),
@@ -18,7 +18,7 @@ const interactionPatchSchema = z.object({
   summary: z.string().trim().max(5000).optional(),
   interaction_date: z.string().datetime().optional(),
   details: z.record(z.unknown()).optional(),
-  interaction_type: z.enum(['manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note']).optional(),
+  interaction_type: z.enum(['manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note', 'voice_note', 'document_upload']).optional(),
 });
 
 const router = Router();

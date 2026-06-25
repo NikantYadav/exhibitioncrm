@@ -47,6 +47,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   bool _isUploadingAvatar = false;
   Map<String, dynamic>? _contactInsights;
   String? _detailsLoadedForContactId;
+  String? _cardImageUrl;
 
   late final ContactsRepository _contactsRepo;
 
@@ -98,8 +99,18 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     } on UnauthorizedException { rethrow; } catch (_) {}
   }
 
+  Future<void> _fetchCardImage(String contactId) async {
+    try {
+      final url = await ApiService.getContactCardUrl(contactId);
+      if (mounted) setState(() => _cardImageUrl = url);
+    } on UnauthorizedException { rethrow; } catch (_) {
+      if (mounted) setState(() => _cardImageUrl = null);
+    }
+  }
+
   Future<void> _fetchContactDetails(ContactProfileData profile) async {
     _fetchInsights(profile.id);
+    _fetchCardImage(profile.id);
     try {
       final timelineData = await ApiService.getContactTimeline(profile.id);
 
@@ -166,6 +177,55 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     }
   }
 
+  void _showCardImage(String url) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 5,
+              child: Center(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    url,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (c, child, progress) => progress == null
+                        ? child
+                        : const SizedBox(
+                            height: 200,
+                            child: Center(child: FCircularProgress()),
+                          ),
+                    errorBuilder: (c, e, s) => const SizedBox(
+                      height: 200,
+                      child: Center(
+                        child: Icon(Icons.broken_image_outlined,
+                            color: Colors.white54, size: 48),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickAndUploadAvatar(ContactProfileData contact) async {
     if (_isUploadingAvatar) return;
     final picker = ImagePicker();
@@ -209,8 +269,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         title: const Text('Delete Contact'),
         body: Text('Are you sure you want to delete ${contact.listName}? This cannot be undone.'),
         actions: [
-          FButton(variant: FButtonVariant.ghost, onPress: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FButton(variant: FButtonVariant.destructive, onPress: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          AppButton(variant: ButtonVariant.outline, label: 'Cancel', onPressed: () => Navigator.pop(ctx, false)),
+          AppButton(variant: ButtonVariant.destructive, label: 'Delete', onPressed: () => Navigator.pop(ctx, true)),
         ],
       ),
     );
@@ -542,6 +602,18 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               ),
             ],
           ),
+
+          // View scanned card
+          if (_cardImageUrl != null) ...[
+            const SizedBox(height: 12),
+            AppButton(
+              variant: ButtonVariant.outline,
+              fullWidth: true,
+              prefixIcon: const Icon(Icons.badge_outlined, size: 18),
+              label: 'View card',
+              onPressed: () => _showCardImage(_cardImageUrl!),
+            ),
+          ],
 
           // Contact info rows
           if (contact.email.isNotEmpty || contact.phone.isNotEmpty || contact.linkedin.isNotEmpty || contact.company.isNotEmpty) ...[

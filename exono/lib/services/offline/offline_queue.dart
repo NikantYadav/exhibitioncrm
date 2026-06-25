@@ -78,7 +78,10 @@ class OfflineQueue {
     final db = await LocalDb.db;
     final rows = await db.query(
       'outbox',
-      where: "status = 'pending'",
+      // 'retry_manual' ops were requeued by the user via the Retry button. They
+      // sync like pending ops but bypass the attempts cap for one pass and don't
+      // increment the counter (see SyncService._processOp).
+      where: "status IN ('pending', 'retry_manual')",
       orderBy: 'created_at ASC',
     );
     return rows.map(_fromRow).toList();
@@ -173,6 +176,19 @@ class OfflineQueue {
     );
   }
 
+  /// Marks an op failed WITHOUT incrementing its attempts counter. Used for the
+  /// failure of a manual-retry pass, so a user-initiated Retry never counts
+  /// against the automatic-retry cap.
+  static Future<void> markFailedNoIncrement(String id, String error) async {
+    final db = await LocalDb.db;
+    await db.update(
+      'outbox',
+      {'status': 'failed', 'last_error': error},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   /// Overwrites an op's payload (e.g. to persist AI-enriched fields back before
   /// parking it for review, so the notification shows real data).
   static Future<void> updatePayload(String id, Map<String, dynamic> payload) async {
@@ -200,15 +216,29 @@ class OfflineQueue {
     );
   }
 
-  /// Requeues every failed op: status -> pending, attempts -> 0, error cleared.
-  /// Used by the manual "Retry" action so ops that exhausted their automatic
-  /// retries get a fresh chance. Returns the number of ops requeued.
+  /// Requeues every failed op for a manual retry: status -> 'retry_manual',
+  /// error cleared. The attempts counter is left untouched on purpose — a manual
+  /// Retry runs one pass that bypasses the cap and does not count toward it
+  /// (see SyncService._processOp). Returns the number of ops requeued.
   static Future<int> retryAllFailed() async {
     final db = await LocalDb.db;
     return db.update(
       'outbox',
-      {'status': 'pending', 'attempts': 0, 'last_error': null},
+      {'status': 'retry_manual', 'last_error': null},
       where: "status = 'failed'",
+    );
+  }
+
+  /// Requeues a single failed op for a manual retry. Same semantics as
+  /// [retryAllFailed] but scoped to one op — attempts is left untouched so the
+  /// retry bypasses and doesn't count toward the automatic cap.
+  static Future<void> retryFailed(String id) async {
+    final db = await LocalDb.db;
+    await db.update(
+      'outbox',
+      {'status': 'retry_manual', 'last_error': null},
+      where: "id = ? AND status = 'failed'",
+      whereArgs: [id],
     );
   }
 

@@ -1,5 +1,12 @@
 import { Router } from 'express';
 import { litellm } from '../services/litellm-service';
+import { decodeAndValidateImage, ImageValidationError } from '../utils/imageValidation';
+import {
+  checkScopedRateLimit,
+  IMAGE_UPLOAD_SCOPE,
+  IMAGE_UPLOAD_MAX,
+  IMAGE_UPLOAD_WINDOW_MS,
+} from '../utils/rateLimit';
 
 const router = Router();
 
@@ -13,6 +20,27 @@ router.post('/analyze-card', async (req, res, next) => {
       return res.status(400).json({ error: 'Image is required' });
     }
 
+    // Throttle per user before doing any expensive work (storage + paid vision).
+    const limit = await checkScopedRateLimit(
+      req.user!.id, IMAGE_UPLOAD_SCOPE, IMAGE_UPLOAD_MAX, IMAGE_UPLOAD_WINDOW_MS,
+    );
+    if (!limit.ok) {
+      res.setHeader('Retry-After', String(limit.retryAfterSeconds));
+      return res.status(429).json({ error: 'Too many image requests. Please slow down.' });
+    }
+
+    // Validate before spending a (paid) vision call. Rejects oversized payloads
+    // and anything that isn't a real JPEG/PNG/WebP — sniffed from the bytes,
+    // not the client-claimed type (which is trivially spoofed).
+    try {
+      decodeAndValidateImage(image);
+    } catch (e) {
+      if (e instanceof ImageValidationError) {
+        return res.status(400).json({ error: e.message });
+      }
+      throw e;
+    }
+
     const prompt = `
       You are an expert at extracting professional information from photos.
       Analyze the attached image (which could be a business card, event badge, or document) and extract the contact information.
@@ -23,10 +51,24 @@ router.post('/analyze-card', async (req, res, next) => {
       3. If the image is a badge, the most prominent name is usually the person.
       4. If a field is not present, return null.
       5. Return ONLY a valid JSON object.
-      6. Capture ALL other text/details visible on the card that don't fit the standard fields
-         (e.g. fax numbers, multiple phones, social handles, departments, taglines, office locations,
-         certifications, QR code URLs, alternate emails, etc.) in the "scanned_details" object as
-         key-value pairs. Use short descriptive keys. If nothing extra, return an empty object {}.
+      6. CRITICAL: Every piece of text on the card must be captured somewhere — nothing should
+         be left out. Read the card top to bottom, left to right. Text that maps to a standard
+         field above goes ONLY in that field. ALL remaining text MUST go into the
+         "scanned_details" object — do NOT duplicate name, company, job_title, email, or the
+         primary phone there.
+      7. The ONLY standard fields are: first_name, last_name, name, company, email, phone,
+         job_title. EVERYTHING ELSE on the card goes into "scanned_details" — this explicitly
+         includes the WEBSITE and the ADDRESS (there is no dedicated field for them), as well
+         as: P.O. box, fax, every additional phone number, extra emails, social handles,
+         departments, taglines, office/branch locations, certifications, license numbers,
+         QR code URLs, working hours, and account numbers.
+      8. If there are MULTIPLE phone numbers, put the primary one in "phone" and every
+         additional number in "scanned_details" (e.g. "mobile", "fax", "india_phone"). The
+         same applies to extra emails — primary in "email", the rest in "scanned_details".
+      9. Structure "scanned_details" properly: use clear, descriptive snake_case keys
+         (e.g. "website", "address", "po_box", "fax", "mobile", "tagline") mapped to their
+         exact values. Do not dump raw unlabeled text — give every value a meaningful key.
+         Only return an empty object {} if there is no extra text beyond the standard fields.
     `;
 
     const schema = `{
@@ -37,9 +79,7 @@ router.post('/analyze-card', async (req, res, next) => {
       "email": "string",
       "phone": "string",
       "job_title": "string",
-      "website": "string",
-      "address": "string",
-      "scanned_details": "object — all extra fields from the card that don't fit above"
+      "scanned_details": "object — every other field from the card (website, address, fax, extra phones/emails, etc.)"
     }`;
 
     const result = await litellm.analyzeImage<any>(image, prompt, schema);

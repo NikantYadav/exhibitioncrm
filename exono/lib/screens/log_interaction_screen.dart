@@ -17,6 +17,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../config/app_theme.dart';
 import '../models/contact.dart';
+import '../models/event.dart';
+import '../providers/live_event_provider.dart';
 import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
 import '../services/offline/write_gateway.dart';
@@ -75,6 +77,12 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
   List<Contact>? _contacts;
   bool _loadingContacts = false;
 
+  // ── Event selection (defaults to the current live event) ──────────────────
+  String? _pickedEventId;
+  String? _pickedEventName;
+  List<Event>? _events;
+  bool _loadingEvents = false;
+
   // ── Voice recording ──────────────────────────────────────────────────────────
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
@@ -95,6 +103,13 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
   void initState() {
     super.initState();
     _modeController = TextEditingController(text: widget.initialMode ?? '');
+    // Default the event selection to the currently live event (if any). The
+    // user can change it to "No event" or another event in the picker.
+    final liveEvent = context.read<LiveEventProvider>().liveEvent;
+    if (liveEvent != null) {
+      _pickedEventId = liveEvent.id;
+      _pickedEventName = liveEvent.name;
+    }
     _waveCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800))..repeat();
     _playerCompleteSub = _player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _isPlaying = false);
@@ -238,8 +253,9 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
       //    audio to disk and queues both create + transcription for sync time.
       final result = await WriteGateway().logVoiceNote(
         contactId: _effectiveContactId!,
+        eventId: _pickedEventId,
         audioBytes: audioBytes,
-        interactionDate: _selectedDate.toIso8601String(),
+        interactionDate: _selectedDate.toUtc().toIso8601String(),
         durationSeconds: _recDuration.inSeconds,
       );
 
@@ -291,11 +307,19 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
     setState(() => _isSaving = true);
     try {
       final mode = _modeController.text.trim();
+      // `interaction_type` is a strict backend enum; the free-text mode field
+      // ("Coffee chat", "WhatsApp", ...) only maps onto it when it matches an
+      // allowed value. Anything else stays in details.mode and type is 'manual'.
+      const allowedTypes = {
+        'manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note',
+      };
+      final normalizedMode = mode.toLowerCase().replaceAll(' ', '_');
       final result = await WriteGateway().logInteraction(
         contactId: _effectiveContactId!,
-        type: mode.isNotEmpty ? mode.toLowerCase().replaceAll(' ', '_') : 'manual',
+        eventId: _pickedEventId,
+        type: allowedTypes.contains(normalizedMode) ? normalizedMode : 'manual',
         summary: notes,
-        interactionDate: _selectedDate.toIso8601String(),
+        interactionDate: _selectedDate.toUtc().toIso8601String(),
         details: mode.isNotEmpty ? {'mode': mode} : null,
       );
 
@@ -351,6 +375,39 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
       setState(() {
         _pickedContactId = picked.id;
         _pickedContactName = picked.fullName;
+      });
+    }
+  }
+
+  // ── Event picker ──────────────────────────────────────────────────────────
+
+  Future<void> _pickEvent() async {
+    if (_events == null) {
+      setState(() => _loadingEvents = true);
+      try {
+        _events = await ApiService.getEvents();
+      } catch (_) {
+        _events = [];
+      }
+      if (mounted) setState(() => _loadingEvents = false);
+    }
+
+    if (!mounted) return;
+    final liveId = context.read<LiveEventProvider>().liveEvent?.id;
+
+    final picked = await showAppSheet<_EventChoice>(
+      context: context,
+      side: FLayout.btt,
+      builder: (ctx) => _EventPickerSheet(
+        events: _events!,
+        liveEventId: liveId,
+        selectedId: _pickedEventId,
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _pickedEventId = picked.id;
+        _pickedEventName = picked.name;
       });
     }
   }
@@ -503,11 +560,50 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
     );
   }
 
+  Widget _buildEventPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSectionLabel('Event'),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _loadingEvents ? null : _pickEvent,
+          child: AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            radius: 12,
+            elevated: true,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _loadingEvents ? 'Loading...' : (_pickedEventName ?? 'No event'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.theme.typography.sm.copyWith(
+                      color: _pickedEventName != null
+                          ? context.theme.colors.foreground
+                          : context.theme.colors.mutedForeground,
+                    ),
+                  ),
+                ),
+                _loadingEvents
+                    ? const SizedBox(width: 16, height: 16, child: FCircularProgress())
+                    : Icon(Icons.event_outlined, size: 16, color: _c.accent),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
   Widget _buildTextContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildContactPicker(),
+        _buildEventPicker(),
         AppSectionLabel('Date'),
         const SizedBox(height: 8),
         GestureDetector(
@@ -558,6 +654,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildContactPicker(),
+        _buildEventPicker(),
         AppSectionLabel('Date'),
         const SizedBox(height: 8),
         GestureDetector(
@@ -882,6 +979,167 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                       },
                     ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Event picker sheet ─────────────────────────────────────────────────────────
+
+/// Result of the event picker. A null [id] means "No event".
+class _EventChoice {
+  final String? id;
+  final String? name;
+  const _EventChoice(this.id, this.name);
+}
+
+class _EventPickerSheet extends StatefulWidget {
+  final List<Event> events;
+  final String? liveEventId;
+  final String? selectedId;
+  const _EventPickerSheet({required this.events, this.liveEventId, this.selectedId});
+
+  @override
+  State<_EventPickerSheet> createState() => _EventPickerSheetState();
+}
+
+class _EventPickerSheetState extends State<_EventPickerSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  ExonoColors get _c => AppTheme.colorsOf(context);
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _query.isEmpty
+        ? widget.events
+        : widget.events
+            .where((e) => e.name.toLowerCase().contains(_query.toLowerCase()))
+            .toList();
+
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.theme.colors.border,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Select Event',
+                  style: context.theme.typography.xl.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: context.theme.colors.foreground,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: AppInput(
+                controller: _searchController,
+                hint: 'Search events...',
+                onChanged: (v) => setState(() => _query = v),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                children: [
+                  // "No event" option — always available, even while filtering.
+                  _row(
+                    label: 'No event',
+                    selected: widget.selectedId == null,
+                    onTap: () => Navigator.of(context).pop(const _EventChoice(null, null)),
+                  ),
+                  if (filtered.isEmpty && _query.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Center(
+                        child: Text(
+                          'No events found',
+                          style: context.theme.typography.sm.copyWith(
+                            color: context.theme.colors.mutedForeground,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    ...filtered.map((e) => _row(
+                          label: e.name,
+                          isLive: e.id == widget.liveEventId,
+                          selected: e.id == widget.selectedId,
+                          onTap: () => Navigator.of(context).pop(_EventChoice(e.id, e.name)),
+                        )),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    bool isLive = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.theme.typography.sm.copyWith(
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: context.theme.colors.foreground,
+                ),
+              ),
+            ),
+            if (isLive) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _c.destructive,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('LIVE', style: context.theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w800, letterSpacing: 0.6, color: Colors.white)),
+              ),
+              const SizedBox(width: 8),
+            ],
+            if (selected) Icon(Icons.check_rounded, size: 18, color: _c.accent),
           ],
         ),
       ),

@@ -9,9 +9,14 @@ class ApiConfig {
   /// misconfigured build cannot silently send CRM data over cleartext.
   static void assertSecure() {
     final uri = Uri.tryParse(baseUrl);
+    // Allow plain http only for local development (localhost / loopback);
+    // everything else must be https so CRM data is never sent over cleartext.
+    final isLocal =
+        uri != null && (uri.host == 'localhost' || uri.host == '127.0.0.1');
     assert(
-      uri != null && uri.scheme == 'https',
-      'API_BASE_URL must be an absolute https:// URL, got: $baseUrl',
+      uri != null && (uri.scheme == 'https' || (uri.scheme == 'http' && isLocal)),
+      'API_BASE_URL must be an absolute https:// URL '
+      '(http:// allowed only for localhost), got: $baseUrl',
     );
   }
   
