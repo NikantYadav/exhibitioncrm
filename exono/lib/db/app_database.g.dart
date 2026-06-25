@@ -69,6 +69,28 @@ class $EventsTableTable extends EventsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _startTimeMeta = const VerificationMeta(
+    'startTime',
+  );
+  @override
+  late final GeneratedColumn<String> startTime = GeneratedColumn<String>(
+    'start_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endTimeMeta = const VerificationMeta(
+    'endTime',
+  );
+  @override
+  late final GeneratedColumn<String> endTime = GeneratedColumn<String>(
+    'end_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _eventTypeMeta = const VerificationMeta(
     'eventType',
   );
@@ -121,6 +143,8 @@ class $EventsTableTable extends EventsTable
     location,
     startDate,
     endDate,
+    startTime,
+    endTime,
     eventType,
     createdAt,
     updatedAt,
@@ -175,6 +199,18 @@ class $EventsTableTable extends EventsTable
       context.handle(
         _endDateMeta,
         endDate.isAcceptableOrUnknown(data['end_date']!, _endDateMeta),
+      );
+    }
+    if (data.containsKey('start_time')) {
+      context.handle(
+        _startTimeMeta,
+        startTime.isAcceptableOrUnknown(data['start_time']!, _startTimeMeta),
+      );
+    }
+    if (data.containsKey('end_time')) {
+      context.handle(
+        _endTimeMeta,
+        endTime.isAcceptableOrUnknown(data['end_time']!, _endTimeMeta),
       );
     }
     if (data.containsKey('event_type')) {
@@ -236,6 +272,14 @@ class $EventsTableTable extends EventsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}end_date'],
       ),
+      startTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}start_time'],
+      ),
+      endTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}end_time'],
+      ),
       eventType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}event_type'],
@@ -268,6 +312,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
   final String? location;
   final DateTime startDate;
   final DateTime? endDate;
+  final String? startTime;
+  final String? endTime;
   final String? eventType;
   final DateTime? createdAt;
   final DateTime updatedAt;
@@ -279,6 +325,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
     this.location,
     required this.startDate,
     this.endDate,
+    this.startTime,
+    this.endTime,
     this.eventType,
     this.createdAt,
     required this.updatedAt,
@@ -298,6 +346,12 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
     map['start_date'] = Variable<DateTime>(startDate);
     if (!nullToAbsent || endDate != null) {
       map['end_date'] = Variable<DateTime>(endDate);
+    }
+    if (!nullToAbsent || startTime != null) {
+      map['start_time'] = Variable<String>(startTime);
+    }
+    if (!nullToAbsent || endTime != null) {
+      map['end_time'] = Variable<String>(endTime);
     }
     if (!nullToAbsent || eventType != null) {
       map['event_type'] = Variable<String>(eventType);
@@ -326,6 +380,12 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
       endDate: endDate == null && nullToAbsent
           ? const Value.absent()
           : Value(endDate),
+      startTime: startTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startTime),
+      endTime: endTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endTime),
       eventType: eventType == null && nullToAbsent
           ? const Value.absent()
           : Value(eventType),
@@ -351,6 +411,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
       location: serializer.fromJson<String?>(json['location']),
       startDate: serializer.fromJson<DateTime>(json['startDate']),
       endDate: serializer.fromJson<DateTime?>(json['endDate']),
+      startTime: serializer.fromJson<String?>(json['startTime']),
+      endTime: serializer.fromJson<String?>(json['endTime']),
       eventType: serializer.fromJson<String?>(json['eventType']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -367,6 +429,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
       'location': serializer.toJson<String?>(location),
       'startDate': serializer.toJson<DateTime>(startDate),
       'endDate': serializer.toJson<DateTime?>(endDate),
+      'startTime': serializer.toJson<String?>(startTime),
+      'endTime': serializer.toJson<String?>(endTime),
       'eventType': serializer.toJson<String?>(eventType),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -381,6 +445,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
     Value<String?> location = const Value.absent(),
     DateTime? startDate,
     Value<DateTime?> endDate = const Value.absent(),
+    Value<String?> startTime = const Value.absent(),
+    Value<String?> endTime = const Value.absent(),
     Value<String?> eventType = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
     DateTime? updatedAt,
@@ -392,6 +458,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
     location: location.present ? location.value : this.location,
     startDate: startDate ?? this.startDate,
     endDate: endDate.present ? endDate.value : this.endDate,
+    startTime: startTime.present ? startTime.value : this.startTime,
+    endTime: endTime.present ? endTime.value : this.endTime,
     eventType: eventType.present ? eventType.value : this.eventType,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -405,6 +473,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
       location: data.location.present ? data.location.value : this.location,
       startDate: data.startDate.present ? data.startDate.value : this.startDate,
       endDate: data.endDate.present ? data.endDate.value : this.endDate,
+      startTime: data.startTime.present ? data.startTime.value : this.startTime,
+      endTime: data.endTime.present ? data.endTime.value : this.endTime,
       eventType: data.eventType.present ? data.eventType.value : this.eventType,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -421,6 +491,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
           ..write('location: $location, ')
           ..write('startDate: $startDate, ')
           ..write('endDate: $endDate, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
           ..write('eventType: $eventType, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -437,6 +509,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
     location,
     startDate,
     endDate,
+    startTime,
+    endTime,
     eventType,
     createdAt,
     updatedAt,
@@ -452,6 +526,8 @@ class EventsTableData extends DataClass implements Insertable<EventsTableData> {
           other.location == this.location &&
           other.startDate == this.startDate &&
           other.endDate == this.endDate &&
+          other.startTime == this.startTime &&
+          other.endTime == this.endTime &&
           other.eventType == this.eventType &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
@@ -465,6 +541,8 @@ class EventsTableCompanion extends UpdateCompanion<EventsTableData> {
   final Value<String?> location;
   final Value<DateTime> startDate;
   final Value<DateTime?> endDate;
+  final Value<String?> startTime;
+  final Value<String?> endTime;
   final Value<String?> eventType;
   final Value<DateTime?> createdAt;
   final Value<DateTime> updatedAt;
@@ -477,6 +555,8 @@ class EventsTableCompanion extends UpdateCompanion<EventsTableData> {
     this.location = const Value.absent(),
     this.startDate = const Value.absent(),
     this.endDate = const Value.absent(),
+    this.startTime = const Value.absent(),
+    this.endTime = const Value.absent(),
     this.eventType = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -490,6 +570,8 @@ class EventsTableCompanion extends UpdateCompanion<EventsTableData> {
     this.location = const Value.absent(),
     required DateTime startDate,
     this.endDate = const Value.absent(),
+    this.startTime = const Value.absent(),
+    this.endTime = const Value.absent(),
     this.eventType = const Value.absent(),
     this.createdAt = const Value.absent(),
     required DateTime updatedAt,
@@ -506,6 +588,8 @@ class EventsTableCompanion extends UpdateCompanion<EventsTableData> {
     Expression<String>? location,
     Expression<DateTime>? startDate,
     Expression<DateTime>? endDate,
+    Expression<String>? startTime,
+    Expression<String>? endTime,
     Expression<String>? eventType,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -519,6 +603,8 @@ class EventsTableCompanion extends UpdateCompanion<EventsTableData> {
       if (location != null) 'location': location,
       if (startDate != null) 'start_date': startDate,
       if (endDate != null) 'end_date': endDate,
+      if (startTime != null) 'start_time': startTime,
+      if (endTime != null) 'end_time': endTime,
       if (eventType != null) 'event_type': eventType,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -534,6 +620,8 @@ class EventsTableCompanion extends UpdateCompanion<EventsTableData> {
     Value<String?>? location,
     Value<DateTime>? startDate,
     Value<DateTime?>? endDate,
+    Value<String?>? startTime,
+    Value<String?>? endTime,
     Value<String?>? eventType,
     Value<DateTime?>? createdAt,
     Value<DateTime>? updatedAt,
@@ -547,6 +635,8 @@ class EventsTableCompanion extends UpdateCompanion<EventsTableData> {
       location: location ?? this.location,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
       eventType: eventType ?? this.eventType,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -576,6 +666,12 @@ class EventsTableCompanion extends UpdateCompanion<EventsTableData> {
     if (endDate.present) {
       map['end_date'] = Variable<DateTime>(endDate.value);
     }
+    if (startTime.present) {
+      map['start_time'] = Variable<String>(startTime.value);
+    }
+    if (endTime.present) {
+      map['end_time'] = Variable<String>(endTime.value);
+    }
     if (eventType.present) {
       map['event_type'] = Variable<String>(eventType.value);
     }
@@ -603,6 +699,8 @@ class EventsTableCompanion extends UpdateCompanion<EventsTableData> {
           ..write('location: $location, ')
           ..write('startDate: $startDate, ')
           ..write('endDate: $endDate, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
           ..write('eventType: $eventType, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -7264,6 +7362,8 @@ typedef $$EventsTableTableCreateCompanionBuilder =
       Value<String?> location,
       required DateTime startDate,
       Value<DateTime?> endDate,
+      Value<String?> startTime,
+      Value<String?> endTime,
       Value<String?> eventType,
       Value<DateTime?> createdAt,
       required DateTime updatedAt,
@@ -7278,6 +7378,8 @@ typedef $$EventsTableTableUpdateCompanionBuilder =
       Value<String?> location,
       Value<DateTime> startDate,
       Value<DateTime?> endDate,
+      Value<String?> startTime,
+      Value<String?> endTime,
       Value<String?> eventType,
       Value<DateTime?> createdAt,
       Value<DateTime> updatedAt,
@@ -7321,6 +7423,16 @@ class $$EventsTableTableFilterComposer
 
   ColumnFilters<DateTime> get endDate => $composableBuilder(
     column: $table.endDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get startTime => $composableBuilder(
+    column: $table.startTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get endTime => $composableBuilder(
+    column: $table.endTime,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7384,6 +7496,16 @@ class $$EventsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get startTime => $composableBuilder(
+    column: $table.startTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get endTime => $composableBuilder(
+    column: $table.endTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get eventType => $composableBuilder(
     column: $table.eventType,
     builder: (column) => ColumnOrderings(column),
@@ -7431,6 +7553,12 @@ class $$EventsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get endDate =>
       $composableBuilder(column: $table.endDate, builder: (column) => column);
+
+  GeneratedColumn<String> get startTime =>
+      $composableBuilder(column: $table.startTime, builder: (column) => column);
+
+  GeneratedColumn<String> get endTime =>
+      $composableBuilder(column: $table.endTime, builder: (column) => column);
 
   GeneratedColumn<String> get eventType =>
       $composableBuilder(column: $table.eventType, builder: (column) => column);
@@ -7482,6 +7610,8 @@ class $$EventsTableTableTableManager
                 Value<String?> location = const Value.absent(),
                 Value<DateTime> startDate = const Value.absent(),
                 Value<DateTime?> endDate = const Value.absent(),
+                Value<String?> startTime = const Value.absent(),
+                Value<String?> endTime = const Value.absent(),
                 Value<String?> eventType = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -7494,6 +7624,8 @@ class $$EventsTableTableTableManager
                 location: location,
                 startDate: startDate,
                 endDate: endDate,
+                startTime: startTime,
+                endTime: endTime,
                 eventType: eventType,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -7508,6 +7640,8 @@ class $$EventsTableTableTableManager
                 Value<String?> location = const Value.absent(),
                 required DateTime startDate,
                 Value<DateTime?> endDate = const Value.absent(),
+                Value<String?> startTime = const Value.absent(),
+                Value<String?> endTime = const Value.absent(),
                 Value<String?> eventType = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 required DateTime updatedAt,
@@ -7520,6 +7654,8 @@ class $$EventsTableTableTableManager
                 location: location,
                 startDate: startDate,
                 endDate: endDate,
+                startTime: startTime,
+                endTime: endTime,
                 eventType: eventType,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

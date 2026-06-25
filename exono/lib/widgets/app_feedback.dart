@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 
+import '../config/app_theme.dart';
+
 // Imported lazily via a function reference to avoid a circular import.
 // The notifier lives in app_shell.dart.
 import '../screens/app_shell.dart' show navBarHide, navBarShow;
@@ -110,17 +112,42 @@ Future<bool?> showAppConfirmDialog({
           variant: FButtonVariant.outline,
           onPress: () => Navigator.pop(ctx, false),
           child: Builder(
+            // Cancel: blue (accent) text on the outline button.
             builder: (bCtx) => Text(
               cancelLabel,
-              style: TextStyle(color: bCtx.theme.colors.foreground),
+              style: TextStyle(color: AppTheme.colorsOf(bCtx).accent),
             ),
           ),
         ),
-        FButton(
-          variant: destructive ? FButtonVariant.destructive : FButtonVariant.primary,
-          onPress: () => Navigator.pop(ctx, true),
-          child: Text(confirmLabel),
-        ),
+        if (destructive)
+          // Destructive confirm: solid red fill + white text. forui's
+          // destructive variant is only a tinted fill, so we recolor a primary
+          // button via a localised FTheme (primary -> red, foreground -> white).
+          Builder(
+            builder: (bCtx) {
+              final red = AppTheme.colorsOf(bCtx).destructive;
+              return FTheme(
+                // Rebuild the theme with primary recoloured to red so the
+                // primary button renders a solid red fill with white text.
+                data: FThemeData(
+                  colors: bCtx.theme.colors.copyWith(
+                    primary: red,
+                    primaryForeground: Colors.white,
+                  ),
+                  touch: true,
+                ),
+                child: FButton(
+                  onPress: () => Navigator.pop(ctx, true),
+                  child: Text(confirmLabel),
+                ),
+              );
+            },
+          )
+        else
+          FButton(
+            onPress: () => Navigator.pop(ctx, true),
+            child: Text(confirmLabel),
+          ),
       ],
     ),
   ).whenComplete(navBarShow);

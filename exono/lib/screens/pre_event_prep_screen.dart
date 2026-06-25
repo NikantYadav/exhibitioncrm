@@ -405,7 +405,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               Icon(Icons.timer, size: 14, color: context.theme.colors.background),
               const SizedBox(width: 8),
               Text(
-                _daysUntil(widget.event.startDate).toUpperCase(),
+                _daysUntil(widget.event.localStartDate).toUpperCase(),
                 style: context.theme.typography.xs.copyWith(
                   fontWeight: FontWeight.w500,
                   letterSpacing: 1.4,
@@ -451,7 +451,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                 Icon(Icons.calendar_month_outlined, size: 16, color: _c.accent),
                 const SizedBox(width: 8),
                 Text(
-                  _formatDateRange(widget.event.startDate, widget.event.endDate).toUpperCase(),
+                  _formatDateRange(widget.event.localStartDate, widget.event.endDate).toUpperCase(),
                   style: context.theme.typography.xs.copyWith(
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.1,
@@ -460,6 +460,24 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                 ),
               ],
             ),
+            if (widget.event.localTimeRange != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.schedule_outlined, size: 16, color: _c.accent),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.event.localTimeRange!.toUpperCase(),
+                    style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 1.1,
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ],

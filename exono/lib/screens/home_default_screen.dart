@@ -93,14 +93,16 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     bool firstEmission = true;
     _eventsSub = context.read<SyncProvider>().events.watchAll().listen((rows) {
       if (!mounted) return;
-      final all = rows.map(Event.fromDrift).toList();
+      final all = eventsWithLiveStatus(rows.map(Event.fromDrift).toList());
       final upcoming = all
           .where((e) => e.status == 'upcoming')
           .toList()
         ..sort((a, b) => a.startDate.compareTo(b.startDate));
-      // Skip the first empty emission — it fires before sync has pulled data.
-      // Wait for either a non-empty result or a second emission (sync done).
-      if (firstEmission && upcoming.isEmpty) {
+      // Skip only the first emission when the local cache is still completely
+      // empty (fires before sync pulls anything). Gate on whether ANY events
+      // exist — not on `upcoming` — so a user whose events are all ongoing or
+      // past still resolves to "no upcoming events" instead of loading forever.
+      if (firstEmission && rows.isEmpty) {
         firstEmission = false;
         return;
       }
@@ -347,6 +349,19 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
               Expanded(child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
             ]),
           ],
+          if (event.localStartTime != null) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              Icon(Icons.schedule_outlined, size: 14, color: _c.accent),
+              const SizedBox(width: 6),
+              Text(
+                event.localEndTime != null
+                    ? '${event.localStartTime} – ${event.localEndTime}'
+                    : 'From ${event.localStartTime}',
+                style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+              ),
+            ]),
+          ],
         ],
       ),
     );
@@ -515,8 +530,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
 
   Widget _buildUpcomingEventCard(Event event) {
     final months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-    final month = months[event.startDate.month - 1];
-    final day = event.startDate.day.toString();
+    final localStart = event.localStartDate;
+    final month = months[localStart.month - 1];
+    final day = localStart.day.toString();
     final location = event.location ?? '';
 
     return GestureDetector(
@@ -532,7 +548,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
             child: Column(children: [
               Text(month, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.0, color: context.theme.colors.mutedForeground)),
               const SizedBox(height: 4),
-              Text(day, style: context.theme.typography.xl2.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground, height: 1)),
+              Text(day, maxLines: 1, softWrap: false, overflow: TextOverflow.visible, style: context.theme.typography.xl2.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground, height: 1)),
             ]),
           ),
           const SizedBox(width: 12),
@@ -541,6 +557,14 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(event.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground)),
+                if (event.localTimeRange != null) ...[
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Icon(Icons.schedule_outlined, size: 12, color: _c.accent),
+                    const SizedBox(width: 4),
+                    Text(event.localTimeRange!, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.mutedForeground, height: 1.4)),
+                  ]),
+                ],
                 if (location.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.mutedForeground, height: 1.4)),
@@ -682,7 +706,7 @@ class _SyncSection extends StatelessWidget {
             radius: 14,
             child: Row(
               children: [
-                _SyncIcon(icon: icon, tint: tint, spinning: offline.isSyncing),
+                _SyncIcon(icon: icon, tint: tint),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -730,59 +754,24 @@ class _SyncSection extends StatelessWidget {
   }
 }
 
-/// Sync status icon. Rotates continuously while [spinning].
-class _SyncIcon extends StatefulWidget {
+/// Sync status icon — a static tinted icon container. The syncing motion is
+/// conveyed by the loader on the right of the card, so this icon does not spin.
+class _SyncIcon extends StatelessWidget {
   final IconData icon;
   final Color tint;
-  final bool spinning;
-  const _SyncIcon({required this.icon, required this.tint, required this.spinning});
-
-  @override
-  State<_SyncIcon> createState() => _SyncIconState();
-}
-
-class _SyncIconState extends State<_SyncIcon> with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
-    if (widget.spinning) _ctrl.repeat();
-  }
-
-  @override
-  void didUpdateWidget(_SyncIcon old) {
-    super.didUpdateWidget(old);
-    if (widget.spinning && !_ctrl.isAnimating) {
-      _ctrl.repeat();
-    } else if (!widget.spinning && _ctrl.isAnimating) {
-      _ctrl.stop();
-      _ctrl.reset();
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  const _SyncIcon({required this.icon, required this.tint});
 
   @override
   Widget build(BuildContext context) {
-    final iconWidget = Icon(widget.icon, size: 20, color: widget.tint);
     return Container(
       width: 38,
       height: 38,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: widget.tint.withValues(alpha: 0.12),
+        color: tint.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
-      // Only the icon rotates; the tinted box stays still.
-      child: widget.spinning
-          ? RotationTransition(turns: _ctrl, child: iconWidget)
-          : iconWidget,
+      child: Icon(icon, size: 20, color: tint),
     );
   }
 }

@@ -7,17 +7,52 @@ import multer from 'multer';
 import * as XLSX from 'xlsx';
 
 const uuidSchema = z.string().uuid();
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]*)?$/, 'Invalid date format').optional();
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]*)?$/, 'Invalid date format').nullable().optional();
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid time format').nullable().optional();
 const optText = (max: number) => z.string().trim().max(max).optional().or(z.literal(''));
 
+// end_time is optional, but when present must be strictly after start_time, and
+// it cannot stand alone without a start_time. Enforced server-side so a crafted
+// request can't store an inverted/orphan range that corrupts live resolution.
+const enforceTimeRange = (
+  d: { start_time?: string | null; end_time?: string | null },
+  ctx: z.RefinementCtx,
+) => {
+  if (d.end_time != null && d.start_time == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'end_time requires a start_time',
+      path: ['start_time'],
+    });
+    return;
+  }
+  if (d.start_time != null && d.end_time != null && d.end_time <= d.start_time) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'end_time must be after start_time',
+      path: ['end_time'],
+    });
+  }
+};
+
+// start_time is required on create; end_time stays optional.
 const eventWriteSchema = z.object({
   name: z.string().trim().min(1).max(200),
   location: optText(300),
   start_date: isoDate,
   end_date: isoDate,
-});
+  start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid time format'),
+  end_time: timeOfDay,
+}).superRefine(enforceTimeRange);
 
-const eventPatchSchema = eventWriteSchema.partial();
+const eventPatchSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  location: optText(300),
+  start_date: isoDate,
+  end_date: isoDate,
+  start_time: timeOfDay,
+  end_time: timeOfDay,
+}).superRefine(enforceTimeRange);
 
 const targetWriteSchema = z.object({
   company_id: uuidSchema,
@@ -94,16 +129,124 @@ router.param('id', async (req: Request, res: Response, next: NextFunction, id: s
 const parseTs = (s: string): Date =>
   new Date(s.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00'));
 
-const getEventStatus = (event: any): string => {
+// Combines an event date (UTC midnight) with an "HH:mm" time-of-day, treating
+// the stored time as UTC wall-clock on that date. Mirrors the Flutter rule.
+const withTime = (date: Date, time: string): Date => {
+  const [h, m] = time.split(':').map(Number);
+  const d = new Date(date.getTime());
+  d.setUTCHours(h, m, 0, 0);
+  return d;
+};
+
+const sameDay = (a: Date, b: Date): boolean =>
+  a.getUTCFullYear() === b.getUTCFullYear() &&
+  a.getUTCMonth() === b.getUTCMonth() &&
+  a.getUTCDate() === b.getUTCDate();
+
+const endOfDay = (date: Date): Date => {
+  const d = new Date(date.getTime());
+  d.setUTCHours(23, 59, 59, 999);
+  return d;
+};
+
+// The instant an event's live window ends. With an explicit end_time it's that
+// time; otherwise the window runs until the next single-day event that starts
+// later the same day, or end of day if none. Multi-day events run through the
+// end of their end_date regardless. [allEvents] is the user's full event list,
+// needed to find the next same-day event when end_time is absent.
+const effectiveEnd = (event: any, allEvents: any[]): Date => {
+  const start = parseTs(event.start_date);
+  if (event.end_date) {
+    // Multi-day: background event spanning to the end of its last day.
+    return endOfDay(parseTs(event.end_date));
+  }
+  if (event.end_time) {
+    return withTime(start, event.end_time);
+  }
+  // No end_time: run until the next same-day single-day event begins (ending one
+  // millisecond before it, so the two windows never both contain that instant),
+  // or end of day if none starts later.
+  const myStart = event.start_time ? withTime(start, event.start_time) : start;
+  let boundary = endOfDay(start);
+  for (const other of allEvents) {
+    if (other.id === event.id || other.end_date || !other.start_time) continue;
+    const otherStartDate = parseTs(other.start_date);
+    if (!sameDay(otherStartDate, start)) continue;
+    const otherStart = withTime(otherStartDate, other.start_time);
+    if (otherStart > myStart && otherStart <= boundary) {
+      boundary = new Date(otherStart.getTime() - 1);
+    }
+  }
+  return boundary;
+};
+
+// An event's committed extent for conflict checks. `start` is the start instant.
+// `boundedEnd` is the hard end only when the event declares one (explicit
+// end_time, or a multi-day span); it is null for an open-ended event, which has
+// no fixed end — it simply runs until the next event that day, so it yields to
+// later events instead of conflicting with them.
+const eventExtent = (event: any): { start: Date; boundedEnd: Date | null } => {
+  const startDay = parseTs(event.start_date);
+  const start = event.start_time ? withTime(startDay, event.start_time) : startDay;
+  let boundedEnd: Date | null = null;
+  if (event.end_date) {
+    boundedEnd = event.end_time
+      ? withTime(parseTs(event.end_date), event.end_time)
+      : endOfDay(parseTs(event.end_date));
+  } else if (event.end_time) {
+    boundedEnd = withTime(startDay, event.end_time);
+  }
+  return { start, boundedEnd };
+};
+
+// Two events conflict only when they genuinely cannot be sequenced:
+//   • identical start instants (ambiguous — which is live?), or
+//   • a bounded single-day event whose [start, end] strictly contains the
+//     other's start.
+// Multi-day events are background: a single-day event may be nested inside one,
+// so multi-day spans never conflict. Two open-ended events, or an open-ended one
+// followed by a later start, also don't conflict — the earlier simply runs until
+// the later begins.
+const isMultiDay = (e: any): boolean => e.end_date != null;
+
+const eventsConflict = (a: any, b: any): boolean => {
+  // A multi-day background never blocks (and isn't blocked by) another event.
+  if (isMultiDay(a) || isMultiDay(b)) return false;
+  const ea = eventExtent(a);
+  const eb = eventExtent(b);
+  if (ea.start.getTime() === eb.start.getTime()) return true;
+  const earlier = ea.start < eb.start ? ea : eb;
+  const later = ea.start < eb.start ? eb : ea;
+  // Conflict only if the earlier event is bounded and its end runs past the
+  // later event's start (i.e. the later start falls inside the earlier window).
+  return earlier.boundedEnd != null && earlier.boundedEnd > later.start;
+};
+
+const getEventStatus = (event: any, allEvents: any[] = []): string => {
   const now = new Date();
   const start = parseTs(event.start_date);
-  // Single-day event ends 24h after start; multi-day ends at end of end_date day.
-  const end = event.end_date
-    ? (() => { const d = parseTs(event.end_date); d.setUTCHours(23, 59, 59, 999); return d; })()
-    : new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
-  if (now >= start && now <= end) return 'ongoing';
-  if (now > end) return 'completed';
+  const rangeStart = event.start_time ? withTime(start, event.start_time) : start;
+  const rangeEnd = effectiveEnd(event, allEvents);
+  if (now >= rangeStart && now <= rangeEnd) return 'ongoing';
+  if (now > rangeEnd) return 'completed';
   return 'upcoming';
+};
+
+// Chooses which event is "live" when several are ongoing at once (e.g. a
+// single-day timed event nested inside a multi-day event). A single-day event
+// whose window contains "now" is the most specific intent, so it always wins
+// over a multi-day/background event; ties fall back to start_date ordering.
+const pickOngoingEvent = (events: any[]): any | undefined => {
+  const ongoing = events.filter(e => getEventStatus(e, events) === 'ongoing');
+  if (ongoing.length === 0) return undefined;
+  // Among ongoing events, a single-day (timed) event is more specific than a
+  // multi-day background event. If several qualify, the one that started most
+  // recently is the active window — deterministic regardless of input order.
+  const effStart = (e: any): number =>
+    (e.start_time ? withTime(parseTs(e.start_date), e.start_time) : parseTs(e.start_date)).getTime();
+  const singleDay = ongoing.filter(e => !e.end_date);
+  const pool = singleDay.length > 0 ? singleDay : ongoing;
+  return pool.reduce((best, e) => (effStart(e) > effStart(best) ? e : best));
 };
 
 router.get('/', async (req, res, next) => {
@@ -122,7 +265,7 @@ router.get('/', async (req, res, next) => {
 
     const updatedData = (data || []).map(event => ({
       ...event,
-      status: getEventStatus(event),
+      status: getEventStatus(event, data || []),
     }));
 
     console.log(`[GET /api/events] Returning ${updatedData.length} events`);
@@ -148,8 +291,7 @@ router.get('/ongoing/current', async (req, res, next) => {
 
     if (error) throw error;
 
-    // Find the first ongoing event
-    const ongoingEvent = (events || []).find(event => getEventStatus(event) === 'ongoing');
+    const ongoingEvent = pickOngoingEvent(events || []);
 
     if (!ongoingEvent) {
       res.status(404).json({ error: 'No ongoing event found' });
@@ -180,11 +322,11 @@ router.get('/live-session', async (req, res, next) => {
 
     if (eventsError) throw eventsError;
 
-    const ongoingEvent = (events || []).find(event => getEventStatus(event) === 'ongoing');
+    const ongoingEvent = pickOngoingEvent(events || []);
 
     if (!ongoingEvent) {
       // Also look up next upcoming event so Flutter doesn't need a second call
-      const upcomingEvent = (events || []).find(event => getEventStatus(event) === 'upcoming');
+      const upcomingEvent = (events || []).find(event => getEventStatus(event, events || []) === 'upcoming');
       res.status(404).json({ error: 'No ongoing event found', nextEvent: upcomingEvent ? { ...upcomingEvent, status: 'upcoming' } : null });
       return;
     }
@@ -327,7 +469,7 @@ router.get('/upcoming/next', async (req, res, next) => {
 
     if (error) throw error;
 
-    const upcomingEvent = (events || []).find(event => getEventStatus(event) === 'upcoming');
+    const upcomingEvent = (events || []).find(event => getEventStatus(event, events || []) === 'upcoming');
 
     if (!upcomingEvent) {
       res.status(404).json({ error: 'No upcoming event found' });
@@ -473,24 +615,66 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
+// True when an event's start instant is in the past. Times are stored in UTC,
+// so comparing the full start instant (date + time) against `now` is timezone
+// agnostic — no offset margin is needed. A small grace window absorbs clock
+// skew and the few seconds between the user picking "now" and the request.
+const START_GRACE_MS = 5 * 60 * 1000;
+const isStartInPast = (start_date?: string | null, start_time?: string | null): boolean => {
+  if (!start_date) return false;
+  const startInstant = start_time
+    ? withTime(parseTs(start_date), start_time)
+    // Date-only (legacy / no time): treat the whole start day as valid, so only
+    // a strictly earlier calendar day counts as past.
+    : endOfDay(parseTs(start_date));
+  return startInstant.getTime() < Date.now() - START_GRACE_MS;
+};
+
+// Returns true if [candidate] conflicts with any of the user's other events.
+// [excludeId] skips the event being updated. Scoped to the authenticated user.
+const hasOverlap = async (
+  supabase: any,
+  userId: string,
+  candidate: any,
+  excludeId?: string,
+): Promise<boolean> => {
+  const { data: existing, error } = await supabase
+    .from('events')
+    .select('id, start_date, end_date, start_time, end_time')
+    .eq('user_id', userId)
+    .is('deleted_at', null);
+  if (error) throw error;
+  const now = Date.now();
+  return (existing || []).some((e: any) => {
+    if (e.id === excludeId) return false;
+    // An event already fully in the past can't conflict with a new one. Its
+    // latest relevant instant is its bounded end, or end of its start day.
+    const ext = eventExtent(e);
+    const latest = ext.boundedEnd ?? endOfDay(parseTs(e.start_date));
+    if (latest.getTime() < now) return false;
+    return eventsConflict(candidate, e);
+  });
+};
+
 router.post('/', async (req, res, next) => {
   try {
     const supabase = req.supabase!;
     const parsedBody = eventWriteSchema.safeParse(req.body);
     if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
 
-    const { name, location, start_date, end_date } = parsedBody.data;
+    const { name, location, start_date, end_date, start_time, end_time } = parsedBody.data;
 
-    if (start_date) {
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      if (new Date(start_date) < today) {
-        return res.status(400).json({ error: 'Event start date cannot be in the past.' });
-      }
+    if (isStartInPast(start_date, start_time)) {
+      return res.status(400).json({ error: 'Event start date cannot be in the past.' });
+    }
+
+    if (await hasOverlap(supabase, req.user!.id, { start_date, end_date, start_time, end_time })) {
+      return res.status(409).json({ error: 'This event overlaps another event. Choose a non-overlapping time.' });
     }
 
     const { data, error } = await supabase
       .from('events')
-      .insert({ user_id: req.user!.id, name, location, start_date, end_date })
+      .insert({ user_id: req.user!.id, name, location, start_date, end_date, start_time, end_time })
       .select()
       .single();
 
@@ -509,10 +693,24 @@ router.patch('/:id', async (req, res, next) => {
     if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
 
     const updates = parsedBody.data;
-    if (updates.start_date) {
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      if (new Date(updates.start_date) < today) {
+
+    // Merge the partial update onto the current row, then validate the resulting
+    // start instant and ensure the window doesn't overlap another event.
+    if (updates.start_date !== undefined || updates.end_date !== undefined ||
+        updates.start_time !== undefined || updates.end_time !== undefined) {
+      const { data: current, error: curErr } = await supabase
+        .from('events')
+        .select('start_date, end_date, start_time, end_time')
+        .eq('id', req.params.id)
+        .eq('user_id', req.user!.id)
+        .single();
+      if (curErr) throw curErr;
+      const merged = { ...current, ...updates };
+      if (isStartInPast(merged.start_date, merged.start_time)) {
         return res.status(400).json({ error: 'Event start date cannot be in the past.' });
+      }
+      if (await hasOverlap(supabase, req.user!.id, merged, req.params.id)) {
+        return res.status(409).json({ error: 'This event overlaps another event. Choose a non-overlapping time.' });
       }
     }
 

@@ -18,6 +18,19 @@ class RateLimitException implements Exception {
   const RateLimitException(this.retryAfterSeconds);
 }
 
+/// Thrown when an event's time window overlaps an existing event (backend 409).
+class EventOverlapException implements Exception {
+  final String message;
+  const EventOverlapException(this.message);
+}
+
+/// Thrown for a backend 400 carrying a plain user-facing validation message
+/// (e.g. "Event start date cannot be in the past."), so the UI can show it.
+class EventValidationException implements Exception {
+  final String message;
+  const EventValidationException(this.message);
+}
+
 class ApiService {
   /// Called when the session can no longer be recovered (refresh failed).
   /// Set by AuthProvider on init. Triggers logout.
@@ -259,9 +272,29 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = json.decode(response.body);
       return Event.fromJson(data['data']);
+    } else if (response.statusCode == 409) {
+      throw EventOverlapException(
+        _stringError(response) ?? 'This event overlaps another event. Choose a non-overlapping time.',
+      );
+    } else if (response.statusCode == 400) {
+      final msg = _stringError(response);
+      if (msg != null) throw EventValidationException(msg);
+      throw _apiError('save this event', response);
     } else {
       throw _apiError('save this event', response);
     }
+  }
+
+  /// Returns the backend's `error` field when it is a plain, user-safe string
+  /// (our hand-written validation messages). Zod errors are objects, not
+  /// strings, so they return null and stay hidden behind the generic message.
+  static String? _stringError(http.Response response) {
+    try {
+      final body = json.decode(response.body);
+      final msg = body['error'];
+      if (msg is String && msg.isNotEmpty) return msg;
+    } catch (_) {}
+    return null;
   }
 
   static Future<Map<String, dynamic>> analyzeCard(String imageData) async {
@@ -623,6 +656,13 @@ class ApiService {
     if (response.statusCode == 200) {
       final body = json.decode(response.body);
       return Event.fromJson(body['data']);
+    } else if (response.statusCode == 409) {
+      throw EventOverlapException(
+        _stringError(response) ?? 'This event overlaps another event. Choose a non-overlapping time.',
+      );
+    } else if (response.statusCode == 400) {
+      final msg = _stringError(response);
+      if (msg != null) throw EventValidationException(msg);
     }
     throw Exception('Failed to update event');
   }

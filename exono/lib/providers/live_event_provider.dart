@@ -74,22 +74,55 @@ class LiveEventProvider extends ChangeNotifier {
 
   /// Emits whether any non-deleted event is ongoing right now, recomputed
   /// whenever the events table changes. Mirrors the backend's ongoing rule
-  /// (events.ts getEventStatus): now in [start_date, end), where end is the
-  /// end_date end-of-day, or start + 24h for single-day events.
+  /// (events.ts getEventStatus/effectiveEnd): now in [start, end], where end is
+  /// end_time, the next same-day event's start_time, or end of day.
   Stream<bool> _watchOngoing(AppDatabase db) {
     final query = db.select(db.eventsTable)
       ..where((t) => t.deletedAt.isNull())
       ..orderBy([(t) => OrderingTerm(expression: t.startDate, mode: OrderingMode.desc)]);
-    return query.watch().map((events) => events.any(_isOngoing));
+    return query.watch().map((events) => events.any((e) => _isOngoing(e, events)));
   }
 
-  bool _isOngoing(EventsTableData e) {
+  bool _isOngoing(EventsTableData e, List<EventsTableData> all) {
     final now = DateTime.now().toUtc();
     final start = e.startDate.toUtc();
-    final end = e.endDate != null
-        ? DateTime.utc(e.endDate!.year, e.endDate!.month, e.endDate!.day, 23, 59, 59, 999)
-        : start.add(const Duration(hours: 24)).subtract(const Duration(milliseconds: 1));
-    return !now.isBefore(start) && !now.isAfter(end);
+    final rangeStart = e.startTime != null ? _withTime(start, e.startTime!) : start;
+    final rangeEnd = _effectiveEnd(e, all);
+    return !now.isBefore(rangeStart) && !now.isAfter(rangeEnd);
+  }
+
+  // The instant an event's live window ends. Explicit end_time wins; multi-day
+  // events run through their end_date end-of-day; an open-ended single-day event
+  // runs until the next same-day single-day event's start_time, else end of day.
+  DateTime _effectiveEnd(EventsTableData e, List<EventsTableData> all) {
+    final start = e.startDate.toUtc();
+    if (e.endDate != null) {
+      final end = e.endDate!.toUtc();
+      return DateTime.utc(end.year, end.month, end.day, 23, 59, 59, 999);
+    }
+    if (e.endTime != null) {
+      return _withTime(start, e.endTime!);
+    }
+    final myStart = e.startTime != null ? _withTime(start, e.startTime!) : start;
+    var boundary = DateTime.utc(start.year, start.month, start.day, 23, 59, 59, 999);
+    for (final other in all) {
+      if (other.id == e.id || other.endDate != null || other.startTime == null) continue;
+      final os = other.startDate.toUtc();
+      if (os.year != start.year || os.month != start.month || os.day != start.day) continue;
+      final otherStart = _withTime(os, other.startTime!);
+      // End one millisecond before the next event so the two windows never both
+      // contain that instant. Mirrors the backend effectiveEnd rule.
+      if (otherStart.isAfter(myStart) && !otherStart.isAfter(boundary)) {
+        boundary = otherStart.subtract(const Duration(milliseconds: 1));
+      }
+    }
+    return boundary;
+  }
+
+  // Combines an event date (UTC) with an "HH:mm" time-of-day as UTC wall-clock.
+  DateTime _withTime(DateTime date, String time) {
+    final parts = time.split(':');
+    return DateTime.utc(date.year, date.month, date.day, int.parse(parts[0]), int.parse(parts[1]));
   }
 
   /// Drift watch crossed the ongoing boundary: enter or leave live mode.

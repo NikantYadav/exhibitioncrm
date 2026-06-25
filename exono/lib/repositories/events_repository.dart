@@ -52,10 +52,20 @@ class EventsRepository extends SyncedRepository<EventsTableData, $EventsTableTab
       location: Value(json['location'] as String?),
       startDate: Value(DateTime.parse(json['start_date'] as String)),
       endDate: Value(json['end_date'] != null ? DateTime.parse(json['end_date'] as String) : null),
+      startTime: Value(_normalizeTime(json['start_time'] as String?)),
+      endTime: Value(_normalizeTime(json['end_time'] as String?)),
       eventType: Value(json['event_type'] as String?),
       createdAt: Value(json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : null),
       updatedAt: Value(DateTime.parse(json['updated_at'] as String)),
       deletedAt: Value(json['deleted_at'] != null ? DateTime.parse(json['deleted_at'] as String) : null),
     );
+  }
+
+  /// Postgres `time` columns come back as "HH:mm:ss"; the app stores "HH:mm".
+  static String? _normalizeTime(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final parts = raw.split(':');
+    if (parts.length < 2) return raw;
+    return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
   }
 }

@@ -39,6 +39,92 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   static bool _isValidEventName(String name) => name.length <= 200;
   static bool _isValidLocation(String location) => location.length <= 300;
 
+  // Builds a LOCAL DateTime from a "YYYY-MM-DD" date and "HH:mm" time as the
+  // user entered them (device timezone), ready to be converted to UTC for storage.
+  static DateTime _localInstant(String date, String hm) {
+    final d = date.split('-');
+    final t = hm.split(':');
+    return DateTime(
+      int.parse(d[0]), int.parse(d[1]), int.parse(d[2]),
+      int.parse(t[0]), int.parse(t[1]),
+    );
+  }
+
+  static String _utcDateIso(DateTime utc) =>
+      '${utc.year.toString().padLeft(4, '0')}-${utc.month.toString().padLeft(2, '0')}-${utc.day.toString().padLeft(2, '0')}';
+
+  static String _utcHm(DateTime utc) =>
+      '${utc.hour.toString().padLeft(2, '0')}:${utc.minute.toString().padLeft(2, '0')}';
+
+  /// Validates the event form and builds the UTC create/update payload from the
+  /// controllers. The user enters LOCAL dates/times; this converts each boundary
+  /// to a UTC instant and stores a coherent UTC date anchor + UTC "HH:mm".
+  /// Returns the payload on success, or an error string to toast on failure.
+  ({Map<String, dynamic>? payload, String? error}) _buildEventPayload(bool isOneDay) {
+    final name = _eventNameController.text.trim();
+    if (name.isEmpty) return (payload: null, error: 'Event name is required.');
+    if (!_isValidEventName(name)) {
+      return (payload: null, error: 'Event name must be 200 characters or fewer');
+    }
+    final location = _locationController.text.trim();
+    if (location.isNotEmpty && !_isValidLocation(location)) {
+      return (payload: null, error: 'Location must be 300 characters or fewer');
+    }
+    if (_startDateController.text.isEmpty) {
+      return (payload: null, error: 'Event start date is required.');
+    }
+
+    final startTimeLocal = _startTimeController.text.trim();
+    if (startTimeLocal.isEmpty) {
+      return (payload: null, error: 'Event start time is required.');
+    }
+    final endTimeLocal = _endTimeController.text.trim();
+    // "HH:mm" strings order correctly as time-of-day under lexical compare.
+    if (endTimeLocal.isNotEmpty && endTimeLocal.compareTo(startTimeLocal) <= 0) {
+      return (payload: null, error: 'End time must be after start time.');
+    }
+
+    final startLocal = _localInstant(_startDateController.text, startTimeLocal);
+    // Reject a start instant that's already in the past (5-min grace for the gap
+    // between picking and saving). Compared as instants, so timezone-agnostic.
+    final cutoff = DateTime.now().subtract(const Duration(minutes: 5));
+    if (startLocal.isBefore(cutoff)) {
+      return (payload: null, error: 'Event start time cannot be in the past.');
+    }
+
+    final startUtc = startLocal.toUtc();
+    final startDate = '${_utcDateIso(startUtc)}T00:00:00.000Z';
+    final startTime = _utcHm(startUtc);
+
+    String? endDate;
+    String? endTime;
+    if (!isOneDay && _endDateController.text.isNotEmpty) {
+      final endLocalTime = endTimeLocal.isEmpty ? '00:00' : endTimeLocal;
+      final endUtc = _localInstant(_endDateController.text, endLocalTime).toUtc();
+      endDate = '${_utcDateIso(endUtc)}T00:00:00.000Z';
+      if (endTimeLocal.isNotEmpty) endTime = _utcHm(endUtc);
+    } else if (endTimeLocal.isNotEmpty) {
+      // Single-day with an end time: convert against the start date; if UTC
+      // conversion rolls it to the next day, persist that end date too.
+      final endUtc = _localInstant(_startDateController.text, endTimeLocal).toUtc();
+      endTime = _utcHm(endUtc);
+      final endDateIso = '${_utcDateIso(endUtc)}T00:00:00.000Z';
+      if (endDateIso != startDate) endDate = endDateIso;
+    }
+
+    return (
+      payload: {
+        'name': name,
+        'location': location.isEmpty ? null : location,
+        'start_date': startDate,
+        'end_date': endDate,
+        'start_time': startTime,
+        'end_time': endTime,
+      },
+      error: null,
+    );
+  }
+
   bool _showUpcoming = true;
   String _searchQuery = '';
 
@@ -49,6 +135,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _startDateController = TextEditingController();
   final TextEditingController _endDateController = TextEditingController();
+  final TextEditingController _startTimeController = TextEditingController();
+  final TextEditingController _endTimeController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -57,6 +145,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     _locationController.dispose();
     _startDateController.dispose();
     _endDateController.dispose();
+    _startTimeController.dispose();
+    _endTimeController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -137,7 +227,9 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return _buildSkeletonLoader();
 
-                final events = snapshot.data!.map(Event.fromDrift).toList();
+                final events = eventsWithLiveStatus(
+                  snapshot.data!.map(Event.fromDrift).toList(),
+                );
                 _loadStatsIfNeeded(events);
 
                 return RefreshIndicator(
@@ -377,7 +469,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
 
   Widget _buildUpcomingEventCard(Event event) {
     final isOngoing = event.status == 'ongoing';
-    final daysUntil = isOngoing ? 0 : _daysUntil(event.startDate);
+    final daysUntil = isOngoing ? 0 : _daysUntil(event.localStartDate);
     final isToday = daysUntil == 0 && !isOngoing;
     final isTomorrow = daysUntil == 1;
 
@@ -482,7 +574,11 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _buildMetaRow(Icons.calendar_today_outlined, _formatDateRange(event.startDate, event.endDate)),
+                _buildMetaRow(Icons.calendar_today_outlined, _formatDateRange(event.localStartDate, event.endDate)),
+                if (event.localTimeRange != null) ...[
+                  const SizedBox(height: 6),
+                  _buildMetaRow(Icons.schedule_outlined, event.localTimeRange!),
+                ],
                 const SizedBox(height: 6),
                 _buildMetaRow(Icons.location_on_outlined, event.location ?? 'Location TBD'),
                 if (!isOngoing && daysUntil > 7) ...[
@@ -549,7 +645,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                     _buildMetaRow(
                       Icons.calendar_today_outlined,
                       [
-                        _formatDateRange(event.startDate, event.endDate),
+                        _formatDateRange(event.localStartDate, event.endDate),
+                        if (event.localTimeRange != null) event.localTimeRange!,
                         if (event.location != null) event.location!,
                       ].join(' · '),
                     ),
@@ -722,6 +819,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     _locationController.clear();
     _startDateController.clear();
     _endDateController.clear();
+    _startTimeController.clear();
+    _endTimeController.clear();
 
     showAppSheet(
       context: context,
@@ -730,6 +829,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         locationController: _locationController,
         startDateController: _startDateController,
         endDateController: _endDateController,
+        startTimeController: _startTimeController,
+        endTimeController: _endTimeController,
         colors: _c,
         onSave: (isOneDay) => _saveEvent(sheetContext, isOneDay),
         onCancel: () => Navigator.of(sheetContext).pop(),
@@ -738,53 +839,25 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   }
 
   Future<void> _saveEvent(BuildContext sheetContext, bool isOneDay) async {
-    final name = _eventNameController.text.trim();
-    if (name.isEmpty) {
-      showAppToast(sheetContext, 'Event name is required.');
+    final built = _buildEventPayload(isOneDay);
+    if (built.payload == null) {
+      showAppToast(sheetContext, built.error!);
       return;
     }
-    if (!_isValidEventName(name)) {
-      showAppToast(sheetContext, 'Event name must be 200 characters or fewer');
-      return;
-    }
-    final location = _locationController.text.trim();
-    if (location.isNotEmpty && !_isValidLocation(location)) {
-      showAppToast(sheetContext, 'Location must be 300 characters or fewer');
-      return;
-    }
-
-    final startText = _startDateController.text;
-    final startDate = startText.isNotEmpty
-        ? '${startText}T00:00:00.000Z'
-        : DateTime.now().toIso8601String();
-
-    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-    if (DateTime.parse(startDate).isBefore(today)) {
-      showAppToast(sheetContext, 'Event start date cannot be in the past.');
-      return;
-    }
-
-    final endDate = isOneDay
-        ? null
-        : (_endDateController.text.isNotEmpty
-            ? '${_endDateController.text}T00:00:00.000Z'
-            : null);
 
     try {
-      await ApiService.createEvent({
-        'name': name,
-        'location': _locationController.text.trim().isEmpty
-            ? null
-            : _locationController.text.trim(),
-        'start_date': startDate,
-        'end_date': endDate,
-      });
+      await ApiService.createEvent(built.payload!);
 
       if (sheetContext.mounted) { Navigator.of(sheetContext).pop(); }
       if (mounted) { await context.read<SyncProvider>().events.catchUp(); }
 
       if (mounted) { showAppToast(context, 'Event created successfully.'); }
-    } on UnauthorizedException { rethrow; } catch (_) {
+    } on UnauthorizedException { rethrow; }
+    on EventOverlapException catch (e) {
+      if (sheetContext.mounted) { showAppToast(sheetContext, e.message); }
+    } on EventValidationException catch (e) {
+      if (sheetContext.mounted) { showAppToast(sheetContext, e.message); }
+    } catch (_) {
       if (sheetContext.mounted) { showAppToast(sheetContext, 'Server error — please try again.'); }
     }
   }
@@ -792,11 +865,19 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   void _showEditEventSheet(Event event) {
     _eventNameController.text = event.name;
     _locationController.text = event.location ?? '';
+    // Show local dates/times (storage is UTC; the user edits in their own zone).
+    final localStart = event.localStartDate;
     _startDateController.text =
-        '${event.startDate.year}-${event.startDate.month.toString().padLeft(2, '0')}-${event.startDate.day.toString().padLeft(2, '0')}';
-    _endDateController.text = event.endDate != null
-        ? '${event.endDate!.year}-${event.endDate!.month.toString().padLeft(2, '0')}-${event.endDate!.day.toString().padLeft(2, '0')}'
-        : '';
+        '${localStart.year}-${localStart.month.toString().padLeft(2, '0')}-${localStart.day.toString().padLeft(2, '0')}';
+    if (event.endDate != null) {
+      final localEnd = event.endDate!.toLocal();
+      _endDateController.text =
+          '${localEnd.year}-${localEnd.month.toString().padLeft(2, '0')}-${localEnd.day.toString().padLeft(2, '0')}';
+    } else {
+      _endDateController.text = '';
+    }
+    _startTimeController.text = event.localStartTime ?? '';
+    _endTimeController.text = event.localEndTime ?? '';
 
     showAppSheet(
       context: context,
@@ -805,6 +886,8 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         locationController: _locationController,
         startDateController: _startDateController,
         endDateController: _endDateController,
+        startTimeController: _startTimeController,
+        endTimeController: _endTimeController,
         colors: _c,
         title: 'Edit Event',
         saveLabel: 'SAVE CHANGES',
@@ -816,44 +899,23 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   }
 
   Future<void> _updateEvent(BuildContext sheetContext, String eventId, bool isOneDay) async {
-    final name = _eventNameController.text.trim();
-    if (name.isEmpty) {
-      showAppToast(sheetContext, 'Event name is required.');
+    final built = _buildEventPayload(isOneDay);
+    if (built.payload == null) {
+      showAppToast(sheetContext, built.error!);
       return;
     }
-    if (!_isValidEventName(name)) {
-      showAppToast(sheetContext, 'Event name must be 200 characters or fewer');
-      return;
-    }
-    final location = _locationController.text.trim();
-    if (location.isNotEmpty && !_isValidLocation(location)) {
-      showAppToast(sheetContext, 'Location must be 300 characters or fewer');
-      return;
-    }
-    final startText = _startDateController.text;
-    final startDate = startText.isNotEmpty ? '${startText}T00:00:00.000Z' : null;
-
-    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-    if (startDate != null && DateTime.parse(startDate).isBefore(today)) {
-      showAppToast(sheetContext, 'Event start date cannot be in the past.');
-      return;
-    }
-
-    final endDate = isOneDay
-        ? null
-        : (_endDateController.text.isNotEmpty ? '${_endDateController.text}T00:00:00.000Z' : null);
 
     try {
-      await ApiService.updateEvent(eventId, {
-        'name': name,
-        'location': _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
-        'start_date': startDate,
-        'end_date': endDate,
-      });
+      await ApiService.updateEvent(eventId, built.payload!);
       if (sheetContext.mounted) { Navigator.of(sheetContext).pop(); }
       if (mounted) { await context.read<SyncProvider>().events.catchUp(); }
       if (mounted) { showAppToast(context, 'Event updated.'); }
-    } on UnauthorizedException { rethrow; } catch (_) {
+    } on UnauthorizedException { rethrow; }
+    on EventOverlapException catch (e) {
+      if (sheetContext.mounted) { showAppToast(sheetContext, e.message); }
+    } on EventValidationException catch (e) {
+      if (sheetContext.mounted) { showAppToast(sheetContext, e.message); }
+    } catch (_) {
       if (sheetContext.mounted) { showAppToast(sheetContext, 'Server error — please try again.'); }
     }
   }
@@ -901,7 +963,10 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _formatDateRange(event.startDate, event.endDate),
+                  [
+                    _formatDateRange(event.localStartDate, event.endDate),
+                    if (event.localTimeRange != null) event.localTimeRange!,
+                  ].join(' · '),
                   textAlign: TextAlign.center,
                   style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
                 ),
@@ -1016,6 +1081,8 @@ class _NewEventSheet extends StatefulWidget {
   final TextEditingController locationController;
   final TextEditingController startDateController;
   final TextEditingController endDateController;
+  final TextEditingController startTimeController;
+  final TextEditingController endTimeController;
   final ExonoColors colors;
   final void Function(bool isOneDay) onSave;
   final VoidCallback onCancel;
@@ -1028,6 +1095,8 @@ class _NewEventSheet extends StatefulWidget {
     required this.locationController,
     required this.startDateController,
     required this.endDateController,
+    required this.startTimeController,
+    required this.endTimeController,
     required this.colors,
     required this.onSave,
     required this.onCancel,
@@ -1068,6 +1137,27 @@ class _NewEventSheetState extends State<_NewEventSheet> {
         }
       },
       prefixIcon: Icon(Icons.calendar_today_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
+    );
+  }
+
+  Widget _buildTimeField({required String label, required TextEditingController controller, String? hint}) {
+    return AppInput(
+      label: label,
+      hint: hint ?? 'HH:mm',
+      controller: controller,
+      readOnly: true,
+      onTap: () async {
+        final picked = await showTimePicker(
+          context: context,
+          initialTime: TimeOfDay.now(),
+          builder: AppTheme.datePickerBuilder,
+        );
+        if (picked != null) {
+          controller.text =
+              '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+        }
+      },
+      prefixIcon: Icon(Icons.schedule_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
     );
   }
 
@@ -1142,6 +1232,32 @@ class _NewEventSheetState extends State<_NewEventSheet> {
                     const SizedBox(height: 14),
                     _buildDateField(label: 'End Date', controller: widget.endDateController),
                   ],
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildTimeField(
+                          label: 'Start Time',
+                          controller: widget.startTimeController,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildTimeField(
+                          label: 'End Time (optional)',
+                          controller: widget.endTimeController,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Leave end time empty to run until the next event that day, or end of day.',
+                    style: context.theme.typography.xs.copyWith(
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   AppButton(
                     label: widget.saveLabel,
