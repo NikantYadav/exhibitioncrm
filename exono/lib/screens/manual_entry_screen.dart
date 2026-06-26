@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 
@@ -124,7 +125,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
-                    16, 20, 16, 110 + MediaQuery.of(context).viewPadding.bottom,
+                    16, 20, 16, bottomScrollInset(context, margin: 110),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,7 +445,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     return Container(
       padding: EdgeInsets.fromLTRB(
         16, 14, 16,
-        MediaQuery.of(context).viewPadding.bottom + 14,
+        bottomBarInset(context, extra: 14),
       ),
       decoration: BoxDecoration(
         color: context.theme.colors.background,
@@ -677,7 +678,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                   ),
                   Padding(
                     padding: EdgeInsets.fromLTRB(
-                      20, 0, 20, MediaQuery.of(context).viewPadding.bottom + 16,
+                      20, 0, 20, bottomBarInset(context, extra: 16),
                     ),
                     child: Column(
                       children: [

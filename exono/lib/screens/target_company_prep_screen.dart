@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
@@ -261,7 +262,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                 ),
                 Expanded(
                   child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+                padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -696,7 +697,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
 
   Widget _buildSkeletonLoader() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

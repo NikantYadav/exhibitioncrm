@@ -2,6 +2,7 @@ import 'dart:ui';
 import '../services/api_service.dart';
 
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -783,7 +784,7 @@ class _ChatScreenState extends State<ChatScreen>
             16,
             12,
             16,
-            MediaQuery.of(context).viewPadding.bottom + 16,
+            bottomBarInset(context, extra: 16),
           ),
           decoration: BoxDecoration(
             color: _c.background.withValues(alpha: 0.92),

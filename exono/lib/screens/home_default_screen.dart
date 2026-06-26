@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -159,7 +160,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
                   },
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 160),
+                    padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
                     child: lep.isLive
                         ? _buildLiveHome(lep, firstName)
                         : _buildTraditionalHome(lep, firstName),
@@ -176,7 +177,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
 
   Widget _buildSkeleton() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 160),
+      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

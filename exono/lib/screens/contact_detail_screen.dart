@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -432,7 +433,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   Widget _buildBody(ContactProfileData contact) {
     if (_isLoadingDetails) return _buildSkeleton();
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: EdgeInsets.fromLTRB(
+        16, 16, 16, bottomScrollInset(context, margin: 32),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -458,7 +461,9 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
 
   Widget _buildSkeleton() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: EdgeInsets.fromLTRB(
+        16, 16, 16, bottomScrollInset(context, margin: 32),
+      ),
       child: Column(
         children: [
           AppCard(

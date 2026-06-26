@@ -31,8 +31,16 @@ class LiveEventProvider extends ChangeNotifier {
 
   // Idle gate: a drift watch on `events` decides whether anything is ongoing.
   String? _userId;
-  StreamSubscription<bool>? _ongoingWatch;
+  StreamSubscription<List<EventsTableData>>? _ongoingWatch;
   bool _hasOngoing = false;
+  // Latest events snapshot + a clock ticker. The "ongoing" condition is
+  // time-driven (an upcoming event becomes ongoing when the clock crosses its
+  // start time) but the drift watch only fires on table writes — so without a
+  // ticker an event that turns live while already in the DB would never flip
+  // the home screen into live mode. The ticker re-evaluates against the last
+  // snapshot so the boundary is crossed on time, not just on a row change.
+  List<EventsTableData> _eventsSnapshot = const [];
+  Timer? _ongoingTicker;
 
   // Live mode: Realtime subscriptions + a debounce + a slow safety-net poll.
   // Tables whose changes affect the live aggregate returned by /live-session.
@@ -46,6 +54,14 @@ class LiveEventProvider extends ChangeNotifier {
   final List<RealtimeChannel> _liveChannels = [];
   Timer? _debounce;
   Timer? _safetyTimer;
+
+  // Goals with an in-flight optimistic edit. While a goal id is pending, a
+  // /live-session refresh (which can race ahead of the PATCH commit and return
+  // a stale row) must NOT clobber the local value — that caused the 4→3→4
+  // flicker on increment. Cleared by the screen on confirmed write, with a TTL
+  // safety net so a dropped confirm can't pin a goal forever.
+  static const _pendingGoalTtl = Duration(seconds: 8);
+  final Map<String, DateTime> _pendingGoals = {};
 
   Event? get liveEvent => _liveEvent;
   Event? get nextEvent => _nextEvent;
@@ -66,7 +82,15 @@ class LiveEventProvider extends ChangeNotifier {
   Future<void> init(AppDatabase db, String userId) async {
     _userId = userId;
     _ongoingWatch?.cancel();
-    _ongoingWatch = _watchOngoing(db).listen(_onOngoingChanged);
+    _ongoingWatch = _watchEvents(db).listen((events) {
+      _eventsSnapshot = events;
+      _recomputeOngoing();
+    });
+    // Re-evaluate the time-driven ongoing condition even when no row changes,
+    // so an event that becomes live on its own start time flips home into live
+    // mode. 30s is well within the live-floor latency users expect.
+    _ongoingTicker?.cancel();
+    _ongoingTicker = Timer.periodic(const Duration(seconds: 30), (_) => _recomputeOngoing());
   }
 
   /// Force a refresh (e.g. after scanning a contact).
@@ -76,11 +100,19 @@ class LiveEventProvider extends ChangeNotifier {
   /// whenever the events table changes. Mirrors the backend's ongoing rule
   /// (events.ts getEventStatus/effectiveEnd): now in [start, end], where end is
   /// end_time, the next same-day event's start_time, or end of day.
-  Stream<bool> _watchOngoing(AppDatabase db) {
+  Stream<List<EventsTableData>> _watchEvents(AppDatabase db) {
     final query = db.select(db.eventsTable)
       ..where((t) => t.deletedAt.isNull())
       ..orderBy([(t) => OrderingTerm(expression: t.startDate, mode: OrderingMode.desc)]);
-    return query.watch().map((events) => events.any((e) => _isOngoing(e, events)));
+    return query.watch();
+  }
+
+  /// Evaluates the ongoing condition against the latest events snapshot and
+  /// routes the result through [_onOngoingChanged]. Called both when the table
+  /// changes and on a periodic ticker (the condition is time-driven).
+  void _recomputeOngoing() {
+    final hasOngoing = _eventsSnapshot.any((e) => _isOngoing(e, _eventsSnapshot));
+    _onOngoingChanged(hasOngoing);
   }
 
   bool _isOngoing(EventsTableData e, List<EventsTableData> all) {
@@ -212,7 +244,9 @@ class LiveEventProvider extends ChangeNotifier {
         final captures = session['captures'] as List<Map<String, dynamic>>;
         _liveEvent = event;
         _liveStats = liveData['stats'] as Map<String, dynamic>?;
-        _liveGoals = List<Map<String, dynamic>>.from(liveData['goals'] as List? ?? []);
+        _liveGoals = _mergePendingGoals(
+          List<Map<String, dynamic>>.from(liveData['goals'] as List? ?? []),
+        );
         _liveTargets = List<Map<String, dynamic>>.from(liveData['targets'] as List? ?? []);
         _targetContacts = List<Map<String, dynamic>>.from(liveData['target_contacts'] as List? ?? []);
         _scannedContacts = captures;
@@ -241,17 +275,50 @@ class LiveEventProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Overlays the locally-held value for any goal with an in-flight optimistic
+  /// edit onto a freshly-fetched goal list, so a refresh that raced ahead of
+  /// the PATCH commit can't revert it. Expired pending entries (TTL) are
+  /// dropped so a lost confirm can't pin a goal indefinitely.
+  List<Map<String, dynamic>> _mergePendingGoals(List<Map<String, dynamic>> fetched) {
+    if (_pendingGoals.isEmpty) return fetched;
+    final now = DateTime.now();
+    _pendingGoals.removeWhere((_, t) => now.difference(t) > _pendingGoalTtl);
+    if (_pendingGoals.isEmpty) return fetched;
+    return [
+      for (final g in fetched)
+        if (!_pendingGoals.containsKey(g['id']))
+          g
+        else ...[
+          () {
+            final local = _liveGoals.firstWhere((l) => l['id'] == g['id'], orElse: () => g);
+            // The server has caught up to our optimistic value — the write
+            // committed, so stop guarding this goal and accept the fetched row.
+            if (g['current'] == local['current']) {
+              _pendingGoals.remove(g['id']);
+              return g;
+            }
+            return local;
+          }(),
+        ],
+    ];
+  }
+
   // ── Mutable operations forwarded from screens ─────────────────────────────
 
   void updateGoalLocally(Map<String, dynamic> updated) {
     final idx = _liveGoals.indexWhere((g) => g['id'] == updated['id']);
     if (idx != -1) {
+      _pendingGoals[updated['id'] as String] = DateTime.now();
       _liveGoals = List.from(_liveGoals)..[idx] = updated;
       notifyListeners();
     }
   }
 
-  void revertGoal(Map<String, dynamic> original) => updateGoalLocally(original);
+  void revertGoal(Map<String, dynamic> original) {
+    _pendingGoals.remove(original['id']);
+    updateGoalLocally(original);
+    _pendingGoals.remove(original['id']);
+  }
 
   void addGoalLocally(Map<String, dynamic> goal) {
     _liveGoals = [..._liveGoals, goal];
@@ -306,6 +373,7 @@ class LiveEventProvider extends ChangeNotifier {
   @override
   void dispose() {
     _ongoingWatch?.cancel();
+    _ongoingTicker?.cancel();
     _safetyTimer?.cancel();
     _debounce?.cancel();
     _teardownLiveRealtime();

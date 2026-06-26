@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 
 import '../config/app_theme.dart';
@@ -254,7 +255,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                         ),
                       ),
                       _buildEventsList(events),
-                      const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                      SliverToBoxAdapter(child: SizedBox(height: bottomScrollInset(context))),
                     ],
                   ),
                 );
@@ -1026,7 +1027,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
 
   Widget _buildSkeletonLoader() {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+      padding: EdgeInsets.fromLTRB(16, 24, 16, bottomScrollInset(context)),
       children: [
         SkeletonLoader(
           width: 200,

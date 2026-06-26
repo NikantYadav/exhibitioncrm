@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 
@@ -109,7 +110,9 @@ class _SyncIssuesScreenState extends State<SyncIssuesScreen> {
       backgroundColor: context.theme.colors.background,
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: EdgeInsets.fromLTRB(
+          16, 8, 16, bottomScrollInset(context, margin: 24),
+        ),
         children: [
           _StatusBanner(failed: failed.length, pending: pending.length),
           const SizedBox(height: 20),

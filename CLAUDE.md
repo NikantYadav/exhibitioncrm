@@ -76,6 +76,20 @@ The app also has `ExonoColors` via `AppTheme.colorsOf(context)` (aliased `_c` in
 - If a screen uses `Scaffold` + `SafeArea` + header `Column`, collapse to `FScaffold(header: AppHeader(...), childPad: false, child: body)`.
 - Screens embedded in a tab shell often use `ColoredBox(color: context.theme.colors.background, child: Column([AppHeader(...), Expanded(child: body)]))` — keep that pattern; don't force `FScaffold`.
 
+### Bottom safe-area / nav-bar insets (MANDATORY — always use the helpers)
+
+The system reserves space at the bottom of the window (Android nav bar, iOS home indicator). Content that reaches the window bottom must reserve it or it renders **under** the system bar. **Never hardcode a bottom clearance** (`..., 120)`, `SizedBox(height: 40)`) and **never read `MediaQuery.padding.bottom`** — an ancestor `SafeArea` can already have consumed it (0 on Android edge-to-edge). Use the two helpers in [`lib/utils/safe_area_insets.dart`](exono/lib/utils/safe_area_insets.dart):
+
+| Situation | Use |
+|-----------|-----|
+| Bottom padding of a full-screen **scroll** (`SingleChildScrollView`/`ListView`/`CustomScrollView`) whose last item reaches the window bottom | `padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context))` — add `margin: N` if the scroll must clear a fixed bottom bar (e.g. `margin: 100`) |
+| Trailing spacer at the end of a list (`SizedBox(height: …)`) | `SizedBox(height: bottomScrollInset(context))` |
+| A widget **pinned** to the bottom (fixed save bar, floating dock, in-screen `Positioned(bottom:0)` overlay sheet) | `padding: EdgeInsets.fromLTRB(.., .., .., bottomBarInset(context, extra: 12))` — `extra` is design padding on top of the inset |
+| A `showAppSheet` bottom sheet | nothing — `showAppSheet` already injects the inset; builders keep `SafeArea(top: false)` |
+| Keyboard avoidance | unchanged — keep `MediaQuery.of(context).viewInsets.bottom` (that's the keyboard, a different inset) |
+
+Why one helper works for tab screens AND pushed/detail screens: `bottomScrollInset` returns `viewPadding.bottom + margin`. When a `Scaffold` has a `bottomNavigationBar` (the app shell on tab routes, and `live_*` screens), Flutter strips the body's bottom inset, so `viewPadding.bottom` is ~0 there and the helper yields just the margin — the nav bar covers the system inset. Pushed/detail screens have no nav bar, keep the real inset, and reserve it. So you **don't** need to know which kind of screen you're on — just call `bottomScrollInset(context)`. Tune the app-wide base margin via `kBottomScrollMargin` in the helper file.
+
 ### Keep as-is (no forui equivalent — do NOT replace)
 - Layout: `Row Column Stack Positioned Expanded Spacer Padding SizedBox Center Wrap ConstrainedBox FractionallySizedBox`
 - Scroll: `SingleChildScrollView ListView ListView.builder`

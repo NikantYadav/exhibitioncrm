@@ -5,6 +5,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -302,7 +303,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewPadding.bottom + 24,
+          bottom: bottomScrollInset(context, margin: 24),
         ),
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -643,7 +644,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     final ln = _lnCtrl.text;
     final initials =
         '${fn.isNotEmpty ? fn[0] : ''}${ln.isNotEmpty ? ln[0] : ''}';
-    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final bottomInset = bottomScrollInset(context, margin: 0);
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 20, 16, bottomInset + 16),
@@ -1086,7 +1087,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                       20,
                       0,
                       20,
-                      MediaQuery.of(context).viewPadding.bottom + 16,
+                      bottomBarInset(context, extra: 16),
                     ),
                     child: Column(
                       children: [

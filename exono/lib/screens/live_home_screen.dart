@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -112,6 +113,17 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
 
   Future<void> _incrementGoal(Map<String, dynamic> goal, Event event, LiveEventProvider lep) async {
     final newVal = ((goal['current'] as int) + 1).clamp(0, goal['total'] as int);
+    final updated = {...goal, 'current': newVal};
+    lep.updateGoalLocally(updated);
+    try {
+      await WriteGateway().updateEventGoal(event.id, goal['id'] as String, {'current': newVal});
+    } on UnauthorizedException { rethrow; } catch (_) {
+      lep.revertGoal(goal);
+    }
+  }
+
+  Future<void> _decrementGoal(Map<String, dynamic> goal, Event event, LiveEventProvider lep) async {
+    final newVal = ((goal['current'] as int) - 1).clamp(0, goal['total'] as int);
     final updated = {...goal, 'current': newVal};
     lep.updateGoalLocally(updated);
     try {
@@ -665,7 +677,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
       onRefresh: lep.refresh,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, bottomScrollInset(context)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -923,12 +935,12 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   prefixIcon: isComplete ? Icon(Icons.check_rounded, size: 14, color: _c.success) : null,
                 )
               else
-                AppButton(
-                  label: '$current / $total',
-                  onPressed: isComplete ? null : () => _incrementGoal(goal, event, lep),
-                  size: ButtonSize.xs,
-                  variant: isComplete ? ButtonVariant.ghost : ButtonVariant.outline,
-                  prefixIcon: isComplete ? null : const Icon(Icons.add_rounded, size: 14),
+                _CounterStepper(
+                  current: current,
+                  total: total,
+                  isComplete: isComplete,
+                  onDecrement: current > 0 ? () => _decrementGoal(goal, event, lep) : null,
+                  onIncrement: isComplete ? null : () => _incrementGoal(goal, event, lep),
                 ),
             ]),
             if (!isCheckbox) ...[
@@ -1564,10 +1576,15 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
       return q.isEmpty || name.contains(q) || company.contains(q);
     }).toList();
 
+    // Cap height to the space left above the keyboard so the sheet doesn't get
+    // shifted up into the status bar when forui lifts it by the keyboard inset.
+    // Mirrors the Add Company sheet so both open at the same vertical position.
+    final mq = MediaQuery.of(context);
+    final maxSheetHeight = mq.size.height - mq.viewInsets.bottom - mq.padding.top - 24;
     return SafeArea(
       top: false,
       child: SizedBox(
-      height: MediaQuery.of(context).size.height * 0.65,
+      height: (mq.size.height * 0.7).clamp(0.0, maxSheetHeight),
       child: Column(children: [
         Container(
           margin: const EdgeInsets.only(top: 10, bottom: 4),
@@ -1633,5 +1650,75 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
         ),
       ]),
     ));
+  }
+}
+
+/// Unified counter control for counted goals: a single bordered pill
+/// containing [ − | n / total | + ]. Reads as one cohesive stepper rather
+/// than two disconnected buttons. Geometry, not a card surface.
+class _CounterStepper extends StatelessWidget {
+  const _CounterStepper({
+    required this.current,
+    required this.total,
+    required this.isComplete,
+    required this.onDecrement,
+    required this.onIncrement,
+  });
+
+  final int current;
+  final int total;
+  final bool isComplete;
+  final VoidCallback? onDecrement;
+  final VoidCallback? onIncrement;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppTheme.colorsOf(context);
+    final theme = context.theme;
+    final accent = isComplete ? c.success : c.accent;
+
+    Widget segment(IconData icon, VoidCallback? onTap) {
+      final enabled = onTap != null;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: 30,
+          height: 28,
+          child: Icon(
+            icon,
+            size: 16,
+            color: enabled ? accent : theme.colors.mutedForeground.withValues(alpha: 0.4),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          segment(Icons.remove_rounded, onDecrement),
+          Container(width: 1, height: 18, color: theme.colors.border),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              '$current / $total',
+              style: theme.typography.sm.copyWith(
+                fontWeight: FontWeight.w700,
+                color: accent,
+              ),
+            ),
+          ),
+          Container(width: 1, height: 18, color: theme.colors.border),
+          segment(Icons.add_rounded, onIncrement),
+        ],
+      ),
+    );
   }
 }

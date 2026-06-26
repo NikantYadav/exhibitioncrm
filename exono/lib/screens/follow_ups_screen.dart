@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -519,7 +520,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
         _activeList.isEmpty
             ? SliverToBoxAdapter(child: _buildEmpty())
             : SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                padding: EdgeInsets.fromLTRB(16, 12, 16, bottomScrollInset(context)),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (_, i) => Padding(
@@ -733,7 +734,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
   Widget _buildSkeleton() {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

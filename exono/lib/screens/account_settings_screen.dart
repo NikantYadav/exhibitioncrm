@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -199,7 +200,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
         _buildHeader(),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 48),
+            padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 680),
@@ -757,7 +758,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 48),
+            padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

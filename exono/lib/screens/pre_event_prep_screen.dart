@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 
@@ -363,7 +364,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+                padding: EdgeInsets.fromLTRB(16, 24, 16, bottomScrollInset(context)),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 1280),

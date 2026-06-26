@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -149,7 +150,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
 
   Widget _buildLoadingState() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
       child: Column(
         children: [
           _skeletonCard(
@@ -278,7 +279,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
             : const <String>[]);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

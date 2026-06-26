@@ -90,12 +90,13 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
+    final hasNavBar = isMobile
+        && _navBarPaths.any((p) => widget.location == p || widget.location.startsWith('$p?'))
+        && !_isNoNavPath(widget.location);
     return Scaffold(
       backgroundColor: _c.background,
       body: isMobile ? _mobile() : _desktop(),
-      bottomNavigationBar: isMobile
-          && _navBarPaths.any((p) => widget.location == p || widget.location.startsWith('$p?'))
-          && !_isNoNavPath(widget.location)
+      bottomNavigationBar: hasNavBar
           ? ValueListenableBuilder<bool>(
               valueListenable: appNavBarHidden,
               builder: (_, hidden, _) {
@@ -119,6 +120,14 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
 
   // ── Mobile ─────────────────────────────────────────────────────────────────
 
+  // Note on bottom insets: when the nav bar is present it lives in the
+  // Scaffold's bottomNavigationBar slot, which makes Flutter strip the body's
+  // bottom inset (Scaffold sets removeBottomPadding: bottomNavigationBar != null
+  // on the body slot). So inside tab screens `MediaQuery.viewPadding.bottom` is
+  // already ~0 and `bottomScrollInset` returns just the base margin — the nav
+  // bar covers the system inset. Pushed/detail screens have no nav bar, keep the
+  // real inset, and reserve it. One helper is therefore correct everywhere; no
+  // manual inset juggling is needed here.
   Widget _mobile() => SafeArea(bottom: false, child: widget.child);
 
   // ── Desktop ────────────────────────────────────────────────────────────────

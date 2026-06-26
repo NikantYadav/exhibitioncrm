@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
@@ -96,7 +97,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
 
   Widget _list(List<ConversationModel> conversations) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomScrollInset(context)),
       children: [
         _newChatButton(),
         const SizedBox(height: 24),
@@ -260,7 +261,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
 
   Widget _skeleton() {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomScrollInset(context)),
       children: [
         SkeletonLoader(width: double.infinity, height: 52, borderRadius: BorderRadius.circular(999)),
         const SizedBox(height: 24),

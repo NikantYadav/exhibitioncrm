@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
@@ -388,7 +389,10 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                 final key = fu.contactId;
                 final isLast = i == _filteredFollowUps.length - 1;
                 return Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, isLast ? 32 : 12),
+                  padding: EdgeInsets.fromLTRB(
+                    16, 0, 16,
+                    isLast ? bottomScrollInset(context, margin: 32) : 12,
+                  ),
                   child: _ContactFollowUpCard(
                     fu: fu,
                     contactId: key,

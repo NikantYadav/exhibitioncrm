@@ -11,6 +11,7 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
@@ -381,7 +382,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         top: false,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-            28, 0, 28, 16 + MediaQuery.of(context).viewPadding.bottom,
+            28, 0, 28, bottomBarInset(context, extra: 16),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -562,7 +563,7 @@ class _CaptureScreenState extends State<CaptureScreen>
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
-                    16, 20, 16, 100 + MediaQuery.of(context).viewPadding.bottom,
+                    16, 20, 16, bottomScrollInset(context, margin: 100),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -958,7 +959,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   Widget _buildFixedSaveButton() {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        16, 12, 16, MediaQuery.of(context).viewPadding.bottom + 12,
+        16, 12, 16, bottomBarInset(context, extra: 12),
       ),
       decoration: BoxDecoration(
         color: _c.background,
@@ -1217,7 +1218,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                   ),
                   Padding(
                     padding: EdgeInsets.fromLTRB(
-                      20, 0, 20, MediaQuery.of(context).viewPadding.bottom + 16,
+                      20, 0, 20, bottomBarInset(context, extra: 16),
                     ),
                     child: Column(
                       children: [

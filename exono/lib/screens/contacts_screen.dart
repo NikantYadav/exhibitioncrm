@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -290,7 +291,7 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
       }
     }
 
-    items.add(const SizedBox(height: 40));
+    items.add(SizedBox(height: bottomScrollInset(context)));
 
     return ListView(
       controller: _scrollController,
