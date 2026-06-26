@@ -340,17 +340,28 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
+            // The async results can arrive after the sheet has been popped
+            // (e.g. user taps a company before the search returns). Calling
+            // setModalState on a dead StatefulBuilder builds a dirty widget in
+            // the wrong scope, so guard every async setState on sheetCtx.mounted.
+            void safeSet(VoidCallback fn) {
+              if (sheetCtx.mounted) setModalState(fn);
+            }
             if (!initialLoaded) {
               initialLoaded = true;
               ApiService.getCompanies(query: '').then((results) {
                 results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
-                setModalState(() { companies = results; isSearching = false; });
-              }).catchError((_) { setModalState(() => isSearching = false); });
+                safeSet(() { companies = results; isSearching = false; });
+              }).catchError((_) { safeSet(() => isSearching = false); });
             }
+            // Cap height to the space left above the keyboard so the inner
+            // Column + Expanded list never overflows when the keyboard opens.
+            final mq = MediaQuery.of(ctx);
+            final maxSheetHeight = mq.size.height - mq.viewInsets.bottom - mq.padding.top - 24;
             return SafeArea(
               top: false,
               child: SizedBox(
-                height: MediaQuery.of(ctx).size.height * 0.7,
+                height: (mq.size.height * 0.7).clamp(0.0, maxSheetHeight),
                 child: Column(
                   children: [
                     Padding(
@@ -370,9 +381,9 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                               try {
                                 final results = await ApiService.getCompanies(query: val);
                                 results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
-                                setModalState(() { companies = results; isSearching = false; });
+                                safeSet(() { companies = results; isSearching = false; });
                               } on UnauthorizedException { rethrow; } catch (_) {
-                                setModalState(() => isSearching = false);
+                                safeSet(() => isSearching = false);
                               }
                             },
                           ),
@@ -1108,7 +1119,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(name.isNotEmpty ? name : 'Unknown', style: context.theme.typography.lg.copyWith(
-                      fontWeight: FontWeight.w700, letterSpacing: -0.2,
+                      fontWeight: FontWeight.w700, letterSpacing: -0.2, height: 1.15,
                       color: isMet ? context.theme.colors.mutedForeground : context.theme.colors.foreground),
                       maxLines: 2, overflow: TextOverflow.ellipsis),
                   if (jobTitle.isNotEmpty) ...[
