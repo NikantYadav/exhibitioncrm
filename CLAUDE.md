@@ -76,6 +76,17 @@ The app also has `ExonoColors` via `AppTheme.colorsOf(context)` (aliased `_c` in
 - If a screen uses `Scaffold` + `SafeArea` + header `Column`, collapse to `FScaffold(header: AppHeader(...), childPad: false, child: body)`.
 - Screens embedded in a tab shell often use `ColoredBox(color: context.theme.colors.background, child: Column([AppHeader(...), Expanded(child: body)]))` — keep that pattern; don't force `FScaffold`.
 
+### Adaptive layout (MANDATORY — every new screen must be responsive across mobile screen sizes)
+
+Every new screen (and every sheet/dialog) must render correctly on **all phone sizes**, from small (~360×640) to large (~430×930) — no overflow, no clipping, no content pinned awkwardly to an edge. This is not optional polish; build it adaptive from the start.
+
+- **Never hardcode a screen-fraction height in logical pixels.** Use `MediaQuery.sizeOf(context)` ratios (e.g. `height: MediaQuery.sizeOf(context).height * 0.4`) or let content size itself. For bottom sheets, the height cap lives in `showAppSheet` (`mainAxisMaxRatio` as a *ratio*, currently 0.92) — don't override it with a fixed pixel height in the sheet content.
+- **Make full-screen content scrollable** when it can exceed the viewport on small phones — wrap forms/long columns in `SingleChildScrollView` (with the bottom-inset helper, see below) so nothing overflows on short screens.
+- **Don't fix widths in pixels for content that should fill** — use `Expanded`, `Flexible`, `FractionallySizedBox`, or `double.infinity` instead of a hardcoded `width: 320`. Reserve fixed sizes for geometry (avatar size, icon size, divider thickness).
+- **Wrap rows that can overflow** (chips, tag lists, button clusters) in `Wrap` rather than a single `Row` that clips on narrow screens.
+- **Use the bottom safe-area helpers** (next section) for every screen — they are already adaptive across device insets.
+- **Verify with `flutter analyze`**, but for layout also reason about the smallest target: if a `Row` of three fixed-width fields wouldn't fit at 360px wide, it's wrong.
+
 ### Bottom safe-area / nav-bar insets (MANDATORY — always use the helpers)
 
 The system reserves space at the bottom of the window (Android nav bar, iOS home indicator). Content that reaches the window bottom must reserve it or it renders **under** the system bar. **Never hardcode a bottom clearance** (`..., 120)`, `SizedBox(height: 40)`) and **never read `MediaQuery.padding.bottom`** — an ancestor `SafeArea` can already have consumed it (0 on Android edge-to-edge). Use the two helpers in [`lib/utils/safe_area_insets.dart`](exono/lib/utils/safe_area_insets.dart):

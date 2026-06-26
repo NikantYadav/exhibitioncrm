@@ -26,6 +26,16 @@ Future<T?> showAppSheet<T>({
   bool isScrollControlled = true,
   bool useRootNavigator = false,
 }) {
+  // forui only makes a bottom sheet draggable-to-dismiss when it is height-
+  // capped (`mainAxisMaxRatio != null`). A `null` ratio lets the sheet grow to
+  // the full screen height — which both looks wrong (the sheet pins to the very
+  // top with no peek of the backdrop) and swallows the drag gesture, so on
+  // Android the sheet can't be pulled down to close. We instead cap the sheet
+  // at 92% of the screen on every device: short sheets size to their content,
+  // tall sheets scroll within the cap, and all of them stay drag-dismissible on
+  // both Android and iOS. The cap is a ratio, so it is adaptive across phone
+  // sizes. `isScrollControlled: false` keeps the original half-height cap.
+  final double maxRatio = isScrollControlled ? 0.92 : 9 / 16;
   navBarHide();
   // Read the system bottom inset from the raw FlutterView. This value is never
   // consumed by an ancestor SafeArea/Scaffold, so it is reliable on Android
@@ -39,7 +49,8 @@ Future<T?> showAppSheet<T>({
     context: context,
     side: side,
     useRootNavigator: useRootNavigator,
-    mainAxisMaxRatio: isScrollControlled ? null : 9 / 16,
+    draggable: true,
+    mainAxisMaxRatio: maxRatio,
     builder: (ctx) {
       final bg = ctx.theme.colors.background;
       final mq = MediaQuery.of(ctx);
