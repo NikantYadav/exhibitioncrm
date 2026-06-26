@@ -344,27 +344,37 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     String searchQuery = '';
     List<Map<String, dynamic>> companies = [];
     bool isSearching = true;
-    bool initialLoaded = false;
     final searchCtrl = TextEditingController();
+    void Function(VoidCallback)? applyState;
+
+    // Kick off the initial load BEFORE opening the sheet — never from inside
+    // build(). Starting a setState-triggering async op during the first frame
+    // of the StatefulBuilder (combined with autofocus opening the keyboard)
+    // triggers a `deactivateChild` assertion. We stash the setter once the
+    // sheet builds and apply results through it only if still mounted.
+    ApiService.getCompanies(query: '').then((results) {
+      results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
+      companies = results;
+      isSearching = false;
+      applyState?.call(() {});
+    }).catchError((_) {
+      isSearching = false;
+      applyState?.call(() {});
+    });
 
     await showAppSheet(
       context: context,
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            // The async results can arrive after the sheet has been popped
-            // (e.g. user taps a company before the search returns). Calling
-            // setModalState on a dead StatefulBuilder builds a dirty widget in
-            // the wrong scope, so guard every async setState on sheetCtx.mounted.
+            // Expose this StatefulBuilder's setState so async callbacks can
+            // refresh it. Guard on sheetCtx.mounted so a callback arriving
+            // after the sheet is popped is a no-op.
+            applyState = (fn) {
+              if (sheetCtx.mounted) setModalState(fn);
+            };
             void safeSet(VoidCallback fn) {
               if (sheetCtx.mounted) setModalState(fn);
-            }
-            if (!initialLoaded) {
-              initialLoaded = true;
-              ApiService.getCompanies(query: '').then((results) {
-                results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
-                safeSet(() { companies = results; isSearching = false; });
-              }).catchError((_) { safeSet(() => isSearching = false); });
             }
             // Cap height to the space left above the keyboard so the inner
             // Column + Expanded list never overflows when the keyboard opens.
@@ -467,6 +477,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         );
       },
     );
+    applyState = null;
     searchCtrl.dispose();
   }
 

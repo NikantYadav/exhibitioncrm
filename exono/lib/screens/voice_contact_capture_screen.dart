@@ -302,23 +302,23 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     // made spaceBetween distribute the sections unevenly (cramped on Android).
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
-        padding: EdgeInsets.only(
-          bottom: bottomScrollInset(context, margin: 24),
-        ),
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // ── Intro (fades when recording) ──────────────────
-              AnimatedOpacity(
-                opacity: _isRecording ? 0.0 : 1.0,
-                duration: const Duration(milliseconds: 320),
-                child: _buildIntroSection(),
-              ),
+          child: Padding(
+            padding:
+                EdgeInsets.only(bottom: bottomBarInset(context, extra: 24)),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // ── Intro (fades when recording) ──────────────────
+                AnimatedOpacity(
+                  opacity: _isRecording ? 0.0 : 1.0,
+                  duration: const Duration(milliseconds: 320),
+                  child: _buildIntroSection(),
+                ),
 
-              // ── Mic + live recording info ──────────────────────
-              Column(
+                // ── Mic + live recording info ──────────────────────
+                Column(
                 children: [
                   _buildMicButton(),
                   const SizedBox(height: 28),
@@ -336,7 +336,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                               color: context.theme.colors.foreground,
                             ),
                           )
-                        : const SizedBox(key: ValueKey('no-timer'), height: 44),
+                        : const SizedBox(key: ValueKey('no-timer'), height: 20),
                   ),
 
                   const SizedBox(height: 16),
@@ -346,7 +346,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                     duration: const Duration(milliseconds: 220),
                     child: _isRecording
                         ? _buildWaveform(key: const ValueKey('wave'))
-                        : const SizedBox(key: ValueKey('no-wave'), height: 36),
+                        : const SizedBox(key: ValueKey('no-wave'), height: 16),
                   ),
 
                   const SizedBox(height: 14),
@@ -357,8 +357,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
               ),
 
               // ── Bottom section ────────────────────────────────
-              Column(children: [_buildRecordingBottomRow()]),
-            ],
+              _buildRecordingBottomRow(),
+              ],
+            ),
           ),
         ),
       ),
@@ -367,7 +368,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
 
   Widget _buildIntroSection() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: Column(
         children: [
           // Icon badge
@@ -559,14 +560,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   }
 
   Widget _buildRecordingBottomRow() {
-    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        0,
-        16,
-        bottomInset > 0 ? bottomInset : 0,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           AppButton(
@@ -579,7 +574,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           const SizedBox(height: 10),
           AppButton(
             label: 'Cancel',
-            variant: ButtonVariant.ghost,
+            variant: ButtonVariant.outline,
+            labelColor: Colors.white,
+            fullWidth: true,
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],

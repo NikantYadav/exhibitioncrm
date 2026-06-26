@@ -18,6 +18,7 @@ class AppButton extends StatelessWidget {
   final bool loading;
   final bool isLoading;
   final bool fullWidth;
+  final Color? labelColor;
 
   const AppButton({
     super.key,
@@ -31,6 +32,7 @@ class AppButton extends StatelessWidget {
     this.loading = false,
     this.isLoading = false,
     this.fullWidth = false,
+    this.labelColor,
   }) : assert(label != null || child != null, 'Either label or child must be provided');
 
   bool get _isLoading => loading || isLoading;
@@ -185,7 +187,8 @@ class AppButton extends StatelessWidget {
     if (variant == ButtonVariant.outline) {
       btn = Builder(builder: (ctx) {
         final t = ctx.theme;
-        final colors = t.colors.copyWith(secondaryForeground: t.colors.primary);
+        final colors = t.colors
+            .copyWith(secondaryForeground: labelColor ?? t.colors.primary);
         return FTheme(
           data: FThemeData(colors: colors, touch: true),
           child: FButton(
