@@ -120,19 +120,31 @@ class AppBottomNav extends StatelessWidget {
     );
   }
 
-  // Applies a clean bottom safe-area inset. forui's FBottomNavigationBar adds
-  // only `viewPadding.bottom * 2/3` of the system inset internally, which —
-  // combined with safeAreaBottom — over-pads on both Android and iOS. We zero
-  // out viewPadding so forui adds nothing, then apply the real inset ourselves.
+  // Apply the system bottom inset exactly once.
+  //
+  // forui's FBottomNavigationBar has two inset behaviours that fight each other:
+  //   - `safeAreaBottom` wraps in a SafeArea (consumes `padding.bottom`), and
+  //   - it ALWAYS adds `viewPadding.bottom * 2/3` as extra padding internally.
+  // Using `safeAreaBottom: true` therefore double-counts the inset (the gap is
+  // most visible on iOS's home indicator). And `padding.bottom` is unreliable
+  // here anyway — an ancestor SafeArea can have already consumed it (0 on
+  // Android edge-to-edge), which would make a SafeArea-based approach drop the
+  // inset entirely.
+  //
+  // So we read the inset from the raw FlutterView (never consumed by any
+  // ancestor), zero forui's `viewPadding` so its internal `* 2/3` term is 0,
+  // keep `safeAreaBottom: false`, and apply the true inset once ourselves.
   Widget _safeArea(BuildContext context, Widget child) {
     final mq = MediaQuery.of(context);
+    final view = View.of(context);
+    final inset = view.viewPadding.bottom / view.devicePixelRatio;
     return MediaQuery(
       data: mq.copyWith(
         viewPadding: mq.viewPadding.copyWith(bottom: 0),
         padding: mq.padding.copyWith(bottom: 0),
       ),
       child: Padding(
-        padding: EdgeInsets.only(bottom: mq.viewPadding.bottom),
+        padding: EdgeInsets.only(bottom: inset),
         child: child,
       ),
     );

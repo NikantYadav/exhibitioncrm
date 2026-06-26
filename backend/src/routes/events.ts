@@ -67,13 +67,14 @@ const targetPatchSchema = targetWriteSchema.partial();
 
 const goalWriteSchema = z.object({
   label: z.string().trim().min(1).max(200),
-  total: z.number().int().min(1).max(10000).optional(),
+  // total 0 = checkbox/binary goal; >=1 = counted goal
+  total: z.number().int().min(0).max(10000).optional(),
 });
 
 const goalPatchSchema = z.object({
   label: z.string().trim().min(1).max(200).optional(),
   current: z.number().int().min(0).max(100000).optional(),
-  total: z.number().int().min(1).max(10000).optional(),
+  total: z.number().int().min(0).max(10000).optional(),
 }).refine(d => d.label !== undefined || d.current !== undefined || d.total !== undefined, {
   message: 'At least one field required',
 });

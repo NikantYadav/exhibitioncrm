@@ -75,9 +75,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   late final AnimationController _waveCtrl;
 
   // ── Contact field controllers ─────────────────────────────────
-  final _fnCtrl    = TextEditingController();
-  final _lnCtrl    = TextEditingController();
-  final _coCtrl    = TextEditingController();
+  final _fnCtrl = TextEditingController();
+  final _lnCtrl = TextEditingController();
+  final _coCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _titleCtrl = TextEditingController();
@@ -95,7 +95,6 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   bool _showDedup = false;
   List<Map<String, dynamic>> _dupes = [];
 
-
   @override
   void initState() {
     super.initState();
@@ -103,12 +102,14 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat();
-    _pulseCtrl2 = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..forward().then((_) {
-        _pulseCtrl2.repeat();
-      });
+    _pulseCtrl2 =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 1400),
+          )
+          ..forward().then((_) {
+            _pulseCtrl2.repeat();
+          });
     // offset second ring by 700ms
     Future<void>.delayed(const Duration(milliseconds: 700), () {
       if (mounted) _pulseCtrl2.repeat();
@@ -192,7 +193,11 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            Icon(Icons.cloud_off_rounded, size: 14, color: context.theme.colors.mutedForeground),
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 14,
+              color: context.theme.colors.mutedForeground,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -241,7 +246,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                   const SizedBox(height: 3),
                   Text(
                     'Tap fields to edit',
-                    style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground),
+                    style: theme.typography.xs.copyWith(
+                      color: theme.colors.mutedForeground,
+                    ),
                   ),
                 ],
               ),
@@ -288,70 +295,70 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   Widget _buildRecordingBody() {
     if (_phase == _Phase.transcribing) return _buildTranscribingBody();
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom + 24),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: MediaQuery.of(context).size.height
-              - MediaQuery.of(context).padding.top
-              - 56, // header height
+    // Use the real height handed down by the parent Expanded rather than
+    // recomputing from MediaQuery.size minus magic numbers — the manual math
+    // ignored the bottom system inset, which differs between iOS and Android and
+    // made spaceBetween distribute the sections unevenly (cramped on Android).
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewPadding.bottom + 24,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // ── Intro (fades when recording) ──────────────────
-            AnimatedOpacity(
-              opacity: _isRecording ? 0.0 : 1.0,
-              duration: const Duration(milliseconds: 320),
-              child: _buildIntroSection(),
-            ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // ── Intro (fades when recording) ──────────────────
+              AnimatedOpacity(
+                opacity: _isRecording ? 0.0 : 1.0,
+                duration: const Duration(milliseconds: 320),
+                child: _buildIntroSection(),
+              ),
 
-            // ── Mic + live recording info ──────────────────────
-            Column(
-              children: [
-                _buildMicButton(),
-                const SizedBox(height: 28),
+              // ── Mic + live recording info ──────────────────────
+              Column(
+                children: [
+                  _buildMicButton(),
+                  const SizedBox(height: 28),
 
-                // Timer — shown while recording
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: _isRecording
-                      ? Text(
-                          _fmtDur(_recDuration),
-                          key: const ValueKey('timer'),
-                          style: context.theme.typography.xl2.copyWith(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 6,
-                            color: context.theme.colors.foreground,
-                          ),
-                        )
-                      : const SizedBox(key: ValueKey('no-timer'), height: 44),
-                ),
+                  // Timer — shown while recording
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: _isRecording
+                        ? Text(
+                            _fmtDur(_recDuration),
+                            key: const ValueKey('timer'),
+                            style: context.theme.typography.xl2.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 6,
+                              color: context.theme.colors.foreground,
+                            ),
+                          )
+                        : const SizedBox(key: ValueKey('no-timer'), height: 44),
+                  ),
 
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                // Waveform — shown while recording
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: _isRecording
-                      ? _buildWaveform(key: const ValueKey('wave'))
-                      : const SizedBox(key: ValueKey('no-wave'), height: 36),
-                ),
+                  // Waveform — shown while recording
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: _isRecording
+                        ? _buildWaveform(key: const ValueKey('wave'))
+                        : const SizedBox(key: ValueKey('no-wave'), height: 36),
+                  ),
 
-                const SizedBox(height: 14),
+                  const SizedBox(height: 14),
 
-                // Status pill
-                _buildStatusPill(),
-              ],
-            ),
+                  // Status pill
+                  _buildStatusPill(),
+                ],
+              ),
 
-            // ── Bottom section ────────────────────────────────
-            Column(
-              children: [
-                _buildRecordingBottomRow(),
-              ],
-            ),
-          ],
+              // ── Bottom section ────────────────────────────────
+              Column(children: [_buildRecordingBottomRow()]),
+            ],
+          ),
         ),
       ),
     );
@@ -364,13 +371,18 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         children: [
           // Icon badge
           Container(
-            width: 48, height: 48,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: _c.accentSoft,
               border: Border.all(color: _c.accent.withValues(alpha: 0.3)),
             ),
-            child: Icon(Icons.record_voice_over_rounded, color: _c.accent, size: 22),
+            child: Icon(
+              Icons.record_voice_over_rounded,
+              color: _c.accent,
+              size: 22,
+            ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -407,9 +419,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       duration: const Duration(milliseconds: 250),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
       decoration: BoxDecoration(
-        color: isRec
-            ? _c.destructive.withValues(alpha: 0.12)
-            : _c.accent,
+        color: isRec ? _c.destructive.withValues(alpha: 0.12) : _c.accent,
         borderRadius: BorderRadius.circular(999),
         border: isRec
             ? Border.all(color: _c.destructive.withValues(alpha: 0.35))
@@ -420,7 +430,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
-            width: 7, height: 7,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isRec ? _c.destructive : Colors.white,
@@ -549,7 +560,12 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   Widget _buildRecordingBottomRow() {
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, bottomInset > 0 ? bottomInset : 0),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        bottomInset > 0 ? bottomInset : 0,
+      ),
       child: Column(
         children: [
           AppButton(
@@ -579,12 +595,17 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           children: [
             // Pulsing AI orb
             Container(
-              width: 96, height: 96,
+              width: 96,
+              height: 96,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: _c.accent,
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 38),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 38,
+              ),
             ),
             const SizedBox(height: 32),
             Text(
@@ -605,10 +626,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
               ),
             ),
             const SizedBox(height: 32),
-            SizedBox(
-              width: 160,
-              child: FProgress(),
-            ),
+            SizedBox(width: 160, child: FProgress()),
           ],
         ),
       ),
@@ -623,7 +641,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     final theme = context.theme;
     final fn = _fnCtrl.text;
     final ln = _lnCtrl.text;
-    final initials = '${fn.isNotEmpty ? fn[0] : ''}${ln.isNotEmpty ? ln[0] : ''}';
+    final initials =
+        '${fn.isNotEmpty ? fn[0] : ''}${ln.isNotEmpty ? ln[0] : ''}';
     final bottomInset = MediaQuery.of(context).viewPadding.bottom;
 
     return SingleChildScrollView(
@@ -640,7 +659,10 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
               children: [
                 Row(
                   children: [
-                    AppAvatar(initials: initials.isEmpty ? '?' : initials, size: 44),
+                    AppAvatar(
+                      initials: initials.isEmpty ? '?' : initials,
+                      size: 44,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -743,7 +765,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           AppButton(
             label: _saved ? 'Contact Saved' : 'Save Contact',
             prefixIcon: Icon(
-              _saved ? Icons.check_circle_outline_rounded : Icons.person_add_outlined,
+              _saved
+                  ? Icons.check_circle_outline_rounded
+                  : Icons.person_add_outlined,
               size: 18,
             ),
             variant: ButtonVariant.primary,
@@ -778,7 +802,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     final theme = context.theme;
     final selectedName = _eventId == null
         ? 'Select event'
-        : _events.firstWhere((e) => e.id == _eventId, orElse: () => _events.first).name;
+        : _events
+              .firstWhere((e) => e.id == _eventId, orElse: () => _events.first)
+              .name;
     return GestureDetector(
       onTap: _showEventPickerSheet,
       child: Container(
@@ -798,7 +824,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.typography.sm.copyWith(
-                  color: _eventId == null ? theme.colors.mutedForeground : theme.colors.foreground,
+                  color: _eventId == null
+                      ? theme.colors.mutedForeground
+                      : theme.colors.foreground,
                 ),
               ),
             ),
@@ -880,7 +908,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                   ),
                 ),
               ),
-              if (selected) Icon(Icons.check_rounded, color: _c.accent, size: 18),
+              if (selected)
+                Icon(Icons.check_rounded, color: _c.accent, size: 18),
             ],
           ),
         ),
@@ -922,6 +951,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             minLines: 2,
             hint: 'Transcript…',
             bare: true,
+            bareContentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             bareTextStyle: theme.typography.sm.copyWith(
               color: theme.colors.mutedForeground,
               height: 1.65,
@@ -956,7 +986,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             bottom: 0,
             child: Material(
               color: _c.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1016,18 +1048,28 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                                     const SizedBox(height: 4),
                                     Text(
                                       _dupes.first['email'] as String,
-                                      style: context.theme.typography.sm.copyWith(
-                                        color: context.theme.colors.mutedForeground,
-                                      ),
+                                      style: context.theme.typography.sm
+                                          .copyWith(
+                                            color: context
+                                                .theme
+                                                .colors
+                                                .mutedForeground,
+                                          ),
                                     ),
                                   ],
                                   if (_dupes.first['company'] != null) ...[
                                     const SizedBox(height: 2),
                                     Text(
-                                      (_dupes.first['company'] as Map?)?['name'] ?? '',
-                                      style: context.theme.typography.xs.copyWith(
-                                        color: context.theme.colors.mutedForeground,
-                                      ),
+                                      (_dupes.first['company']
+                                              as Map?)?['name'] ??
+                                          '',
+                                      style: context.theme.typography.xs
+                                          .copyWith(
+                                            color: context
+                                                .theme
+                                                .colors
+                                                .mutedForeground,
+                                          ),
                                     ),
                                   ],
                                 ],
@@ -1093,8 +1135,6 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   // SHARED WIDGETS
   // ════════════════════════════════════════════════════════════
 
-
-
   // ════════════════════════════════════════════════════════════
   // ACTIONS
   // ════════════════════════════════════════════════════════════
@@ -1113,7 +1153,13 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         final duration = _recDuration;
         final path = await _recorder.stop();
         if (duration.inSeconds < 1 || path == null) {
-          if (mounted) setState(() { _isRecording = false; _amplitude = 0.0; });
+          if (mounted) {
+            setState(() {
+              _isRecording = false;
+              _amplitude = 0.0;
+            });
+            showAppToast(context, 'No speech detected — please try again');
+          }
           return;
         }
         setState(() {
@@ -1121,7 +1167,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           _amplitude = 0.0;
           _phase = _Phase.transcribing;
         });
-        await _transcribeAndParse(path);
+        await _transcribeAndParse(path, duration);
         return;
       }
 
@@ -1142,7 +1188,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         recPath = 'voice_contact_${DateTime.now().millisecondsSinceEpoch}.m4a';
       } else {
         final dir = await getTemporaryDirectory();
-        recPath = '${dir.path}/voice_contact_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        recPath =
+            '${dir.path}/voice_contact_${DateTime.now().millisecondsSinceEpoch}.m4a';
       }
 
       // Browsers don't support AAC — use Opus (webm) on web
@@ -1154,11 +1201,11 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       _ampSub = _recorder
           .onAmplitudeChanged(const Duration(milliseconds: 80))
           .listen((amp) {
-        if (!mounted) return;
-        // amp.current is dBFS (-160..0); treat -50 dBFS as quiet
-        final normalized = ((amp.current + 50) / 50).clamp(0.0, 1.0);
-        setState(() => _amplitude = normalized.toDouble());
-      });
+            if (!mounted) return;
+            // amp.current is dBFS (-160..0); treat -50 dBFS as quiet
+            final normalized = ((amp.current + 50) / 50).clamp(0.0, 1.0);
+            setState(() => _amplitude = normalized.toDouble());
+          });
 
       setState(() {
         _isRecording = true;
@@ -1169,7 +1216,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         if (!mounted) return;
         setState(() => _recDuration += const Duration(seconds: 1));
       });
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException {
+      rethrow;
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _isRecording = false;
@@ -1180,7 +1229,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     }
   }
 
-  Future<void> _transcribeAndParse(String path) async {
+  Future<void> _transcribeAndParse(String path, Duration duration) async {
     try {
       final Uint8List bytes;
       if (kIsWeb) {
@@ -1191,17 +1240,31 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         bytes = await File(path).readAsBytes();
       }
       if (bytes.length < 4096) {
-        if (mounted) setState(() => _phase = _Phase.recording);
+        if (mounted) {
+          setState(() => _phase = _Phase.recording);
+          showAppToast(context, 'No speech detected — please try again');
+        }
         return;
       }
       final b64 = base64Encode(bytes);
-      final transcript = await ApiService.transcribeAudio(b64);
+      final transcript = await ApiService.transcribeAudio(
+        b64,
+        durationSeconds: duration.inSeconds,
+      );
       if (!mounted) return;
+      // Backend returns an empty string when no speech was detected.
+      if (transcript.trim().isEmpty) {
+        setState(() => _phase = _Phase.recording);
+        showAppToast(context, 'No speech detected — please try again');
+        return;
+      }
       _transcript = transcript;
       _transcriptCtrl.text = transcript;
       _parseTranscript(transcript);
       setState(() => _phase = _Phase.review);
-    } on UnauthorizedException { rethrow; } catch (e) {
+    } on UnauthorizedException {
+      rethrow;
+    } catch (e) {
       if (!mounted) return;
       setState(() => _phase = _Phase.recording);
       showAppToast(context, 'Transcription failed');
@@ -1263,8 +1326,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   }
 
   Future<void> _save() async {
-    final name =
-        '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();
+    final name = '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();
     if (name.isEmpty) {
       showAppToast(context, 'Enter at least a name');
       return;
@@ -1288,7 +1350,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         return;
       }
       await _doSave();
-    } on UnauthorizedException { rethrow; } catch (_) {
+    } on UnauthorizedException {
+      rethrow;
+    } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
     }
@@ -1305,8 +1369,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         extractedData: {
           'first_name': _fnCtrl.text.trim(),
           'last_name': _lnCtrl.text.trim(),
-          'name':
-              '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim(),
+          'name': '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim(),
           'company': _coCtrl.text.trim(),
           'email': _emailCtrl.text.trim(),
           'phone': _phoneCtrl.text.trim(),
@@ -1314,8 +1377,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         },
       );
       if (!mounted) return;
-      final savedName =
-          '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();
+      final savedName = '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();
       setState(() {
         _saved = true;
         _isSaving = false;
@@ -1324,7 +1386,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       await Future<void>.delayed(const Duration(milliseconds: 1600));
       if (!mounted) return;
       Navigator.of(context).pop(VoiceContactResult(savedName));
-    } on UnauthorizedException { rethrow; } catch (_) {
+    } on UnauthorizedException {
+      rethrow;
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _isSaving = false;

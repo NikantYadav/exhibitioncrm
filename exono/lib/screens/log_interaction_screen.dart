@@ -270,7 +270,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
 
       // 3. Online only: transcribe in background — fire and forget.
       if (interactionId != null) {
-        _transcribeInBackground(interactionId, base64Encode(audioBytes));
+        _transcribeInBackground(interactionId, base64Encode(audioBytes), _recDuration.inSeconds);
       }
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
@@ -280,14 +280,18 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
     }
   }
 
-  void _transcribeInBackground(String interactionId, String base64Audio) {
-    ApiService.transcribeAudio(base64Audio).then((transcript) {
-      if (transcript.isNotEmpty) {
-        ApiService.updateInteraction(interactionId, {
-          'summary': transcript,
-          'details': {'has_audio': true, 'transcript': transcript},
-        });
+  void _transcribeInBackground(String interactionId, String base64Audio, int durationSeconds) {
+    ApiService.transcribeAudio(base64Audio, durationSeconds: durationSeconds).then((transcript) {
+      // Backend returns an empty string when no speech was detected. Drop the
+      // placeholder interaction entirely rather than keeping an empty voice note.
+      if (transcript.trim().isEmpty) {
+        ApiService.deleteInteraction(interactionId);
+        return;
       }
+      ApiService.updateInteraction(interactionId, {
+        'summary': transcript,
+        'details': {'has_audio': true, 'transcript': transcript},
+      });
     }).catchError((_) {});
   }
 

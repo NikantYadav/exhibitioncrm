@@ -374,17 +374,47 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
       elevated: true,
       padding: const EdgeInsets.all(16),
       radius: 14,
-      child: Row(children: [
-        Expanded(child: _statCol(Icons.qr_code_scanner_rounded, '$scanned', 'SCANNED')),
-        Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
-        Expanded(child: _statCol(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT')),
-        Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
-        Expanded(child: _statCol(Icons.flag_outlined, '$goalsLeft', 'GOALS LEFT')),
-      ]),
+      child: LayoutBuilder(builder: (context, constraints) {
+        // One shared font size for all three labels so they render
+        // identically and each fits on a single line. Sized off the
+        // longest label against the per-column width (≈1/3 of the card,
+        // minus the two 1px dividers).
+        const labels = ['SCANNED', 'TARGETS LEFT', 'GOALS LEFT'];
+        final cellWidth = (constraints.maxWidth - 2) / 3;
+        final labelStyle = context.theme.typography.xs.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+            color: context.theme.colors.mutedForeground);
+        var fontSize = labelStyle.fontSize ?? 11;
+        for (final label in labels) {
+          while (fontSize > 6 &&
+              _textWidth(label, labelStyle.copyWith(fontSize: fontSize)) >
+                  cellWidth) {
+            fontSize -= 0.5;
+          }
+        }
+        final scaledStyle = labelStyle.copyWith(fontSize: fontSize);
+        return Row(children: [
+          Expanded(child: _statCol(Icons.qr_code_scanner_rounded, '$scanned', 'SCANNED', scaledStyle)),
+          Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
+          Expanded(child: _statCol(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT', scaledStyle)),
+          Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
+          Expanded(child: _statCol(Icons.flag_outlined, '$goalsLeft', 'GOALS LEFT', scaledStyle)),
+        ]);
+      }),
     );
   }
 
-  Widget _statCol(IconData icon, String value, String label) {
+  double _textWidth(String text, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return tp.width;
+  }
+
+  Widget _statCol(IconData icon, String value, String label, TextStyle labelStyle) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
@@ -398,7 +428,7 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
           const SizedBox(height: 6),
           Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, color: context.theme.colors.foreground, height: 1)),
           const SizedBox(height: 3),
-          Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.4, color: context.theme.colors.mutedForeground), textAlign: TextAlign.center, maxLines: 2),
+          Text(label, style: labelStyle, textAlign: TextAlign.center, maxLines: 1, softWrap: false, overflow: TextOverflow.visible),
         ],
       ),
     );

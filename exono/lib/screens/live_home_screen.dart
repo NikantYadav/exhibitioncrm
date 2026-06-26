@@ -143,7 +143,11 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         builder: (ctx, setModalState) => SafeArea(
           top: false,
           child: Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+          // forui's showFSheet already shifts the sheet up by the keyboard
+          // inset (resizeToAvoidBottomInset). Adding viewInsets.bottom here too
+          // double-counts the keyboard height and pushes the sheet to the status
+          // bar, so use a static bottom pad only.
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,17 +721,47 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
       elevated: true,
       padding: const EdgeInsets.all(16),
       radius: 14,
-      child: Row(children: [
-        Expanded(child: _statColumn(Icons.qr_code_scanner_rounded, '$scanned', 'SCANNED')),
-        Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
-        Expanded(child: _statColumn(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT')),
-        Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
-        Expanded(child: _statColumn(Icons.flag_outlined, '$goalsLeft', 'GOALS LEFT')),
-      ]),
+      child: LayoutBuilder(builder: (context, constraints) {
+        // One shared font size for all three labels so they render
+        // identically and each fits on a single line. Sized off the
+        // longest label against the per-column width (≈1/3 of the card,
+        // minus the two 1px dividers).
+        const labels = ['SCANNED', 'TARGETS LEFT', 'GOALS LEFT'];
+        final cellWidth = (constraints.maxWidth - 2) / 3;
+        final labelStyle = context.theme.typography.xs.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+            color: context.theme.colors.mutedForeground);
+        var fontSize = labelStyle.fontSize ?? 11;
+        for (final label in labels) {
+          while (fontSize > 6 &&
+              _textWidth(label, labelStyle.copyWith(fontSize: fontSize)) >
+                  cellWidth) {
+            fontSize -= 0.5;
+          }
+        }
+        final scaledStyle = labelStyle.copyWith(fontSize: fontSize);
+        return Row(children: [
+          Expanded(child: _statColumn(Icons.qr_code_scanner_rounded, '$scanned', 'SCANNED', scaledStyle)),
+          Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
+          Expanded(child: _statColumn(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT', scaledStyle)),
+          Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
+          Expanded(child: _statColumn(Icons.flag_outlined, '$goalsLeft', 'GOALS LEFT', scaledStyle)),
+        ]);
+      }),
     );
   }
 
-  Widget _statColumn(IconData icon, String value, String label) {
+  double _textWidth(String text, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return tp.width;
+  }
+
+  Widget _statColumn(IconData icon, String value, String label, TextStyle labelStyle) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
@@ -744,8 +778,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         const SizedBox(height: 6),
         Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, color: context.theme.colors.foreground, height: 1)),
         const SizedBox(height: 3),
-        Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.4, color: context.theme.colors.mutedForeground),
-            textAlign: TextAlign.center, maxLines: 2),
+        Text(label, style: labelStyle, textAlign: TextAlign.center, maxLines: 1, softWrap: false, overflow: TextOverflow.visible),
       ],
     ));
   }
@@ -792,16 +825,12 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           )
         else
           AppCard(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            padding: const EdgeInsets.all(8),
             child: Column(children: [
-              for (int i = 0; i < lep.liveGoals.length; i++)
-                Container(
-                  decoration: i.isOdd
-                      ? BoxDecoration(color: _c.surfaceAlt, borderRadius: BorderRadius.circular(10))
-                      : null,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: _buildGoalRow(lep.liveGoals[i], event, lep),
-                ),
+              for (int i = 0; i < lep.liveGoals.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                _buildGoalRow(lep.liveGoals[i], event, lep),
+              ],
             ]),
           ),
       ],
@@ -841,8 +870,13 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
           ),
         );
       },
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: context.theme.colors.background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: context.theme.colors.border),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -861,53 +895,29 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                       : null,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(child: Text(goal['label'] as String, style: context.theme.typography.sm.copyWith(
                   fontWeight: FontWeight.w500,
+                  height: 1.3,
                   color: isComplete ? _c.success : context.theme.colors.foreground,
                   decoration: isComplete ? TextDecoration.lineThrough : null,
                   decorationColor: _c.success))),
+              const SizedBox(width: 12),
               if (isCheckbox)
-                GestureDetector(
-                  onTap: () => _toggleCheckboxGoal(goal, event, lep),
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isComplete ? _c.success.withValues(alpha: 0.10) : _c.accentSoft,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(isComplete ? 'DONE' : 'MARK DONE', style: context.theme.typography.xs.copyWith(
-                          fontWeight: FontWeight.w700, letterSpacing: 0.4,
-                          color: isComplete ? _c.success : _c.accent)),
-                    ),
-                  ),
+                AppButton(
+                  label: isComplete ? 'DONE' : 'MARK DONE',
+                  onPressed: () => _toggleCheckboxGoal(goal, event, lep),
+                  size: ButtonSize.xs,
+                  variant: isComplete ? ButtonVariant.ghost : ButtonVariant.primary,
+                  prefixIcon: isComplete ? Icon(Icons.check_rounded, size: 14, color: _c.success) : null,
                 )
               else
-                GestureDetector(
-                  onTap: isComplete ? null : () => _incrementGoal(goal, event, lep),
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isComplete ? _c.success.withValues(alpha: 0.10) : _c.accentSoft,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        if (!isComplete) ...[
-                          Icon(Icons.add_rounded, size: 12, color: _c.accent),
-                          const SizedBox(width: 4),
-                        ],
-                        Text('$current / $total', style: context.theme.typography.sm.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: isComplete ? _c.success : _c.accent)),
-                      ]),
-                    ),
-                  ),
+                AppButton(
+                  label: '$current / $total',
+                  onPressed: isComplete ? null : () => _incrementGoal(goal, event, lep),
+                  size: ButtonSize.xs,
+                  variant: isComplete ? ButtonVariant.ghost : ButtonVariant.outline,
+                  prefixIcon: isComplete ? null : const Icon(Icons.add_rounded, size: 14),
                 ),
             ]),
             if (!isCheckbox) ...[

@@ -117,7 +117,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
       final timelineItems = timelineData
           .where((item) => (item['interaction_type'] ?? '') != 'event_link' && item['date'] != null)
           .map((item) {
-        final date = DateTime.tryParse(item['date'] as String) ?? DateTime.now();
+        // Backend sends UTC timestamps; show them in the user's local timezone.
+        final date = (DateTime.tryParse(item['date'] as String) ?? DateTime.now()).toLocal();
         final type = item['type'] as String? ?? 'interaction';
         final details = item['details'] as Map<String, dynamic>?;
         final mode = details?['mode'] as String?;

@@ -91,14 +91,66 @@ router.post('/analyze-card', async (req, res, next) => {
   }
 });
 
+// Lightweight silence gate. Compressed speech (AAC/Opus) carries far more bytes
+// per second than near-silence, so a low bytes-per-second ratio means the clip
+// almost certainly contains no speech. This runs before the (paid) Gemini call
+// so we never transcribe — or pay to hallucinate text for — a silent recording.
+//
+// Thresholds are deliberately conservative (well below real-speech bitrates) to
+// avoid rejecting genuine but quiet/short speech. Decoded byte size is derived
+// from the base64 length; duration comes from the client recorder.
+const SILENCE_BYTES_PER_SECOND = 900; // speech is typically 4000+; silence ~1000-1500
+const ABSOLUTE_MIN_BYTES = 3072;      // anything smaller can't hold real speech
+
+function decodedByteLength(base64Audio: string): number {
+  const data = base64Audio.includes(',') ? base64Audio.split(',')[1] : base64Audio;
+  // Each 4 base64 chars -> 3 bytes, minus padding.
+  const len = data.length;
+  const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0;
+  return Math.floor((len * 3) / 4) - padding;
+}
+
+function looksSilent(base64Audio: string, durationSeconds?: number): boolean {
+  const bytes = decodedByteLength(base64Audio);
+  const bytesPerSecond =
+    durationSeconds && durationSeconds > 0 ? Math.round(bytes / durationSeconds) : null;
+
+  let silent = false;
+  let reason = 'speech';
+  if (bytes < ABSOLUTE_MIN_BYTES) {
+    silent = true;
+    reason = 'below-min-bytes';
+  } else if (bytesPerSecond !== null && bytesPerSecond < SILENCE_BYTES_PER_SECOND) {
+    silent = true;
+    reason = 'low-bitrate';
+  }
+
+  // Calibration log: tune SILENCE_BYTES_PER_SECOND from real traffic by comparing
+  // bytesPerSecond for clips you know contain speech vs. silence.
+  console.log(
+    `[transcribe] silence-gate bytes=${bytes} duration=${durationSeconds ?? 'n/a'}s ` +
+    `bytesPerSecond=${bytesPerSecond ?? 'n/a'} threshold=${SILENCE_BYTES_PER_SECOND} ` +
+    `decision=${silent ? 'SILENT' : 'transcribe'} reason=${reason}`
+  );
+
+  return silent;
+}
+
 // POST /api/ai/transcribe
 router.post('/transcribe', async (req, res, next) => {
   try {
     const supabase = req.supabase!;
-    const { audio_data } = req.body;
+    const { audio_data, duration_seconds } = req.body;
 
     if (!audio_data) {
       return res.status(400).json({ error: 'Audio data is required' });
+    }
+
+    // Server-side silence gate: skip the model call for recordings that are too
+    // quiet/small to contain speech. Returning an empty transcript matches the
+    // NO_SPEECH path so clients handle it uniformly.
+    if (looksSilent(audio_data, Number(duration_seconds) || undefined)) {
+      return res.json({ transcript: '' });
     }
 
     const transcript = await litellm.transcribeAudio(audio_data);

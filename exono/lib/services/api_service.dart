@@ -731,6 +731,17 @@ class ApiService {
     }
   }
 
+  static Future<void> deleteInteraction(String id) async {
+    final response = await _send(() async => http.delete(
+      Uri.parse('${ApiConfig.baseUrl}/interactions/$id'),
+      headers: await _headers(),
+    ));
+    checkUnauthorized(response);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete interaction');
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getCompanies({String? query}) async {
     final url = query != null && query.isNotEmpty
         ? '${ApiConfig.baseUrl}${ApiConfig.companies}?q=${Uri.encodeComponent(query)}'
@@ -1104,11 +1115,14 @@ class ApiService {
     return body['answer'] as String? ?? '';
   }
 
-  static Future<String> transcribeAudio(String base64Audio) async {
+  static Future<String> transcribeAudio(String base64Audio, {int? durationSeconds}) async {
     final response = await _send(() async => http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ai}/transcribe'),
       headers: await _headers(),
-      body: json.encode({'audio_data': base64Audio}),
+      body: json.encode({
+        'audio_data': base64Audio,
+        'duration_seconds': ?durationSeconds,
+      }),
     ));
     checkUnauthorized(response);
     if (response.statusCode == 200) {

@@ -424,7 +424,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   Widget _buildSummaryHero() {
     final eventName = widget.event?.name ?? 'Event';
     final location = widget.event?.location;
-    final dateStr = widget.event != null ? _formatDate(widget.event!.startDate) : '';
+    final dateStr = widget.event != null ? _formatDate(widget.event!.localStartDate) : '';
 
     return AppCard(
       padding: const EdgeInsets.all(24),

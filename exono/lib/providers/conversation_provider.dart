@@ -18,8 +18,10 @@ class ConversationModel {
     return ConversationModel(
       id: json['id'] as String,
       title: json['title'] as String?,
-      updatedAt: DateTime.tryParse(json['updated_at'] as String? ?? '') ??
-          DateTime.now(),
+      // Backend sends UTC; convert to local for display in the history list.
+      updatedAt: (DateTime.tryParse(json['updated_at'] as String? ?? '') ??
+              DateTime.now())
+          .toLocal(),
       firstMessagePreview: json['first_message_preview'] as String?,
     );
   }

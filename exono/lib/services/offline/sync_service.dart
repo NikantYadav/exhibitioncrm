@@ -281,9 +281,14 @@ class SyncService {
     if (interactionId != null && audioBytes != null) {
       try {
         await _throttleTranscription();
-        final transcript =
-            await ApiService.transcribeAudio(base64Encode(audioBytes));
-        if (transcript.isNotEmpty) {
+        final transcript = await ApiService.transcribeAudio(
+          base64Encode(audioBytes),
+          durationSeconds: durationSeconds,
+        );
+        if (transcript.trim().isEmpty) {
+          // No speech detected — drop the placeholder interaction entirely.
+          await ApiService.deleteInteraction(interactionId);
+        } else {
           await ApiService.updateInteraction(interactionId, {
             'summary': transcript,
             'details': {

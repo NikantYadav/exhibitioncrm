@@ -1462,7 +1462,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       final duration = _recDuration;
       final path = await _recorder.stop();
       setState(() { _isRecording = false; _isTranscribing = duration.inSeconds >= 1; });
-      if (path != null && duration.inSeconds >= 1) await _transcribe(path);
+      if (path != null && duration.inSeconds >= 1) await _transcribe(path, duration);
       return;
     }
     // The voice memo only exists to fill the notes field via transcription,
@@ -1498,7 +1498,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     });
   }
 
-  Future<void> _transcribe(String path) async {
+  Future<void> _transcribe(String path, Duration duration) async {
     try {
       final Uint8List bytes;
       if (kIsWeb) {
@@ -1508,15 +1508,21 @@ class _CaptureScreenState extends State<CaptureScreen>
         bytes = await File(path).readAsBytes();
       }
       // Guard: skip files too small to contain real speech (silence/near-empty
-      // recordings cause Whisper to hallucinate text).
+      // recordings make the model hallucinate text).
       if (bytes.length < 4096) {
         if (!mounted) return;
         setState(() => _isTranscribing = false);
         return;
       }
       final b64 = base64Encode(bytes);
-      final transcript = await ApiService.transcribeAudio(b64);
+      final transcript = await ApiService.transcribeAudio(b64, durationSeconds: duration.inSeconds);
       if (!mounted) return;
+      // Backend returns an empty string when no speech was detected.
+      if (transcript.trim().isEmpty) {
+        setState(() => _isTranscribing = false);
+        showAppToast(context, 'No speech detected — please try again');
+        return;
+      }
       setState(() { _voiceCtrl.text = transcript; _isTranscribing = false; });
     } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
@@ -1530,7 +1536,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       final duration = _recDuration;
       final path = await _recorder.stop();
       setState(() { _isRecording = false; _isTranscribing = duration.inSeconds >= 1; });
-      if (path != null && duration.inSeconds >= 1) await _transcribe(path);
+      if (path != null && duration.inSeconds >= 1) await _transcribe(path, duration);
       if (!mounted) return;
     }
     final name = '${_fnCtrl.text.trim()} ${_lnCtrl.text.trim()}'.trim();

@@ -396,13 +396,20 @@ export class LiteLLMService {
         if (this.config.provider === 'gemini') {
             return this.withGemini(async (apiKey) => {
                 const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+                const model = genAI.getGenerativeModel({
+                    model: 'gemini-3.1-flash-lite',
+                    generationConfig: { temperature: 0 },
+                });
 
                 const base64Data = base64Audio.split(',')[1] || base64Audio;
                 const mimeType = base64Audio.match(/^data:([^;]+);base64,/)?.[1] || 'audio/webm';
 
                 const result = await model.generateContent([
-                    "Please provide a high-quality transcript of this audio recording. Return ONLY the transcript text.",
+                    "You are a speech-to-text transcriber. Transcribe ONLY the words actually spoken in this audio recording.\n" +
+                    "Do NOT invent, guess, summarize, or add any content that is not clearly spoken.\n" +
+                    "If the audio contains no discernible speech (silence, background noise, music, or unintelligible sounds), " +
+                    "respond with exactly the token NO_SPEECH and nothing else.\n" +
+                    "Return ONLY the transcript text (or NO_SPEECH).",
                     {
                         inlineData: {
                             data: base64Data,
@@ -412,7 +419,15 @@ export class LiteLLMService {
                 ]);
 
                 const response = await result.response;
-                return response.text();
+                const text = response.text().trim();
+
+                // The model returns NO_SPEECH when no speech is detected. Treat that
+                // (and any near-empty / sentinel-only response) as an empty transcript
+                // so callers don't persist hallucinated text for silent recordings.
+                if (!text || /^NO_SPEECH\b/i.test(text) || text.replace(/[^a-z0-9]/gi, '') === 'NOSPEECH') {
+                    return '';
+                }
+                return text;
             });
         } else if (this.config.provider === 'openai') {
             // OpenAI Whisper transcription

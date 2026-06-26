@@ -36,6 +36,12 @@ class AppInput extends StatelessWidget {
   /// value prominence (e.g. `context.theme.typography.lg`).
   final TextStyle? bareTextStyle;
 
+  /// Inner content padding for [bare] mode. Defaults to [EdgeInsets.zero] so
+  /// inline edit-in-place rows stay flush. Set this when a bare field sits in
+  /// its own bordered/tinted box and the text would otherwise be cramped
+  /// against the edges (e.g. a multi-line transcript box).
+  final EdgeInsetsGeometry bareContentPadding;
+
   const AppInput({
     super.key,
     this.label,
@@ -63,6 +69,7 @@ class AppInput extends StatelessWidget {
     this.textCapitalization = TextCapitalization.none,
     this.bare = false,
     this.bareTextStyle,
+    this.bareContentPadding = EdgeInsets.zero,
   });
 
   @override
@@ -89,7 +96,7 @@ class AppInput extends StatelessWidget {
                 FVariantValueDeltaOperation.all(null),
               ]),
               contentPadding:
-                  EdgeInsetsGeometryDelta.value(EdgeInsets.zero),
+                  EdgeInsetsGeometryDelta.value(bareContentPadding),
               contentTextStyle: bareTextStyle != null
                   ? FVariantsDelta.delta([
                       FVariantOperation.all(

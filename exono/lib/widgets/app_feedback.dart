@@ -27,15 +27,14 @@ Future<T?> showAppSheet<T>({
   bool useRootNavigator = false,
 }) {
   navBarHide();
-  // Capture the system bottom inset from the outer context. Under Android's
-  // forced edge-to-edge, an ancestor SafeArea/Scaffold may already have
-  // consumed `padding.bottom` (leaving it 0) while the real inset still lives
-  // in `viewPadding.bottom`. forui's sheet keeps `padding.bottom` intact but
-  // that value is already 0 here, so a builder's `SafeArea(bottom: true)` adds
-  // nothing and content slides under the nav bar. We restate the true inset as
-  // `padding.bottom` inside the sheet so those SafeAreas work again. iOS was
-  // unaffected because its home-indicator inset stays in `padding.bottom`.
-  final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+  // Read the system bottom inset from the raw FlutterView. This value is never
+  // consumed by an ancestor SafeArea/Scaffold, so it is reliable on Android
+  // edge-to-edge (where `MediaQuery.padding.bottom` can already be 0) as well as
+  // iOS. We restate it as `padding.bottom` inside the sheet so each builder's
+  // `SafeArea(bottom: true)` lifts content above the system nav bar / home
+  // indicator. Falls back to whatever padding the sheet already has if larger.
+  final view = View.of(context);
+  final bottomInset = view.viewPadding.bottom / view.devicePixelRatio;
   return showFSheet<T>(
     context: context,
     side: side,

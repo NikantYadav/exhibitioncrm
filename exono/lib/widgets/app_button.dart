@@ -4,7 +4,7 @@ import '../config/app_theme.dart';
 
 enum ButtonVariant { primary, secondary, outline, ghost, destructive, branded }
 
-enum ButtonSize { sm, md, lg }
+enum ButtonSize { xs, sm, md, lg }
 
 /// Thin wrapper over [FButton] that preserves existing call-sites unchanged.
 class AppButton extends StatelessWidget {
@@ -52,8 +52,12 @@ class AppButton extends StatelessWidget {
     }
   }
 
+  // xs reuses forui's sm geometry, then tightens padding via _xsStyle below.
+  bool get _isXs => size == ButtonSize.xs;
+
   FButtonSizeVariant get _size {
     switch (size) {
+      case ButtonSize.xs:
       case ButtonSize.sm:
         return FButtonSizeVariant.sm;
       case ButtonSize.md:
@@ -62,6 +66,17 @@ class AppButton extends StatelessWidget {
         return FButtonSizeVariant.lg;
     }
   }
+
+  // Tighten the sm geometry for xs: smaller content padding.
+  FButtonStyleDelta get _styleDelta => _isXs
+      ? FButtonStyleDelta.delta(
+          contentStyle: FButtonContentStyleDelta.delta(
+            padding: const EdgeInsetsGeometryDelta.value(
+              EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+          ),
+        )
+      : const FButtonStyleDelta.context();
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +146,9 @@ class AppButton extends StatelessWidget {
         final btn = GestureDetector(
           onTap: _isLoading ? null : onPressed,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: _isXs
+                ? const EdgeInsets.symmetric(horizontal: 10, vertical: 6)
+                : const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Center(child: ghostContent),
           ),
         );
@@ -157,6 +174,7 @@ class AppButton extends StatelessWidget {
     Widget btn = FButton(
       variant: _variant,
       size: _size,
+      style: _styleDelta,
       onPress: _isLoading ? null : onPressed,
       child: content,
     );
@@ -173,6 +191,7 @@ class AppButton extends StatelessWidget {
           child: FButton(
             variant: _variant,
             size: _size,
+            style: _styleDelta,
             onPress: _isLoading ? null : onPressed,
             child: content,
           ),
