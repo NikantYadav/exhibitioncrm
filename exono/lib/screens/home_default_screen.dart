@@ -221,7 +221,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     final event = lep.liveEvent!;
     final location = event.location ?? '';
     final scanned = lep.scannedContacts.length;
-    final targetsLeft = lep.targetContacts.where((t) => (t['status'] as String?) != 'met').length;
+    final companiesLeft = lep.liveTargets.where((t) => !(t['met'] as bool? ?? false)).length;
+    final contactsLeft = lep.targetContacts.where((t) => (t['status'] as String?) != 'met').length;
+    final targetsLeft = companiesLeft + contactsLeft;
     final goalsLeft = lep.liveGoals.where((g) {
       final current = g['current'] as int;
       final total = g['total'] as int;

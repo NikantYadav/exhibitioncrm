@@ -28,6 +28,7 @@ import 'services/offline/background_sync.dart';
 import 'services/offline/connectivity_service.dart';
 import 'services/offline/offline_queue.dart';
 import 'services/offline/sync_service.dart';
+import 'services/offline/write_gateway.dart';
 
 /// Entry point for the workmanager background isolate. Runs detached from the
 /// UI isolate, so it must initialise its own bindings and rebuild any state it
@@ -156,6 +157,7 @@ class _ExonoRouterState extends State<_ExonoRouter> {
       if (auth.isAuthenticated) {
         final userId = auth.user!['id'] as String;
         context.read<LiveEventProvider>().init(sync.db, userId);
+        WriteGateway().init(sync.db, userId);
         sync.start(userId);
         DiagnosticsService.instance.setUser(userId);
       } else if (wasAuthenticated) {

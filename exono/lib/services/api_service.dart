@@ -790,11 +790,24 @@ class ApiService {
     throw Exception('Failed to load company');
   }
 
+  static Future<Map<String, dynamic>> patchCompany(String id, Map<String, dynamic> data) async {
+    final response = await _send(() async => http.patch(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.companies}/$id'),
+      headers: await _headers(),
+      body: json.encode(data),
+    ));
+    checkUnauthorized(response);
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['data'] as Map<String, dynamic>;
+    }
+    throw Exception(json.decode(response.body)['error'] ?? 'Failed to update company');
+  }
+
   static Future<Map<String, dynamic>> enrichCompany(String id, {bool force = false}) async {
     final response = await _send(() async => http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.companies}/$id/enrich'),
       headers: await _headers(),
-      body: json.encode({'force': force}),
+      body: force ? json.encode({'force': true}) : null,
     ));
     checkUnauthorized(response);
     if (response.statusCode == 200) {

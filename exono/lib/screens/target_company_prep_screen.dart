@@ -18,6 +18,7 @@ import '../widgets/app_chip.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/app_sheet_content.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
 
@@ -48,6 +49,8 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
   bool _editingNotes = false;
   late TextEditingController _boothCtrl;
   late TextEditingController _notesCtrl;
+  bool _isReenriching = false;
+  bool? _lowConfidence;
 
   @override
   void initState() {
@@ -82,15 +85,125 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
 
     setState(() { _isEnriching = true; _enrichError = null; });
     try {
-      await ApiService.enrichCompany(company.id);
-      await _sync.companies.catchUp();
-      if (mounted) setState(() => _isEnriching = false);
+      final result = await ApiService.enrichCompany(company.id);
+      await _sync.companies.upsertOne(result);
+      final enrichedName = result['name'] as String?;
+      if (enrichedName != null && enrichedName.isNotEmpty) {
+        CompanyNameResolver.update(company.id, enrichedName);
+      }
+      if (mounted) {
+        setState(() {
+          _isEnriching = false;
+          final confidence = result['enrichment_confidence'] as String?;
+          _lowConfidence = confidence == 'low';
+        });
+      }
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) { setState(() {
         _isEnriching = false;
         _enrichError = 'Could not load company details. Will retry next visit.';
       }); }
     }
+  }
+
+  Future<void> _showCorrectCompanySheet(CompaniesTableData company) async {
+    final industryCtrl = TextEditingController(text: company.industry ?? '');
+    final locationCtrl = TextEditingController(text: company.location ?? '');
+    final websiteCtrl = TextEditingController(text: company.website ?? '');
+
+    await showAppSheet(
+      context: context,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheetState) {
+          String? websiteError;
+          bool isSubmitting = false;
+
+          String? validateWebsite(String val) {
+            if (val.isEmpty) return null;
+            final uri = Uri.tryParse(val);
+            return (uri == null || !uri.hasScheme || !uri.host.contains('.'))
+                ? 'Enter a valid URL (e.g. https://samtac.ae)'
+                : null;
+          }
+
+          return AppSheetContent(
+            title: 'Correct Company Details',
+            subtitle: 'Add industry, country, or website so the AI can find the right company.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppInput(
+                  controller: industryCtrl,
+                  labelText: 'Industry (optional)',
+                  hintText: 'e.g. Boilers & Heating, Logistics',
+                ),
+                const SizedBox(height: 12),
+                AppInput(
+                  controller: locationCtrl,
+                  labelText: 'Country / City (optional)',
+                  hintText: 'e.g. UAE, Dubai',
+                ),
+                const SizedBox(height: 12),
+                AppInput(
+                  controller: websiteCtrl,
+                  labelText: 'Website (optional)',
+                  hintText: 'e.g. https://samtac.ae',
+                  keyboardType: TextInputType.url,
+                  error: websiteError,
+                  onChanged: (_) => setSheetState(() { websiteError = validateWebsite(websiteCtrl.text.trim()); }),
+                ),
+                const SizedBox(height: 20),
+                AppButton(
+                  label: 'SAVE & RE-RESEARCH',
+                  fullWidth: true,
+                  variant: ButtonVariant.primary,
+                  isLoading: isSubmitting,
+                  onPressed: () async {
+                    final we = validateWebsite(websiteCtrl.text.trim());
+                    if (we != null) { setSheetState(() => websiteError = we); return; }
+                    setSheetState(() => isSubmitting = true);
+                    final industry = industryCtrl.text.trim();
+                    final location = locationCtrl.text.trim();
+                    final website = websiteCtrl.text.trim();
+                    try {
+                      final patch = <String, dynamic>{
+                        'industry': industry.isEmpty ? null : industry,
+                        'location': location.isEmpty ? null : location,
+                        'website': website.isEmpty ? null : website,
+                      };
+                      await ApiService.patchCompany(company.id, patch);
+                      if (!sheetCtx.mounted) return;
+                      Navigator.of(sheetCtx).pop();
+                      if (!mounted) return;
+                      setState(() { _isReenriching = true; _enrichError = null; });
+                      final result = await ApiService.enrichCompany(company.id, force: true);
+                      await _sync.companies.upsertOne(result);
+                      final reenrichedName = result['name'] as String?;
+                      if (reenrichedName != null && reenrichedName.isNotEmpty) {
+                        CompanyNameResolver.update(company.id, reenrichedName);
+                      }
+                      if (mounted) {
+                        setState(() {
+                          _isReenriching = false;
+                          final confidence = result['enrichment_confidence'] as String?;
+                          _lowConfidence = confidence == 'low';
+                        });
+                      }
+                    } on UnauthorizedException { rethrow; } catch (_) {
+                      setSheetState(() => isSubmitting = false);
+                      if (mounted) { setState(() { _isReenriching = false; _enrichError = 'Re-research failed. Please try again.'; }); }
+                    }
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    industryCtrl.dispose();
+    locationCtrl.dispose();
+    websiteCtrl.dispose();
   }
 
   Future<void> _generateBriefing(String companyId, String? notes) async {
@@ -305,7 +418,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                             ],
                           ),
 
-                          if (_isEnriching) ...[
+                          if (_isEnriching || _isReenriching) ...[
                             const SizedBox(height: 16),
                             Row(children: [
                               SkeletonLoader(width: 110, height: 13, borderRadius: BorderRadius.circular(4)),
@@ -321,6 +434,31 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                           ] else if (_enrichError != null) ...[
                             const SizedBox(height: 12),
                             _buildInfoBanner(_enrichError!, isError: true),
+                          ] else if (company != null && company.enrichedAt != null) ...[
+                            const SizedBox(height: 14),
+                            if (_lowConfidence == true) ...[
+                              _buildInfoBanner('AI could not confirm this company — details may be wrong. Add more context to fix this.', isWarning: true),
+                              const SizedBox(height: 10),
+                            ],
+                            GestureDetector(
+                              onTap: () => _showCorrectCompanySheet(company),
+                              behavior: HitTestBehavior.opaque,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: _c.isDark ? Colors.white : _c.accent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.tune_rounded, size: 13, color: _c.isDark ? _c.accent : Colors.white),
+                                    const SizedBox(width: 5),
+                                    Text('Not the right company?', style: context.theme.typography.xs.copyWith(color: _c.isDark ? _c.accent : Colors.white, fontWeight: FontWeight.w500)),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
 
                           if ((headquarters.isNotEmpty || employeeCount.isNotEmpty) && !_isEnriching && _enrichError == null || desc.isNotEmpty) ...[
@@ -844,16 +982,17 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
     ];
   }
 
-  Widget _buildInfoBanner(String message, {bool isError = false}) {
+  Widget _buildInfoBanner(String message, {bool isError = false, bool isWarning = false}) {
+    final color = isError ? _c.destructive : isWarning ? const Color(0xFFB45309) : _c.accent;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: (isError ? _c.destructive : _c.accent).withValues(alpha: 0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: (isError ? _c.destructive : _c.accent).withValues(alpha: 0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(children: [
-        Icon(isError ? Icons.error_outline : Icons.info_outline, size: 14, color: isError ? _c.destructive : _c.accent),
+        Icon(isError ? Icons.error_outline : isWarning ? Icons.warning_amber_rounded : Icons.info_outline, size: 14, color: color),
         const SizedBox(width: 8),
         Expanded(child: Text(message, maxLines: 3, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(color: isError ? _c.destructive : context.theme.colors.mutedForeground, height: 1.4))),
       ]),

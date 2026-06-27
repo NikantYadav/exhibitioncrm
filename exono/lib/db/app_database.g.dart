@@ -7699,6 +7699,527 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
   }
 }
 
+class $TargetCompanyMetTableTable extends TargetCompanyMetTable
+    with TableInfo<$TargetCompanyMetTableTable, TargetCompanyMetTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TargetCompanyMetTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _eventIdMeta = const VerificationMeta(
+    'eventId',
+  );
+  @override
+  late final GeneratedColumn<String> eventId = GeneratedColumn<String>(
+    'event_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetIdMeta = const VerificationMeta(
+    'targetId',
+  );
+  @override
+  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
+    'target_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _metMeta = const VerificationMeta('met');
+  @override
+  late final GeneratedColumn<bool> met = GeneratedColumn<bool>(
+    'met',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("met" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    eventId,
+    targetId,
+    met,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'target_company_met';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TargetCompanyMetTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    }
+    if (data.containsKey('event_id')) {
+      context.handle(
+        _eventIdMeta,
+        eventId.isAcceptableOrUnknown(data['event_id']!, _eventIdMeta),
+      );
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(
+        _targetIdMeta,
+        targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta),
+      );
+    }
+    if (data.containsKey('met')) {
+      context.handle(
+        _metMeta,
+        met.isAcceptableOrUnknown(data['met']!, _metMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TargetCompanyMetTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TargetCompanyMetTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      ),
+      eventId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}event_id'],
+      ),
+      targetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_id'],
+      ),
+      met: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}met'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $TargetCompanyMetTableTable createAlias(String alias) {
+    return $TargetCompanyMetTableTable(attachedDatabase, alias);
+  }
+}
+
+class TargetCompanyMetTableData extends DataClass
+    implements Insertable<TargetCompanyMetTableData> {
+  final String id;
+  final String? userId;
+  final String? eventId;
+  final String? targetId;
+  final bool met;
+  final DateTime? createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const TargetCompanyMetTableData({
+    required this.id,
+    this.userId,
+    this.eventId,
+    this.targetId,
+    required this.met,
+    this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || userId != null) {
+      map['user_id'] = Variable<String>(userId);
+    }
+    if (!nullToAbsent || eventId != null) {
+      map['event_id'] = Variable<String>(eventId);
+    }
+    if (!nullToAbsent || targetId != null) {
+      map['target_id'] = Variable<String>(targetId);
+    }
+    map['met'] = Variable<bool>(met);
+    if (!nullToAbsent || createdAt != null) {
+      map['created_at'] = Variable<DateTime>(createdAt);
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  TargetCompanyMetTableCompanion toCompanion(bool nullToAbsent) {
+    return TargetCompanyMetTableCompanion(
+      id: Value(id),
+      userId: userId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userId),
+      eventId: eventId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(eventId),
+      targetId: targetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetId),
+      met: Value(met),
+      createdAt: createdAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory TargetCompanyMetTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TargetCompanyMetTableData(
+      id: serializer.fromJson<String>(json['id']),
+      userId: serializer.fromJson<String?>(json['userId']),
+      eventId: serializer.fromJson<String?>(json['eventId']),
+      targetId: serializer.fromJson<String?>(json['targetId']),
+      met: serializer.fromJson<bool>(json['met']),
+      createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'userId': serializer.toJson<String?>(userId),
+      'eventId': serializer.toJson<String?>(eventId),
+      'targetId': serializer.toJson<String?>(targetId),
+      'met': serializer.toJson<bool>(met),
+      'createdAt': serializer.toJson<DateTime?>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  TargetCompanyMetTableData copyWith({
+    String? id,
+    Value<String?> userId = const Value.absent(),
+    Value<String?> eventId = const Value.absent(),
+    Value<String?> targetId = const Value.absent(),
+    bool? met,
+    Value<DateTime?> createdAt = const Value.absent(),
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => TargetCompanyMetTableData(
+    id: id ?? this.id,
+    userId: userId.present ? userId.value : this.userId,
+    eventId: eventId.present ? eventId.value : this.eventId,
+    targetId: targetId.present ? targetId.value : this.targetId,
+    met: met ?? this.met,
+    createdAt: createdAt.present ? createdAt.value : this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  TargetCompanyMetTableData copyWithCompanion(
+    TargetCompanyMetTableCompanion data,
+  ) {
+    return TargetCompanyMetTableData(
+      id: data.id.present ? data.id.value : this.id,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      eventId: data.eventId.present ? data.eventId.value : this.eventId,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      met: data.met.present ? data.met.value : this.met,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TargetCompanyMetTableData(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('eventId: $eventId, ')
+          ..write('targetId: $targetId, ')
+          ..write('met: $met, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    eventId,
+    targetId,
+    met,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TargetCompanyMetTableData &&
+          other.id == this.id &&
+          other.userId == this.userId &&
+          other.eventId == this.eventId &&
+          other.targetId == this.targetId &&
+          other.met == this.met &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class TargetCompanyMetTableCompanion
+    extends UpdateCompanion<TargetCompanyMetTableData> {
+  final Value<String> id;
+  final Value<String?> userId;
+  final Value<String?> eventId;
+  final Value<String?> targetId;
+  final Value<bool> met;
+  final Value<DateTime?> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const TargetCompanyMetTableCompanion({
+    this.id = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.eventId = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.met = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TargetCompanyMetTableCompanion.insert({
+    required String id,
+    this.userId = const Value.absent(),
+    this.eventId = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.met = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       updatedAt = Value(updatedAt);
+  static Insertable<TargetCompanyMetTableData> custom({
+    Expression<String>? id,
+    Expression<String>? userId,
+    Expression<String>? eventId,
+    Expression<String>? targetId,
+    Expression<bool>? met,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (userId != null) 'user_id': userId,
+      if (eventId != null) 'event_id': eventId,
+      if (targetId != null) 'target_id': targetId,
+      if (met != null) 'met': met,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TargetCompanyMetTableCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? userId,
+    Value<String?>? eventId,
+    Value<String?>? targetId,
+    Value<bool>? met,
+    Value<DateTime?>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return TargetCompanyMetTableCompanion(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      eventId: eventId ?? this.eventId,
+      targetId: targetId ?? this.targetId,
+      met: met ?? this.met,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (eventId.present) {
+      map['event_id'] = Variable<String>(eventId.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<String>(targetId.value);
+    }
+    if (met.present) {
+      map['met'] = Variable<bool>(met.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TargetCompanyMetTableCompanion(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('eventId: $eventId, ')
+          ..write('targetId: $targetId, ')
+          ..write('met: $met, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SyncStateTableTable extends SyncStateTable
     with TableInfo<$SyncStateTableTable, SyncStateTableData> {
   @override
@@ -7948,6 +8469,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $InteractionsTableTable(this);
   late final $CompaniesTableTable companiesTable = $CompaniesTableTable(this);
   late final $FollowUpsTableTable followUpsTable = $FollowUpsTableTable(this);
+  late final $TargetCompanyMetTableTable targetCompanyMetTable =
+      $TargetCompanyMetTableTable(this);
   late final $SyncStateTableTable syncStateTable = $SyncStateTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -7964,6 +8487,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     interactionsTable,
     companiesTable,
     followUpsTable,
+    targetCompanyMetTable,
     syncStateTable,
   ];
 }
@@ -11611,6 +12135,282 @@ typedef $$FollowUpsTableTableProcessedTableManager =
       FollowUpsTableData,
       PrefetchHooks Function()
     >;
+typedef $$TargetCompanyMetTableTableCreateCompanionBuilder =
+    TargetCompanyMetTableCompanion Function({
+      required String id,
+      Value<String?> userId,
+      Value<String?> eventId,
+      Value<String?> targetId,
+      Value<bool> met,
+      Value<DateTime?> createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$TargetCompanyMetTableTableUpdateCompanionBuilder =
+    TargetCompanyMetTableCompanion Function({
+      Value<String> id,
+      Value<String?> userId,
+      Value<String?> eventId,
+      Value<String?> targetId,
+      Value<bool> met,
+      Value<DateTime?> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$TargetCompanyMetTableTableFilterComposer
+    extends Composer<_$AppDatabase, $TargetCompanyMetTableTable> {
+  $$TargetCompanyMetTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get eventId => $composableBuilder(
+    column: $table.eventId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get met => $composableBuilder(
+    column: $table.met,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TargetCompanyMetTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $TargetCompanyMetTableTable> {
+  $$TargetCompanyMetTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get eventId => $composableBuilder(
+    column: $table.eventId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get met => $composableBuilder(
+    column: $table.met,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TargetCompanyMetTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TargetCompanyMetTableTable> {
+  $$TargetCompanyMetTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get eventId =>
+      $composableBuilder(column: $table.eventId, builder: (column) => column);
+
+  GeneratedColumn<String> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+
+  GeneratedColumn<bool> get met =>
+      $composableBuilder(column: $table.met, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$TargetCompanyMetTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TargetCompanyMetTableTable,
+          TargetCompanyMetTableData,
+          $$TargetCompanyMetTableTableFilterComposer,
+          $$TargetCompanyMetTableTableOrderingComposer,
+          $$TargetCompanyMetTableTableAnnotationComposer,
+          $$TargetCompanyMetTableTableCreateCompanionBuilder,
+          $$TargetCompanyMetTableTableUpdateCompanionBuilder,
+          (
+            TargetCompanyMetTableData,
+            BaseReferences<
+              _$AppDatabase,
+              $TargetCompanyMetTableTable,
+              TargetCompanyMetTableData
+            >,
+          ),
+          TargetCompanyMetTableData,
+          PrefetchHooks Function()
+        > {
+  $$TargetCompanyMetTableTableTableManager(
+    _$AppDatabase db,
+    $TargetCompanyMetTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TargetCompanyMetTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$TargetCompanyMetTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$TargetCompanyMetTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> userId = const Value.absent(),
+                Value<String?> eventId = const Value.absent(),
+                Value<String?> targetId = const Value.absent(),
+                Value<bool> met = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TargetCompanyMetTableCompanion(
+                id: id,
+                userId: userId,
+                eventId: eventId,
+                targetId: targetId,
+                met: met,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> userId = const Value.absent(),
+                Value<String?> eventId = const Value.absent(),
+                Value<String?> targetId = const Value.absent(),
+                Value<bool> met = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TargetCompanyMetTableCompanion.insert(
+                id: id,
+                userId: userId,
+                eventId: eventId,
+                targetId: targetId,
+                met: met,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TargetCompanyMetTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TargetCompanyMetTableTable,
+      TargetCompanyMetTableData,
+      $$TargetCompanyMetTableTableFilterComposer,
+      $$TargetCompanyMetTableTableOrderingComposer,
+      $$TargetCompanyMetTableTableAnnotationComposer,
+      $$TargetCompanyMetTableTableCreateCompanionBuilder,
+      $$TargetCompanyMetTableTableUpdateCompanionBuilder,
+      (
+        TargetCompanyMetTableData,
+        BaseReferences<
+          _$AppDatabase,
+          $TargetCompanyMetTableTable,
+          TargetCompanyMetTableData
+        >,
+      ),
+      TargetCompanyMetTableData,
+      PrefetchHooks Function()
+    >;
 typedef $$SyncStateTableTableCreateCompanionBuilder =
     SyncStateTableCompanion Function({
       required String tableName_,
@@ -11788,6 +12588,8 @@ class $AppDatabaseManager {
       $$CompaniesTableTableTableManager(_db, _db.companiesTable);
   $$FollowUpsTableTableTableManager get followUpsTable =>
       $$FollowUpsTableTableTableManager(_db, _db.followUpsTable);
+  $$TargetCompanyMetTableTableTableManager get targetCompanyMetTable =>
+      $$TargetCompanyMetTableTableTableManager(_db, _db.targetCompanyMetTable);
   $$SyncStateTableTableTableManager get syncStateTable =>
       $$SyncStateTableTableTableManager(_db, _db.syncStateTable);
 }

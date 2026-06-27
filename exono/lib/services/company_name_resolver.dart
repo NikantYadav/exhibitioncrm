@@ -23,9 +23,22 @@ class CompanyNameResolver {
   static final Map<String, String> _cache = {};
   static final Map<String, Future<String?>> _inFlight = {};
 
+  // Notifier incremented whenever any company name is updated, so CompanyName
+  // widgets subscribed to a specific id can re-read the cache and rebuild.
+  static final ValueNotifier<Map<String, String>> _updates =
+      ValueNotifier(<String, String>{});
+
   /// Returns the cached name for [companyId] if already resolved, else null.
   static String? cached(String? companyId) =>
       companyId == null ? null : _cache[companyId];
+
+  /// Writes [name] into the cache for [companyId] and notifies all listening
+  /// [CompanyName] widgets to rebuild. Call this after enrichment updates a
+  /// company's name so tiles on other screens update without a reload.
+  static void update(String companyId, String name) {
+    _cache[companyId] = name;
+    _updates.value = Map.of(_cache);
+  }
 
   /// Fetches the company from the API, persists it locally, and caches its
   /// name. Returns null on failure (e.g. offline) so callers can fall back.
@@ -40,7 +53,7 @@ class CompanyNameResolver {
         await repo?.upsertOne(data);
         final name = data['name'] as String?;
         if (name != null && name.isNotEmpty) {
-          _cache[companyId] = name;
+          update(companyId, name);
         }
         return name;
       } catch (_) {
@@ -82,6 +95,7 @@ class _CompanyNameState extends State<CompanyName> {
   void initState() {
     super.initState();
     _name = CompanyNameResolver.cached(widget.companyId) ?? widget.fallback;
+    CompanyNameResolver._updates.addListener(_onUpdate);
     _resolve();
   }
 
@@ -91,6 +105,19 @@ class _CompanyNameState extends State<CompanyName> {
     if (oldWidget.companyId != widget.companyId) {
       _name = CompanyNameResolver.cached(widget.companyId) ?? widget.fallback;
       _resolve();
+    }
+  }
+
+  @override
+  void dispose() {
+    CompanyNameResolver._updates.removeListener(_onUpdate);
+    super.dispose();
+  }
+
+  void _onUpdate() {
+    final latest = CompanyNameResolver.cached(widget.companyId);
+    if (latest != null && latest != _name && mounted) {
+      setState(() => _name = latest);
     }
   }
 

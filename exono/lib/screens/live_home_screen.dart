@@ -20,6 +20,9 @@ import '../widgets/app_filter_row.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
+import '../services/company_name_resolver.dart';
+import '../widgets/add_target_company_sheet.dart';
+import '../widgets/create_company_sheet.dart';
 import 'app_shell.dart';
 import 'target_company_prep_screen.dart';
 import 'log_interaction_screen.dart';
@@ -368,144 +371,19 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   // ── Add target company (live) ──────────────────────────────────────────────
 
   Future<void> _showAddCompanyDialog(Event event, LiveEventProvider lep) async {
-    String searchQuery = '';
-    List<Map<String, dynamic>> companies = [];
-    bool isSearching = true;
-    final searchCtrl = TextEditingController();
-    void Function(VoidCallback)? applyState;
-
-    // Kick off the initial load BEFORE opening the sheet — never from inside
-    // build(). Starting a setState-triggering async op during the first frame
-    // of the StatefulBuilder (combined with autofocus opening the keyboard)
-    // triggers a `deactivateChild` assertion. We stash the setter once the
-    // sheet builds and apply results through it only if still mounted.
-    ApiService.getCompanies(query: '').then((results) {
-      results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
-      companies = results;
-      isSearching = false;
-      applyState?.call(() {});
-    }).catchError((_) {
-      isSearching = false;
-      applyState?.call(() {});
-    });
-
     await showAppSheet(
       context: context,
-      builder: (sheetCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            // Expose this StatefulBuilder's setState so async callbacks can
-            // refresh it. Guard on sheetCtx.mounted so a callback arriving
-            // after the sheet is popped is a no-op.
-            applyState = (fn) {
-              if (sheetCtx.mounted) setModalState(fn);
-            };
-            void safeSet(VoidCallback fn) {
-              if (sheetCtx.mounted) setModalState(fn);
-            }
-            // Cap height to the space left above the keyboard so the inner
-            // Column + Expanded list never overflows when the keyboard opens.
-            final mq = MediaQuery.of(ctx);
-            final maxSheetHeight = mq.size.height - mq.viewInsets.bottom - mq.padding.top - 24;
-            return SafeArea(
-              top: false,
-              child: SizedBox(
-                height: (mq.size.height * 0.7).clamp(0.0, maxSheetHeight),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Add Target Company', style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
-                          const SizedBox(height: 16),
-                          AppInput(
-                            controller: searchCtrl,
-                            autofocus: true,
-                            hint: 'Search companies...',
-                            prefixIcon: Icon(Icons.search, color: _c.accent),
-                            onChanged: (val) async {
-                              setModalState(() { searchQuery = val; isSearching = true; });
-                              try {
-                                final results = await ApiService.getCompanies(query: val);
-                                results.sort((a, b) => (a['name'] as String? ?? '').toLowerCase().compareTo((b['name'] as String? ?? '').toLowerCase()));
-                                safeSet(() { companies = results; isSearching = false; });
-                              } on UnauthorizedException { rethrow; } catch (_) {
-                                safeSet(() => isSearching = false);
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: isSearching
-                          ? const Center(child: FCircularProgress())
-                          : companies.isEmpty && searchQuery.isEmpty
-                              ? Center(child: Text('Search for a company above', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)))
-                              : companies.isEmpty
-                                  ? Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          Navigator.of(sheetCtx).pop();
-                                          _showCreateCompanyDialog(event, lep, searchQuery);
-                                        },
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
-                                          child: Row(children: [
-                                            Icon(Icons.add_circle_outline, color: _c.accent, size: 22),
-                                            const SizedBox(width: 12),
-                                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                              Text('Create "$searchQuery"', style: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w500)),
-                                              Text('No match found — add as new company', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
-                                            ])),
-                                          ]),
-                                        ),
-                                      ),
-                                    )
-                                  : ListView.builder(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      itemCount: companies.length,
-                                      itemBuilder: (_, i) {
-                                        final co = companies[i];
-                                        final coName = co['name'] as String;
-                                        final initials = coName.length >= 2 ? coName.substring(0, 2).toUpperCase() : coName.toUpperCase();
-                                        return GestureDetector(
-                                          onTap: () {
-                                            Navigator.of(sheetCtx).pop();
-                                            _showBoothInputDialog(event, lep, co);
-                                          },
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(vertical: 12),
-                                            child: Row(children: [
-                                              AppAvatar(initials: initials, size: 40),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                                  Text(coName, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w500, color: context.theme.colors.foreground)),
-                                                  if (co['industry'] != null)
-                                                    Text(co['industry'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
-                                                ]),
-                                              ),
-                                              Icon(Icons.add_circle_outline, color: _c.accent, size: 22),
-                                            ]),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (sheetCtx) => AddTargetCompanySheet(
+        onCompanySelected: (co) {
+          Navigator.of(sheetCtx).pop();
+          _showBoothInputDialog(event, lep, co);
+        },
+        onCreatePressed: (query) {
+          Navigator.of(sheetCtx).pop();
+          _showCreateCompanyDialog(event, lep, query);
+        },
+      ),
     );
-    applyState = null;
-    searchCtrl.dispose();
   }
 
   Future<void> _showBoothInputDialog(Event event, LiveEventProvider lep, Map<String, dynamic> company) async {
@@ -568,52 +446,20 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   }
 
   Future<void> _showCreateCompanyDialog(Event event, LiveEventProvider lep, String initialName) async {
-    final nameCtrl = TextEditingController(text: initialName);
-    final industryCtrl = TextEditingController();
-
+    Map<String, dynamic>? created;
     await showAppSheet(
       context: context,
-      builder: (sheetCtx) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(16, 20, 16, MediaQuery.of(sheetCtx).viewInsets.bottom + 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('New Company', style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
-              const SizedBox(height: 20),
-              AppInput(controller: nameCtrl, autofocus: true, label: 'Company Name'),
-              const SizedBox(height: 12),
-              AppInput(controller: industryCtrl, label: 'Industry (optional)'),
-              const SizedBox(height: 20),
-              AppButton(
-                label: 'CONTINUE',
-                fullWidth: true,
-                variant: ButtonVariant.primary,
-                onPressed: () async {
-                  final name = nameCtrl.text.trim();
-                  if (name.isEmpty) return;
-                  final industry = industryCtrl.text.trim();
-                  try {
-                    final companyData = <String, dynamic>{'name': name};
-                    if (industry.isNotEmpty) { companyData['industry'] = industry; }
-                    final created = await ApiService.createCompany(companyData);
-                    if (!sheetCtx.mounted) return;
-                    Navigator.of(sheetCtx).pop();
-                    await _showBoothInputDialog(event, lep, created);
-                  } on UnauthorizedException { rethrow; } catch (_) {
-                    _toast('Failed to add company.');
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
+      builder: (sheetCtx) => CreateCompanySheet(
+        initialName: initialName,
+        onCreated: (data) {
+          created = data;
+          Navigator.of(sheetCtx).pop();
+        },
       ),
     );
-    nameCtrl.dispose();
-    industryCtrl.dispose();
+    if (created != null && mounted) {
+      await _showBoothInputDialog(event, lep, created!);
+    }
   }
 
   Future<void> _addCompanyAsTarget(Event event, LiveEventProvider lep, Map<String, dynamic> company, String? booth) async {
@@ -1547,6 +1393,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
 
   Widget _buildCompanyCard(Map<String, dynamic> target, Event event, LiveEventProvider lep) {
     final companyName = target['company_name'] as String? ?? '';
+    final companyId = target['company_id'] as String?;
     final booth = target['booth'] as String? ?? '';
     final priority = target['priority'] as String? ?? 'medium';
     final isMet = _isTargetCompanyMet(target);
@@ -1580,7 +1427,9 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(companyName,
+                CompanyName(
+                    companyId: companyId,
+                    fallback: companyName,
                     style: context.theme.typography.sm.copyWith(
                         fontWeight: FontWeight.w700,
                         color: isMet ? context.theme.colors.mutedForeground : context.theme.colors.foreground,

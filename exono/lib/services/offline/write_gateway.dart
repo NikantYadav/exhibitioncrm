@@ -1,6 +1,9 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../db/app_database.dart';
 import '../api_service.dart';
 import 'connectivity_service.dart';
 import 'offline_queue.dart';
@@ -13,6 +16,15 @@ class WriteGateway {
   WriteGateway._();
 
   bool get isOnline => ConnectivityService().isOnline;
+
+  // Set once at login (same pattern as LiveEventProvider.init).
+  AppDatabase? _db;
+  String? _userId;
+
+  void init(AppDatabase db, String userId) {
+    _db = db;
+    _userId = userId;
+  }
 
   // ── Capture ───────────────────────────────────────────────────────────────
 
@@ -176,6 +188,18 @@ class WriteGateway {
       return WriteResult(data: result);
     }
 
+    // Write-through: update the local drift row immediately so the value
+    // survives a cold restart before sync.
+    final db = _db;
+    if (db != null) {
+      final now = DateTime.now().toUtc();
+      await (db.update(db.eventGoalsTable)..where((t) => t.id.equals(goalId)))
+          .write(EventGoalsTableCompanion(
+        current: data.containsKey('current') ? Value(data['current'] as int) : const Value.absent(),
+        updatedAt: Value(now),
+      ));
+    }
+
     final opId = await OfflineQueue.enqueue(
       opType: 'update_event_goal',
       payload: {'eventId': eventId, 'goalId': goalId, ...data},
@@ -191,6 +215,21 @@ class WriteGateway {
       return const WriteResult();
     }
 
+    // Write-through: update contact_events locally so status survives a restart.
+    final db = _db;
+    if (db != null) {
+      final now = DateTime.now().toUtc();
+      await (db.update(db.contactEventsTable)
+            ..where((t) =>
+                t.contactId.equals(contactId) &
+                t.eventId.equals(eventId) &
+                t.deletedAt.isNull()))
+          .write(ContactEventsTableCompanion(
+        status: Value(status),
+        updatedAt: Value(now),
+      ));
+    }
+
     final opId = await OfflineQueue.enqueue(
       opType: 'update_target_contact_status',
       payload: {'eventId': eventId, 'contactId': contactId, 'status': status},
@@ -204,6 +243,33 @@ class WriteGateway {
     if (isOnline) {
       await ApiService.updateTargetCompanyMet(eventId, targetId, met);
       return const WriteResult();
+    }
+
+    // Write-through: upsert into target_company_met locally. The server uses
+    // (user_id, target_id) as the unique key; locally we need a stable uuid id.
+    // Look for an existing row first; if none, generate a new id.
+    final db = _db;
+    final userId = _userId;
+    if (db != null && userId != null) {
+      final now = DateTime.now().toUtc();
+      final existing = await (db.select(db.targetCompanyMetTable)
+            ..where((t) =>
+                t.userId.equals(userId) &
+                t.targetId.equals(targetId) &
+                t.deletedAt.isNull()))
+          .getSingleOrNull();
+      final rowId = existing?.id ?? const Uuid().v4();
+      await db.into(db.targetCompanyMetTable).insertOnConflictUpdate(
+            TargetCompanyMetTableCompanion(
+              id: Value(rowId),
+              userId: Value(userId),
+              eventId: Value(eventId),
+              targetId: Value(targetId),
+              met: Value(met),
+              createdAt: Value(existing?.createdAt ?? now),
+              updatedAt: Value(now),
+            ),
+          );
     }
 
     final opId = await OfflineQueue.enqueue(

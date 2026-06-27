@@ -1,10 +1,12 @@
 import 'dart:async';
-import 'package:drift/drift.dart' show OrderingMode, OrderingTerm;
+import 'dart:convert';
+import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../db/app_database.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
+import '../services/offline/connectivity_service.dart';
 
 /// Global singleton that tracks whether an event is currently live.
 ///
@@ -20,7 +22,6 @@ import '../services/api_service.dart';
 class LiveEventProvider extends ChangeNotifier {
   Event? _liveEvent;
   Event? _nextEvent;
-  Map<String, dynamic>? _liveStats;
   List<Map<String, dynamic>> _liveGoals = [];
   List<Map<String, dynamic>> _liveTargets = [];
   List<Map<String, dynamic>> _targetContacts = [];
@@ -31,6 +32,7 @@ class LiveEventProvider extends ChangeNotifier {
 
   // Idle gate: a drift watch on `events` decides whether anything is ongoing.
   String? _userId;
+  AppDatabase? _db;
   StreamSubscription<List<EventsTableData>>? _ongoingWatch;
   bool _hasOngoing = false;
   // Latest events snapshot + a clock ticker. The "ongoing" condition is
@@ -65,7 +67,6 @@ class LiveEventProvider extends ChangeNotifier {
 
   Event? get liveEvent => _liveEvent;
   Event? get nextEvent => _nextEvent;
-  Map<String, dynamic>? get liveStats => _liveStats;
   List<Map<String, dynamic>> get liveGoals => List.unmodifiable(_liveGoals);
   List<Map<String, dynamic>> get liveTargets => List.unmodifiable(_liveTargets);
   List<Map<String, dynamic>> get targetContacts => List.unmodifiable(_targetContacts);
@@ -81,6 +82,7 @@ class LiveEventProvider extends ChangeNotifier {
   /// an event is ongoing; only then does any network/Realtime work happen.
   Future<void> init(AppDatabase db, String userId) async {
     _userId = userId;
+    _db = db;
     _ongoingWatch?.cancel();
     _ongoingWatch = _watchEvents(db).listen((events) {
       _eventsSnapshot = events;
@@ -235,6 +237,16 @@ class LiveEventProvider extends ChangeNotifier {
     _isLoadingLive = true;
     if (!_initialized) notifyListeners();
 
+    // Offline (or a cold launch with no network): the /live-session endpoint is
+    // unreachable, so assemble the live session from the locally-synced drift
+    // tables instead of clearing state and bouncing home. The events table
+    // already tells us which event is ongoing (that drives _hasOngoing), so we
+    // can rebuild the same aggregate the screen reads.
+    if (!ConnectivityService().isOnline) {
+      await _refreshFromLocal();
+      return;
+    }
+
     try {
       final session = await ApiService.getLiveSession();
       final event = session?['event'] as Event?;
@@ -243,7 +255,6 @@ class LiveEventProvider extends ChangeNotifier {
         final liveData = session!['liveData'] as Map<String, dynamic>;
         final captures = session['captures'] as List<Map<String, dynamic>>;
         _liveEvent = event;
-        _liveStats = liveData['stats'] as Map<String, dynamic>?;
         _liveGoals = _mergePendingGoals(
           List<Map<String, dynamic>>.from(liveData['goals'] as List? ?? []),
         );
@@ -253,7 +264,7 @@ class LiveEventProvider extends ChangeNotifier {
         _nextEvent = null;
       } else {
         _liveEvent = null;
-        _liveStats = null;
+
         _liveGoals = [];
         _liveTargets = [];
         _targetContacts = [];
@@ -261,13 +272,183 @@ class LiveEventProvider extends ChangeNotifier {
         _nextEvent = session?['nextEvent'] as Event?;
       }
     } catch (_) {
+      // The request failed despite reporting online (flaky connection, server
+      // error). If an event is ongoing per the local events table, fall back to
+      // the local aggregate rather than clearing the live floor.
+      if (_hasOngoing) {
+        await _refreshFromLocal();
+        return;
+      }
       _liveEvent = null;
-      _liveStats = null;
       _liveGoals = [];
       _liveTargets = [];
       _targetContacts = [];
       _scannedContacts = [];
       _nextEvent = null;
+    }
+
+    _isLoadingLive = false;
+    _initialized = true;
+    notifyListeners();
+  }
+
+  /// Builds the live session from the local drift tables — the offline / failed
+  /// -request path. Mirrors the shape the backend /live-session returns (see
+  /// events.ts) so [LiveHomeScreen] reads it identically. Per-user company
+  /// `met` state lives only on the server (target_company_met), so offline
+  /// targets surface as not-met; the screen's local overrides still apply.
+  Future<void> _refreshFromLocal() async {
+    final db = _db;
+    if (db == null) {
+      _isLoadingLive = false;
+      _initialized = true;
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final ongoing = _eventsSnapshot
+          .where((e) => _isOngoing(e, _eventsSnapshot))
+          .toList();
+      if (ongoing.isEmpty) {
+        _liveEvent = null;
+
+        _liveGoals = [];
+        _liveTargets = [];
+        _targetContacts = [];
+        _scannedContacts = [];
+        _nextEvent = null;
+        _isLoadingLive = false;
+        _initialized = true;
+        notifyListeners();
+        return;
+      }
+
+      final eventRow = ongoing.first;
+      final eventId = eventRow.id;
+      _liveEvent = Event.fromDrift(eventRow);
+
+      // Goals.
+      final goalRows = await (db.select(db.eventGoalsTable)
+            ..where((t) => t.eventId.equals(eventId) & t.deletedAt.isNull()))
+          .get();
+      _liveGoals = _mergePendingGoals([
+        for (final g in goalRows)
+          {'id': g.id, 'label': g.label, 'current': g.current, 'total': g.total},
+      ]);
+
+      // Per-user "met" flags for this event's company targets (synced table).
+      final metRows = await (db.select(db.targetCompanyMetTable)
+            ..where((t) => t.eventId.equals(eventId) & t.deletedAt.isNull()))
+          .get();
+      final metByTarget = {
+        for (final r in metRows)
+          if (r.targetId != null) r.targetId!: r.met,
+      };
+
+      // Target companies (joined with company name).
+      final targetJoin = await (db.select(db.targetCompaniesTable).join([
+        leftOuterJoin(db.companiesTable,
+            db.companiesTable.id.equalsExp(db.targetCompaniesTable.companyId)),
+      ])
+            ..where(db.targetCompaniesTable.eventId.equals(eventId) &
+                db.targetCompaniesTable.deletedAt.isNull()))
+          .get();
+      _liveTargets = [
+        for (final row in targetJoin)
+          () {
+            final t = row.readTable(db.targetCompaniesTable);
+            final co = row.readTableOrNull(db.companiesTable);
+            return <String, dynamic>{
+              'id': t.id,
+              'company_id': t.companyId,
+              'company_name': co?.name ?? '',
+              'booth': t.boothLocation ?? '',
+              'status': t.status,
+              'priority': t.priority,
+              'talking_points': t.talkingPoints ?? '',
+              'notes': t.notes ?? '',
+              'use_notes_for_briefing': t.useNotesForBriefing,
+              'met': metByTarget[t.id] ?? false,
+            };
+          }(),
+      ];
+
+      // Target contacts (contact_events joined with contact + company).
+      final contactJoin = await (db.select(db.contactEventsTable).join([
+        leftOuterJoin(db.contactsTable,
+            db.contactsTable.id.equalsExp(db.contactEventsTable.contactId)),
+        leftOuterJoin(db.companiesTable,
+            db.companiesTable.id.equalsExp(db.contactsTable.companyId)),
+      ])
+            ..where(db.contactEventsTable.eventId.equals(eventId) &
+                db.contactEventsTable.deletedAt.isNull()))
+          .get();
+      _targetContacts = [
+        for (final row in contactJoin)
+          if (row.readTableOrNull(db.contactsTable)?.deletedAt == null)
+            () {
+              final ce = row.readTable(db.contactEventsTable);
+              final c = row.readTableOrNull(db.contactsTable);
+              final co = row.readTableOrNull(db.companiesTable);
+              return <String, dynamic>{
+                'id': ce.id,
+                'contact_id': ce.contactId,
+                'name': c != null
+                    ? '${c.firstName} ${c.lastName ?? ''}'.trim()
+                    : '',
+                'job_title': c?.jobTitle ?? '',
+                'company_name': co?.name ?? '',
+                'status': ce.status,
+                'notes': ce.notes ?? '',
+                'talking_points': ce.talkingPoints ?? '',
+              };
+            }(),
+      ];
+
+      // Scanned captures (completed, with a linked contact), joined with
+      // contact + company — mirrors the /live-session captures shape.
+      final captureJoin = await (db.select(db.capturesTable).join([
+        leftOuterJoin(db.contactsTable,
+            db.contactsTable.id.equalsExp(db.capturesTable.contactId)),
+        leftOuterJoin(db.companiesTable,
+            db.companiesTable.id.equalsExp(db.contactsTable.companyId)),
+      ])
+            ..where(db.capturesTable.eventId.equals(eventId) &
+                db.capturesTable.deletedAt.isNull()))
+          .get();
+      _scannedContacts = [
+        for (final row in captureJoin)
+          () {
+            final cap = row.readTable(db.capturesTable);
+            final c = row.readTableOrNull(db.contactsTable);
+            final co = row.readTableOrNull(db.companiesTable);
+            return <String, dynamic>{
+              'id': cap.id,
+              'created_at': cap.createdAt?.toIso8601String(),
+              'status': cap.status,
+              'extracted_data': cap.extractedDataJson != null
+                  ? jsonDecode(cap.extractedDataJson!)
+                  : null,
+              'contact': (c == null || c.deletedAt != null)
+                  ? null
+                  : <String, dynamic>{
+                      'id': c.id,
+                      'first_name': c.firstName,
+                      'last_name': c.lastName,
+                      'job_title': c.jobTitle,
+                      'email': c.email,
+                      'phone': c.phone,
+                      'company_name': co?.name ?? '',
+                    },
+            };
+          }(),
+      ];
+
+      _nextEvent = null;
+    } catch (_) {
+      // Local read failed — leave any existing state untouched rather than
+      // wiping a working live floor.
     }
 
     _isLoadingLive = false;

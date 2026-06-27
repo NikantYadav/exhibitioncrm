@@ -594,6 +594,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                         style: context.theme.typography.lg.copyWith(
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.3,
+                          height: 1.05,
                           color: context.theme.colors.foreground,
                         ),
                       ),
@@ -677,6 +678,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                       style: context.theme.typography.lg.copyWith(
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.3,
+                        height: 1.05,
                         color: context.theme.colors.foreground,
                       ),
                     ),
