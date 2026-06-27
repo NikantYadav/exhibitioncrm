@@ -1535,20 +1535,17 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
       return q.isEmpty || name.contains(q) || company.contains(q);
     }).toList();
 
-    // Size the sheet to its content, capped at a screen fraction. forui already
-    // lifts the sheet by the keyboard inset (resizeToAvoidBottomInset), so do NOT
-    // subtract viewInsets here — doing so double-counts the keyboard and pushes
-    // the sheet up under the status bar (the bug). The cap is a screen-height
-    // ratio so it adapts across phone sizes; forui's own 92%-of-available cap
-    // further bounds it, so on a small phone with the keyboard up the sheet can
-    // never exceed the visible area — the header stays put and the Flexible list
-    // scrolls within whatever space is left. Min-sized Column + Flexible list
-    // also lets a short list shrink the sheet to fit just above the keyboard.
-    final maxSheetHeight = MediaQuery.sizeOf(context).height * 0.7;
+    // Adaptive height matching AddTargetCompanySheet: a 70%-of-screen target,
+    // clamped to the space actually available (screen minus keyboard inset minus
+    // status bar). This prevents the sheet from riding up under the status bar on
+    // small phones when the keyboard is open, while still adapting across sizes.
+    final mq = MediaQuery.of(context);
+    final maxHeight = mq.size.height - mq.viewInsets.bottom - mq.padding.top - 24;
+    final sheetHeight = (mq.size.height * 0.7).clamp(0.0, maxHeight);
     return SafeArea(
       top: false,
-      child: ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxSheetHeight),
+      child: SizedBox(
+      height: sheetHeight,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
           margin: const EdgeInsets.only(top: 10, bottom: 4),
