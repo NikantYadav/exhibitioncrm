@@ -211,7 +211,9 @@ router.post('/', async (req, res, next) => {
     const companyName = body.company_name || 'INDEPENDENT';
 
     if (!company_id) {
-      const { data: existingCompany } = await supabase
+      // Companies are an admin-managed shared resource (no INSERT policy for the
+      // user-scoped client), so find-or-create runs through supabaseAdmin.
+      const { data: existingCompany } = await supabaseAdmin
         .from('companies')
         .select('id')
         .eq('name', companyName)
@@ -220,7 +222,7 @@ router.post('/', async (req, res, next) => {
       if (existingCompany) {
         company_id = existingCompany.id;
       } else {
-        const { data: newCompany, error: insertError } = await supabase
+        const { data: newCompany, error: insertError } = await supabaseAdmin
           .from('companies')
           .insert({ name: companyName })
           .select('id')
@@ -337,7 +339,9 @@ router.patch('/:id', async (req, res, next) => {
     if (company_name !== undefined) {
       const normalizedName = (company_name as string).trim() || 'INDEPENDENT';
 
-      const { data: existingCompany } = await supabase
+      // Companies are an admin-managed shared resource (no INSERT policy for the
+      // user-scoped client), so find-or-create runs through supabaseAdmin.
+      const { data: existingCompany } = await supabaseAdmin
         .from('companies')
         .select('id')
         .ilike('name', normalizedName)
@@ -346,7 +350,7 @@ router.patch('/:id', async (req, res, next) => {
       if (existingCompany) {
         contactFields.company_id = existingCompany.id;
       } else {
-        const { data: newCompany, error: createErr } = await supabase
+        const { data: newCompany, error: createErr } = await supabaseAdmin
           .from('companies')
           .insert({ name: normalizedName })
           .select('id')

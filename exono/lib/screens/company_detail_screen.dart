@@ -11,12 +11,16 @@ import '../config/app_theme.dart';
 import '../db/app_database.dart';
 import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
+import '../services/company_name_resolver.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
+import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/app_sheet_content.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
 
@@ -33,6 +37,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
 
   // Enrichment
   bool _isEnriching = false;
+  bool _isReenriching = false;
+  bool? _lowConfidence;
   String? _enrichError;
   bool _autoEnrichTried = false;
 
@@ -40,6 +46,10 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
   bool _isGenerating = false;
   String? _briefingError;
   List<String> _talkingPointsOverride = const [];
+  final TextEditingController _briefingFocusCtrl = TextEditingController();
+  final FocusNode _briefingFocusNode = FocusNode();
+  final GlobalKey _briefingFieldKey = GlobalKey();
+  final ScrollController _bodyScrollCtrl = ScrollController();
 
   late final SyncProvider _sync;
 
@@ -47,6 +57,50 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
   void initState() {
     super.initState();
     _sync = context.read<SyncProvider>();
+    _briefingFocusNode.addListener(_onBriefingFocusChange);
+  }
+
+  void _onBriefingFocusChange() {
+    if (!_briefingFocusNode.hasFocus) return;
+    // ensureVisible measures against the full viewport (which extends behind the
+    // keyboard), so it under-scrolls. Compute the scroll manually: bring the
+    // bottom of the keyed group above the keyboard with a small gap.
+    // Wait past the keyboard slide-in so MediaQuery.viewInsets is settled.
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (!mounted || !_briefingFocusNode.hasFocus) return;
+      final ctx = _briefingFieldKey.currentContext;
+      if (ctx == null || !ctx.mounted || !_bodyScrollCtrl.hasClients) return;
+
+      final box = ctx.findRenderObject() as RenderBox?;
+      if (box == null) return;
+      final groupTop = box.localToGlobal(Offset.zero).dy;
+      final groupBottom = groupTop + box.size.height;
+
+      final screenH = MediaQuery.sizeOf(context).height;
+      final keyboardTop = screenH - MediaQuery.of(context).viewInsets.bottom;
+      const gap = 16.0;
+
+      // How far the group bottom sits below the keyboard top (positive = hidden).
+      final overflow = groupBottom - (keyboardTop - gap);
+      if (overflow <= 0) return; // already fully visible
+
+      final target = (_bodyScrollCtrl.offset + overflow)
+          .clamp(0.0, _bodyScrollCtrl.position.maxScrollExtent);
+      _bodyScrollCtrl.animateTo(
+        target,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _briefingFocusNode.removeListener(_onBriefingFocusChange);
+    _briefingFocusNode.dispose();
+    _briefingFocusCtrl.dispose();
+    _bodyScrollCtrl.dispose();
+    super.dispose();
   }
 
   // Runs on first open if not yet enriched, or if previous attempt failed.
@@ -57,9 +111,22 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
 
     setState(() { _isEnriching = true; _enrichError = null; });
     try {
-      await ApiService.enrichCompany(widget.companyId);
-      await _sync.companies.catchUp();
-      if (mounted) setState(() => _isEnriching = false);
+      final result = await ApiService.enrichCompany(widget.companyId);
+      // Persist the enriched row locally so the watchById stream re-emits and the
+      // header/name update live without a reload. Also push the resolved name to
+      // the resolver so other screens reflect the corrected name.
+      await _sync.companies.upsertOne(result);
+      final enrichedName = result['name'] as String?;
+      if (enrichedName != null && enrichedName.isNotEmpty) {
+        CompanyNameResolver.update(widget.companyId, enrichedName);
+      }
+      if (mounted) {
+        setState(() {
+          _isEnriching = false;
+          final confidence = result['enrichment_confidence'] as String?;
+          _lowConfidence = confidence == 'low';
+        });
+      }
     } on UnauthorizedException { rethrow; } catch (e) {
       if (mounted) {
         setState(() {
@@ -70,10 +137,111 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
     }
   }
 
+  Future<void> _showCorrectCompanySheet(CompaniesTableData company) async {
+    final industryCtrl = TextEditingController(text: company.industry ?? '');
+    final locationCtrl = TextEditingController(text: company.location ?? '');
+    final websiteCtrl = TextEditingController(text: company.website ?? '');
+
+    await showAppSheet(
+      context: context,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheetState) {
+          String? websiteError;
+          bool isSubmitting = false;
+
+          String? validateWebsite(String val) {
+            if (val.isEmpty) return null;
+            final uri = Uri.tryParse(val);
+            return (uri == null || !uri.hasScheme || !uri.host.contains('.'))
+                ? 'Enter a valid URL (e.g. https://samtac.ae)'
+                : null;
+          }
+
+          return AppSheetContent(
+            title: 'Correct Company Details',
+            subtitle: 'Add industry, country, or website so the AI can find the right company.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppInput(
+                  controller: industryCtrl,
+                  labelText: 'Industry (optional)',
+                  hintText: 'e.g. Boilers & Heating, Logistics',
+                ),
+                const SizedBox(height: 12),
+                AppInput(
+                  controller: locationCtrl,
+                  labelText: 'Country / City (optional)',
+                  hintText: 'e.g. UAE, Dubai',
+                ),
+                const SizedBox(height: 12),
+                AppInput(
+                  controller: websiteCtrl,
+                  labelText: 'Website (optional)',
+                  hintText: 'e.g. https://samtac.ae',
+                  keyboardType: TextInputType.url,
+                  error: websiteError,
+                  onChanged: (_) => setSheetState(() { websiteError = validateWebsite(websiteCtrl.text.trim()); }),
+                ),
+                const SizedBox(height: 20),
+                AppButton(
+                  label: 'SAVE & RE-RESEARCH',
+                  fullWidth: true,
+                  variant: ButtonVariant.primary,
+                  isLoading: isSubmitting,
+                  onPressed: () async {
+                    final we = validateWebsite(websiteCtrl.text.trim());
+                    if (we != null) { setSheetState(() => websiteError = we); return; }
+                    setSheetState(() => isSubmitting = true);
+                    final industry = industryCtrl.text.trim();
+                    final location = locationCtrl.text.trim();
+                    final website = websiteCtrl.text.trim();
+                    try {
+                      final patch = <String, dynamic>{
+                        'industry': industry.isEmpty ? null : industry,
+                        'location': location.isEmpty ? null : location,
+                        'website': website.isEmpty ? null : website,
+                      };
+                      await ApiService.patchCompany(company.id, patch);
+                      if (!sheetCtx.mounted) return;
+                      Navigator.of(sheetCtx).pop();
+                      if (!mounted) return;
+                      setState(() { _isReenriching = true; _enrichError = null; });
+                      final result = await ApiService.enrichCompany(company.id, force: true);
+                      await _sync.companies.upsertOne(result);
+                      final reenrichedName = result['name'] as String?;
+                      if (reenrichedName != null && reenrichedName.isNotEmpty) {
+                        CompanyNameResolver.update(company.id, reenrichedName);
+                      }
+                      if (mounted) {
+                        setState(() {
+                          _isReenriching = false;
+                          final confidence = result['enrichment_confidence'] as String?;
+                          _lowConfidence = confidence == 'low';
+                        });
+                      }
+                    } on UnauthorizedException { rethrow; } catch (_) {
+                      setSheetState(() => isSubmitting = false);
+                      if (mounted) { setState(() { _isReenriching = false; _enrichError = 'Re-research failed. Please try again.'; }); }
+                    }
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    industryCtrl.dispose();
+    locationCtrl.dispose();
+    websiteCtrl.dispose();
+  }
+
   Future<void> _generateBriefing() async {
     setState(() { _isGenerating = true; _briefingError = null; });
     try {
-      final points = await ApiService.generateCompanyBriefing(widget.companyId);
+      final focus = _briefingFocusCtrl.text.trim();
+      final points = await ApiService.generateCompanyBriefing(widget.companyId, focus: focus.isNotEmpty ? focus : null);
       await _sync.companies.catchUp();
       if (mounted) {
         setState(() {
@@ -279,7 +447,8 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
             : const <String>[]);
 
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
+      controller: _bodyScrollCtrl,
+      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context) + MediaQuery.of(context).viewInsets.bottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -325,22 +494,55 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                 ),
 
                 // Enrichment stat row
-                if (_isEnriching) ...[
+                if (_isEnriching || _isReenriching) ...[
                   const SizedBox(height: 14),
                   _buildEnrichingIndicator(),
                 ] else if (_enrichError != null) ...[
                   const SizedBox(height: 12),
                   _buildEnrichError(),
-                ] else if (headquarters.isNotEmpty || employeeCount.isNotEmpty || foundedYear.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 10,
-                    children: [
-                      if (headquarters.isNotEmpty) _statItem(Icons.location_on_outlined, headquarters),
-                      if (employeeCount.isNotEmpty) _statItem(Icons.people_outline_rounded, employeeCount),
+                ] else ...[
+                  if (headquarters.isNotEmpty || employeeCount.isNotEmpty || foundedYear.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 10,
+                      children: [
+                        if (headquarters.isNotEmpty) _statItem(Icons.location_on_outlined, headquarters),
+                        if (employeeCount.isNotEmpty) _statItem(Icons.people_outline_rounded, employeeCount),
+                      ],
+                    ),
+                  ],
+                  // "Not the right company?" — re-research with corrected context.
+                  // Shown once enrichment has run at least once.
+                  if (co.enrichedAt != null) ...[
+                    const SizedBox(height: 14),
+                    if (_lowConfidence == true) ...[
+                      Text(
+                        'AI could not confirm this company — details may be wrong. Add more context to fix this.',
+                        style: context.theme.typography.xs.copyWith(color: _c.accentStrong, height: 1.4),
+                      ),
+                      const SizedBox(height: 10),
                     ],
-                  ),
+                    GestureDetector(
+                      onTap: () => _showCorrectCompanySheet(co),
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _c.isDark ? Colors.white : _c.accent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.tune_rounded, size: 13, color: _c.isDark ? _c.accent : Colors.white),
+                            const SizedBox(width: 5),
+                            Text('Not the right company?', style: context.theme.typography.xs.copyWith(color: _c.isDark ? _c.accent : Colors.white, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
 
                 if (desc.isNotEmpty) ...[
@@ -440,13 +642,33 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                 ),
                 const SizedBox(height: 16),
 
-                // Generate / regenerate button
-                AppButton(
-                  label: _isGenerating ? 'GENERATING...' : (talkingPoints.isEmpty ? 'GENERATE AI BRIEFING' : 'REGENERATE'),
-                  onPressed: _isGenerating ? null : _generateBriefing,
-                  variant: ButtonVariant.primary,
-                  fullWidth: true,
-                  isLoading: _isGenerating,
+                // Focus prompt + generate button (keyed together so both scroll
+                // above the keyboard when the field is focused).
+                Column(
+                  key: _briefingFieldKey,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Optional focus prompt to steer the AI
+                    AppInput(
+                      controller: _briefingFocusCtrl,
+                      focusNode: _briefingFocusNode,
+                      hint: 'Steer the AI, e.g. their recent funding, hiring plans, pricing',
+                      maxLines: 2,
+                      minLines: 1,
+                      enabled: !_isGenerating,
+                      textCapitalization: TextCapitalization.sentences,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Generate / regenerate button
+                    AppButton(
+                      label: _isGenerating ? 'GENERATING...' : (talkingPoints.isEmpty ? 'GENERATE AI BRIEFING' : 'REGENERATE'),
+                      onPressed: _isGenerating ? null : _generateBriefing,
+                      variant: ButtonVariant.primary,
+                      fullWidth: true,
+                      isLoading: _isGenerating,
+                    ),
+                  ],
                 ),
 
                 // Error
@@ -477,8 +699,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(e.value,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                               style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5)),
                         ),
                       ],

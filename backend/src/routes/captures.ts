@@ -231,10 +231,12 @@ router.post('/', async (req, res, next) => {
         eventName = meeting_context.trim();
       }
 
-      // Check if company exists, create if not
+      // Check if company exists, create if not. Companies are an admin-managed
+      // shared resource (the `companies` table has no INSERT policy for the
+      // user-scoped client), so the find-or-create runs through supabaseAdmin.
       let companyId = null;
       if (extracted_data.company) {
-        const { data: existingCompany } = await supabase
+        const { data: existingCompany } = await supabaseAdmin
           .from('companies')
           .select('id')
           .ilike('name', extracted_data.company)
@@ -243,13 +245,17 @@ router.post('/', async (req, res, next) => {
         if (existingCompany) {
           companyId = existingCompany.id;
         } else {
-          const { data: newCompany } = await supabase
+          const { data: newCompany, error: companyError } = await supabaseAdmin
             .from('companies')
             .insert({ name: extracted_data.company })
             .select('id')
             .single();
 
-          if (newCompany) companyId = newCompany.id;
+          if (companyError || !newCompany) {
+            console.error('Failed to create company:', extracted_data.company, companyError);
+          } else {
+            companyId = newCompany.id;
+          }
         }
       }
 

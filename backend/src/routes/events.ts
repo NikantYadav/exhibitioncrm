@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { LiteLLMService } from '../services/litellm-service';
 import { TavilyService } from '../services/tavily-service';
 import { requireAuth } from '../middleware/requireAuth';
+import { supabase as supabaseAdmin } from '../config/supabase';
 import { upsertFollowUp, setEventFollowUpStatus } from '../services/followUps';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
@@ -1194,8 +1195,10 @@ router.post('/:id/targets/import', upload.single('file'), async (req: any, res, 
       }
 
       try {
-        // Find or create company
-        const { data: existing } = await supabase
+        // Find or create company. Companies are an admin-managed shared resource
+        // (no INSERT policy for the user-scoped client), so this runs through
+        // supabaseAdmin; the target insert below stays on the user client.
+        const { data: existing } = await supabaseAdmin
           .from('companies')
           .select('id')
           .ilike('name', rawName)
@@ -1206,7 +1209,7 @@ router.post('/:id/targets/import', upload.single('file'), async (req: any, res, 
         if (existing) {
           companyId = existing.id;
         } else {
-          const { data: created, error: createError } = await supabase
+          const { data: created, error: createError } = await supabaseAdmin
             .from('companies')
             .insert({ name: rawName, industry: industry || null, website: website || null, description: description || null })
             .select('id')

@@ -187,8 +187,15 @@ class AppButton extends StatelessWidget {
     if (variant == ButtonVariant.outline) {
       btn = Builder(builder: (ctx) {
         final t = ctx.theme;
-        final colors = t.colors
-            .copyWith(secondaryForeground: labelColor ?? t.colors.primary);
+        final c = AppTheme.colorsOf(ctx);
+        // forui's outline button fills with `secondary` on hover/press. Our theme
+        // sets secondary == accent (blue), which made the whole button turn blue.
+        // Override secondary to the soft accent tint so the hover/press state is a
+        // light tinted fill with blue text in both light and dark mode.
+        final colors = t.colors.copyWith(
+          secondary: c.accentSoft,
+          secondaryForeground: labelColor ?? t.colors.primary,
+        );
         return FTheme(
           data: FThemeData(colors: colors, touch: true),
           child: FButton(

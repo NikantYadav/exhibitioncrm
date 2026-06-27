@@ -209,9 +209,12 @@ router.post('/:id/briefing', async (req, res, next) => {
     if (!parsedId.success) return res.status(400).json({ error: 'Invalid company id' });
 
     const { id } = req.params;
-    const bodyParsed = z.object({ notes: z.string().trim().max(5000).optional() }).safeParse(req.body);
+    const bodyParsed = z.object({
+      notes: z.string().trim().max(5000).optional(),
+      focus: z.string().trim().max(500).optional(),
+    }).safeParse(req.body);
     if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.flatten() });
-    const { notes } = bodyParsed.data;
+    const { notes, focus } = bodyParsed.data;
 
     const rl = await checkScopedRateLimit(req.user!.id, BRIEFING_SCOPE, BRIEFING_MAX, BRIEFING_WINDOW_MS);
     if (!rl.ok) return res.status(429).json({ error: `Too many briefing requests. Try again in ${rl.retryAfterSeconds}s.` });
@@ -230,10 +233,16 @@ router.post('/:id/briefing', async (req, res, next) => {
     const headquarters = company.headquarters || '';
     const employeeCount = company.employee_count || '';
 
-    console.log(`[briefing] → running Tavily search for company: "${companyName}"`);
+    const hasFocus = !!(focus && focus.trim().length > 0);
+    console.log(`[briefing] → running Tavily search for company: "${companyName}"${hasFocus ? ` (focus: "${focus!.trim()}")` : ''}`);
     const [newsResults, overviewResults] = await Promise.all([
       TavilyService.search(`${companyName} latest news 2025`, { maxResults: 3, searchDepth: 'basic' }),
-      TavilyService.search(`${companyName}${industry ? ` ${industry}` : ''} company products services strategy`, { maxResults: 3, searchDepth: 'basic' }),
+      TavilyService.search(
+        hasFocus
+          ? `${companyName}${industry ? ` ${industry}` : ''} ${focus!.trim()}`
+          : `${companyName}${industry ? ` ${industry}` : ''} company products services strategy`,
+        { maxResults: 3, searchDepth: 'basic' },
+      ),
     ]);
     const webContext = TavilyService.formatForPrompt([...overviewResults, ...newsResults]);
 
@@ -243,6 +252,9 @@ router.post('/:id/briefing', async (req, res, next) => {
     if (employeeCount) companyContext += `. Size: ${employeeCount} employees`;
 
     let prompt = `Generate 4 concise, specific talking points for a business networking conversation with someone from ${companyContext}.`;
+    if (hasFocus) {
+      prompt += `\n\nThe user wants the talking points focused specifically on: "${focus!.trim()}". Keep every talking point tightly relevant to this. Do not drift into unrelated topics.`;
+    }
     if (webContext) {
       prompt += `\n\nUse the following real-time web research to make the talking points current and specific:\n\n${webContext}`;
     }

@@ -53,8 +53,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
   late final ContactsRepository _contactsRepo;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void initState() {
+    super.initState();
     _contactsRepo = context.read<SyncProvider>().contacts;
   }
 

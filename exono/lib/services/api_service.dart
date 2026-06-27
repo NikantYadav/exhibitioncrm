@@ -816,11 +816,14 @@ class ApiService {
     throw Exception(json.decode(response.body)['error'] ?? 'Failed to enrich company');
   }
 
-  static Future<List<String>> generateCompanyBriefing(String id, {String? notes}) async {
+  static Future<List<String>> generateCompanyBriefing(String id, {String? notes, String? focus}) async {
+    final body = <String, dynamic>{};
+    if (notes != null && notes.trim().isNotEmpty) body['notes'] = notes.trim();
+    if (focus != null && focus.trim().isNotEmpty) body['focus'] = focus.trim();
     final response = await _send(() async => http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.companies}/$id/briefing'),
       headers: await _headers(),
-      body: notes != null && notes.trim().isNotEmpty ? json.encode({'notes': notes.trim()}) : null,
+      body: body.isNotEmpty ? json.encode(body) : null,
     ));
     checkUnauthorized(response);
     if (response.statusCode == 200) {

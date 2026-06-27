@@ -49,6 +49,10 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
   bool _editingNotes = false;
   late TextEditingController _boothCtrl;
   late TextEditingController _notesCtrl;
+  late TextEditingController _briefingFocusCtrl;
+  final FocusNode _briefingFocusNode = FocusNode();
+  final GlobalKey _briefingFieldKey = GlobalKey();
+  final ScrollController _bodyScrollCtrl = ScrollController();
   bool _isReenriching = false;
   bool? _lowConfidence;
 
@@ -57,14 +61,53 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
     super.initState();
     _boothCtrl = TextEditingController();
     _notesCtrl = TextEditingController();
+    _briefingFocusCtrl = TextEditingController();
+    _briefingFocusNode.addListener(_onBriefingFocusChange);
     _sync = context.read<SyncProvider>();
     _targetsRepo = _sync.targetCompanies;
+  }
+
+  void _onBriefingFocusChange() {
+    if (!_briefingFocusNode.hasFocus) return;
+    // ensureVisible measures against the full viewport (which extends behind the
+    // keyboard), so it under-scrolls. Compute the scroll manually: bring the
+    // bottom of the keyed group above the keyboard with a small gap.
+    // Wait past the keyboard slide-in so MediaQuery.viewInsets is settled.
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (!mounted || !_briefingFocusNode.hasFocus) return;
+      final ctx = _briefingFieldKey.currentContext;
+      if (ctx == null || !ctx.mounted || !_bodyScrollCtrl.hasClients) return;
+
+      final box = ctx.findRenderObject() as RenderBox?;
+      if (box == null) return;
+      final groupTop = box.localToGlobal(Offset.zero).dy;
+      final groupBottom = groupTop + box.size.height;
+
+      final screenH = MediaQuery.sizeOf(context).height;
+      final keyboardTop = screenH - MediaQuery.of(context).viewInsets.bottom;
+      const gap = 16.0;
+
+      final overflow = groupBottom - (keyboardTop - gap);
+      if (overflow <= 0) return; // already fully visible
+
+      final target = (_bodyScrollCtrl.offset + overflow)
+          .clamp(0.0, _bodyScrollCtrl.position.maxScrollExtent);
+      _bodyScrollCtrl.animateTo(
+        target,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   @override
   void dispose() {
     _boothCtrl.dispose();
     _notesCtrl.dispose();
+    _briefingFocusCtrl.dispose();
+    _briefingFocusNode.removeListener(_onBriefingFocusChange);
+    _briefingFocusNode.dispose();
+    _bodyScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -209,7 +252,12 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
   Future<void> _generateBriefing(String companyId, String? notes) async {
     setState(() { _isGenerating = true; _briefingError = null; _talkingPoints = []; });
     try {
-      final points = await ApiService.generateCompanyBriefing(companyId, notes: _useNotesForBriefing ? notes : null);
+      final focus = _briefingFocusCtrl.text.trim();
+      final points = await ApiService.generateCompanyBriefing(
+        companyId,
+        notes: _useNotesForBriefing ? notes : null,
+        focus: focus.isNotEmpty ? focus : null,
+      );
       if (mounted) { setState(() { _talkingPoints = List<String>.from(points); _isGenerating = false; }); }
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) { setState(() {
@@ -375,7 +423,8 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                 ),
                 Expanded(
                   child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context)),
+                controller: _bodyScrollCtrl,
+                padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context) + MediaQuery.of(context).viewInsets.bottom),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -709,13 +758,29 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                             ),
                             const SizedBox(height: 12),
                           ],
-                          AppButton(
-                            label: _isGenerating ? 'GENERATING...' : (_talkingPoints.isEmpty ? 'GENERATE AI BRIEFING' : 'REGENERATE'),
-                            fullWidth: true,
-                            variant: ButtonVariant.primary,
-                            isLoading: _isGenerating,
-                            prefixIcon: _isGenerating ? null : const Icon(Icons.auto_awesome, size: 16),
-                            onPressed: _isGenerating ? null : () => _generateBriefing(companyId, target.target.notes),
+                          Column(
+                            key: _briefingFieldKey,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AppInput(
+                                controller: _briefingFocusCtrl,
+                                focusNode: _briefingFocusNode,
+                                hint: 'Steer the AI, e.g. their recent funding, hiring plans, pricing',
+                                maxLines: 2,
+                                minLines: 1,
+                                enabled: !_isGenerating,
+                                textCapitalization: TextCapitalization.sentences,
+                              ),
+                              const SizedBox(height: 12),
+                              AppButton(
+                                label: _isGenerating ? 'GENERATING...' : (_talkingPoints.isEmpty ? 'GENERATE AI BRIEFING' : 'REGENERATE'),
+                                fullWidth: true,
+                                variant: ButtonVariant.primary,
+                                isLoading: _isGenerating,
+                                prefixIcon: _isGenerating ? null : const Icon(Icons.auto_awesome, size: 16),
+                                onPressed: _isGenerating ? null : () => _generateBriefing(companyId, target.target.notes),
+                              ),
+                            ],
                           ),
                           if (_briefingError != null) ...[
                             const SizedBox(height: 12),
@@ -738,7 +803,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                     child: Text('${e.key + 1}', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
                                   ),
                                   const SizedBox(width: 10),
-                                  Expanded(child: Text(e.value, maxLines: 3, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5))),
+                                  Expanded(child: Text(e.value, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5))),
                                 ],
                               ),
                             )),
