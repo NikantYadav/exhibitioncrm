@@ -190,7 +190,6 @@ const WRITE_TOOLS = [
         job_title: { type: 'string' },
         notes: { type: 'string' },
         follow_up_status: { type: 'string', enum: ['not_contacted', 'contacted', 'needs_followup', 'ignore'] },
-        follow_up_urgency: { type: 'string', enum: ['low', 'medium', 'high'] },
         last_contacted_at: { type: 'string', description: 'ISO 8601 datetime' },
       },
       required: [],
@@ -465,7 +464,6 @@ async function execUpdateContact(args: Record<string, unknown>, userId: string) 
     job_title: z.string().trim().optional(),
     notes: z.string().trim().optional(),
     follow_up_status: z.string().trim().optional(),
-    follow_up_urgency: z.string().trim().optional(),
     last_contacted_at: z.any().optional(),
   }).refine((v) => !!(v.contact_id || v.contact_name), {
     message: 'Either contact_id or contact_name is required.',
@@ -481,7 +479,6 @@ async function execUpdateContact(args: Record<string, unknown>, userId: string) 
   if (a.job_title !== undefined) raw.job_title = a.job_title;
   if (a.notes !== undefined) raw.notes = a.notes;
   if (a.follow_up_status !== undefined) raw.follow_up_status = a.follow_up_status;
-  if (a.follow_up_urgency !== undefined) raw.follow_up_urgency = a.follow_up_urgency;
   if (a.last_contacted_at !== undefined) raw.last_contacted_at = toIso(a.last_contacted_at, 'last_contacted_at');
 
   const update = stripImmutable(raw);
@@ -616,7 +613,7 @@ async function execGetEventFollowups(args: Record<string, unknown>, userId: stri
       contact_id,
       contacts!inner (
         id, first_name, last_name, email, phone, job_title, company_id,
-        follow_up_status, follow_up_urgency, last_contacted_at, notes, scanned_details
+        follow_up_status, last_contacted_at, notes, scanned_details
       )
     `)
     .eq('event_id', eventId)

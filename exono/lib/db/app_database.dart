@@ -11,6 +11,7 @@ import 'tables/event_goals_table.dart';
 import 'tables/email_drafts_table.dart';
 import 'tables/interactions_table.dart';
 import 'tables/companies_table.dart';
+import 'tables/follow_ups_table.dart';
 import 'tables/sync_state_table.dart';
 
 part 'app_database.g.dart';
@@ -25,6 +26,7 @@ part 'app_database.g.dart';
   EmailDraftsTable,
   InteractionsTable,
   CompaniesTable,
+  FollowUpsTable,
   SyncStateTable,
 ])
 class AppDatabase extends _$AppDatabase {
@@ -34,7 +36,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -55,6 +57,14 @@ class AppDatabase extends _$AppDatabase {
           if (from < 4) {
             await m.addColumn(eventsTable, eventsTable.startTime);
             await m.addColumn(eventsTable, eventsTable.endTime);
+          }
+          if (from < 5) {
+            await m.createTable(followUpsTable);
+          }
+          if (from < 6) {
+            // Drop the retired follow_up_urgency column. SQLite 3.35+ (bundled
+            // with current sqlite3_flutter_libs) supports DROP COLUMN directly.
+            await customStatement('ALTER TABLE contacts DROP COLUMN follow_up_urgency');
           }
         },
       );

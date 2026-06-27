@@ -593,6 +593,28 @@ class ApiService {
     }
   }
 
+  /// Set a contact's follow-up status on the global queue. When [eventId] is
+  /// omitted, applies to ALL of the contact's records (the collapsed home card
+  /// flips as a unit); pass [eventId] (or null explicitly) to target one record.
+  static Future<void> setFollowUpStatus(
+    String contactId,
+    String status, {
+    String? eventId,
+    bool scopeToEvent = false,
+  }) async {
+    final body = <String, dynamic>{'status': status};
+    if (scopeToEvent) body['event_id'] = eventId;
+    final response = await _send(() async => http.patch(
+      Uri.parse('${ApiConfig.baseUrl}/follow-ups/contact/$contactId'),
+      headers: await _headers(),
+      body: json.encode(body),
+    ));
+    checkUnauthorized(response);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update follow-up status');
+    }
+  }
+
   static Future<void> unskipFollowUp(String eventId, String contactId) async {
     final response = await _send(() async => http.patch(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/follow-ups/$contactId'),
@@ -848,6 +870,18 @@ class ApiService {
     ));
     checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to update target contact status');
+  }
+
+  /// Per-user "met" toggle for a company target. Separate from the shared
+  /// target status and from contact follow-ups.
+  static Future<void> updateTargetCompanyMet(String eventId, String targetId, bool met) async {
+    final response = await _send(() async => http.put(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId/met'),
+      headers: await _headers(),
+      body: json.encode({'met': met}),
+    ));
+    checkUnauthorized(response);
+    if (response.statusCode != 200) throw Exception('Failed to update company met status');
   }
 
   static Future<Map<String, dynamic>> addEventTarget(String eventId, String companyId, {String priority = 'medium', String? boothLocation}) async {

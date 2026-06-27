@@ -16,6 +16,7 @@ const SYNCED_TABLES = [
   'event_goals',
   'email_drafts',
   'interactions',
+  'follow_ups',
 ] as const;
 
 type SyncedTable = (typeof SYNCED_TABLES)[number];

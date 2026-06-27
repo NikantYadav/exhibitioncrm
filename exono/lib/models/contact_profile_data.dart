@@ -8,6 +8,9 @@ class ContactTimelineItem {
   final String description;
   final bool isCurrent;
   final String? note;
+  // The follow-up email that was actually sent, when the user confirmed they
+  // used our drafted email. Shown collapsed in the timeline, expandable on tap.
+  final String? email;
 
   const ContactTimelineItem({
     required this.dateLabel,
@@ -15,6 +18,7 @@ class ContactTimelineItem {
     required this.description,
     this.isCurrent = false,
     this.note,
+    this.email,
   });
 }
 

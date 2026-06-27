@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { LiteLLMService } from '../services/litellm-service';
 import { TavilyService } from '../services/tavily-service';
 import { requireAuth } from '../middleware/requireAuth';
+import { upsertFollowUp, setEventFollowUpStatus } from '../services/followUps';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 
@@ -342,6 +343,7 @@ router.get('/live-session', async (req, res, next) => {
       { data: targetsRaw, error: targetsError },
       { data: contactEventRows, error: contactEventsError },
       { data: captures, error: capturesError },
+      { data: companyMetRows },
     ] = await Promise.all([
       supabase.from('captures').select('*', { count: 'exact', head: true }).eq('event_id', eventId).is('deleted_at', null),
       supabase.from('target_companies').select('*', { count: 'exact', head: true }).eq('event_id', eventId).is('deleted_at', null),
@@ -368,6 +370,13 @@ router.get('/live-session', async (req, res, next) => {
         .eq('event_id', eventId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),
+      // Per-user "met" state for company targets. Separate from
+      // target_companies.status so it is user-specific and never touches
+      // follow-ups. RLS already scopes to the current user.
+      supabase
+        .from('target_company_met')
+        .select('target_id, met')
+        .eq('event_id', eventId),
     ]);
 
     if (targetsError) throw targetsError;
@@ -377,6 +386,10 @@ router.get('/live-session', async (req, res, next) => {
     const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
     const sortedTargets = (targetsRaw || []).sort((a: any, b: any) =>
       (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3)
+    );
+
+    const companyMetSet = new Set(
+      (companyMetRows || []).filter((r: any) => r.met).map((r: any) => r.target_id)
     );
 
     const priorityTargets = sortedTargets.map((target: any, index: number) => ({
@@ -390,6 +403,8 @@ router.get('/live-session', async (req, res, next) => {
       talking_points: target.talking_points || '',
       notes: target.notes || '',
       use_notes_for_briefing: target.use_notes_for_briefing ?? false,
+      // Per-user met state (not the shared `status` field above).
+      met: companyMetSet.has(target.id),
     }));
 
     // contact:contacts(...) is a left join and can't filter the embedded row's
@@ -547,15 +562,22 @@ router.get('/stats/batch', async (req, res, next) => {
       ...(contactEventRows || []).map((r: any) => r.contact_id),
     ]));
 
-    const followUpStatusMap = new Map<string, string>();
-    if (allContactIds.length > 0) {
-      const { data: contactStatuses } = await supabase
-        .from('contacts')
-        .select('id, follow_up_status')
-        .in('id', allContactIds)
+    // Per-event follow-up status from the unified table, keyed (event, contact).
+    // Counts are now per-event, not global — a contact done at event A no longer
+    // shows done at event B.
+    const followUpStatusByEvent = new Map<string, Map<string, string>>();
+    if (ownedIds.length > 0) {
+      const { data: fuRows } = await supabase
+        .from('follow_ups')
+        .select('event_id, contact_id, status')
+        .eq('user_id', req.user!.id)
+        .in('event_id', ownedIds)
         .is('deleted_at', null);
-      for (const c of contactStatuses || []) {
-        followUpStatusMap.set(c.id, c.follow_up_status);
+      for (const r of fuRows || []) {
+        if (!r.event_id) continue;
+        let m = followUpStatusByEvent.get(r.event_id);
+        if (!m) { m = new Map(); followUpStatusByEvent.set(r.event_id, m); }
+        m.set(r.contact_id, r.status);
       }
     }
 
@@ -564,18 +586,28 @@ router.get('/stats/batch', async (req, res, next) => {
     for (const eventId of ownedIds) {
       const ceContactIds = contactEventsByEvent.get(eventId) || [];
       const capContactIds = capturesByEvent.get(eventId) || [];
-      const uniqueContactIds = Array.from(new Set([...ceContactIds, ...capContactIds]));
+      // Include follow-up contacts in the roster: an event-tagged interaction
+      // creates a follow_up without a contact_events row, and those people show
+      // in the queue, so total_contacts must count them too (matches /stats).
+      const fuContactIds = Array.from(followUpStatusByEvent.get(eventId)?.keys() || []);
+      const uniqueContactIds = Array.from(new Set([...ceContactIds, ...capContactIds, ...fuContactIds]));
       const totalTargets = targetCountByEvent.get(eventId) || 0;
       const totalContacts = uniqueContactIds.length;
 
+      // Count from follow_ups records only (the source of truth) so this matches
+      // the single-event /stats endpoint exactly — a contact with no follow_up
+      // record is not counted. Counting by membership instead made the card
+      // flicker (membership-based pending, then follow_ups-based pending).
       let followUpsNeeded = 0;
       let followUpsSkipped = 0;
       let followUpsDone = 0;
-      for (const cid of uniqueContactIds) {
-        const status = followUpStatusMap.get(cid) || 'not_contacted';
-        if (status === 'not_contacted') followUpsNeeded++;
-        else if (status === 'needs_follow_up') followUpsSkipped++;
-        else if (status === 'contacted') followUpsDone++;
+      const statusMap = followUpStatusByEvent.get(eventId);
+      if (statusMap) {
+        for (const status of statusMap.values()) {
+          if (status === 'done') followUpsDone++;
+          else if (status === 'skipped') followUpsSkipped++;
+          else followUpsNeeded++; // new + pending both still owe action
+        }
       }
 
       result[eventId] = {
@@ -791,25 +823,30 @@ router.get('/:id/stats', async (req, res, next) => {
       ...(captureRows?.map((c: any) => c.contact_id) || []),
     ]));
 
+    // Per-event follow-up counts from the unified table. needed = new + pending.
     let followUpsCount = 0;
     let skippedCount = 0;
     let doneCount = 0;
-    if (contactIds.length > 0) {
-      const [{ count: pending }, { count: skipped }, { count: done }] = await Promise.all([
-        supabase.from('contacts').select('*', { count: 'exact', head: true })
-          .in('id', contactIds).eq('follow_up_status', 'not_contacted').is('deleted_at', null),
-        supabase.from('contacts').select('*', { count: 'exact', head: true })
-          .in('id', contactIds).eq('follow_up_status', 'needs_follow_up').is('deleted_at', null),
-        supabase.from('contacts').select('*', { count: 'exact', head: true })
-          .in('id', contactIds).eq('follow_up_status', 'contacted').is('deleted_at', null),
-      ]);
-      followUpsCount = pending || 0;
-      skippedCount = skipped || 0;
-      doneCount = done || 0;
+    {
+      const { data: fuRows } = await supabase
+        .from('follow_ups')
+        .select('contact_id, status')
+        .eq('user_id', req.user!.id)
+        .eq('event_id', eventId)
+        .is('deleted_at', null);
+      for (const r of fuRows || []) {
+        if (r.status === 'done') doneCount++;
+        else if (r.status === 'skipped') skippedCount++;
+        else followUpsCount++; // new + pending
+        // A follow-up is a valid event association too: logging an event-tagged
+        // interaction creates one without a contact_events row. Count those
+        // people so total_contacts matches the follow-up queue's roster.
+        if (r.contact_id) contactIds.push(r.contact_id);
+      }
     }
 
-    // total_contacts = all unique people reached (contact_events union captures)
-    const totalContacts = contactIds.length;
+    // total_contacts = all unique people reached (contact_events ∪ captures ∪ follow_ups)
+    const totalContacts = new Set(contactIds).size;
 
     // Calculate target reach: (unique contacts reached / total targets) * 100
     const targetReach = targetsCount && targetsCount > 0 ? Math.round(totalContacts / targetsCount * 100) : 0;
@@ -883,6 +920,7 @@ router.get('/:id/live', async (req, res, next) => {
       { data: goalsData },
       { data: targetsRaw, error: targetsError },
       { data: contactEventRows, error: contactEventsError },
+      { data: companyMetRows },
     ] = await Promise.all([
       supabase.from('events').select('*').eq('id', eventId).is('deleted_at', null).single(),
       supabase.from('captures').select('*', { count: 'exact', head: true }).eq('event_id', eventId).is('deleted_at', null),
@@ -906,6 +944,11 @@ router.get('/:id/live', async (req, res, next) => {
         .eq('event_id', eventId)
         .is('deleted_at', null)
         .order('created_at', { ascending: true }),
+      // Per-user "met" state for company targets (see /live-session).
+      supabase
+        .from('target_company_met')
+        .select('target_id, met')
+        .eq('event_id', eventId),
     ]);
 
     if (eventError || !event) {
@@ -928,6 +971,10 @@ router.get('/:id/live', async (req, res, next) => {
       (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3)
     );
 
+    const companyMetSet = new Set(
+      (companyMetRows || []).filter((r: any) => r.met).map((r: any) => r.target_id)
+    );
+
     // Target companies — independent of contacts
     const priorityTargets = sortedTargets.map((target: any, index: number) => ({
       id: target.id,
@@ -940,6 +987,8 @@ router.get('/:id/live', async (req, res, next) => {
       talking_points: target.talking_points || '',
       notes: target.notes || '',
       use_notes_for_briefing: target.use_notes_for_briefing ?? false,
+      // Per-user met state (not the shared `status` field above).
+      met: companyMetSet.has(target.id),
     }));
 
     // Target contacts — independent list from contact_events
@@ -1279,6 +1328,39 @@ router.put('/:id/targets/:targetId', async (req, res, next) => {
   }
 });
 
+// PUT /api/events/:id/targets/:targetId/met
+// Per-user "met" toggle for a company target. Distinct from the shared
+// target_companies.status field and the contact follow-up system: toggling
+// this never creates or consumes a follow-up.
+router.put('/:id/targets/:targetId/met', async (req, res, next) => {
+  try {
+    const supabase = req.supabase!;
+    const userId = req.user!.id;
+    const parsedTargetId = uuidSchema.safeParse(req.params.targetId);
+    if (!parsedTargetId.success) return res.status(400).json({ error: 'Invalid targetId' });
+    const met = req.body?.met === true;
+
+    const { error } = await supabase
+      .from('target_company_met')
+      .upsert(
+        {
+          user_id: userId,
+          event_id: req.params.id,
+          target_id: req.params.targetId,
+          met,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,target_id' }
+      );
+
+    if (error) throw error;
+
+    res.json({ data: { target_id: req.params.targetId, met } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/events/:id/targets/:targetId/briefing
 router.post('/:id/targets/:targetId/briefing', async (req, res, next) => {
   try {
@@ -1366,14 +1448,12 @@ router.patch('/:id/follow-ups/:contactId', async (req, res, next) => {
     const { subject, body, action } = parsedBody.data;
 
     if (action === 'send') {
-      // Mark contact as contacted
+      // Mark this event's follow-up record as done. last_contacted_at on the
+      // contact is still useful as a denormalized "most recent touch".
+      await setEventFollowUpStatus(supabase, req.user!.id, contactId, eventId, 'done');
       await supabase
         .from('contacts')
-        .update({
-          follow_up_status: 'contacted',
-          last_contacted_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .update({ last_contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', contactId);
 
       // Upsert the draft as sent — update if exists, insert if not
@@ -1413,23 +1493,11 @@ router.patch('/:id/follow-ups/:contactId', async (req, res, next) => {
           });
       }
     } else if (action === 'skip') {
-      // skip — mark as needs_follow_up so it stays visible but deprioritised
-      await supabase
-        .from('contacts')
-        .update({
-          follow_up_status: 'needs_follow_up',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', contactId);
+      // skip — keep visible in the Skipped section, reversible.
+      await setEventFollowUpStatus(supabase, req.user!.id, contactId, eventId, 'skipped');
     } else {
-      // unskip — revert to not_contacted so it appears in Pending again
-      await supabase
-        .from('contacts')
-        .update({
-          follow_up_status: 'not_contacted',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', contactId);
+      // unskip — back to pending so it reappears in the queue.
+      await setEventFollowUpStatus(supabase, req.user!.id, contactId, eventId, 'pending');
     }
 
     const messages: Record<string, string> = { send: 'Follow-up sent.', skip: 'Contact skipped.', unskip: 'Contact moved back to pending.' };
@@ -1729,6 +1797,24 @@ router.patch('/:id/contacts/:contactId', async (req, res, next) => {
       .eq('event_id', eventId);
 
     if (error) throw error;
+
+    // Follow-up trigger #3: checking a known target off the list (status 'met')
+    // promotes their follow-up to 'pending' immediately, keyed to this event —
+    // without waiting for an interaction to be logged. Dedup with any
+    // interaction-driven record happens automatically on the (contact, event) key.
+    if (status === 'met') {
+      try {
+        await upsertFollowUp(supabase, req.user!.id, {
+          contactId,
+          eventId,
+          seedStatus: 'pending',
+          touchInteraction: true,
+        });
+      } catch (e) {
+        console.error('follow_up upsert (target check-off) failed:', e);
+      }
+    }
+
     res.json({ message: 'Target contact updated' });
   } catch (error) { next(error); }
 });

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireAuth } from '../middleware/requireAuth';
+import { upsertFollowUp } from '../services/followUps';
 
 const uuidSchema = z.string().uuid();
 
@@ -63,6 +64,31 @@ router.post('/', async (req, res, next) => {
       .single();
 
     if (error) throw error;
+
+    // Follow-up trigger #2: logging an interaction promotes the contact's
+    // follow-up (for this event, or general if none) to 'pending' and reopens a
+    // previously-done record. A 'capture' interaction is just the scan itself,
+    // so it only seeds 'new' — it is not a follow-up-worthy touch.
+    //
+    // Exception: an interaction logged AS the follow-up completion (the "Followed
+    // Up" sheet sets details.follow_up_log) is the close-out of the follow-up,
+    // not a new touch that owes a response — it must NOT create or reopen one,
+    // otherwise it immediately undoes the 'done' status just written.
+    const isFollowUpLog = (details as any)?.follow_up_log === true;
+    if (!isFollowUpLog) {
+      try {
+        const isCapture = (interaction_type || 'manual') === 'capture';
+        await upsertFollowUp(supabase, req.user!.id, {
+          contactId: contact_id,
+          eventId: event_id ?? null,
+          seedStatus: isCapture ? 'new' : 'pending',
+          touchInteraction: !isCapture,
+          channel: typeof (details as any)?.channel === 'string' ? (details as any).channel : undefined,
+        });
+      } catch (e) {
+        console.error('follow_up upsert (interaction) failed:', e);
+      }
+    }
 
     res.json({ data });
   } catch (err) {

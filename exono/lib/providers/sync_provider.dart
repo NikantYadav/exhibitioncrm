@@ -11,6 +11,7 @@ import '../repositories/email_drafts_repository.dart';
 import '../repositories/event_goals_repository.dart';
 import '../repositories/events_repository.dart';
 import '../repositories/interactions_repository.dart';
+import '../repositories/follow_ups_repository.dart';
 import '../repositories/synced_repository.dart';
 import '../repositories/target_companies_repository.dart';
 
@@ -37,6 +38,7 @@ class SyncProvider extends ChangeNotifier with WidgetsBindingObserver {
   late final EventGoalsRepository eventGoals = EventGoalsRepository(db);
   late final EmailDraftsRepository emailDrafts = EmailDraftsRepository(db);
   late final InteractionsRepository interactions = InteractionsRepository(db);
+  late final FollowUpsRepository followUps = FollowUpsRepository(db);
   late final CompaniesRepository companies = CompaniesRepository(db);
 
   late final List<SyncedRepository> _realtimeRepos = [
@@ -48,6 +50,7 @@ class SyncProvider extends ChangeNotifier with WidgetsBindingObserver {
     eventGoals,
     emailDrafts,
     interactions,
+    followUps,
   ];
 
   bool _started = false;

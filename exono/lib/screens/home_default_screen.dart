@@ -40,12 +40,14 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
   int? _followUpsDue;
 
   StreamSubscription? _eventsSub;
+  StreamSubscription? _dueSub;
 
   @override
   void initState() {
     super.initState();
     captureReturnSignalHome.addListener(_onCaptureReturn);
     _subscribeUpcomingEvents();
+    _subscribeDueCount();
     _loadPriorities();
   }
 
@@ -60,7 +62,17 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
   void dispose() {
     captureReturnSignalHome.removeListener(_onCaptureReturn);
     _eventsSub?.cancel();
+    _dueSub?.cancel();
     super.dispose();
+  }
+
+  // Drive the "Follow-ups Due" stat off the live follow_ups drift stream so it
+  // updates the moment an interaction syncs — no reload needed. The one-shot
+  // API call in _loadPriorities still seeds it before the first stream tick.
+  void _subscribeDueCount() {
+    _dueSub = context.read<SyncProvider>().followUps.watchDueCount().listen((count) {
+      if (mounted) setState(() => _followUpsDue = count);
+    });
   }
 
   Future<void> _loadPriorities() async {

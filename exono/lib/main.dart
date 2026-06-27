@@ -5,26 +5,29 @@ import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:workmanager/workmanager.dart';
-import 'config/app_theme.dart';
-import 'config/supabase_config.dart';
 import 'config/api_config.dart';
+import 'config/app_theme.dart';
+import 'config/sentry_config.dart';
+import 'config/supabase_config.dart';
 import 'firebase_options.dart';
-import 'services/analytics_service.dart';
-import 'services/offline/background_sync.dart';
-import 'services/offline/connectivity_service.dart';
-import 'services/offline/offline_queue.dart';
-import 'services/offline/sync_service.dart';
 import 'providers/auth_provider.dart';
-import 'providers/conversation_provider.dart';
 import 'providers/chat_provider.dart';
+import 'providers/conversation_provider.dart';
 import 'providers/live_event_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/offline_provider.dart';
 import 'providers/sync_provider.dart';
 import 'providers/theme_provider.dart';
 import 'router.dart';
+import 'services/analytics_service.dart';
+import 'services/diagnostics_service.dart';
+import 'services/offline/background_sync.dart';
+import 'services/offline/connectivity_service.dart';
+import 'services/offline/offline_queue.dart';
+import 'services/offline/sync_service.dart';
 
 /// Entry point for the workmanager background isolate. Runs detached from the
 /// UI isolate, so it must initialise its own bindings and rebuild any state it
@@ -54,26 +57,48 @@ void _callbackDispatcher() {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await AnalyticsService.instance.initialize();
+  Future<void> startApp() async {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await AnalyticsService.instance.initialize();
+    if (!kIsWeb) { await DiagnosticsService.instance.initialize(); }
 
-  SupabaseConfig.validate();
-  ApiConfig.assertSecure();
-  await Supabase.initialize(
-    url: SupabaseConfig.url,
-    publishableKey: SupabaseConfig.anonKey,
-  );
+    SupabaseConfig.validate();
+    ApiConfig.assertSecure();
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      publishableKey: SupabaseConfig.anonKey,
+    );
 
-  final themeProvider = ThemeProvider();
-  await themeProvider.load();
+    final themeProvider = ThemeProvider();
+    await themeProvider.load();
 
-  // Register background sync (mobile only).
-  if (!kIsWeb) {
-    await Workmanager().initialize(_callbackDispatcher);
-    await BackgroundSync.registerPeriodic();
+    // Register background sync (mobile only).
+    if (!kIsWeb) {
+      await Workmanager().initialize(_callbackDispatcher);
+      await BackgroundSync.registerPeriodic();
+    }
+
+    runApp(SentryWidget(child: ExonoApp(themeProvider: themeProvider)));
   }
 
-  runApp(ExonoApp(themeProvider: themeProvider));
+  if (SentryConfig.isEnabled) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = SentryConfig.dsn;
+        options.environment = SentryConfig.environment;
+        options.tracesSampleRate = 0.0;
+        options.attachScreenshot = true;
+        options.sendDefaultPii = false;
+        // Session Replay: record every session + every error during testing.
+        // Lower sessionSampleRate in production once testing is complete.
+        options.replay.sessionSampleRate = 1.0;
+        options.replay.onErrorSampleRate = 1.0;
+      },
+      appRunner: startApp,
+    );
+  } else {
+    await startApp();
+  }
 }
 
 class ExonoApp extends StatelessWidget {
@@ -132,8 +157,10 @@ class _ExonoRouterState extends State<_ExonoRouter> {
         final userId = auth.user!['id'] as String;
         context.read<LiveEventProvider>().init(sync.db, userId);
         sync.start(userId);
+        DiagnosticsService.instance.setUser(userId);
       } else if (wasAuthenticated) {
         sync.stop();
+        DiagnosticsService.instance.setUser(null);
       }
       wasAuthenticated = auth.isAuthenticated;
     });
@@ -141,6 +168,7 @@ class _ExonoRouterState extends State<_ExonoRouter> {
       final userId = auth.user!['id'] as String;
       context.read<LiveEventProvider>().init(sync.db, userId);
       sync.start(userId);
+      DiagnosticsService.instance.setUser(userId);
     }
   }
 

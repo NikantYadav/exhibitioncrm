@@ -301,21 +301,41 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     // ignored the bottom system inset, which differs between iOS and Android and
     // made spaceBetween distribute the sections unevenly (cramped on Android).
     return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+      builder: (context, constraints) {
+        final h = constraints.maxHeight;
+        final w = constraints.maxWidth;
+        // Fully adaptive and identical on every screen size. The content is
+        // laid out at its natural design height inside a fixed-width column,
+        // then FittedBox(scaleDown) shrinks the WHOLE block uniformly to fit
+        // the available height. No scroll view (can never scroll) and no
+        // overflow (scaleDown guarantees fit). On tall screens it sits at full
+        // size; on short screens it scales down proportionally.
+        const designHeight = 720.0;
+        return SizedBox(
+          height: h,
+          width: w,
           child: Padding(
             padding:
                 EdgeInsets.only(bottom: bottomBarInset(context, extra: 24)),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+                width: w,
+                height: designHeight,
+                child: Column(
               children: [
-                // ── Intro (fades when recording) ──────────────────
-                AnimatedOpacity(
-                  opacity: _isRecording ? 0.0 : 1.0,
+                // ── Top section ───────────────────────────────────
+                // Idle: the intro copy. Recording: an animated "listening"
+                // visual fills the same space so the top is never empty and
+                // the mic / pill / buttons stay at the same position.
+                AnimatedSwitcher(
                   duration: const Duration(milliseconds: 320),
-                  child: _buildIntroSection(),
+                  child: _isRecording
+                      ? _buildListeningVisual(key: const ValueKey('listening'))
+                      : _buildIntroSection(key: const ValueKey('intro')),
                 ),
+
+                const Spacer(),
 
                 // ── Mic + live recording info ──────────────────────
                 Column(
@@ -348,26 +368,26 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
                         ? _buildWaveform(key: const ValueKey('wave'))
                         : const SizedBox(key: ValueKey('no-wave'), height: 16),
                   ),
-
-                  const SizedBox(height: 14),
-
-                  // Status pill
-                  _buildStatusPill(),
                 ],
               ),
 
-              // ── Bottom section ────────────────────────────────
+              const Spacer(),
+
+              // ── Bottom section (status pill + actions) ─────────
               _buildRecordingBottomRow(),
               ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildIntroSection() {
+  Widget _buildIntroSection({Key? key}) {
     return Padding(
+      key: key,
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: Column(
         children: [
@@ -505,6 +525,82 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     );
   }
 
+  // Animated "listening" indicator shown in the top area while recording, so
+  // the space the intro vacated is never empty. Concentric pulsing rings using
+  // the existing pulse controllers + a label.
+  Widget _buildListeningVisual({Key? key}) {
+    return Padding(
+      key: key,
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      child: Column(
+        children: [
+          SizedBox(
+            width: 96,
+            height: 96,
+            child: AnimatedBuilder(
+              animation: Listenable.merge([_pulseCtrl1, _pulseCtrl2]),
+              builder: (context, _) {
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    _buildPulseRing(
+                      _pulseCtrl2.value,
+                      baseRadius: 22,
+                      maxRadius: 48,
+                      baseAlpha: 0.18,
+                    ),
+                    _buildPulseRing(
+                      _pulseCtrl1.value,
+                      baseRadius: 22,
+                      maxRadius: 48,
+                      baseAlpha: 0.30,
+                    ),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _c.destructive.withValues(alpha: 0.12),
+                        border: Border.all(
+                          color: _c.destructive.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.hearing_rounded,
+                        color: _c.destructive,
+                        size: 22,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Listening...',
+            style: context.theme.typography.xl.copyWith(
+              fontWeight: FontWeight.w700,
+              color: context.theme.colors.foreground,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 300),
+            child: Text(
+              'Mention their name, company, and where you met them.',
+              textAlign: TextAlign.center,
+              style: context.theme.typography.sm.copyWith(
+                height: 1.5,
+                color: context.theme.colors.mutedForeground,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPulseRing(
     double t, {
     required double baseRadius,
@@ -564,18 +660,24 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          AppButton(
-            label: 'Manual Entry',
-            prefixIcon: const Icon(Icons.edit_note_outlined, size: 16),
-            variant: ButtonVariant.outline,
-            fullWidth: true,
-            onPressed: _goManual,
-          ),
-          const SizedBox(height: 10),
+          _buildStatusPill(),
+          const SizedBox(height: 14),
+          // Manual Entry is only shown before recording; while recording it is
+          // removed so the Cancel button moves up into its place.
+          if (!_isRecording) ...[
+            AppButton(
+              label: 'Manual Entry',
+              prefixIcon: const Icon(Icons.edit_note_outlined, size: 16),
+              variant: ButtonVariant.outline,
+              fullWidth: true,
+              onPressed: _goManual,
+            ),
+            const SizedBox(height: 10),
+          ],
           AppButton(
             label: 'Cancel',
             variant: ButtonVariant.outline,
-            labelColor: Colors.white,
+            labelColor: context.theme.colors.foreground,
             fullWidth: true,
             onPressed: () => Navigator.of(context).pop(),
           ),

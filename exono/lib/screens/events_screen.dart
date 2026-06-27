@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
@@ -132,6 +134,12 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   Map<String, Map<String, dynamic>> _eventStats = {};
   final Set<String> _statsLoadedFor = {};
 
+  // Watches the follow_ups drift table; any change (interaction logged anywhere,
+  // status flipped) re-fetches stats for the already-loaded past cards so their
+  // Pending/Skipped/Done counts stay live without a manual reload.
+  StreamSubscription? _followUpsSub;
+  bool _firstFollowUpTick = true;
+
   final TextEditingController _eventNameController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _startDateController = TextEditingController();
@@ -141,7 +149,14 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   final TextEditingController _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _subscribeFollowUpChanges();
+  }
+
+  @override
   void dispose() {
+    _followUpsSub?.cancel();
     _eventNameController.dispose();
     _locationController.dispose();
     _startDateController.dispose();
@@ -152,6 +167,18 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     super.dispose();
   }
 
+  void _subscribeFollowUpChanges() {
+    _followUpsSub = context.read<SyncProvider>().followUps.watchAll().listen((_) {
+      // Skip the priming emission so we don't double-fetch right after the
+      // initial _loadStatsIfNeeded already loaded the visible cards.
+      if (_firstFollowUpTick) {
+        _firstFollowUpTick = false;
+        return;
+      }
+      _refreshLoadedStats();
+    });
+  }
+
   Future<void> _loadStatsIfNeeded(List<Event> events) async {
     final pastEventIds = events.where((e) => e.status == 'completed').map((e) => e.id).toList();
     final missing = pastEventIds.where((id) => !_statsLoadedFor.contains(id)).toList();
@@ -159,6 +186,17 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     _statsLoadedFor.addAll(missing);
     final statsMap = await ApiService.getEventStatsBatch(missing).catchError((_) => <String, Map<String, dynamic>>{});
     if (!mounted) return;
+    setState(() => _eventStats = {..._eventStats, ...statsMap});
+  }
+
+  // Re-fetch stats for every past event already on screen. Called when the
+  // follow_ups table changes so the past cards' counts update in place.
+  Future<void> _refreshLoadedStats() async {
+    final ids = _statsLoadedFor.toList();
+    if (ids.isEmpty) return;
+    final statsMap = await ApiService.getEventStatsBatch(ids)
+        .catchError((_) => <String, Map<String, dynamic>>{});
+    if (!mounted || statsMap.isEmpty) return;
     setState(() => _eventStats = {..._eventStats, ...statsMap});
   }
 

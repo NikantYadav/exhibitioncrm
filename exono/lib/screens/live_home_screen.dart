@@ -47,7 +47,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   String _scannedSearch = '';
   final TextEditingController _companySearchCtrl = TextEditingController();
   String _companySearch = '';
-  String _activeTab = 'targets';
+  // Sub-toggle under the Targets heading. Companies always first / default.
+  String _targetType = 'companies';
+  // Per-user local override for company "met" (mirrors the contact pattern).
+  final Map<String, bool> _targetCompanyMetOverrides = {};
 
   @override
   void initState() {
@@ -76,6 +79,30 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     return _targetContactMetOverrides.containsKey(contactId)
         ? _targetContactMetOverrides[contactId]!
         : (t['status'] as String?) == 'met';
+  }
+
+  bool _isTargetCompanyMet(Map<String, dynamic> t) {
+    final targetId = t['id'] as String? ?? '';
+    return _targetCompanyMetOverrides.containsKey(targetId)
+        ? _targetCompanyMetOverrides[targetId]!
+        : (t['met'] as bool? ?? false);
+  }
+
+  Future<void> _toggleTargetCompanyMet(Map<String, dynamic> target, Event event, LiveEventProvider lep) async {
+    final targetId = target['id'] as String? ?? '';
+    if (targetId.isEmpty) return;
+    final nowMet = !_isTargetCompanyMet(target);
+    setState(() => _targetCompanyMetOverrides[targetId] = nowMet);
+    lep.updateTargetCompanyMetLocally(targetId, nowMet);
+    try {
+      await WriteGateway().updateTargetCompanyMet(event.id, targetId, nowMet);
+    } on UnauthorizedException { rethrow; } catch (_) {
+      if (mounted) {
+        setState(() => _targetCompanyMetOverrides.remove(targetId));
+        lep.updateTargetCompanyMetLocally(targetId, !nowMet);
+        _toast('Failed to update company status');
+      }
+    }
   }
 
   List<Map<String, dynamic>> _filteredTargetContacts(List<Map<String, dynamic>> contacts) {
@@ -671,7 +698,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
 
   Widget _buildBody(Event event, LiveEventProvider lep) {
     final scanned = lep.scannedContacts.length;
-    final targetsLeft = lep.targetContacts.where((t) => !_isTargetContactMet(t)).length;
+    // Combined: company targets + contact targets that are not yet met.
+    final companiesLeft = lep.liveTargets.where((t) => !_isTargetCompanyMet(t)).length;
+    final contactsLeft = lep.targetContacts.where((t) => !_isTargetContactMet(t)).length;
+    final targetsLeft = companiesLeft + contactsLeft;
     final goalsLeft = lep.liveGoals.where((g) {
       final current = g['current'] as int;
       final total = g['total'] as int;
@@ -709,6 +739,8 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             _buildGoalsSection(event, lep),
             const SizedBox(height: 24),
             _buildTargetsSection(event, lep),
+            const SizedBox(height: 24),
+            _buildScannedSection(event, lep),
           ],
         ),
       ),
@@ -978,62 +1010,74 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _tabItem('targets', 'Targets', '${lep.targetContacts.length}'),
-            _tabItem('scanned', 'Scanned', '${lep.scannedContacts.length}'),
-            _tabItem('companies', 'Companies', '${lep.liveTargets.length}'),
-          ],
-        ),
-        Container(height: 1, color: context.theme.colors.border),
+        AppSectionLabel('Targets'),
+        const SizedBox(height: 12),
+        // Companies always first, then Contacts.
+        Row(children: [
+          _targetTypeTab('companies', 'Companies', '${lep.liveTargets.length}'),
+          const SizedBox(width: 8),
+          _targetTypeTab('contacts', 'Contacts', '${lep.targetContacts.length}'),
+        ]),
         const SizedBox(height: 16),
-        if (_activeTab == 'targets')
-          _buildLiveTargetContactsList(event, lep)
-        else if (_activeTab == 'scanned')
-          _buildScannedList(event, lep)
+        if (_targetType == 'companies')
+          _buildCompaniesList(event, lep)
         else
-          _buildCompaniesList(event, lep),
+          _buildLiveTargetContactsList(event, lep),
       ],
     );
   }
 
-  Widget _tabItem(String tab, String label, String count) {
-    final isActive = _activeTab == tab;
+  Widget _buildScannedSection(Event event, LiveEventProvider lep) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          AppSectionLabel('Scanned'),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: _c.surfaceAlt,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text('${lep.scannedContacts.length}',
+                style: context.theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w700, color: context.theme.colors.mutedForeground)),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        _buildScannedList(event, lep),
+      ],
+    );
+  }
+
+  /// Pill toggle used under the Targets heading to switch Companies / Contacts.
+  Widget _targetTypeTab(String type, String label, String count) {
+    final isActive = _targetType == type;
     return GestureDetector(
-      onTap: () => setState(() => _activeTab = tab),
+      onTap: () => setState(() => _targetType = type),
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isActive ? _c.accent : Colors.transparent,
-              width: 2,
-            ),
-          ),
+          color: isActive ? _c.accent : _c.surfaceAlt,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: isActive ? _c.accent : context.theme.colors.border),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Text(
             label,
             style: context.theme.typography.sm.copyWith(
               fontWeight: FontWeight.w700,
-              color: isActive ? _c.accent : context.theme.colors.mutedForeground,
+              color: isActive ? Colors.white : context.theme.colors.mutedForeground,
             ),
           ),
-          const SizedBox(width: 5),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: isActive ? _c.accent : _c.surfaceAlt,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              count,
-              style: context.theme.typography.xs.copyWith(
-                fontWeight: FontWeight.w700,
-                color: isActive ? Colors.white : context.theme.colors.mutedForeground,
-              ),
+          const SizedBox(width: 6),
+          Text(
+            count,
+            style: context.theme.typography.xs.copyWith(
+              fontWeight: FontWeight.w700,
+              color: isActive ? Colors.white.withValues(alpha: 0.85) : context.theme.colors.mutedForeground,
             ),
           ),
         ]),
@@ -1106,13 +1150,31 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             ]),
           )
         else
-          Column(children: [
+          _cappedList([
             for (int i = 0; i < visible.length; i++) ...[
               _buildTargetContactCard(visible[i], i + 1, event, lep),
               if (i < visible.length - 1) const SizedBox(height: 8),
             ],
-          ]),
+          ], visible.length),
       ],
+    );
+  }
+
+  /// Keeps a long target/scanned list from pushing later sections far down the
+  /// page: once the list grows past [_kInlineListLimit] entries, cap it to a
+  /// screen-height fraction and let it scroll on its own. Short lists render
+  /// inline so the whole page scrolls as one.
+  static const int _kInlineListLimit = 4;
+
+  Widget _cappedList(List<Widget> children, int itemCount) {
+    final inline = Column(children: children);
+    if (itemCount <= _kInlineListLimit) return inline;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(right: 2),
+        child: inline,
+      ),
     );
   }
 
@@ -1262,7 +1324,6 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 12),
         AppInput(
           hint: 'Search scanned contacts…',
           onChanged: (v) => setState(() => _scannedSearch = v),
@@ -1288,7 +1349,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             ]),
           )
         else
-          ...filtered.map((capture) => _buildScannedCard(capture, event, lep)),
+          _cappedList(
+            filtered.map((capture) => _buildScannedCard(capture, event, lep)).toList(),
+            filtered.length,
+          ),
       ],
     );
   }
@@ -1471,60 +1535,95 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
             ]),
           )
         else
-          for (int i = 0; i < filtered.length; i++) ...[
-            _buildCompanyCard(filtered[i], event),
-            if (i < filtered.length - 1) const SizedBox(height: 8),
-          ],
+          _cappedList([
+            for (int i = 0; i < filtered.length; i++) ...[
+              _buildCompanyCard(filtered[i], event, lep),
+              if (i < filtered.length - 1) const SizedBox(height: 8),
+            ],
+          ], filtered.length),
       ],
     );
   }
 
-  Widget _buildCompanyCard(Map<String, dynamic> target, Event event) {
+  Widget _buildCompanyCard(Map<String, dynamic> target, Event event, LiveEventProvider lep) {
     final companyName = target['company_name'] as String? ?? '';
     final booth = target['booth'] as String? ?? '';
     final priority = target['priority'] as String? ?? 'medium';
+    final isMet = _isTargetCompanyMet(target);
     final initials = companyName.length >= 2 ? companyName.substring(0, 2).toUpperCase() : companyName.toUpperCase();
 
     return AppCard(
       radius: AppTheme.radiusCard,
-      borderColor: priority == 'high'
-          ? _c.destructive.withValues(alpha: 0.35)
-          : priority == 'medium'
-              ? _c.accent.withValues(alpha: 0.20)
-              : null,
+      borderColor: isMet
+          ? null
+          : priority == 'high'
+              ? _c.destructive.withValues(alpha: 0.35)
+              : priority == 'medium'
+                  ? _c.accent.withValues(alpha: 0.20)
+                  : null,
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Row(children: [
-          Container(
-            width: 40, height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _c.accentSoft,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: context.theme.colors.border),
+        child: Column(children: [
+          Row(children: [
+            Container(
+              width: 40, height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isMet ? _c.success.withValues(alpha: 0.12) : _c.accentSoft,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isMet ? _c.success : context.theme.colors.border),
+              ),
+              child: isMet
+                  ? Icon(Icons.check_rounded, size: 18, color: _c.success)
+                  : Text(initials, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
             ),
-            child: Text(initials, style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(companyName,
-                  style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground, height: 1.25),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
-              if (booth.isNotEmpty) ...[const SizedBox(height: 4), AppChip.label('BOOTH $booth')],
-            ]),
-          ),
-          const SizedBox(width: 8),
-          AppButton(
-            label: 'VIEW',
-            variant: ButtonVariant.outline,
-            size: ButtonSize.sm,
-            onPressed: () {
-              final targetId = target['id'] as String? ?? '';
-              if (targetId.isEmpty) return;
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => TargetCompanyPrepScreen(event: event, targetId: targetId)));
-            },
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(companyName,
+                    style: context.theme.typography.sm.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: isMet ? context.theme.colors.mutedForeground : context.theme.colors.foreground,
+                        height: 1.25),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                if (booth.isNotEmpty) ...[const SizedBox(height: 4), AppChip.label('BOOTH $booth')],
+              ]),
+            ),
+            const SizedBox(width: 8),
+            AppButton(
+              label: 'VIEW',
+              variant: ButtonVariant.outline,
+              size: ButtonSize.sm,
+              onPressed: () {
+                final targetId = target['id'] as String? ?? '';
+                if (targetId.isEmpty) return;
+                Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => TargetCompanyPrepScreen(event: event, targetId: targetId)));
+              },
+            ),
+          ]),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => _toggleTargetCompanyMet(target, event, lep),
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: isMet ? _c.success.withValues(alpha: 0.12) : _c.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isMet ? _c.success : context.theme.colors.border, width: 1.5),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+                Icon(isMet ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                    size: 14, color: isMet ? _c.success : context.theme.colors.mutedForeground),
+                const SizedBox(width: 6),
+                Text(isMet ? 'MET' : 'MARK MET', style: context.theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w800, letterSpacing: 0.6,
+                    color: isMet ? _c.success : context.theme.colors.mutedForeground)),
+              ]),
+            ),
           ),
         ]),
       ),
@@ -1587,16 +1686,21 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
       return q.isEmpty || name.contains(q) || company.contains(q);
     }).toList();
 
-    // Cap height to the space left above the keyboard so the sheet doesn't get
-    // shifted up into the status bar when forui lifts it by the keyboard inset.
-    // Mirrors the Add Company sheet so both open at the same vertical position.
-    final mq = MediaQuery.of(context);
-    final maxSheetHeight = mq.size.height - mq.viewInsets.bottom - mq.padding.top - 24;
+    // Size the sheet to its content, capped at a screen fraction. forui already
+    // lifts the sheet by the keyboard inset (resizeToAvoidBottomInset), so do NOT
+    // subtract viewInsets here — doing so double-counts the keyboard and pushes
+    // the sheet up under the status bar (the bug). The cap is a screen-height
+    // ratio so it adapts across phone sizes; forui's own 92%-of-available cap
+    // further bounds it, so on a small phone with the keyboard up the sheet can
+    // never exceed the visible area — the header stays put and the Flexible list
+    // scrolls within whatever space is left. Min-sized Column + Flexible list
+    // also lets a short list shrink the sheet to fit just above the keyboard.
+    final maxSheetHeight = MediaQuery.sizeOf(context).height * 0.7;
     return SafeArea(
       top: false,
-      child: SizedBox(
-      height: (mq.size.height * 0.7).clamp(0.0, maxSheetHeight),
-      child: Column(children: [
+      child: ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxSheetHeight),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
           margin: const EdgeInsets.only(top: 10, bottom: 4),
           width: 36, height: 4,
@@ -1616,10 +1720,11 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
             ),
           ]),
         ),
-        Expanded(
+        Flexible(
           child: filtered.isEmpty
               ? Center(child: Text('No contacts found.', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)))
               : ListView.builder(
+                  shrinkWrap: true,
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   itemCount: filtered.length,
                   itemBuilder: (_, i) {

@@ -79,6 +79,8 @@ class SyncService {
           await _syncUpdateEventGoal(op);
         case 'update_target_contact_status':
           await _syncUpdateTargetContactStatus(op);
+        case 'update_target_company_met':
+          await _syncUpdateTargetCompanyMet(op);
         default:
           // Unknown op type — mark failed, don't retry.
           await OfflineQueue.markFailed(op.id, 'Unknown op_type: ${op.opType}');
@@ -342,6 +344,13 @@ class SyncService {
     final contactId = op.payload['contactId'] as String;
     final status = op.payload['status'] as String;
     await ApiService.updateTargetContactStatus(eventId, contactId, status);
+  }
+
+  Future<void> _syncUpdateTargetCompanyMet(OutboxOp op) async {
+    final eventId = op.payload['eventId'] as String;
+    final targetId = op.payload['targetId'] as String;
+    final met = op.payload['met'] as bool;
+    await ApiService.updateTargetCompanyMet(eventId, targetId, met);
   }
 
 }

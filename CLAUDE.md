@@ -16,6 +16,7 @@ The wrappers already exist in `exono/lib/widgets/`. They wrap forui correctly an
 | Button / tap target | `AppButton` (`lib/widgets/app_button.dart`) | `ElevatedButton`, `FilledButton`, `OutlinedButton`, `TextButton`, tappable `InkWell`/`GestureDetector` |
 | Card surface | `AppCard` (`lib/widgets/app_card.dart`) | `Container`+`BoxDecoration` used as a card |
 | Text input | `AppInput` (`lib/widgets/app_input.dart`) | `TextField`, `TextFormField`. Has `readOnly:` for date/picker fields |
+| Dropdown / select | `AppSelect` (`lib/widgets/app_select.dart`) | `DropdownButton`, ad-hoc tap-to-open option sheets. Custom field + option sheet (selected row = white-on-accent); pass `items:` label→value map, `value:`, `onChanged:`, optional `sheetTitle:`. NOT raw `FSelect` — its themed-secondary highlight gave low-contrast dark-on-blue text |
 | Chip / status badge | `AppChip` (`lib/widgets/app_chip.dart`) | `Chip`, `FilterChip`, custom badge `Container` |
 | Status badge (icon/spinner) | `AppStatusBadge` (`lib/widgets/app_status_badge.dart`) | hand-rolled `Row`+badge for offline/syncing indicators; use `leading:` for icon, `spinner: true` for inline spinner |
 | Header / app bar | `AppHeader` (`lib/widgets/app_header.dart`) | `AppBar`, custom header rows |

@@ -129,17 +129,26 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         else if (type == 'interaction' && item['interaction_type'] == 'voice_note') { title = 'Voice Note'; }
         final captureNote = details?['note'] as String?;
         final eventName = (item['event'] as Map<String, dynamic>?)?['name'] as String?;
+        // A follow-up completion log reads as "Follow up to {Event}"; any other
+        // event-linked interaction just shows the event name on its own line.
+        final isFollowUpLog = details?['follow_up_log'] == true;
         final rawDescription = item['summary'] ?? item['content'] ?? 'No additional details.';
-        final description = (eventName != null && eventName.isNotEmpty)
-            ? '$rawDescription\n$eventName'
+        final eventLine = (eventName != null && eventName.isNotEmpty)
+            ? (isFollowUpLog ? 'Follow up to $eventName' : eventName)
+            : null;
+        final description = eventLine != null
+            ? '$rawDescription\n$eventLine'
             : rawDescription as String;
         final note = (captureNote != null && captureNote.isNotEmpty) ? captureNote : null;
+        // Email body stored when the user confirmed they sent our drafted email.
+        final sentEmail = details?['email'] as String?;
 
         return ContactTimelineItem(
           dateLabel: '${_formatDate(date)} • ${_formatTime(date)}',
           title: title,
           description: description,
           note: note,
+          email: (sentEmail != null && sentEmail.isNotEmpty) ? sentEmail : null,
           isCurrent: false,
         );
       }).toList();
@@ -1019,6 +1028,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                     ),
                   ),
                 ],
+                if (item.email != null) ...[
+                  const SizedBox(height: 10),
+                  _TimelineEmailBlock(email: item.email!),
+                ],
               ],
             ),
           ),
@@ -1609,6 +1622,61 @@ class _ScrollableTimelineState extends State<_ScrollableTimeline>
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Collapsed preview of a sent follow-up email in the timeline. Shows a couple
+/// of lines with a trailing ellipsis; tapping expands to the full body (emails
+/// can be long) and tapping again collapses it.
+class _TimelineEmailBlock extends StatefulWidget {
+  final String email;
+  const _TimelineEmailBlock({required this.email});
+
+  @override
+  State<_TimelineEmailBlock> createState() => _TimelineEmailBlockState();
+}
+
+class _TimelineEmailBlockState extends State<_TimelineEmailBlock> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.mail_outline_rounded, size: 14, color: theme.colors.primary),
+                const SizedBox(width: 8),
+                Text('Email sent', style: theme.typography.xs.copyWith(
+                    fontWeight: FontWeight.w700, letterSpacing: 0.4, color: theme.colors.primary)),
+                const Spacer(),
+                Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                    size: 16, color: theme.colors.mutedForeground),
+              ],
+            ),
+            const SizedBox(height: 6),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              alignment: Alignment.topCenter,
+              child: Text(
+                widget.email,
+                maxLines: _expanded ? null : 2,
+                overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                style: theme.typography.sm.copyWith(
+                    color: theme.colors.mutedForeground, height: 1.4),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -16,7 +16,6 @@ class ContactsTable extends Table {
   TextColumn get notes => text().nullable()();
   TextColumn get avatarUrl => text().nullable()();
   TextColumn get followUpStatus => text().withDefault(const Constant('not_contacted'))();
-  TextColumn get followUpUrgency => text().withDefault(const Constant('medium'))();
   DateTimeColumn get lastContactedAt => dateTime().nullable()();
   TextColumn get contactAssetsJson => text().nullable()();
   TextColumn get scannedDetailsJson => text().nullable()();

@@ -10,16 +10,20 @@ router.get('/priorities', async (req, res, next) => {
     const supabase = req.supabase!;
     const userId = req.user!.id;
 
-    // Follow-ups due: contacts with needs_followup / needs_follow_up status
-    const { count: followUpsDue } = await supabase
-      .from('contacts')
-      .select('*', { count: 'exact', head: true })
+    // Follow-ups due = New + Pending (both owe action), counted as DISTINCT
+    // contacts so the number matches the collapsed home list (one row per
+    // person) rather than per-event records.
+    const { data: dueRows } = await supabase
+      .from('follow_ups')
+      .select('contact_id')
       .eq('user_id', userId)
-      .in('follow_up_status', ['needs_followup', 'needs_follow_up'])
+      .in('status', ['new', 'pending'])
       .is('deleted_at', null);
 
+    const followUpsDue = new Set((dueRows ?? []).map((r: any) => r.contact_id)).size;
+
     res.json({
-      followUpsDue: followUpsDue ?? 0,
+      followUpsDue,
     });
   } catch (error) {
     console.error('Dashboard priorities error:', error);

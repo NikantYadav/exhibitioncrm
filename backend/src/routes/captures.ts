@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { litellm } from '../services/litellm-service';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { decodeAndValidateImage, ImageValidationError } from '../utils/imageValidation';
+import { upsertFollowUp } from '../services/followUps';
 import {
   checkScopedRateLimit,
   IMAGE_UPLOAD_SCOPE,
@@ -273,7 +274,6 @@ router.post('/', async (req, res, next) => {
             ? `${raw_text}\n\n[System Note: Captured at ${eventName}]`
             : raw_text || null,
           follow_up_status: 'not_contacted',
-          follow_up_urgency: null,
           ...(scannedDetails ? { scanned_details: scannedDetails } : {}),
         })
         .select()
@@ -317,6 +317,20 @@ router.post('/', async (req, res, next) => {
             },
             user_id: userId,
           });
+
+        // Follow-up trigger #1: a scanned/added contact seeds a 'new' record,
+        // keyed to the event it was captured at (or general if none). A capture
+        // is not itself a follow-up-worthy interaction, so it stays 'new' until
+        // a real interaction or target check-off promotes it to 'pending'.
+        try {
+          await upsertFollowUp(supabase, userId, {
+            contactId: contact.id,
+            eventId: event_id || null,
+            seedStatus: 'new',
+          });
+        } catch (e) {
+          console.error('follow_up upsert (capture) failed:', e);
+        }
 
         // Link to target companies
         if (event_id && companyId) {

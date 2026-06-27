@@ -79,6 +79,11 @@ dependencies:
   firebase_analytics: ^11.4.1
   flutter_uxcam: ^2.8.3
 
+  # Crash & feedback reporting
+  sentry_flutter: ^9.22.0
+  device_info_plus: ^11.5.0
+  package_info_plus: ^8.3.0
+
   # Supabase (Realtime for chat)
   supabase_flutter: ^2.6.1
   flutter_markdown: ^0.7.7+1

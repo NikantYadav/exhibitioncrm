@@ -4,6 +4,7 @@ import { TavilyService } from '../services/tavily-service';
 import { requireAuth } from '../middleware/requireAuth';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { decodeAndValidateImage } from '../utils/imageValidation';
+import { upsertFollowUp } from '../services/followUps';
 
 const CARD_BUCKET = 'contact-cards';
 
@@ -271,6 +272,19 @@ router.post('/', async (req, res, next) => {
         raw_data: { manual_data: body },
         user_id: req.user!.id,
       });
+    }
+
+    // Follow-up trigger #1 (manual add): seed a 'new' record keyed to the event
+    // (or general). The interaction this route inserts directly bypasses the
+    // /interactions route, so we seed here rather than rely on that trigger.
+    try {
+      await upsertFollowUp(supabase, req.user!.id, {
+        contactId: data.id,
+        eventId: body.event_id ?? null,
+        seedStatus: 'new',
+      });
+    } catch (e) {
+      console.error('follow_up upsert (manual contact) failed:', e);
     }
 
     // Link to target companies
@@ -610,7 +624,7 @@ router.get('/:id/insights', async (req, res, next) => {
 
     // ── Fetch full timeline (no artificial limit) ────────────────────────────
     const interactionsRes = await supabase.from('interactions')
-      .select('interaction_type, summary, details, interaction_date')
+      .select('interaction_type, summary, details, interaction_date, event:events(name)')
       .eq('contact_id', id)
       .is('deleted_at', null)
       .order('interaction_date', { ascending: true });
@@ -619,8 +633,18 @@ router.get('/:id/insights', async (req, res, next) => {
 
     const allTimeline: TimelineEntry[] = (interactionsRes.data || []).map((i: any) => {
         const note = i.details?.note ? ` Note: ${i.details.note}` : '';
+        // Give the AI the event context: a follow-up completion log reads as
+        // "Follow up to {event}"; any other event-linked interaction notes the
+        // event it happened at. Resolved from the live event join (never stale).
+        const eventName = i.event?.name as string | undefined;
+        let eventCtx = '';
+        if (eventName) {
+          eventCtx = i.details?.follow_up_log === true
+            ? ` (Follow up to ${eventName})`
+            : ` (at ${eventName})`;
+        }
         return {
-          text: `[${i.interaction_type}] ${(i.summary || '').slice(0, 1000)}${note} (${i.interaction_date?.slice(0, 10)})`,
+          text: `[${i.interaction_type}] ${(i.summary || '').slice(0, 1000)}${note}${eventCtx} (${i.interaction_date?.slice(0, 10)})`,
           date: i.interaction_date || '',
         };
       })

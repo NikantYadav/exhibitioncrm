@@ -198,6 +198,21 @@ class WriteGateway {
     );
     return WriteResult(savedOffline: true, offlineOpId: opId);
   }
+
+  Future<WriteResult> updateTargetCompanyMet(
+      String eventId, String targetId, bool met) async {
+    if (isOnline) {
+      await ApiService.updateTargetCompanyMet(eventId, targetId, met);
+      return const WriteResult();
+    }
+
+    final opId = await OfflineQueue.enqueue(
+      opType: 'update_target_company_met',
+      payload: {'eventId': eventId, 'targetId': targetId, 'met': met},
+      eventId: eventId,
+    );
+    return WriteResult(savedOffline: true, offlineOpId: opId);
+  }
 }
 
 class WriteResult {

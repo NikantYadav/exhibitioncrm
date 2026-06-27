@@ -340,6 +340,17 @@ class LiveEventProvider extends ChangeNotifier {
     }
   }
 
+  /// Per-user "met" toggle for a company target (live optimistic update).
+  void updateTargetCompanyMetLocally(String targetId, bool met) {
+    final idx = _liveTargets.indexWhere((t) => t['id'] == targetId);
+    if (idx != -1) {
+      final updated = List<Map<String, dynamic>>.from(_liveTargets);
+      updated[idx] = {...updated[idx], 'met': met};
+      _liveTargets = updated;
+      notifyListeners();
+    }
+  }
+
   void addTargetLocally(Map<String, dynamic> target) {
     _liveTargets = [..._liveTargets, target];
     notifyListeners();

@@ -840,18 +840,6 @@ class $ContactsTableTable extends ContactsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('not_contacted'),
   );
-  static const VerificationMeta _followUpUrgencyMeta = const VerificationMeta(
-    'followUpUrgency',
-  );
-  @override
-  late final GeneratedColumn<String> followUpUrgency = GeneratedColumn<String>(
-    'follow_up_urgency',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('medium'),
-  );
   static const VerificationMeta _lastContactedAtMeta = const VerificationMeta(
     'lastContactedAt',
   );
@@ -956,7 +944,6 @@ class $ContactsTableTable extends ContactsTable
     notes,
     avatarUrl,
     followUpStatus,
-    followUpUrgency,
     lastContactedAt,
     contactAssetsJson,
     scannedDetailsJson,
@@ -1054,15 +1041,6 @@ class $ContactsTableTable extends ContactsTable
         followUpStatus.isAcceptableOrUnknown(
           data['follow_up_status']!,
           _followUpStatusMeta,
-        ),
-      );
-    }
-    if (data.containsKey('follow_up_urgency')) {
-      context.handle(
-        _followUpUrgencyMeta,
-        followUpUrgency.isAcceptableOrUnknown(
-          data['follow_up_urgency']!,
-          _followUpUrgencyMeta,
         ),
       );
     }
@@ -1188,10 +1166,6 @@ class $ContactsTableTable extends ContactsTable
         DriftSqlType.string,
         data['${effectivePrefix}follow_up_status'],
       )!,
-      followUpUrgency: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}follow_up_urgency'],
-      )!,
       lastContactedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_contacted_at'],
@@ -1247,7 +1221,6 @@ class ContactsTableData extends DataClass
   final String? notes;
   final String? avatarUrl;
   final String followUpStatus;
-  final String followUpUrgency;
   final DateTime? lastContactedAt;
   final String? contactAssetsJson;
   final String? scannedDetailsJson;
@@ -1269,7 +1242,6 @@ class ContactsTableData extends DataClass
     this.notes,
     this.avatarUrl,
     required this.followUpStatus,
-    required this.followUpUrgency,
     this.lastContactedAt,
     this.contactAssetsJson,
     this.scannedDetailsJson,
@@ -1312,7 +1284,6 @@ class ContactsTableData extends DataClass
       map['avatar_url'] = Variable<String>(avatarUrl);
     }
     map['follow_up_status'] = Variable<String>(followUpStatus);
-    map['follow_up_urgency'] = Variable<String>(followUpUrgency);
     if (!nullToAbsent || lastContactedAt != null) {
       map['last_contacted_at'] = Variable<DateTime>(lastContactedAt);
     }
@@ -1370,7 +1341,6 @@ class ContactsTableData extends DataClass
           ? const Value.absent()
           : Value(avatarUrl),
       followUpStatus: Value(followUpStatus),
-      followUpUrgency: Value(followUpUrgency),
       lastContactedAt: lastContactedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastContactedAt),
@@ -1414,7 +1384,6 @@ class ContactsTableData extends DataClass
       notes: serializer.fromJson<String?>(json['notes']),
       avatarUrl: serializer.fromJson<String?>(json['avatarUrl']),
       followUpStatus: serializer.fromJson<String>(json['followUpStatus']),
-      followUpUrgency: serializer.fromJson<String>(json['followUpUrgency']),
       lastContactedAt: serializer.fromJson<DateTime?>(json['lastContactedAt']),
       contactAssetsJson: serializer.fromJson<String?>(
         json['contactAssetsJson'],
@@ -1445,7 +1414,6 @@ class ContactsTableData extends DataClass
       'notes': serializer.toJson<String?>(notes),
       'avatarUrl': serializer.toJson<String?>(avatarUrl),
       'followUpStatus': serializer.toJson<String>(followUpStatus),
-      'followUpUrgency': serializer.toJson<String>(followUpUrgency),
       'lastContactedAt': serializer.toJson<DateTime?>(lastContactedAt),
       'contactAssetsJson': serializer.toJson<String?>(contactAssetsJson),
       'scannedDetailsJson': serializer.toJson<String?>(scannedDetailsJson),
@@ -1470,7 +1438,6 @@ class ContactsTableData extends DataClass
     Value<String?> notes = const Value.absent(),
     Value<String?> avatarUrl = const Value.absent(),
     String? followUpStatus,
-    String? followUpUrgency,
     Value<DateTime?> lastContactedAt = const Value.absent(),
     Value<String?> contactAssetsJson = const Value.absent(),
     Value<String?> scannedDetailsJson = const Value.absent(),
@@ -1492,7 +1459,6 @@ class ContactsTableData extends DataClass
     notes: notes.present ? notes.value : this.notes,
     avatarUrl: avatarUrl.present ? avatarUrl.value : this.avatarUrl,
     followUpStatus: followUpStatus ?? this.followUpStatus,
-    followUpUrgency: followUpUrgency ?? this.followUpUrgency,
     lastContactedAt: lastContactedAt.present
         ? lastContactedAt.value
         : this.lastContactedAt,
@@ -1530,9 +1496,6 @@ class ContactsTableData extends DataClass
       followUpStatus: data.followUpStatus.present
           ? data.followUpStatus.value
           : this.followUpStatus,
-      followUpUrgency: data.followUpUrgency.present
-          ? data.followUpUrgency.value
-          : this.followUpUrgency,
       lastContactedAt: data.lastContactedAt.present
           ? data.lastContactedAt.value
           : this.lastContactedAt,
@@ -1569,7 +1532,6 @@ class ContactsTableData extends DataClass
           ..write('notes: $notes, ')
           ..write('avatarUrl: $avatarUrl, ')
           ..write('followUpStatus: $followUpStatus, ')
-          ..write('followUpUrgency: $followUpUrgency, ')
           ..write('lastContactedAt: $lastContactedAt, ')
           ..write('contactAssetsJson: $contactAssetsJson, ')
           ..write('scannedDetailsJson: $scannedDetailsJson, ')
@@ -1583,7 +1545,7 @@ class ContactsTableData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hashAll([
+  int get hashCode => Object.hash(
     id,
     userId,
     companyId,
@@ -1596,7 +1558,6 @@ class ContactsTableData extends DataClass
     notes,
     avatarUrl,
     followUpStatus,
-    followUpUrgency,
     lastContactedAt,
     contactAssetsJson,
     scannedDetailsJson,
@@ -1605,7 +1566,7 @@ class ContactsTableData extends DataClass
     createdAt,
     updatedAt,
     deletedAt,
-  ]);
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1622,7 +1583,6 @@ class ContactsTableData extends DataClass
           other.notes == this.notes &&
           other.avatarUrl == this.avatarUrl &&
           other.followUpStatus == this.followUpStatus &&
-          other.followUpUrgency == this.followUpUrgency &&
           other.lastContactedAt == this.lastContactedAt &&
           other.contactAssetsJson == this.contactAssetsJson &&
           other.scannedDetailsJson == this.scannedDetailsJson &&
@@ -1646,7 +1606,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
   final Value<String?> notes;
   final Value<String?> avatarUrl;
   final Value<String> followUpStatus;
-  final Value<String> followUpUrgency;
   final Value<DateTime?> lastContactedAt;
   final Value<String?> contactAssetsJson;
   final Value<String?> scannedDetailsJson;
@@ -1669,7 +1628,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     this.notes = const Value.absent(),
     this.avatarUrl = const Value.absent(),
     this.followUpStatus = const Value.absent(),
-    this.followUpUrgency = const Value.absent(),
     this.lastContactedAt = const Value.absent(),
     this.contactAssetsJson = const Value.absent(),
     this.scannedDetailsJson = const Value.absent(),
@@ -1693,7 +1651,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     this.notes = const Value.absent(),
     this.avatarUrl = const Value.absent(),
     this.followUpStatus = const Value.absent(),
-    this.followUpUrgency = const Value.absent(),
     this.lastContactedAt = const Value.absent(),
     this.contactAssetsJson = const Value.absent(),
     this.scannedDetailsJson = const Value.absent(),
@@ -1719,7 +1676,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     Expression<String>? notes,
     Expression<String>? avatarUrl,
     Expression<String>? followUpStatus,
-    Expression<String>? followUpUrgency,
     Expression<DateTime>? lastContactedAt,
     Expression<String>? contactAssetsJson,
     Expression<String>? scannedDetailsJson,
@@ -1743,7 +1699,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
       if (notes != null) 'notes': notes,
       if (avatarUrl != null) 'avatar_url': avatarUrl,
       if (followUpStatus != null) 'follow_up_status': followUpStatus,
-      if (followUpUrgency != null) 'follow_up_urgency': followUpUrgency,
       if (lastContactedAt != null) 'last_contacted_at': lastContactedAt,
       if (contactAssetsJson != null) 'contact_assets_json': contactAssetsJson,
       if (scannedDetailsJson != null)
@@ -1770,7 +1725,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     Value<String?>? notes,
     Value<String?>? avatarUrl,
     Value<String>? followUpStatus,
-    Value<String>? followUpUrgency,
     Value<DateTime?>? lastContactedAt,
     Value<String?>? contactAssetsJson,
     Value<String?>? scannedDetailsJson,
@@ -1794,7 +1748,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
       notes: notes ?? this.notes,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       followUpStatus: followUpStatus ?? this.followUpStatus,
-      followUpUrgency: followUpUrgency ?? this.followUpUrgency,
       lastContactedAt: lastContactedAt ?? this.lastContactedAt,
       contactAssetsJson: contactAssetsJson ?? this.contactAssetsJson,
       scannedDetailsJson: scannedDetailsJson ?? this.scannedDetailsJson,
@@ -1846,9 +1799,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     if (followUpStatus.present) {
       map['follow_up_status'] = Variable<String>(followUpStatus.value);
     }
-    if (followUpUrgency.present) {
-      map['follow_up_urgency'] = Variable<String>(followUpUrgency.value);
-    }
     if (lastContactedAt.present) {
       map['last_contacted_at'] = Variable<DateTime>(lastContactedAt.value);
     }
@@ -1894,7 +1844,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
           ..write('notes: $notes, ')
           ..write('avatarUrl: $avatarUrl, ')
           ..write('followUpStatus: $followUpStatus, ')
-          ..write('followUpUrgency: $followUpUrgency, ')
           ..write('lastContactedAt: $lastContactedAt, ')
           ..write('contactAssetsJson: $contactAssetsJson, ')
           ..write('scannedDetailsJson: $scannedDetailsJson, ')
@@ -7087,6 +7036,669 @@ class CompaniesTableCompanion extends UpdateCompanion<CompaniesTableData> {
   }
 }
 
+class $FollowUpsTableTable extends FollowUpsTable
+    with TableInfo<$FollowUpsTableTable, FollowUpsTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FollowUpsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contactIdMeta = const VerificationMeta(
+    'contactId',
+  );
+  @override
+  late final GeneratedColumn<String> contactId = GeneratedColumn<String>(
+    'contact_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _eventIdMeta = const VerificationMeta(
+    'eventId',
+  );
+  @override
+  late final GeneratedColumn<String> eventId = GeneratedColumn<String>(
+    'event_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('new'),
+  );
+  static const VerificationMeta _channelMeta = const VerificationMeta(
+    'channel',
+  );
+  @override
+  late final GeneratedColumn<String> channel = GeneratedColumn<String>(
+    'channel',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('email'),
+  );
+  static const VerificationMeta _lastInteractionAtMeta = const VerificationMeta(
+    'lastInteractionAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastInteractionAt =
+      GeneratedColumn<DateTime>(
+        'last_interaction_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _doneAtMeta = const VerificationMeta('doneAt');
+  @override
+  late final GeneratedColumn<DateTime> doneAt = GeneratedColumn<DateTime>(
+    'done_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    contactId,
+    eventId,
+    status,
+    channel,
+    lastInteractionAt,
+    doneAt,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'follow_ups';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FollowUpsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    }
+    if (data.containsKey('contact_id')) {
+      context.handle(
+        _contactIdMeta,
+        contactId.isAcceptableOrUnknown(data['contact_id']!, _contactIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contactIdMeta);
+    }
+    if (data.containsKey('event_id')) {
+      context.handle(
+        _eventIdMeta,
+        eventId.isAcceptableOrUnknown(data['event_id']!, _eventIdMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('channel')) {
+      context.handle(
+        _channelMeta,
+        channel.isAcceptableOrUnknown(data['channel']!, _channelMeta),
+      );
+    }
+    if (data.containsKey('last_interaction_at')) {
+      context.handle(
+        _lastInteractionAtMeta,
+        lastInteractionAt.isAcceptableOrUnknown(
+          data['last_interaction_at']!,
+          _lastInteractionAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('done_at')) {
+      context.handle(
+        _doneAtMeta,
+        doneAt.isAcceptableOrUnknown(data['done_at']!, _doneAtMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FollowUpsTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FollowUpsTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      ),
+      contactId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contact_id'],
+      )!,
+      eventId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}event_id'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      channel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}channel'],
+      )!,
+      lastInteractionAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_interaction_at'],
+      ),
+      doneAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}done_at'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $FollowUpsTableTable createAlias(String alias) {
+    return $FollowUpsTableTable(attachedDatabase, alias);
+  }
+}
+
+class FollowUpsTableData extends DataClass
+    implements Insertable<FollowUpsTableData> {
+  final String id;
+  final String? userId;
+  final String contactId;
+  final String? eventId;
+  final String status;
+  final String channel;
+  final DateTime? lastInteractionAt;
+  final DateTime? doneAt;
+  final DateTime? createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const FollowUpsTableData({
+    required this.id,
+    this.userId,
+    required this.contactId,
+    this.eventId,
+    required this.status,
+    required this.channel,
+    this.lastInteractionAt,
+    this.doneAt,
+    this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || userId != null) {
+      map['user_id'] = Variable<String>(userId);
+    }
+    map['contact_id'] = Variable<String>(contactId);
+    if (!nullToAbsent || eventId != null) {
+      map['event_id'] = Variable<String>(eventId);
+    }
+    map['status'] = Variable<String>(status);
+    map['channel'] = Variable<String>(channel);
+    if (!nullToAbsent || lastInteractionAt != null) {
+      map['last_interaction_at'] = Variable<DateTime>(lastInteractionAt);
+    }
+    if (!nullToAbsent || doneAt != null) {
+      map['done_at'] = Variable<DateTime>(doneAt);
+    }
+    if (!nullToAbsent || createdAt != null) {
+      map['created_at'] = Variable<DateTime>(createdAt);
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  FollowUpsTableCompanion toCompanion(bool nullToAbsent) {
+    return FollowUpsTableCompanion(
+      id: Value(id),
+      userId: userId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userId),
+      contactId: Value(contactId),
+      eventId: eventId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(eventId),
+      status: Value(status),
+      channel: Value(channel),
+      lastInteractionAt: lastInteractionAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastInteractionAt),
+      doneAt: doneAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(doneAt),
+      createdAt: createdAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory FollowUpsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FollowUpsTableData(
+      id: serializer.fromJson<String>(json['id']),
+      userId: serializer.fromJson<String?>(json['userId']),
+      contactId: serializer.fromJson<String>(json['contactId']),
+      eventId: serializer.fromJson<String?>(json['eventId']),
+      status: serializer.fromJson<String>(json['status']),
+      channel: serializer.fromJson<String>(json['channel']),
+      lastInteractionAt: serializer.fromJson<DateTime?>(
+        json['lastInteractionAt'],
+      ),
+      doneAt: serializer.fromJson<DateTime?>(json['doneAt']),
+      createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'userId': serializer.toJson<String?>(userId),
+      'contactId': serializer.toJson<String>(contactId),
+      'eventId': serializer.toJson<String?>(eventId),
+      'status': serializer.toJson<String>(status),
+      'channel': serializer.toJson<String>(channel),
+      'lastInteractionAt': serializer.toJson<DateTime?>(lastInteractionAt),
+      'doneAt': serializer.toJson<DateTime?>(doneAt),
+      'createdAt': serializer.toJson<DateTime?>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  FollowUpsTableData copyWith({
+    String? id,
+    Value<String?> userId = const Value.absent(),
+    String? contactId,
+    Value<String?> eventId = const Value.absent(),
+    String? status,
+    String? channel,
+    Value<DateTime?> lastInteractionAt = const Value.absent(),
+    Value<DateTime?> doneAt = const Value.absent(),
+    Value<DateTime?> createdAt = const Value.absent(),
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => FollowUpsTableData(
+    id: id ?? this.id,
+    userId: userId.present ? userId.value : this.userId,
+    contactId: contactId ?? this.contactId,
+    eventId: eventId.present ? eventId.value : this.eventId,
+    status: status ?? this.status,
+    channel: channel ?? this.channel,
+    lastInteractionAt: lastInteractionAt.present
+        ? lastInteractionAt.value
+        : this.lastInteractionAt,
+    doneAt: doneAt.present ? doneAt.value : this.doneAt,
+    createdAt: createdAt.present ? createdAt.value : this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  FollowUpsTableData copyWithCompanion(FollowUpsTableCompanion data) {
+    return FollowUpsTableData(
+      id: data.id.present ? data.id.value : this.id,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      contactId: data.contactId.present ? data.contactId.value : this.contactId,
+      eventId: data.eventId.present ? data.eventId.value : this.eventId,
+      status: data.status.present ? data.status.value : this.status,
+      channel: data.channel.present ? data.channel.value : this.channel,
+      lastInteractionAt: data.lastInteractionAt.present
+          ? data.lastInteractionAt.value
+          : this.lastInteractionAt,
+      doneAt: data.doneAt.present ? data.doneAt.value : this.doneAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FollowUpsTableData(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('contactId: $contactId, ')
+          ..write('eventId: $eventId, ')
+          ..write('status: $status, ')
+          ..write('channel: $channel, ')
+          ..write('lastInteractionAt: $lastInteractionAt, ')
+          ..write('doneAt: $doneAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    contactId,
+    eventId,
+    status,
+    channel,
+    lastInteractionAt,
+    doneAt,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FollowUpsTableData &&
+          other.id == this.id &&
+          other.userId == this.userId &&
+          other.contactId == this.contactId &&
+          other.eventId == this.eventId &&
+          other.status == this.status &&
+          other.channel == this.channel &&
+          other.lastInteractionAt == this.lastInteractionAt &&
+          other.doneAt == this.doneAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
+  final Value<String> id;
+  final Value<String?> userId;
+  final Value<String> contactId;
+  final Value<String?> eventId;
+  final Value<String> status;
+  final Value<String> channel;
+  final Value<DateTime?> lastInteractionAt;
+  final Value<DateTime?> doneAt;
+  final Value<DateTime?> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const FollowUpsTableCompanion({
+    this.id = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.contactId = const Value.absent(),
+    this.eventId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.channel = const Value.absent(),
+    this.lastInteractionAt = const Value.absent(),
+    this.doneAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FollowUpsTableCompanion.insert({
+    required String id,
+    this.userId = const Value.absent(),
+    required String contactId,
+    this.eventId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.channel = const Value.absent(),
+    this.lastInteractionAt = const Value.absent(),
+    this.doneAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       contactId = Value(contactId),
+       updatedAt = Value(updatedAt);
+  static Insertable<FollowUpsTableData> custom({
+    Expression<String>? id,
+    Expression<String>? userId,
+    Expression<String>? contactId,
+    Expression<String>? eventId,
+    Expression<String>? status,
+    Expression<String>? channel,
+    Expression<DateTime>? lastInteractionAt,
+    Expression<DateTime>? doneAt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (userId != null) 'user_id': userId,
+      if (contactId != null) 'contact_id': contactId,
+      if (eventId != null) 'event_id': eventId,
+      if (status != null) 'status': status,
+      if (channel != null) 'channel': channel,
+      if (lastInteractionAt != null) 'last_interaction_at': lastInteractionAt,
+      if (doneAt != null) 'done_at': doneAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FollowUpsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? userId,
+    Value<String>? contactId,
+    Value<String?>? eventId,
+    Value<String>? status,
+    Value<String>? channel,
+    Value<DateTime?>? lastInteractionAt,
+    Value<DateTime?>? doneAt,
+    Value<DateTime?>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return FollowUpsTableCompanion(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      contactId: contactId ?? this.contactId,
+      eventId: eventId ?? this.eventId,
+      status: status ?? this.status,
+      channel: channel ?? this.channel,
+      lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
+      doneAt: doneAt ?? this.doneAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (contactId.present) {
+      map['contact_id'] = Variable<String>(contactId.value);
+    }
+    if (eventId.present) {
+      map['event_id'] = Variable<String>(eventId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (channel.present) {
+      map['channel'] = Variable<String>(channel.value);
+    }
+    if (lastInteractionAt.present) {
+      map['last_interaction_at'] = Variable<DateTime>(lastInteractionAt.value);
+    }
+    if (doneAt.present) {
+      map['done_at'] = Variable<DateTime>(doneAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FollowUpsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('contactId: $contactId, ')
+          ..write('eventId: $eventId, ')
+          ..write('status: $status, ')
+          ..write('channel: $channel, ')
+          ..write('lastInteractionAt: $lastInteractionAt, ')
+          ..write('doneAt: $doneAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SyncStateTableTable extends SyncStateTable
     with TableInfo<$SyncStateTableTable, SyncStateTableData> {
   @override
@@ -7335,6 +7947,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $InteractionsTableTable interactionsTable =
       $InteractionsTableTable(this);
   late final $CompaniesTableTable companiesTable = $CompaniesTableTable(this);
+  late final $FollowUpsTableTable followUpsTable = $FollowUpsTableTable(this);
   late final $SyncStateTableTable syncStateTable = $SyncStateTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -7350,6 +7963,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     emailDraftsTable,
     interactionsTable,
     companiesTable,
+    followUpsTable,
     syncStateTable,
   ];
 }
@@ -7701,7 +8315,6 @@ typedef $$ContactsTableTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<String?> avatarUrl,
       Value<String> followUpStatus,
-      Value<String> followUpUrgency,
       Value<DateTime?> lastContactedAt,
       Value<String?> contactAssetsJson,
       Value<String?> scannedDetailsJson,
@@ -7726,7 +8339,6 @@ typedef $$ContactsTableTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<String?> avatarUrl,
       Value<String> followUpStatus,
-      Value<String> followUpUrgency,
       Value<DateTime?> lastContactedAt,
       Value<String?> contactAssetsJson,
       Value<String?> scannedDetailsJson,
@@ -7804,11 +8416,6 @@ class $$ContactsTableTableFilterComposer
 
   ColumnFilters<String> get followUpStatus => $composableBuilder(
     column: $table.followUpStatus,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get followUpUrgency => $composableBuilder(
-    column: $table.followUpUrgency,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7922,11 +8529,6 @@ class $$ContactsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get followUpUrgency => $composableBuilder(
-    column: $table.followUpUrgency,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<DateTime> get lastContactedAt => $composableBuilder(
     column: $table.lastContactedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8017,11 +8619,6 @@ class $$ContactsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get followUpUrgency => $composableBuilder(
-    column: $table.followUpUrgency,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<DateTime> get lastContactedAt => $composableBuilder(
     column: $table.lastContactedAt,
     builder: (column) => column,
@@ -8104,7 +8701,6 @@ class $$ContactsTableTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarUrl = const Value.absent(),
                 Value<String> followUpStatus = const Value.absent(),
-                Value<String> followUpUrgency = const Value.absent(),
                 Value<DateTime?> lastContactedAt = const Value.absent(),
                 Value<String?> contactAssetsJson = const Value.absent(),
                 Value<String?> scannedDetailsJson = const Value.absent(),
@@ -8127,7 +8723,6 @@ class $$ContactsTableTableTableManager
                 notes: notes,
                 avatarUrl: avatarUrl,
                 followUpStatus: followUpStatus,
-                followUpUrgency: followUpUrgency,
                 lastContactedAt: lastContactedAt,
                 contactAssetsJson: contactAssetsJson,
                 scannedDetailsJson: scannedDetailsJson,
@@ -8152,7 +8747,6 @@ class $$ContactsTableTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarUrl = const Value.absent(),
                 Value<String> followUpStatus = const Value.absent(),
-                Value<String> followUpUrgency = const Value.absent(),
                 Value<DateTime?> lastContactedAt = const Value.absent(),
                 Value<String?> contactAssetsJson = const Value.absent(),
                 Value<String?> scannedDetailsJson = const Value.absent(),
@@ -8175,7 +8769,6 @@ class $$ContactsTableTableTableManager
                 notes: notes,
                 avatarUrl: avatarUrl,
                 followUpStatus: followUpStatus,
-                followUpUrgency: followUpUrgency,
                 lastContactedAt: lastContactedAt,
                 contactAssetsJson: contactAssetsJson,
                 scannedDetailsJson: scannedDetailsJson,
@@ -10696,6 +11289,328 @@ typedef $$CompaniesTableTableProcessedTableManager =
       CompaniesTableData,
       PrefetchHooks Function()
     >;
+typedef $$FollowUpsTableTableCreateCompanionBuilder =
+    FollowUpsTableCompanion Function({
+      required String id,
+      Value<String?> userId,
+      required String contactId,
+      Value<String?> eventId,
+      Value<String> status,
+      Value<String> channel,
+      Value<DateTime?> lastInteractionAt,
+      Value<DateTime?> doneAt,
+      Value<DateTime?> createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$FollowUpsTableTableUpdateCompanionBuilder =
+    FollowUpsTableCompanion Function({
+      Value<String> id,
+      Value<String?> userId,
+      Value<String> contactId,
+      Value<String?> eventId,
+      Value<String> status,
+      Value<String> channel,
+      Value<DateTime?> lastInteractionAt,
+      Value<DateTime?> doneAt,
+      Value<DateTime?> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$FollowUpsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $FollowUpsTableTable> {
+  $$FollowUpsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contactId => $composableBuilder(
+    column: $table.contactId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get eventId => $composableBuilder(
+    column: $table.eventId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastInteractionAt => $composableBuilder(
+    column: $table.lastInteractionAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get doneAt => $composableBuilder(
+    column: $table.doneAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$FollowUpsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $FollowUpsTableTable> {
+  $$FollowUpsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contactId => $composableBuilder(
+    column: $table.contactId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get eventId => $composableBuilder(
+    column: $table.eventId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastInteractionAt => $composableBuilder(
+    column: $table.lastInteractionAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get doneAt => $composableBuilder(
+    column: $table.doneAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FollowUpsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FollowUpsTableTable> {
+  $$FollowUpsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get contactId =>
+      $composableBuilder(column: $table.contactId, builder: (column) => column);
+
+  GeneratedColumn<String> get eventId =>
+      $composableBuilder(column: $table.eventId, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get channel =>
+      $composableBuilder(column: $table.channel, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastInteractionAt => $composableBuilder(
+    column: $table.lastInteractionAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get doneAt =>
+      $composableBuilder(column: $table.doneAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$FollowUpsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FollowUpsTableTable,
+          FollowUpsTableData,
+          $$FollowUpsTableTableFilterComposer,
+          $$FollowUpsTableTableOrderingComposer,
+          $$FollowUpsTableTableAnnotationComposer,
+          $$FollowUpsTableTableCreateCompanionBuilder,
+          $$FollowUpsTableTableUpdateCompanionBuilder,
+          (
+            FollowUpsTableData,
+            BaseReferences<
+              _$AppDatabase,
+              $FollowUpsTableTable,
+              FollowUpsTableData
+            >,
+          ),
+          FollowUpsTableData,
+          PrefetchHooks Function()
+        > {
+  $$FollowUpsTableTableTableManager(
+    _$AppDatabase db,
+    $FollowUpsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FollowUpsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FollowUpsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FollowUpsTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> userId = const Value.absent(),
+                Value<String> contactId = const Value.absent(),
+                Value<String?> eventId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String> channel = const Value.absent(),
+                Value<DateTime?> lastInteractionAt = const Value.absent(),
+                Value<DateTime?> doneAt = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FollowUpsTableCompanion(
+                id: id,
+                userId: userId,
+                contactId: contactId,
+                eventId: eventId,
+                status: status,
+                channel: channel,
+                lastInteractionAt: lastInteractionAt,
+                doneAt: doneAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> userId = const Value.absent(),
+                required String contactId,
+                Value<String?> eventId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String> channel = const Value.absent(),
+                Value<DateTime?> lastInteractionAt = const Value.absent(),
+                Value<DateTime?> doneAt = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FollowUpsTableCompanion.insert(
+                id: id,
+                userId: userId,
+                contactId: contactId,
+                eventId: eventId,
+                status: status,
+                channel: channel,
+                lastInteractionAt: lastInteractionAt,
+                doneAt: doneAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$FollowUpsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FollowUpsTableTable,
+      FollowUpsTableData,
+      $$FollowUpsTableTableFilterComposer,
+      $$FollowUpsTableTableOrderingComposer,
+      $$FollowUpsTableTableAnnotationComposer,
+      $$FollowUpsTableTableCreateCompanionBuilder,
+      $$FollowUpsTableTableUpdateCompanionBuilder,
+      (
+        FollowUpsTableData,
+        BaseReferences<_$AppDatabase, $FollowUpsTableTable, FollowUpsTableData>,
+      ),
+      FollowUpsTableData,
+      PrefetchHooks Function()
+    >;
 typedef $$SyncStateTableTableCreateCompanionBuilder =
     SyncStateTableCompanion Function({
       required String tableName_,
@@ -10871,6 +11786,8 @@ class $AppDatabaseManager {
       $$InteractionsTableTableTableManager(_db, _db.interactionsTable);
   $$CompaniesTableTableTableManager get companiesTable =>
       $$CompaniesTableTableTableManager(_db, _db.companiesTable);
+  $$FollowUpsTableTableTableManager get followUpsTable =>
+      $$FollowUpsTableTableTableManager(_db, _db.followUpsTable);
   $$SyncStateTableTableTableManager get syncStateTable =>
       $$SyncStateTableTableTableManager(_db, _db.syncStateTable);
 }

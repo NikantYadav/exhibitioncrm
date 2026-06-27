@@ -7,6 +7,7 @@ import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_input.dart';
+import '../widgets/log_follow_up_sheet.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
@@ -64,7 +65,6 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   List<FollowUpRow> _followUps = [];
   Map<String, dynamic>? _stats;
 
-  late final ContactEventsRepository _contactEventsRepo;
   late final SyncProvider _sync;
 
   // Filter
@@ -83,7 +83,6 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
     _subjectCtrl = TextEditingController();
     _bodyCtrl = TextEditingController();
     _sync = context.read<SyncProvider>();
-    _contactEventsRepo = _sync.contactEvents;
     _loadStats();
   }
 
@@ -111,8 +110,8 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   // Derived helpers
   // ---------------------------------------------------------------------------
 
-  bool _isSent(FollowUpRow fu) => fu.followUpStatus == 'contacted';
-  bool _isSkipped(FollowUpRow fu) => fu.followUpStatus == 'needs_follow_up';
+  bool _isSent(FollowUpRow fu) => fu.followUpStatus == 'done';
+  bool _isSkipped(FollowUpRow fu) => fu.followUpStatus == 'skipped';
 
   List<FollowUpRow> get _filteredFollowUps {
     return _followUps.where((fu) {
@@ -132,6 +131,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
 
   int get _totalContacts => _followUps.length;
   int get _sentCount => _followUps.where(_isSent).length;
+  int get _skippedCount => _followUps.where((fu) => _isSkipped(fu) && !_isSent(fu)).length;
   int get _pendingCount => _followUps.where((fu) => !_isSent(fu) && !_isSkipped(fu)).length;
   double get _completionRate =>
       _totalContacts == 0 ? 0 : _sentCount / _totalContacts;
@@ -166,8 +166,12 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   // ---------------------------------------------------------------------------
 
   Future<void> _afterFollowUpWrite() async {
+    await _sync.followUps.catchUp();
     await _sync.contacts.catchUp();
     await _sync.emailDrafts.catchUp();
+    // The stats strip reads the server aggregate (_stats); refresh it so the
+    // Pending/Done/Skipped counts move in step with the freshly-synced list.
+    await _loadStats();
   }
 
   Future<void> _expandComposer(FollowUpRow fu) async {
@@ -209,43 +213,52 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
       _snack('Cannot log follow-up for a target company without a contact.');
       return;
     }
-    final noteCtrl = TextEditingController();
-    final channelCtrl = TextEditingController(text: 'Email');
-    await showAppSheet<void>(
+    // The email body drafted in the composer above — offered to the user as the
+    // email they "sent" when channel is Email.
+    final draftBody = _bodyCtrl.text.trim();
+    final r = await showLogFollowUpSheet(
       context: context,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: _FollowedUpSheet(
-          name: _fullName(fu),
-          noteCtrl: noteCtrl,
-          channelCtrl: channelCtrl,
-          onSubmit: (note, channel) async {
-            Navigator.of(ctx).pop();
-            setState(() => _expandedContactId = null);
-            _snack('Follow-up logged.');
-            await ApiService.markFollowUpSent(
-              _eventId,
-              contactId,
-              subject: _subjectCtrl.text.isNotEmpty ? _subjectCtrl.text : null,
-              body: _bodyCtrl.text.isNotEmpty ? _bodyCtrl.text : null,
-            ).catchError((_) {});
-            await _afterFollowUpWrite();
-            ApiService.logInteraction(
-              contactId: contactId,
-              eventId: _eventId.isNotEmpty ? _eventId : null,
-              type: 'follow_up',
-              summary: note.isNotEmpty
-                  ? note
-                  : 'Followed up via ${channel.isNotEmpty ? channel : "email"}',
-              details: {'channel': channel},
-            ).catchError((_) => <String, dynamic>{});
-          },
-        ),
-      ),
+      name: _fullName(fu),
+      hasDraftEmail: draftBody.isNotEmpty,
     );
-    noteCtrl.dispose();
-    channelCtrl.dispose();
+    if (r == null || !mounted) return;
+
+    setState(() => _expandedContactId = null);
+    _snack('Follow-up logged.');
+    await ApiService.markFollowUpSent(
+      _eventId,
+      contactId,
+      subject: _subjectCtrl.text.isNotEmpty ? _subjectCtrl.text : null,
+      body: _bodyCtrl.text.isNotEmpty ? _bodyCtrl.text : null,
+    ).catchError((_) {});
+    await _afterFollowUpWrite();
+    // Manual channels carry a free-text mode label (e.g. "Coffee Chat") that
+    // drives the timeline item title on the contact detail screen.
+    final label = r.channel == 'manual'
+        ? (r.mode.isNotEmpty ? r.mode : 'Manual')
+        : _channelLabel(r.channel);
+    final details = <String, dynamic>{
+      'channel': label,
+      'mode': label,
+      // Marks this interaction as the follow-up's completion so the backend does
+      // NOT reopen the just-completed follow-up to pending.
+      'follow_up_log': true,
+      if (r.emailUsed && draftBody.isNotEmpty) 'email': draftBody,
+    };
+    ApiService.logInteraction(
+      contactId: contactId,
+      eventId: _eventId.isNotEmpty ? _eventId : null,
+      type: r.channel,
+      summary: r.note.isNotEmpty ? r.note : 'Followed up via $label',
+      details: details,
+    ).catchError((_) => <String, dynamic>{});
   }
+
+  String _channelLabel(String channel) => switch (channel) {
+    'email' => 'Email',
+    'call'  => 'Call',
+    _       => 'Manual',
+  };
 
   Future<void> _markSent(String contactId) async {
     setState(() => _expandedContactId = null);
@@ -303,8 +316,12 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
               child: _eventId.isEmpty
                   ? _buildEmptyState()
                   : StreamBuilder<List<FollowUpRow>>(
-                      stream: _contactEventsRepo.watchFollowUps(_eventId),
+                      stream: _sync.followUps.watchFollowUps(_eventId),
                       builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          debugPrint('watchFollowUps error: ${snapshot.error}');
+                          return _buildEmptyState();
+                        }
                         if (!snapshot.hasData) return _buildSkeleton();
                         _followUps = snapshot.data!;
                         return _followUps.isEmpty ? _buildEmptyState() : _buildBody();
@@ -328,12 +345,6 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
             child: _buildSummaryHero(),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-            child: _buildStats(),
           ),
         ),
         SliverToBoxAdapter(
@@ -495,51 +506,53 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
               _AnimatedProgressBar(value: _completionRate, colors: _c),
             ],
           ),
+          const SizedBox(height: 20),
+          FDivider(style: FDividerStyleDelta.delta(
+              color: context.theme.colors.border,
+              padding: EdgeInsetsGeometryDelta.value(EdgeInsets.zero))),
+          const SizedBox(height: 18),
+          _buildStatsStrip(),
         ],
       ),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // Stats row
+  // Inline stats strip (merged into the hero card)
   // ---------------------------------------------------------------------------
 
-  Widget _buildStats() {
+  Widget _buildStatsStrip() {
+    // Prefer the server aggregate (matches the events-screen past card), fall
+    // back to the live drift-stream counts before stats load.
     final totalCaptures = (_stats?['total_contacts'] as num?)?.toInt() ?? _totalContacts;
-    final followUpsNeeded = (_stats?['follow_ups_needed'] as num?)?.toInt() ?? _pendingCount;
+    final pending = (_stats?['follow_ups_needed'] as num?)?.toInt() ?? _pendingCount;
+    final skipped = (_stats?['follow_ups_skipped'] as num?)?.toInt() ?? _skippedCount;
+    final done = (_stats?['follow_ups_done'] as num?)?.toInt() ?? _sentCount;
 
     return Row(
       children: [
-        Expanded(
-          child: _StatTile(
-            icon: Icons.people_outline_rounded,
-            label: 'Contacts',
-            value: '$totalCaptures',
-            colors: _c,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatTile(
-            icon: Icons.hourglass_empty_rounded,
-            label: 'Pending',
-            value: '$followUpsNeeded',
-            colors: _c,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatTile(
-            icon: Icons.check_circle_outline_rounded,
-            label: 'Sent',
-            value: '$_sentCount',
-            valueColor: _sentCount > 0 ? _c.success : null,
-            colors: _c,
-          ),
-        ),
+        Expanded(child: _HeroStat(
+          value: '$totalCaptures', label: 'Contacts', colors: _c)),
+        _heroStatDivider(),
+        Expanded(child: _HeroStat(
+          value: '$pending', label: 'Pending',
+          valueColor: pending > 0 ? _c.accent : null, colors: _c)),
+        _heroStatDivider(),
+        Expanded(child: _HeroStat(
+          value: '$skipped', label: 'Skipped',
+          valueColor: skipped > 0 ? context.theme.colors.error : null, colors: _c)),
+        _heroStatDivider(),
+        Expanded(child: _HeroStat(
+          value: '$done', label: 'Done',
+          valueColor: done > 0 ? _c.success : null, colors: _c)),
       ],
     );
   }
+
+  Widget _heroStatDivider() => Container(
+      width: 1, height: 34,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      color: context.theme.colors.border.withValues(alpha: 0.5));
 
   // ---------------------------------------------------------------------------
   // Empty / error states
@@ -607,30 +620,23 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                 SkeletonLoader(width: 160, height: 14, borderRadius: BorderRadius.circular(4)),
                 const SizedBox(height: 20),
                 SkeletonLoader(width: double.infinity, height: 6, borderRadius: BorderRadius.circular(999)),
+                const SizedBox(height: 20),
+                SkeletonLoader(width: double.infinity, height: 1, borderRadius: BorderRadius.zero),
+                const SizedBox(height: 18),
+                // Inline stats strip skeleton
+                Row(
+                  children: List.generate(4, (i) => Expanded(
+                    child: Column(
+                      children: [
+                        SkeletonLoader(width: 32, height: 26, borderRadius: BorderRadius.circular(4)),
+                        const SizedBox(height: 6),
+                        SkeletonLoader(width: 48, height: 11, borderRadius: BorderRadius.circular(3)),
+                      ],
+                    ),
+                  )),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-          // Stats row
-          Row(
-            children: List.generate(3, (i) => Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(left: i == 0 ? 0 : 5, right: i == 2 ? 0 : 5),
-                child: _skeletonCard(
-                  radius: 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SkeletonLoader(width: 28, height: 28, borderRadius: BorderRadius.circular(8)),
-                      const SizedBox(height: 10),
-                      SkeletonLoader(width: 40, height: 22, borderRadius: BorderRadius.circular(4)),
-                      const SizedBox(height: 6),
-                      SkeletonLoader(width: 60, height: 11, borderRadius: BorderRadius.circular(3)),
-                    ],
-                  ),
-                ),
-              ),
-            )),
           ),
           const SizedBox(height: 24),
           SkeletonLoader(width: 160, height: 20, borderRadius: BorderRadius.circular(5)),
@@ -733,6 +739,7 @@ class _ContactFollowUpCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Flexible(
                               child: Text(
@@ -743,15 +750,22 @@ class _ContactFollowUpCard extends StatelessWidget {
                                   fontWeight: FontWeight.w600,
                                   color: context.theme.colors.foreground,
                                   letterSpacing: -0.2,
+                                  height: 1.1,
                                 ),
                               ),
                             ),
                             if (isSent) ...[
                               const SizedBox(width: 8),
-                              AppChip.status('FOLLOWED UP', color: _c.success),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: AppChip.status('FOLLOWED UP', color: _c.success),
+                              ),
                             ] else if (isSkipped) ...[
                               const SizedBox(width: 8),
-                              AppChip.status('SKIPPED', color: context.theme.colors.mutedForeground),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: AppChip.status('SKIPPED', color: context.theme.colors.mutedForeground),
+                              ),
                             ],
                           ],
                         ),
@@ -892,40 +906,39 @@ class _ContactFollowUpCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            'MESSAGE',
-                            style: context.theme.typography.xs.copyWith(
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.6,
-                              color: context.theme.colors.mutedForeground,
-                            ),
-                          ),
-                          if (isDraftLoading) ...[
-                            const SizedBox(width: 8),
-                            const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: FCircularProgress(),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Generating AI draft…',
-                              style: context.theme.typography.xs.copyWith(
-                                color: _c.accent,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ],
+                      Text(
+                        'MESSAGE',
+                        style: context.theme.typography.xs.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.6,
+                          color: context.theme.colors.mutedForeground,
+                        ),
                       ),
                       const SizedBox(height: 6),
-                      AppInput(
-                        controller: bodyCtrl,
-                        maxLines: null,
-                        minLines: 6,
-                      ),
+                      if (isDraftLoading)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              SkeletonLoader(width: double.infinity, height: 14),
+                              SizedBox(height: 10),
+                              SkeletonLoader(width: double.infinity, height: 14),
+                              SizedBox(height: 10),
+                              SkeletonLoader(width: 220, height: 14),
+                              SizedBox(height: 18),
+                              SkeletonLoader(width: double.infinity, height: 14),
+                              SizedBox(height: 10),
+                              SkeletonLoader(width: 160, height: 14),
+                            ],
+                          ),
+                        )
+                      else
+                        AppInput(
+                          controller: bodyCtrl,
+                          maxLines: null,
+                          minLines: 6,
+                        ),
                     ],
                   ),
                 ),
@@ -1038,15 +1051,13 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _StatTile extends StatelessWidget {
-  final IconData icon;
+class _HeroStat extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
   final ExonoColors colors;
 
-  const _StatTile({
-    required this.icon,
+  const _HeroStat({
     required this.label,
     required this.value,
     required this.colors,
@@ -1055,42 +1066,33 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = colors;
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      radius: 16,
-      elevated: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: c.accentSoft,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 16, color: c.accent),
+    return Column(
+      children: [
+        Text(
+          value,
+          style: context.theme.typography.xl2.copyWith(
+            fontWeight: FontWeight.w800,
+            color: valueColor ?? context.theme.colors.foreground,
+            letterSpacing: -0.5,
+            height: 1.0,
           ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: context.theme.typography.xl.copyWith(
-              fontWeight: FontWeight.w700,
-              color: valueColor ?? context.theme.colors.foreground,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
+        ),
+        const SizedBox(height: 4),
+        // Shrink-to-fit so labels like "CONTACTS" stay on one line and all four
+        // cells align, matching the events-screen past card.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label.toUpperCase(),
+            maxLines: 1,
             style: context.theme.typography.xs.copyWith(
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               color: context.theme.colors.mutedForeground,
-              letterSpacing: 0.3,
+              letterSpacing: 0.4,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -1188,120 +1190,3 @@ class _AnimatedProgressBarState extends State<_AnimatedProgressBar>
   }
 }
 
-// ===========================================================================
-// Followed Up bottom sheet
-// ===========================================================================
-
-class _FollowedUpSheet extends StatelessWidget {
-  final String name;
-  final TextEditingController noteCtrl;
-  final TextEditingController channelCtrl;
-  final void Function(String note, String channel) onSubmit;
-
-  const _FollowedUpSheet({
-    required this.name,
-    required this.noteCtrl,
-    required this.channelCtrl,
-    required this.onSubmit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: context.theme.colors.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Log Follow-Up',
-              style: context.theme.typography.xl.copyWith(
-                fontWeight: FontWeight.w700,
-                color: context.theme.colors.foreground,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Recording follow-up with $name',
-              style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
-            ),
-            const SizedBox(height: 20),
-            _SheetField(
-              label: 'Channel',
-              hint: 'e.g. Email, LinkedIn, Phone…',
-              controller: channelCtrl,
-            ),
-            const SizedBox(height: 14),
-            _SheetField(
-              label: 'Notes (optional)',
-              hint: 'What did you discuss? Any commitments made?',
-              controller: noteCtrl,
-              maxLines: 4,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Sharing context helps our AI personalise future suggestions.',
-              style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground, height: 1.4),
-            ),
-            const SizedBox(height: 20),
-            AppButton(
-              label: 'CONFIRM FOLLOW-UP',
-              onPressed: () => onSubmit(noteCtrl.text.trim(), channelCtrl.text.trim()),
-              fullWidth: true,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SheetField extends StatelessWidget {
-  final String label;
-  final String hint;
-  final TextEditingController controller;
-  final int maxLines;
-
-  const _SheetField({
-    required this.label,
-    required this.hint,
-    required this.controller,
-    this.maxLines = 1,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: context.theme.typography.xs.copyWith(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
-              color: context.theme.colors.mutedForeground),
-        ),
-        const SizedBox(height: 6),
-        AppInput(
-          controller: controller,
-          maxLines: maxLines,
-          hint: hint,
-        ),
-      ],
-    );
-  }
-}

@@ -17,7 +17,6 @@ class Contact {
   final List<Map<String, dynamic>> contactAssets;
   final Map<String, dynamic>? scannedDetails;
   final String followUpStatus;
-  final String followUpUrgency;
   final DateTime? lastContactedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -38,7 +37,6 @@ class Contact {
     this.contactAssets = const [],
     this.scannedDetails,
     this.followUpStatus = 'not_contacted',
-    this.followUpUrgency = '',
     this.lastContactedAt,
     required this.createdAt,
     required this.updatedAt,
@@ -65,8 +63,7 @@ class Contact {
           ? Map<String, dynamic>.from(json['scanned_details'] as Map)
           : null,
       followUpStatus: json['follow_up_status'] ?? 'not_contacted',
-      followUpUrgency: json['follow_up_urgency'] ?? '',
-      lastContactedAt: json['last_contacted_at'] != null 
+      lastContactedAt: json['last_contacted_at'] != null
           ? DateTime.parse(json['last_contacted_at']) 
           : null,
       createdAt: DateTime.parse(json['created_at']),
@@ -89,7 +86,6 @@ class Contact {
       'notes': notes,
       'avatar_url': avatarUrl,
       'follow_up_status': followUpStatus,
-      'follow_up_urgency': followUpUrgency,
       'last_contacted_at': lastContactedAt?.toIso8601String(),
     };
   }
@@ -116,7 +112,6 @@ class Contact {
           ? Map<String, dynamic>.from(jsonDecode(row.scannedDetailsJson!) as Map)
           : null,
       followUpStatus: row.followUpStatus,
-      followUpUrgency: row.followUpUrgency,
       lastContactedAt: row.lastContactedAt,
       createdAt: row.createdAt ?? row.updatedAt,
       updatedAt: row.updatedAt,
