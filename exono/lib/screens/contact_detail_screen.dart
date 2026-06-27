@@ -132,8 +132,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         // A follow-up completion log reads as "Follow up to {Event}"; any other
         // event-linked interaction just shows the event name on its own line.
         final isFollowUpLog = details?['follow_up_log'] == true;
+        // Auto "Met at {Event}" entries already carry the event name in the
+        // summary, so don't repeat it on its own line.
+        final isMetTarget = details?['met_target'] == true;
         final rawDescription = item['summary'] ?? item['content'] ?? 'No additional details.';
-        final eventLine = (eventName != null && eventName.isNotEmpty)
+        final eventLine = (eventName != null && eventName.isNotEmpty && !isMetTarget)
             ? (isFollowUpLog ? 'Follow up to $eventName' : eventName)
             : null;
         final description = eventLine != null
@@ -455,10 +458,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
           _buildTimelineCard(contact),
           const SizedBox(height: 12),
           _buildLinksCard(contact),
-          if (contact.scannedDetails != null && contact.scannedDetails!.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildScannedDetailsCard(contact),
-          ],
+          const SizedBox(height: 12),
+          _buildScannedDetailsCard(contact),
           const SizedBox(height: 12),
           _buildEventsCard(contact),
         ],
@@ -1076,7 +1077,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
 
   Widget _buildScannedDetailsCard(ContactProfileData contact) {
     final theme = context.theme;
-    final entries = contact.scannedDetails!.entries.toList();
+    final c = AppTheme.colorsOf(context);
+    final entries = (contact.scannedDetails ?? {}).entries.toList();
     return AppCard(
       padding: const EdgeInsets.all(16),
       radius: 12,
@@ -1085,21 +1087,28 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
         children: [
           Row(
             children: [
-              Icon(Icons.badge_outlined, size: 18, color: AppTheme.colorsOf(context).accent),
+              Icon(Icons.badge_outlined, size: 18, color: c.accent),
               const SizedBox(width: 10),
               Text('Additional Details', style: theme.typography.sm.copyWith(
                   fontWeight: FontWeight.w600, color: theme.colors.foreground)),
             ],
           ),
-          const SizedBox(height: 14),
-          for (var i = 0; i < entries.length; i++) ...[
-            if (i > 0) const SizedBox(height: 10),
-            _scannedDetailLine(entries[i].key, entries[i].value?.toString() ?? ''),
+          if (entries.isEmpty) ...[
+            const SizedBox(height: 10),
+            Text('No additional details yet. Edit contact to add.',
+                style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
+          ] else ...[
+            const SizedBox(height: 14),
+            for (var i = 0; i < entries.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              _scannedDetailLine(entries[i].key, entries[i].value?.toString() ?? ''),
+            ],
           ],
         ],
       ),
     );
   }
+
 
   Widget _scannedDetailLine(String key, String value) {
     final theme = context.theme;
@@ -1185,6 +1194,13 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
 
 // ─── Edit Contact Sheet ───────────────────────────────────────────────────────
 
+class _DetailEntry {
+  final TextEditingController keyCtrl;
+  final TextEditingController valueCtrl;
+  _DetailEntry({required this.keyCtrl, required this.valueCtrl});
+}
+
+
 class _EditContactSheet extends StatefulWidget {
   final ContactProfileData contact;
   const _EditContactSheet({required this.contact});
@@ -1201,7 +1217,20 @@ class _EditContactSheetState extends State<_EditContactSheet> {
   late final _jobTitleCtrl  = TextEditingController(text: widget.contact.title);
   late final _linkedinCtrl  = TextEditingController(text: widget.contact.linkedin);
   late final _companyCtrl   = TextEditingController(text: widget.contact.company);
+  late final List<_DetailEntry> _extraEntries;
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.contact.scannedDetails ?? {};
+    _extraEntries = existing.entries
+        .map((e) => _DetailEntry(
+              keyCtrl: TextEditingController(text: e.key),
+              valueCtrl: TextEditingController(text: e.value?.toString() ?? ''),
+            ))
+        .toList();
+  }
 
   static bool _isValidEmail(String email) {
     final atIdx = email.indexOf('@');
@@ -1222,6 +1251,7 @@ class _EditContactSheetState extends State<_EditContactSheet> {
   void dispose() {
     _firstNameCtrl.dispose(); _lastNameCtrl.dispose(); _emailCtrl.dispose();
     _phoneCtrl.dispose(); _jobTitleCtrl.dispose(); _linkedinCtrl.dispose(); _companyCtrl.dispose();
+    for (final e in _extraEntries) { e.keyCtrl.dispose(); e.valueCtrl.dispose(); }
     super.dispose();
   }
 
@@ -1247,6 +1277,7 @@ class _EditContactSheetState extends State<_EditContactSheet> {
       showAppToast(context, 'LinkedIn URL must start with http:// or https://');
       return;
     }
+    final contactsRepo = context.read<SyncProvider>().contacts;
     setState(() => _isSaving = true);
     try {
       final payload = <String, dynamic>{
@@ -1262,7 +1293,18 @@ class _EditContactSheetState extends State<_EditContactSheet> {
       if (newCompany.toUpperCase() != originalCompany.toUpperCase()) {
         payload['company_name'] = newCompany.isEmpty ? 'INDEPENDENT' : newCompany;
       }
-      await ApiService.updateContact(widget.contact.id, payload);
+      final extraMap = <String, dynamic>{};
+      for (final e in _extraEntries) {
+        final key = e.keyCtrl.text.trim();
+        final value = e.valueCtrl.text.trim();
+        if (key.isNotEmpty) { extraMap[key] = value; }
+      }
+      payload['scanned_details'] = extraMap;
+      final updated = await ApiService.updateContact(widget.contact.id, payload);
+      // Apply the server's canonical row to the local cache so the detail
+      // stream re-emits the new details immediately, without waiting for the
+      // next delta sync (whose `since` window can miss this just-written row).
+      await contactsRepo.applyDelta(upserts: [updated], deletedIds: const []);
       if (mounted) Navigator.pop(context, true);
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) {
@@ -1275,8 +1317,9 @@ class _EditContactSheetState extends State<_EditContactSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+    // Keyboard inset handled centrally by showAppSheet — no viewInsets here.
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.zero,
       child: SafeArea(
         top: false,
         child: Column(
@@ -1323,6 +1366,63 @@ class _EditContactSheetState extends State<_EditContactSheet> {
                     AppInput(label: 'Company', controller: _companyCtrl),
                     const SizedBox(height: 12),
                     AppInput(label: 'LinkedIn URL', controller: _linkedinCtrl, keyboardType: TextInputType.url),
+                    const SizedBox(height: 20),
+                    Divider(color: theme.colors.border, height: 1),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Text('Additional Details',
+                            style: theme.typography.sm.copyWith(fontWeight: FontWeight.w600, color: theme.colors.foreground)),
+                        const Spacer(),
+                        AppButton(
+                          variant: ButtonVariant.outline,
+                          size: ButtonSize.sm,
+                          onPressed: () => setState(() => _extraEntries.add(_DetailEntry(
+                                keyCtrl: TextEditingController(),
+                                valueCtrl: TextEditingController(),
+                              ))),
+                          prefixIcon: const Icon(Icons.add, size: 14),
+                          label: 'Add',
+                        ),
+                      ],
+                    ),
+                    if (_extraEntries.isEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text('No additional details yet.',
+                          style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
+                    ] else ...[
+                      const SizedBox(height: 10),
+                      for (var i = 0; i < _extraEntries.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: AppInput(label: 'Label', controller: _extraEntries[i].keyCtrl),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 3,
+                              child: AppInput(label: 'Value', controller: _extraEntries[i].valueCtrl),
+                            ),
+                            const SizedBox(width: 4),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 20),
+                              child: AppButton(
+                                variant: ButtonVariant.ghost,
+                                onPressed: () {
+                                  _extraEntries[i].keyCtrl.dispose();
+                                  _extraEntries[i].valueCtrl.dispose();
+                                  setState(() => _extraEntries.removeAt(i));
+                                },
+                                child: Icon(Icons.remove_circle_outline, size: 20, color: theme.colors.error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                     const SizedBox(height: 24),
                     AppButton(
                       variant: ButtonVariant.primary,
@@ -1443,8 +1543,9 @@ class _EventPickerSheetState extends State<_EventPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+    // Keyboard inset handled centrally by showAppSheet — no viewInsets here.
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.zero,
       child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.7,
         child: SafeArea(

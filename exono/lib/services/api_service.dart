@@ -439,6 +439,46 @@ class ApiService {
     throw Exception(body is Map && body['error'] != null ? body['error'] : 'Assistant error');
   }
 
+  /// Approve or deny a pending write the assistant proposed. [decision] is
+  /// 'approve' or 'deny'. Returns the same shape as [assistantRespond] — either
+  /// a completed turn (assistant_message) or another awaiting_permission action.
+  static Future<Map<String, dynamic>> assistantResume({
+    required String pendingActionId,
+    required String decision,
+  }) async {
+    final response = await _send(() async => http.post(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.assistant}/resume'),
+      headers: await _headers(),
+      body: json.encode({
+        'pending_action_id': pendingActionId,
+        'decision': decision,
+      }),
+    ));
+
+    checkUnauthorized(response);
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    final body = json.decode(response.body);
+    throw Exception(body is Map && body['error'] != null ? body['error'] : 'Assistant error');
+  }
+
+  /// The latest unresolved write awaiting permission for a conversation, or null.
+  /// Used to restore the confirmation card after the app was backgrounded mid-turn.
+  static Future<Map<String, dynamic>?> assistantPending(String conversationId) async {
+    final response = await _send(() async => http.get(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.assistant}/pending?conversation_id=$conversationId'),
+      headers: await _headers(),
+    ));
+
+    checkUnauthorized(response);
+    if (response.statusCode == 200) {
+      final body = json.decode(response.body) as Map<String, dynamic>;
+      return body['pending_action'] as Map<String, dynamic>?;
+    }
+    return null;
+  }
+
   static Future<void> deleteConversation(String conversationId) async {
     final response = await _send(() async => http.delete(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.conversations}/$conversationId'),
@@ -475,7 +515,9 @@ class ApiService {
     throw Exception('Failed to generate email draft');
   }
 
-  static Future<void> updateContact(String contactId, Map<String, dynamic> data) async {
+  /// Returns the updated contact row from the server (the full record),
+  /// so callers can apply it to the local cache optimistically.
+  static Future<Map<String, dynamic>> updateContact(String contactId, Map<String, dynamic> data) async {
     final response = await _send(() async => http.patch(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}/$contactId'),
       headers: await _headers(),
@@ -485,6 +527,8 @@ class ApiService {
     if (response.statusCode != 200) {
       throw Exception('Failed to update contact');
     }
+    final body = json.decode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
   }
 
   static Future<List<Map<String, dynamic>>> getContactEvents(String contactId) async {

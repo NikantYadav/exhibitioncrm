@@ -57,6 +57,36 @@ class FollowUpsRepository extends SyncedRepository<FollowUpsTableData, $FollowUp
     });
   }
 
+  /// Optimistically apply a status change to the local drift cache so streams
+  /// (e.g. [watchDueCount]) re-emit immediately, before the backend write's
+  /// Realtime echo arrives. [eventId] scopes to one (contact, event) record;
+  /// pass `scopeToEvent: false` to update every record for the contact (mirrors
+  /// the API's contact-wide update). The Realtime echo later reconciles via
+  /// last-write-wins on `updated_at`; we bump it to now so the echo (or a stale
+  /// catchUp page) doesn't clobber this optimistic state before the server's
+  /// own newer row lands.
+  Future<void> setStatusLocal(
+    String contactId,
+    String status, {
+    String? eventId,
+    bool scopeToEvent = false,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final update = db.update(db.followUpsTable)
+      ..where((t) {
+        var w = t.contactId.equals(contactId) & t.deletedAt.isNull();
+        if (scopeToEvent) {
+          w = w & (eventId == null ? t.eventId.isNull() : t.eventId.equals(eventId));
+        }
+        return w;
+      });
+    await update.write(FollowUpsTableCompanion(
+      status: Value(status),
+      doneAt: Value(status == 'done' ? now : null),
+      updatedAt: Value(now),
+    ));
+  }
+
   /// Per-event follow-up queue: every follow_ups row for [eventId], joined to
   /// its contact + company + latest email draft for this event. Mirrors the
   /// old derived `watchFollowUps` shape but with a real per-event status.

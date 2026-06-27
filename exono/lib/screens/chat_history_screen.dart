@@ -299,6 +299,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
   }
 
   String _formatDate(DateTime dt) {
+    dt = dt.toLocal();
     final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inDays == 0) {

@@ -740,7 +740,17 @@ router.patch('/:id', async (req, res, next) => {
         .single();
       if (curErr) throw curErr;
       const merged = { ...current, ...updates };
-      if (isStartInPast(merged.start_date, merged.start_time)) {
+      // Only reject a past start when the update actually moves the start — i.e.
+      // the merged start_date/start_time differs from what's already stored.
+      // Editing only the end (e.g. stopping a live event, whose start is
+      // legitimately in the past) must not trip the future-start guard.
+      // DB time columns come back as HH:MM:SS while the payload is HH:MM —
+      // compare on HH:MM so an unchanged start isn't seen as moved.
+      const hm = (t?: string | null) => (t == null ? t : t.slice(0, 5));
+      const startMoved =
+        merged.start_date !== current.start_date ||
+        hm(merged.start_time) !== hm(current.start_time);
+      if (startMoved && isStartInPast(merged.start_date, merged.start_time)) {
         return res.status(400).json({ error: 'Event start date cannot be in the past.' });
       }
       if (await hasOverlap(supabase, req.user!.id, merged, req.params.id)) {
@@ -1815,6 +1825,58 @@ router.patch('/:id/contacts/:contactId', async (req, res, next) => {
         });
       } catch (e) {
         console.error('follow_up upsert (target check-off) failed:', e);
+      }
+
+      // Also drop a "Met" entry onto the contact's engagement timeline.
+      // Idempotent on (contact, event, details.met_target) so toggling met
+      // off/on — or checking off from multiple places — never duplicates it.
+      try {
+        const { data: existingMet } = await supabase
+          .from('interactions')
+          .select('id')
+          .eq('contact_id', contactId)
+          .eq('event_id', eventId)
+          .eq('interaction_type', 'meeting')
+          .contains('details', { met_target: true })
+          .is('deleted_at', null)
+          .maybeSingle();
+
+        if (!existingMet) {
+          const { data: ev } = await supabase
+            .from('events')
+            .select('name')
+            .eq('id', eventId)
+            .maybeSingle();
+          const summary = ev?.name ? `Met at ${ev.name}` : 'Met';
+
+          await supabase.from('interactions').insert({
+            contact_id: contactId,
+            event_id: eventId,
+            interaction_type: 'meeting',
+            summary,
+            interaction_date: new Date().toISOString(),
+            details: { met_target: true },
+            user_id: req.user!.id,
+          });
+        }
+      } catch (e) {
+        console.error('met interaction insert failed:', e);
+      }
+    } else if (status !== undefined) {
+      // Un-checking met (status back to not_contacted/contacted) removes the
+      // auto "Met" entry from the timeline — soft-delete to match how
+      // interactions are deleted elsewhere.
+      try {
+        await supabase
+          .from('interactions')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('contact_id', contactId)
+          .eq('event_id', eventId)
+          .eq('interaction_type', 'meeting')
+          .contains('details', { met_target: true })
+          .is('deleted_at', null);
+      } catch (e) {
+        console.error('met interaction soft-delete failed:', e);
       }
     }
 

@@ -23,6 +23,7 @@ import '../widgets/create_company_sheet.dart';
 import '../widgets/skeleton_loader.dart';
 import 'target_company_prep_screen.dart';
 import '../utils/screen_logger.dart';
+import 'app_shell.dart' show navBarHide, navBarShow;
 
 class PreEventPrepScreen extends StatefulWidget {
   final Event event;
@@ -46,14 +47,29 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   @override
   void initState() {
     super.initState();
+    // Pushed full-screen into the shell's nested navigator, so the shell's
+    // bottom nav + live bar would otherwise stay mounted underneath. Hide them
+    // while this screen is open (restored in dispose).
+    navBarHide();
     _sync = context.read<SyncProvider>();
     _targetsRepo = _sync.targetCompanies;
     _contactEventsRepo = _sync.contactEvents;
   }
 
+  @override
+  void dispose() {
+    navBarShow();
+    super.dispose();
+  }
+
   Future<void> _addGoal() async {
     final labelCtrl = TextEditingController();
     final totalCtrl = TextEditingController(text: '1');
+    // Persistent focus node for the label field. The Counted/Checkbox toggle is
+    // a tap *outside* the field, which fires AppInput's onTapOutside -> unfocus
+    // and dismisses the keyboard. We hold the node so the toggle can immediately
+    // re-request focus, keeping the keyboard up.
+    final labelFocus = FocusNode();
     bool isCheckbox = false;
 
     await showAppSheet(
@@ -61,13 +77,14 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => SafeArea(
           top: false,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Add Goal', style: context.theme.typography.lg.copyWith(fontWeight: FontWeight.w700, color: context.theme.colors.foreground)),
               const SizedBox(height: 20),
               AppInput(
                 controller: labelCtrl,
+                focusNode: labelFocus,
                 autofocus: true,
                 hintText: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
               ),
@@ -95,7 +112,10 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   Row(children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => setModalState(() => isCheckbox = true),
+                        onTap: () {
+                          setModalState(() => isCheckbox = true);
+                          _keepLabelFocus(labelFocus);
+                        },
                         behavior: HitTestBehavior.opaque,
                         child: Center(child: Text('Checkbox',
                             style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600,
@@ -104,7 +124,10 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                     ),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => setModalState(() => isCheckbox = false),
+                        onTap: () {
+                          setModalState(() => isCheckbox = false);
+                          _keepLabelFocus(labelFocus);
+                        },
                         behavior: HitTestBehavior.opaque,
                         child: Center(child: Text('Counted',
                             style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w600,
@@ -114,14 +137,26 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                   ]),
                 ]),
               ),
-              if (!isCheckbox) ...[
-                const SizedBox(height: 12),
-                AppInput(
-                  controller: totalCtrl,
-                  keyboardType: TextInputType.number,
-                  hintText: 'Target count',
-                ),
-              ],
+              // Keep the target-count field permanently in the tree and just
+              // collapse its height when in Checkbox mode. Conditionally
+              // adding/removing it reshapes the children list, which makes the
+              // label field above lose focus and dismisses the keyboard on
+              // toggle. AnimatedSize avoids that.
+              AnimatedSize(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topCenter,
+                child: isCheckbox
+                    ? const SizedBox(width: double.infinity)
+                    : Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: AppInput(
+                          controller: totalCtrl,
+                          keyboardType: TextInputType.number,
+                          hintText: 'Target count',
+                        ),
+                      ),
+              ),
               const SizedBox(height: 20),
               AppButton(
                 label: 'ADD GOAL',
@@ -157,8 +192,28 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         ),
       ),
     );
-    labelCtrl.dispose();
-    totalCtrl.dispose();
+    // Dispose after the next frame: when the sheet is dismissed its exit
+    // animation is still running, so the FTextField (and its managed control)
+    // is briefly still mounted and depends on these controllers. Disposing them
+    // synchronously here throws `_dependents.isEmpty is not true`. Deferring one
+    // frame lets the field detach first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      labelCtrl.dispose();
+      totalCtrl.dispose();
+      labelFocus.dispose();
+    });
+  }
+
+  /// Re-focuses the goal-label field after a tap on the mode toggle. The toggle
+  /// is a tap *outside* the field, which fires AppInput's onTapOutside ->
+  /// unfocus and hides the keyboard; re-requesting focus on the next frame (so
+  /// the rebuilt field is attached) keeps the keyboard up across the toggle.
+  void _keepLabelFocus(FocusNode node) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (node.canRequestFocus && !node.hasFocus) {
+        node.requestFocus();
+      }
+    });
   }
 
   Future<void> _deleteGoalPrep(EventGoalsTableData goal) async {
@@ -805,7 +860,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         },
       ),
     );
-    searchCtrl.dispose();
+    // Defer one frame: the sheet's exit animation is still running, so the field
+    // still depends on this controller (see _addGoal for details).
+    WidgetsBinding.instance.addPostFrameCallback((_) => searchCtrl.dispose());
   }
 
   Future<void> _addTargetContact(String contactId, String name, String jobTitle, String companyName) async {
@@ -920,8 +977,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
       context: context,
       builder: (ctx) => SafeArea(
         top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(16, 20, 16, MediaQuery.of(ctx).viewInsets.bottom + 32),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -973,7 +1030,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         ),
       ),
     );
-    boothCtrl.dispose();
+    // Defer one frame: the sheet's exit animation is still running, so the field
+    // still depends on this controller (see _addGoal for details).
+    WidgetsBinding.instance.addPostFrameCallback((_) => boothCtrl.dispose());
   }
 
   Future<void> _addCompanyAsTarget(Map<String, dynamic> company, String? booth) async {

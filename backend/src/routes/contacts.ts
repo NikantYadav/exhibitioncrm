@@ -22,6 +22,7 @@ const contactWriteSchema = z.object({
   company_id: uuidSchema.optional(),
   company_name: z.string().trim().max(200).optional(),
   event_id: uuidSchema.optional(),
+  scanned_details: z.record(z.string(), z.any()).optional(),
 });
 
 const contactPatchSchema = contactWriteSchema.partial();

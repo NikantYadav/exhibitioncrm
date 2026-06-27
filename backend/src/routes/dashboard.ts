@@ -12,13 +12,17 @@ router.get('/priorities', async (req, res, next) => {
 
     // Follow-ups due = New + Pending (both owe action), counted as DISTINCT
     // contacts so the number matches the collapsed home list (one row per
-    // person) rather than per-event records.
+    // person) rather than per-event records. The inner join to contacts +
+    // contact.deleted_at IS NULL excludes follow-ups whose contact was
+    // soft-deleted, matching the local watchDueCount() definition so the home
+    // stat doesn't flip between the seeded API value and the live stream.
     const { data: dueRows } = await supabase
       .from('follow_ups')
-      .select('contact_id')
+      .select('contact_id, contacts!inner(id)')
       .eq('user_id', userId)
       .in('status', ['new', 'pending'])
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .is('contacts.deleted_at', null);
 
     const followUpsDue = new Set((dueRows ?? []).map((r: any) => r.contact_id)).size;
 

@@ -13,6 +13,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
 import 'package:provider/provider.dart';
+import '../providers/live_event_provider.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
@@ -145,9 +146,16 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     final rows = await context.read<SyncProvider>().events.watchAll().first;
     if (!mounted) return;
     final events = rows.map(Event.fromDrift).toList();
+    // When an event is live, auto-select it (universal rule for capture/contact
+    // actions); otherwise fall back to the most recent event.
+    final liveEvent = context.read<LiveEventProvider>().liveEvent;
     setState(() {
       _events = events;
-      if (events.isNotEmpty) _eventId = events.first.id;
+      if (liveEvent != null && events.any((e) => e.id == liveEvent.id)) {
+        _eventId = liveEvent.id;
+      } else if (events.isNotEmpty) {
+        _eventId = events.first.id;
+      }
     });
   }
 

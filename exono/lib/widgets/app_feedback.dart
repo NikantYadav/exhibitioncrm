@@ -51,9 +51,22 @@ Future<T?> showAppSheet<T>({
     useRootNavigator: useRootNavigator,
     draggable: true,
     mainAxisMaxRatio: maxRatio,
+    // We own the keyboard inset ourselves (see below), so forui must NOT also
+    // shift the whole sheet up by the keyboard height. With forui's default
+    // `resizeToAvoidBottomInset: true`, the keyboard was being counted twice —
+    // forui lifted the entire sheet AND each sheet's own layout subtracted
+    // `viewInsets.bottom` — which pushed the sheet's top edge into the status
+    // bar. Disabling it here keeps the sheet anchored to the bottom; the
+    // keyboard simply overlaps the lower portion and the content scrolls above
+    // it. This behaves the same on every screen size, large or small.
+    resizeToAvoidBottomInset: false,
     builder: (ctx) {
       final bg = ctx.theme.colors.background;
       final mq = MediaQuery.of(ctx);
+      // Keyboard height (0 when closed). We add it as bottom padding so the
+      // focused field is lifted clear of the keyboard via an AnimatedPadding,
+      // while the sheet itself stays bottom-anchored.
+      final keyboard = mq.viewInsets.bottom;
       return MediaQuery(
         data: mq.copyWith(
           padding: mq.padding.copyWith(
@@ -62,7 +75,15 @@ Future<T?> showAppSheet<T>({
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          child: ColoredBox(color: bg, child: builder(ctx)),
+          child: ColoredBox(
+            color: bg,
+            child: AnimatedPadding(
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.only(bottom: keyboard),
+              child: builder(ctx),
+            ),
+          ),
         ),
       );
     },

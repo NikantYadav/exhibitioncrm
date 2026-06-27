@@ -70,10 +70,41 @@ function sanitiseUserInput(text: string, userId: string): string {
   return text.slice(0, 8000);
 }
 
-// ─── Immutable fields — never allowed in write tool args ─────────────────────
+// ─── System-managed columns — never writable by the assistant ────────────────
+// The single safety denylist. Anything NOT here is allowed to flow to the DB
+// (Supabase rejects columns that don't actually exist), so adding a normal
+// column to a table auto-exposes it without code changes. These are the columns
+// that are identity/ownership, audit timestamps, soft-delete, sync bookkeeping,
+// or AI/enrichment-generated — letting the model write them corrupts data or
+// breaks ownership/security. Verified against the live schema (information_schema).
+// NOTE: relational FKs (event_id, company_id, contact_id, …) are intentionally
+// NOT denied here — some are legitimate write-tool inputs (create_contact links an
+// event_id/company_id). They are gated per-tool by Zod + ownership checks instead.
 const IMMUTABLE_FIELDS = new Set([
-  'id', 'user_id', 'created_at', 'updated_at',
-  'sender_user_id', 'conversation_id',
+  // identity / ownership keys set by the system
+  'id', 'user_id', 'sender_user_id',
+  // audit + soft-delete bookkeeping
+  'created_at', 'updated_at', 'deleted_at',
+  // offline-sync bookkeeping
+  'client_op_id',
+  // AI / enrichment generated — owned by background jobs, not the assistant.
+  // (scanned_details is intentionally NOT here — the assistant may edit it via
+  // the update_contact `scanned_details` param, validated + merged below.)
+  'ai_insights', 'ai_insights_generated_at', 'contact_assets',
+  'ai_context_summary', 'ai_context_summarized_through',
+  'enriched_at', 'enrichment_failed', 'enrichment_confidence',
+  // media handled by dedicated upload flows
+  'avatar_url', 'image_url',
+  // status / activity timestamps maintained by app flows, not free-form writes.
+  // (last_contacted_at is intentionally NOT here — update_contact sets it on
+  // purpose, e.g. "mark Sasha as contacted today".)
+  'sent_at', 'done_at', 'last_interaction_at', 'met',
+  // chat/message internals
+  'conversation_id', 'content', 'sender_type', 'linked_entities', 'research_mode',
+  // assistant pending-action internals
+  'loop_state', 'tool_name', 'tool_args', 'user_message_id', 'summary',
+  // rate-limit bookkeeping
+  'request_count', 'window_start', 'scope',
 ]);
 
 function stripImmutable(data: Record<string, unknown>): Record<string, unknown> {
@@ -92,7 +123,8 @@ interactions, dashboard stats, or searching messages.
 The semantic layer handles SQL generation — you just describe what you want.
 Available source_models: contacts, events, email_drafts,
 captures, companies, interactions, messages, conversations,
-attachments.
+attachments, contact_events, follow_ups, target_companies,
+target_company_met, event_goals.
 
 DATE FILTERING — IMPORTANT:
 - For any relative time window on events (today, live now, upcoming, next N days, this week/month, past), DO NOT write your own date filters. Instead set the "date_window" parameter to the matching value. The backend computes the exact, correct timestamp bounds for you. This is the ONLY correct way to do relative-date queries — hand-written date filters are error-prone and will be rejected.
@@ -167,7 +199,13 @@ const WRITE_TOOLS = [
         email: { type: 'string' },
         phone: { type: 'string' },
         job_title: { type: 'string' },
+        linkedin_url: { type: 'string', description: 'LinkedIn profile URL' },
         notes: { type: 'string' },
+        scanned_details: {
+          type: 'object',
+          description: 'Extra business-card details as a FLAT object of string values (e.g. {"address": "Doha, Qatar", "fax": "+974..."}). For fields with no dedicated parameter (address, fax, alternate phone, website, etc.) — NOT notes. Values must be strings; no nested objects or arrays.',
+          additionalProperties: { type: 'string' },
+        },
         company_name: { type: 'string', description: 'Company name — will be created if not found' },
         company_id: { type: 'string', description: 'Existing company UUID (use instead of company_name if known)' },
         event_id: { type: 'string', description: 'Link contact to this event UUID' },
@@ -188,9 +226,15 @@ const WRITE_TOOLS = [
         email: { type: 'string' },
         phone: { type: 'string' },
         job_title: { type: 'string' },
+        linkedin_url: { type: 'string', description: 'LinkedIn profile URL' },
         notes: { type: 'string' },
         follow_up_status: { type: 'string', enum: ['not_contacted', 'contacted', 'needs_followup', 'ignore'] },
         last_contacted_at: { type: 'string', description: 'ISO 8601 datetime' },
+        scanned_details: {
+          type: 'object',
+          description: 'Extra business-card details as a FLAT object of string values (e.g. {"address": "Doha, Qatar", "fax": "+974...", "website": "x.com"}). Merged into existing scanned details — only include the keys you are adding or changing; set a key to "" to remove it. Use this (NOT notes) when the user wants to add an address, fax, alternate phone, website, or other card field. Values must be strings; no nested objects or arrays.',
+          additionalProperties: { type: 'string' },
+        },
       },
       required: [],
     },
@@ -205,6 +249,8 @@ const WRITE_TOOLS = [
         location: { type: 'string' },
         start_date: { type: 'string', description: 'ISO 8601 datetime. Must come from the user — do not guess or default.' },
         end_date: { type: 'string', description: 'ISO 8601 datetime' },
+        start_time: { type: 'string', description: 'Time of day the event starts, 24h HH:MM (e.g. "09:30")' },
+        end_time: { type: 'string', description: 'Time of day the event ends, 24h HH:MM. Must be after start_time.' },
         event_type: { type: 'string' },
       },
       required: ['name', 'start_date'],
@@ -222,6 +268,8 @@ const WRITE_TOOLS = [
         location: { type: 'string' },
         start_date: { type: 'string', description: 'ISO 8601 datetime' },
         end_date: { type: 'string', description: 'ISO 8601 datetime' },
+        start_time: { type: 'string', description: 'Time of day the event starts, 24h HH:MM (e.g. "09:30")' },
+        end_time: { type: 'string', description: 'Time of day the event ends, 24h HH:MM. Must be after start_time.' },
         event_type: { type: 'string' },
       },
       required: [],
@@ -284,6 +332,36 @@ Do NOT use this for CRM data — use query_crm for that.`,
 };
 
 const ALL_TOOLS = [SLAYER_QUERY_TOOL, ...WRITE_TOOLS, WEB_SEARCH_TOOL];
+
+// Tools that MUTATE data — these require explicit user permission before they run.
+// get_event_followups is a read despite living in WRITE_TOOLS, so it is excluded.
+const WRITE_TOOL_NAMES = new Set([
+  'create_contact', 'update_contact', 'create_event', 'update_event', 'draft_email',
+]);
+
+// Build a short, human-readable description of a proposed write for the
+// confirmation card. Kept deliberately plain — no IDs, just what will happen.
+function describeWrite(call: ToolCall): string {
+  const a = call.args as Record<string, any>;
+  const name = (v: any) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  switch (call.name) {
+    case 'create_contact': {
+      const full = [name(a.first_name), name(a.last_name)].filter(Boolean).join(' ');
+      const co = name(a.company_name) ? ` at ${name(a.company_name)}` : '';
+      return `Create a new contact${full ? `: ${full}` : ''}${co}`;
+    }
+    case 'update_contact':
+      return `Update contact ${name(a.contact_name) ?? '(selected)'}`;
+    case 'create_event':
+      return `Create a new event${name(a.name) ? `: ${name(a.name)}` : ''}`;
+    case 'update_event':
+      return `Update event ${name(a.event_name) ?? '(selected)'}`;
+    case 'draft_email':
+      return `Draft an email${name(a.subject) ? `: "${name(a.subject)}"` : ''}`;
+    default:
+      return `Perform ${call.name.replace(/_/g, ' ')}`;
+  }
+}
 
 // ─── date_window expansion ────────────────────────────────────────────────────
 // The model picks a window name; we compute the exact timestamptz bounds here so
@@ -375,6 +453,48 @@ function toIso(value: unknown, field: string): string {
   return d.toISOString();
 }
 
+// 24h HH:MM time-of-day (events.start_time / end_time). Mirrors the validation in
+// routes/events.ts: end_time must be after start_time and cannot stand alone.
+const timeOfDay = z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Time must be 24h HH:MM');
+
+function assertTimeRange(start?: string, end?: string): void {
+  if (end != null && start == null) throw new Error('end_time requires a start_time');
+  if (start != null && end != null && end <= start) throw new Error('end_time must be after start_time');
+}
+
+// scanned_details is a flat { key: string } dictionary of extra business-card
+// fields (address, website, fax, telephone, …). The assistant may edit it, but
+// only as a flat object of string (or number→string) values — nested objects /
+// arrays would break the card-scan UI that reads it. Numbers/bools are coerced
+// to strings; anything else is rejected.
+const scannedDetailsSchema = z.record(
+  z.string().min(1),
+  z.union([z.string(), z.number(), z.boolean()]).transform((v) => String(v)),
+);
+
+/**
+ * Merge a partial scanned_details patch into the existing object so editing one
+ * field ("add address") never wipes the other scanned fields. A key set to an
+ * empty string is removed. Returns the merged object to persist.
+ */
+function mergeScannedDetails(
+  existing: Record<string, unknown> | null | undefined,
+  patch: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+    for (const [k, v] of Object.entries(existing)) {
+      if (typeof v === 'string') out[k] = v;
+      else if (v != null && (typeof v === 'number' || typeof v === 'boolean')) out[k] = String(v);
+    }
+  }
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === '') delete out[k];
+    else out[k] = v;
+  }
+  return out;
+}
+
 async function execCreateContact(args: Record<string, unknown>, userId: string) {
   const a = z.object({
     first_name: z.string().trim().min(1),
@@ -382,7 +502,9 @@ async function execCreateContact(args: Record<string, unknown>, userId: string) 
     email: z.string().trim().email().optional(),
     phone: z.string().trim().optional(),
     job_title: z.string().trim().optional(),
+    linkedin_url: z.string().trim().optional(),
     notes: z.string().trim().optional(),
+    scanned_details: scannedDetailsSchema.optional(),
     company_id: z.string().uuid().optional(),
     company_name: z.string().trim().optional(),
     event_id: z.string().uuid().optional(),
@@ -406,9 +528,22 @@ async function execCreateContact(args: Record<string, unknown>, userId: string) 
     }
   }
 
+  // Generic copy of the plain column values (Plan B): every provided field flows
+  // through except the linking/resolver keys handled explicitly below. Adding a
+  // new contact column then means only adding it to the Zod schema above.
+  const LINKING_KEYS = new Set(['company_id', 'company_name', 'event_id']);
+  const insert: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(a)) {
+    if (v === undefined || LINKING_KEYS.has(k)) continue;
+    insert[k] = v;
+  }
+  // Normalise scanned_details (drop empty-string keys) — no existing on create.
+  if (a.scanned_details !== undefined) {
+    insert.scanned_details = mergeScannedDetails(null, a.scanned_details);
+  }
   const { data: contact, error } = await supabaseAdmin
     .from('contacts')
-    .insert({ first_name: a.first_name, last_name: a.last_name, email: a.email, phone: a.phone, job_title: a.job_title, notes: a.notes, company_id, user_id: userId })
+    .insert({ ...stripImmutable(insert), company_id, user_id: userId })
     .select('*').single();
   if (error) throw new Error(error.message);
 
@@ -462,24 +597,36 @@ async function execUpdateContact(args: Record<string, unknown>, userId: string) 
     email: z.string().trim().email().optional(),
     phone: z.string().trim().optional(),
     job_title: z.string().trim().optional(),
+    linkedin_url: z.string().trim().optional(),
     notes: z.string().trim().optional(),
     follow_up_status: z.string().trim().optional(),
     last_contacted_at: z.any().optional(),
+    scanned_details: scannedDetailsSchema.optional(),
   }).refine((v) => !!(v.contact_id || v.contact_name), {
     message: 'Either contact_id or contact_name is required.',
   }).parse(args);
 
   const contactId = await resolveContactId(a, userId);
 
+  // Build the update from every provided value except the resolver keys (which
+  // pick the target, not a column) and any specially-handled field. Adding a new
+  // editable field then means only adding it to the Zod schema above.
+  const RESOLVER_KEYS = new Set(['contact_id', 'contact_name', 'last_contacted_at', 'scanned_details']);
   const raw: Record<string, unknown> = {};
-  if (a.first_name !== undefined) raw.first_name = a.first_name;
-  if (a.last_name !== undefined) raw.last_name = a.last_name;
-  if (a.email !== undefined) raw.email = a.email;
-  if (a.phone !== undefined) raw.phone = a.phone;
-  if (a.job_title !== undefined) raw.job_title = a.job_title;
-  if (a.notes !== undefined) raw.notes = a.notes;
-  if (a.follow_up_status !== undefined) raw.follow_up_status = a.follow_up_status;
+  for (const [k, v] of Object.entries(a)) {
+    if (v === undefined || RESOLVER_KEYS.has(k)) continue;
+    raw[k] = v;
+  }
   if (a.last_contacted_at !== undefined) raw.last_contacted_at = toIso(a.last_contacted_at, 'last_contacted_at');
+
+  // scanned_details is merged into the existing object so editing one field
+  // never wipes the rest of the scanned card data.
+  if (a.scanned_details !== undefined) {
+    const { data: existing } = await supabaseAdmin
+      .from('contacts').select('scanned_details')
+      .eq('id', contactId).eq('user_id', userId).is('deleted_at', null).maybeSingle();
+    raw.scanned_details = mergeScannedDetails(existing?.scanned_details as Record<string, unknown> | null, a.scanned_details);
+  }
 
   const update = stripImmutable(raw);
   if (Object.keys(update).length === 0) throw new Error('No valid fields to update');
@@ -497,10 +644,13 @@ async function execCreateEvent(args: Record<string, unknown>, userId: string) {
     location: z.string().trim().optional(),
     start_date: z.any(),
     end_date: z.any().optional(),
+    start_time: timeOfDay.optional(),
+    end_time: timeOfDay.optional(),
     event_type: z.string().trim().optional(),
   }).parse(args);
 
   const startIso = toIso(a.start_date, 'start_date');
+  assertTimeRange(a.start_time, a.end_time);
 
   if (new Date(startIso) < new Date()) {
     throw new Error('Event start date cannot be in the past.');
@@ -517,11 +667,19 @@ async function execCreateEvent(args: Record<string, unknown>, userId: string) {
     .maybeSingle();
   if (existing) return existing;
 
+  // Generic copy of plain column values (Plan B); the date fields need ISO
+  // conversion so they're handled explicitly. Adding a new event column then
+  // means only adding it to the Zod schema above.
+  const DATE_KEYS = new Set(['start_date', 'end_date']);
+  const insert: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(a)) {
+    if (v === undefined || DATE_KEYS.has(k)) continue;
+    insert[k] = v;
+  }
   const { data, error } = await supabaseAdmin.from('events').insert({
-    name: a.name, location: a.location,
+    ...stripImmutable(insert),
     start_date: startIso,
     end_date: a.end_date ? toIso(a.end_date, 'end_date') : null,
-    event_type: a.event_type,
     user_id: userId,
   }).select('*').single();
   if (error) throw new Error(error.message);
@@ -569,23 +727,34 @@ async function execUpdateEvent(args: Record<string, unknown>, userId: string) {
     location: z.string().trim().optional(),
     start_date: z.any().optional(),
     end_date: z.any().optional(),
+    start_time: timeOfDay.optional(),
+    end_time: timeOfDay.optional(),
     event_type: z.string().trim().optional(),
   }).refine((v) => !!(v.event_id || v.event_name), {
     message: 'Either event_id or event_name is required.',
   }).parse(args);
 
+  // Validate the time pair when both are supplied in this update.
+  if (a.start_time !== undefined && a.end_time !== undefined) {
+    assertTimeRange(a.start_time, a.end_time);
+  }
+
   const eventId = await resolveEventId(a, userId);
 
+  // Generic copy of provided values; resolver keys and date fields (which need
+  // ISO conversion + validation) are handled separately below.
+  const RESOLVER_KEYS = new Set(['event_id', 'event_name', 'start_date', 'end_date']);
   const raw: Record<string, unknown> = {};
-  if (a.name !== undefined) raw.name = a.name;
-  if (a.location !== undefined) raw.location = a.location;
+  for (const [k, v] of Object.entries(a)) {
+    if (v === undefined || RESOLVER_KEYS.has(k)) continue;
+    raw[k] = v;
+  }
   if (a.start_date !== undefined) {
     const startIso = toIso(a.start_date, 'start_date');
     if (new Date(startIso) < new Date()) throw new Error('Event start date cannot be in the past.');
     raw.start_date = startIso;
   }
   if (a.end_date !== undefined) raw.end_date = toIso(a.end_date, 'end_date');
-  if (a.event_type !== undefined) raw.event_type = a.event_type;
 
   const update = stripImmutable(raw);
   if (Object.keys(update).length === 0) throw new Error('No valid fields to update');
@@ -857,6 +1026,7 @@ Rules:
 - NEVER include UUIDs or any database IDs in your text reply. Entity cards are shown separately — just refer to things by name.
 - When drafting emails, follow-up messages, or any outbound communication, incorporate the user's products, value proposition, and tone naturally.
 - NEVER invent, guess, or default any field value. This includes dates, times, locations, names, emails, and any other data. If the user has not provided a required or relevant detail, you MUST ask a short clarifying question instead of filling it in.
+- WRITABLE FIELDS ONLY: you can only write the fields exposed by the write tools' parameters. For extra business-card details that have no dedicated parameter — address, fax, alternate/secondary phone, website, PO box, etc. — use the "scanned_details" object parameter on create_contact/update_contact (a flat {key: "value"} map, merged into the existing details). Do NOT dump such details into "notes". Some data IS system-managed and NOT editable at all: AI-generated insights/summaries, avatar image, enrichment data, and all timestamps/IDs. If the user asks to edit one of those, say plainly it can't be edited here rather than silently writing a different field.
 - create_event REQUIRES a date. If the user asks to create an event without giving a date, DO NOT pick a date — ask: "What date is the event?" Optionally also ask for location and event type in the same question. Only call create_event once you have a real date from the user.
 - When the user refers to an existing record by name (update/find/draft-for), prefer passing that name to the tool's *_name parameter (event_name / contact_name) so the system resolves it against the live database. Use query_crm to LIST or confirm names, but you do not need a UUID before calling an update tool — the update tool resolves names itself.
 - If a tool returns an error saying a record was not found or that multiple matched, relay that to the user and ask them to clarify — NEVER retry with a guessed ID or guessed name.
@@ -871,6 +1041,213 @@ searches from different angles if needed (e.g. company + people + recent news) t
 current information. Synthesize findings into a well-organized, detailed reply with sources.`
       : ''
   }`;
+}
+
+// ─── Agentic loop (shared by /respond and /resume) ────────────────────────────
+
+type ReadCandidate = { id: string; type: string; payload: Record<string, unknown> };
+
+// Fully JSON-serializable snapshot of an in-flight agentic turn, persisted on a
+// pending action so the loop can be suspended for a permission prompt and resumed.
+interface LoopState {
+  history: ConversationTurn[];
+  allToolResults: ToolResult[];
+  readCandidates: ReadCandidate[];
+  iteration: number;
+  // Carried across a permission pause so the resumed turn keeps research mode on
+  // (web_search stays "advanced"). The pause is a continuation of the same turn.
+  researchMode: boolean;
+}
+
+const MAX_ITERATIONS = 6;
+
+type LoopOutcome =
+  | { kind: 'done'; assistantText: string }
+  | { kind: 'paused'; call: ToolCall };
+
+/**
+ * Drive the tool-calling loop from the given state. Reads/searches execute
+ * inline; the FIRST write tool the model requests pauses the loop (kind:'paused')
+ * so the caller can ask the user for permission. Resuming = calling this again
+ * after appending the write's tool_result to state.history.
+ */
+async function runLoop(
+  state: LoopState,
+  systemPrompt: string,
+  userId: string,
+): Promise<LoopOutcome> {
+  const readCandidates = new Map<string, ReadCandidate>(
+    state.readCandidates.map((c) => [c.id, c]),
+  );
+
+  for (; state.iteration < MAX_ITERATIONS; state.iteration++) {
+    const llmResult = await litellm.generateWithTools(systemPrompt, state.history, ALL_TOOLS);
+
+    if (llmResult.type === 'text') {
+      state.readCandidates = Array.from(readCandidates.values());
+      return { kind: 'done', assistantText: llmResult.content };
+    }
+
+    // A write request pauses the whole turn. The model may batch a write with
+    // reads in one step; we honour the first write and defer the rest by only
+    // executing calls up to (not including) that write this iteration. On resume
+    // the model re-plans with the write's result in hand.
+    const writeIdx = llmResult.calls.findIndex((c) => WRITE_TOOL_NAMES.has(c.name));
+
+    const callsToRun = writeIdx === -1 ? llmResult.calls : llmResult.calls.slice(0, writeIdx);
+    const iterResults: Array<{ id: string; name: string; result: unknown }> = [];
+
+    for (const call of callsToRun) {
+      const toolResult = await executeTool(call, userId);
+      state.allToolResults.push(toolResult);
+
+      if (call.name === 'query_crm' && !toolResult.ok) {
+        const msg = toolResult.error ?? '';
+        const recoverable = /failed \(4\d\d\)|Invalid filter|invalid|syntax|unmatched|not found|unknown column/i.test(msg);
+        if (!recoverable) {
+          throw new Error('CRM query service is unavailable. Please try again in a moment.');
+        }
+        iterResults.push({
+          id: call.id,
+          name: call.name,
+          result: { error: `Query rejected: ${msg}. Fix the query and call query_crm again. Each filter must be a plain condition string like "start_date >= '2026-06-21T00:00:00Z'" with no surrounding brackets, commas, or quotes around the whole condition.` },
+        });
+        continue;
+      }
+
+      if (call.name === 'query_crm' && toolResult.ok) {
+        const model = call.args.source_model as string;
+        const rows = (toolResult.result as { data?: Record<string, unknown>[] })?.data;
+        if (LINKABLE_CARD_COLUMNS[model] && Array.isArray(rows) && rows.length === 1) {
+          const entity = readRowToEntity(model, normaliseRow(rows[0]));
+          if (entity) readCandidates.set(entity.id, { id: entity.id, type: entity.type, payload: entity.payload });
+        }
+      }
+
+      iterResults.push({
+        id: call.id,
+        name: call.name,
+        result: toolResult.ok ? toolResult.result : { error: toolResult.error },
+      });
+    }
+
+    // Persist read candidates before we possibly suspend.
+    state.readCandidates = Array.from(readCandidates.values());
+
+    if (writeIdx !== -1) {
+      const writeCall = llmResult.calls[writeIdx];
+      // Record the model's planned tool_calls turn truncated to what we ran (the
+      // pre-write reads + the write itself), plus the read results, so that on
+      // resume the conversation is consistent and the write's tool_result slots in.
+      const ranCalls = llmResult.calls.slice(0, writeIdx + 1);
+      state.history.push({ role: 'tool_calls', calls: ranCalls, _geminiParts: (llmResult as any)._geminiParts });
+      if (iterResults.length > 0) {
+        state.history.push({ role: 'tool_results', results: iterResults });
+      }
+      return { kind: 'paused', call: writeCall };
+    }
+
+    state.history.push({ role: 'tool_calls', calls: llmResult.calls, _geminiParts: (llmResult as any)._geminiParts });
+    state.history.push({ role: 'tool_results', results: iterResults });
+  }
+
+  // Loop exhausted without a text reply — ask for a one-line summary.
+  state.readCandidates = Array.from(readCandidates.values());
+  const summaryResult = await litellm.generateWithTools(systemPrompt, [
+    ...state.history,
+    { role: 'user', content: 'Summarise what was done in one or two sentences.' },
+  ], []);
+  return {
+    kind: 'done',
+    assistantText: summaryResult.type === 'text' ? summaryResult.content : 'Done.',
+  };
+}
+
+/**
+ * Persist the assistant's final reply + linked-entity cards, run titling, and
+ * shape the success JSON. Shared by /respond and /resume.
+ */
+async function finalizeTurn(
+  supabaseUser: ReturnType<typeof createSupabaseUserClient>,
+  conversationId: string,
+  userId: string,
+  text: string,
+  state: LoopState,
+) {
+  const { data: assistantMessage, error: assistantErr } = await supabaseUser
+    .from('messages')
+    .insert({ conversation_id: conversationId, user_id: userId, sender_type: 'assistant', sender_user_id: null, content: text || 'Done.' })
+    .select('*').single();
+  if (assistantErr) throw new Error(assistantErr.message);
+
+  const linkedEntitiesMap = new Map<string, any>();
+  for (const tr of state.allToolResults) {
+    if (!tr.ok || !tr.result || typeof tr.result !== 'object') continue;
+    const r = tr.result as Record<string, unknown>;
+    if (!r.id) continue;
+    const id = r.id as string;
+    if (tr.name === 'create_contact' || tr.name === 'update_contact') {
+      linkedEntitiesMap.set(id, { type: 'contact', id, first_name: r.first_name, last_name: r.last_name });
+    } else if (tr.name === 'create_event' || tr.name === 'update_event') {
+      linkedEntitiesMap.set(id, { type: 'event', id, name: r.name, start_date: r.start_date, location: r.location });
+    } else if (tr.name === 'draft_email') {
+      linkedEntitiesMap.set(id, { type: 'email_draft', id, subject: r.subject });
+    }
+  }
+  for (const cand of state.readCandidates) {
+    if (!linkedEntitiesMap.has(cand.id)) linkedEntitiesMap.set(cand.id, cand.payload);
+  }
+
+  const linkedEntities = Array.from(linkedEntitiesMap.values());
+  if (linkedEntities.length > 0 && assistantMessage?.id) {
+    const { error: updateErr } = await supabaseAdmin
+      .from('messages')
+      .update({ linked_entities: linkedEntities })
+      .eq('id', assistantMessage.id);
+    if (updateErr) console.error('[assistant] failed to save linked_entities:', updateErr.message);
+    if (assistantMessage) (assistantMessage as any).linked_entities = linkedEntities;
+  }
+
+  return { assistantMessage, linkedEntities };
+}
+
+/**
+ * Suspend the loop on a pending write: persist the state + the proposed write and
+ * return the pending-action descriptor the client renders as a confirmation card.
+ */
+async function suspendForPermission(
+  conversationId: string,
+  userId: string,
+  userMessageId: string | null,
+  call: ToolCall,
+  state: LoopState,
+) {
+  const summary = describeWrite(call);
+  const { data, error } = await supabaseAdmin
+    .from('assistant_pending_actions')
+    .insert({
+      conversation_id: conversationId,
+      user_id: userId,
+      user_message_id: userMessageId,
+      tool_name: call.name,
+      tool_args: call.args,
+      summary,
+      status: 'pending',
+      loop_state: { ...state, pending_call: call },
+    })
+    .select('id, tool_name, tool_args, summary')
+    .single();
+  if (error) throw new Error(error.message);
+
+  return {
+    status: 'awaiting_permission',
+    pending_action: {
+      id: data.id,
+      tool_name: data.tool_name,
+      tool_args: data.tool_args,
+      summary: data.summary,
+    },
+  };
 }
 
 // ─── POST /api/assistant/respond ─────────────────────────────────────────────
@@ -932,129 +1309,24 @@ router.post('/respond', async (req, res) => {
         content: m.content,
       } as ConversationTurn));
 
-    // 4. Agentic loop — max 6 iterations
-    const MAX_ITERATIONS = 6;
-    let assistantText = '';
-    const allToolResults: ToolResult[] = [];
-    // Entities surfaced by query_crm reads, keyed by id. After the reply is
-    // generated we attach the ones the assistant actually named (see step 6).
-    const readCandidates = new Map<string, { type: string; payload: Record<string, unknown> }>();
+    // 4. Run the agentic loop. It either completes with a text reply or pauses
+    //    on the first write tool, awaiting the user's permission.
+    const state: LoopState = { history, allToolResults: [], readCandidates: [], iteration: 0, researchMode: research_mode === true };
+    const outcome = await runLoop(state, systemPrompt, userId);
 
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const llmResult = await litellm.generateWithTools(systemPrompt, history, ALL_TOOLS);
-
-      if (llmResult.type === 'text') {
-        assistantText = llmResult.content;
-        break;
-      }
-
-      // Execute all requested tool calls (sequentially — results may depend on each other)
-      const iterResults: Array<{ id: string; name: string; result: unknown }> = [];
-
-      for (const call of llmResult.calls) {
-        const toolResult = await executeTool(call, userId);
-        allToolResults.push(toolResult);
-
-        // query_crm failures split two ways:
-        //  - A malformed query (Slayer 4xx — bad filter syntax, invalid column, the
-        //    model leaked array punctuation into a value) is the model's fault and is
-        //    recoverable: feed the error back so it fixes the query next iteration.
-        //  - Slayer being unreachable/5xx is infra — abort the turn so the model never
-        //    proceeds to write tools on missing data.
-        if (call.name === 'query_crm' && !toolResult.ok) {
-          const msg = toolResult.error ?? '';
-          const recoverable = /failed \(4\d\d\)|Invalid filter|invalid|syntax|unmatched|not found|unknown column/i.test(msg);
-          if (!recoverable) {
-            throw new Error('CRM query service is unavailable. Please try again in a moment.');
-          }
-          // Recoverable: pass a corrective hint back to the model.
-          iterResults.push({
-            id: call.id,
-            name: call.name,
-            result: { error: `Query rejected: ${msg}. Fix the query and call query_crm again. Each filter must be a plain condition string like "start_date >= '2026-06-21T00:00:00Z'" with no surrounding brackets, commas, or quotes around the whole condition.` },
-          });
-          continue;
-        }
-
-        // When a read returns exactly ONE linkable entity, the assistant is
-        // talking about that specific record — attach it as a card. (Multi-row
-        // results are lists; we don't card every row.)
-        if (call.name === 'query_crm' && toolResult.ok) {
-          const model = call.args.source_model as string;
-          const rows = (toolResult.result as { data?: Record<string, unknown>[] })?.data;
-          if (LINKABLE_CARD_COLUMNS[model] && Array.isArray(rows) && rows.length === 1) {
-            const entity = readRowToEntity(model, normaliseRow(rows[0]));
-            if (entity) readCandidates.set(entity.id, { type: entity.type, payload: entity.payload });
-          }
-        }
-
-        iterResults.push({
-          id: call.id,
-          name: call.name,
-          result: toolResult.ok ? toolResult.result : { error: toolResult.error },
-        });
-      }
-
-      // Append tool calls + results to history for next iteration.
-      // _geminiParts carries thought_signature fields required by Gemini thinking models.
-      history.push({ role: 'tool_calls', calls: llmResult.calls, _geminiParts: (llmResult as any)._geminiParts });
-      history.push({ role: 'tool_results', results: iterResults });
+    if (outcome.kind === 'paused') {
+      // Suspend: persist state + the proposed write, return a permission request.
+      // The user message stays persisted (titling runs on resume).
+      const pending = await suspendForPermission(
+        conversation_id, userId, userMessage?.id ?? null, outcome.call, state,
+      );
+      return res.json({ user_message: userMessage, ...pending });
     }
 
-    // If the loop exhausted without a text response, generate a summary
-    if (!assistantText) {
-      const summaryResult = await litellm.generateWithTools(systemPrompt, [
-        ...history,
-        { role: 'user', content: 'Summarise what was done in one or two sentences.' },
-      ], []);
-      assistantText = summaryResult.type === 'text' ? summaryResult.content : 'Done.';
-    }
-
-    // 5. Persist assistant message
-    const { data: assistantMessage, error: assistantErr } = await supabaseUser
-      .from('messages')
-      .insert({ conversation_id, user_id: userId, sender_type: 'assistant', sender_user_id: null, content: assistantText || 'Done.' })
-      .select('*').single();
-    if (assistantErr) throw new Error(assistantErr.message);
-
-    // 6. Build linked entities. Write results (create/update/draft) are always
-    // attached — the assistant just acted on them. Read results (query_crm) are
-    // attached only when the assistant actually NAMES the entity in its reply, so
-    // "list all events" doesn't dump a card per row but "one event today: testing"
-    // links "testing".
-    const linkedEntitiesMap = new Map<string, any>();
-    for (const tr of allToolResults) {
-      if (!tr.ok || !tr.result || typeof tr.result !== 'object') continue;
-      const r = tr.result as Record<string, unknown>;
-      if (!r.id) continue;
-      const id = r.id as string;
-      if (tr.name === 'create_contact' || tr.name === 'update_contact') {
-        linkedEntitiesMap.set(id, { type: 'contact', id, first_name: r.first_name, last_name: r.last_name });
-      } else if (tr.name === 'create_event' || tr.name === 'update_event') {
-        linkedEntitiesMap.set(id, { type: 'event', id, name: r.name, start_date: r.start_date, location: r.location });
-      } else if (tr.name === 'draft_email') {
-        linkedEntitiesMap.set(id, { type: 'email_draft', id, subject: r.subject });
-      }
-    }
-
-    // Attach single-entity read results. Skip ids already added by a write result.
-    for (const [id, cand] of readCandidates) {
-      if (!linkedEntitiesMap.has(id)) linkedEntitiesMap.set(id, cand.payload);
-    }
-
-    const linkedEntities = Array.from(linkedEntitiesMap.values());
-
-    // Persist linked entities on the assistant message so history reloads include them
-    if (linkedEntities.length > 0 && assistantMessage?.id) {
-      const { error: updateErr } = await supabaseAdmin
-        .from('messages')
-        .update({ linked_entities: linkedEntities })
-        .eq('id', assistantMessage.id);
-      if (updateErr) console.error('[assistant] failed to save linked_entities:', updateErr.message);
-      if (assistantMessage) (assistantMessage as any).linked_entities = linkedEntities;
-    }
-
-    // 7. Await titling (only happens on first message) and fetch updated conversation
+    // 5. Completed — persist reply, attach cards, title, respond.
+    const { assistantMessage, linkedEntities } = await finalizeTurn(
+      supabaseUser, conversation_id, userId, outcome.assistantText, state,
+    );
     await autoTitleConversation(supabaseUser, conversation_id, text);
     const { data: conversation } = await supabaseUser.from('conversations').select('*').eq('id', conversation_id).single();
 
@@ -1074,6 +1346,132 @@ router.post('/respond', async (req, res) => {
     }
     res.status(500).json({ error: err?.message || 'Assistant error' });
   }
+});
+
+// ─── POST /api/assistant/resume ──────────────────────────────────────────────
+// Approve or deny a pending write. On approve the write executes and the loop
+// continues; on deny the model is told the user declined and continues.
+
+const resumeSchema = z.object({
+  pending_action_id: z.string().uuid(),
+  decision: z.enum(['approve', 'deny']),
+});
+
+router.post('/resume', async (req, res) => {
+  const parsed = resumeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const supabaseUser = createSupabaseUserClient(req.accessToken!);
+  const userId = req.user!.id;
+  const { pending_action_id, decision } = parsed.data;
+
+  // Load + lock the pending action (admin client; RLS-safe via explicit user_id filter).
+  const { data: pa, error: paErr } = await supabaseAdmin
+    .from('assistant_pending_actions')
+    .select('*')
+    .eq('id', pending_action_id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (paErr) return res.status(500).json({ error: paErr.message });
+  if (!pa) return res.status(404).json({ error: 'Pending action not found' });
+  if (pa.status !== 'pending') {
+    return res.status(409).json({ error: 'This action has already been resolved.' });
+  }
+
+  const conversation_id = pa.conversation_id as string;
+  const loop = pa.loop_state as LoopState & { pending_call: ToolCall };
+  const call = loop.pending_call;
+  const state: LoopState = {
+    history: loop.history,
+    allToolResults: loop.allToolResults,
+    readCandidates: loop.readCandidates,
+    iteration: loop.iteration,
+    researchMode: loop.researchMode === true,
+  };
+
+  try {
+    // Resolve the write -> a tool_result the model sees next.
+    let resultPayload: unknown;
+    if (decision === 'approve') {
+      const toolResult = await executeTool(call, userId);
+      state.allToolResults.push(toolResult);
+      resultPayload = toolResult.ok ? toolResult.result : { error: toolResult.error };
+    } else {
+      resultPayload = { error: 'The user declined this action. Do not retry it. Acknowledge briefly and ask how else you can help, or continue with anything that does not require it.' };
+    }
+
+    // Slot the write's result into the suspended conversation, then advance the
+    // iteration counter past the paused step before continuing.
+    state.history.push({ role: 'tool_results', results: [{ id: call.id, name: call.name, result: resultPayload }] });
+    state.iteration += 1;
+
+    // Mark the action resolved before continuing (idempotent against double-tap).
+    await supabaseAdmin
+      .from('assistant_pending_actions')
+      .update({ status: decision === 'approve' ? 'executed' : 'denied', updated_at: new Date().toISOString() })
+      .eq('id', pending_action_id);
+
+    // Rebuild the system prompt, preserving research mode from the original turn
+    // so web_search stays "advanced" after the user approves a write mid-turn.
+    const { data: userProfile } = await supabaseAdmin.from('user_profiles').select('name, designation, profile_type, products_services, value_proposition, additional_context, ai_tone, website, linkedin_url').eq('user_id', userId).maybeSingle();
+    const schema = await getSchemaMap();
+    const systemPrompt = buildSystemPrompt(userProfile ?? undefined, state.researchMode, schema);
+
+    const outcome = await runLoop(state, systemPrompt, userId);
+
+    if (outcome.kind === 'paused') {
+      const pending = await suspendForPermission(
+        conversation_id, userId, pa.user_message_id as string | null, outcome.call, state,
+      );
+      return res.json(pending);
+    }
+
+    const { assistantMessage, linkedEntities } = await finalizeTurn(
+      supabaseUser, conversation_id, userId, outcome.assistantText, state,
+    );
+    const { data: conversation } = await supabaseUser.from('conversations').select('*').eq('id', conversation_id).single();
+
+    res.json({
+      assistant_message: assistantMessage,
+      conversation,
+      linked_entities: linkedEntities,
+    });
+  } catch (err: any) {
+    // Re-open the action so the user can retry the decision.
+    await supabaseAdmin
+      .from('assistant_pending_actions')
+      .update({ status: 'pending' })
+      .eq('id', pending_action_id);
+    res.status(500).json({ error: err?.message || 'Assistant error' });
+  }
+});
+
+// ─── GET /api/assistant/pending ──────────────────────────────────────────────
+// The latest unresolved write awaiting permission for a conversation, if any.
+// Lets the client restore the confirmation card after it was backgrounded /
+// navigated away mid-turn (the turn is suspended server-side with no message row).
+
+const pendingQuerySchema = z.object({
+  conversation_id: z.string().uuid(),
+});
+
+router.get('/pending', async (req, res) => {
+  const parsed = pendingQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const userId = req.user!.id;
+
+  const { data, error } = await supabaseAdmin
+    .from('assistant_pending_actions')
+    .select('id, tool_name, tool_args, summary')
+    .eq('conversation_id', parsed.data.conversation_id)
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json({ pending_action: data ?? null });
 });
 
 // ─── GET /api/assistant/health ────────────────────────────────────────────────

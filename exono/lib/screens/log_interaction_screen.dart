@@ -433,14 +433,11 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-
     return SafeArea(
       top: false,
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+      // Keyboard inset handled centrally by showAppSheet — no AnimatedPadding here.
+      child: Padding(
+        padding: EdgeInsets.zero,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

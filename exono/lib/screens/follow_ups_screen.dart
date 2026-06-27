@@ -6,11 +6,13 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/offline_provider.dart';
+import '../providers/sync_provider.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_input.dart';
+import '../widgets/app_stat_row.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/log_follow_up_sheet.dart';
@@ -243,6 +245,11 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
   // event_id may be null (the "General" record). Updates in place — no reload.
   Future<void> _setRecordStatus(String contactId, String? eventId, String status) async {
     _applyRecordStatus(contactId, eventId, status);
+    // Write through to the local drift cache so the home "Follow-ups Due" stat
+    // (driven by watchDueCount) updates immediately, without waiting for the
+    // backend write's Realtime echo.
+    await context.read<SyncProvider>().followUps
+        .setStatusLocal(contactId, status, eventId: eventId, scopeToEvent: true);
     try {
       await ApiService.setFollowUpStatus(contactId, status,
           eventId: eventId, scopeToEvent: true);
@@ -268,6 +275,10 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
       'last_interaction_type': r.channel,
       'last_interaction_date': DateTime.now().toUtc().toIso8601String(),
     });
+    // Mirror the done status into the local drift cache so the home stat drops
+    // immediately (see _setRecordStatus).
+    await context.read<SyncProvider>().followUps
+        .setStatusLocal(contactId, 'done', eventId: eventId, scopeToEvent: true);
     try {
       await ApiService.setFollowUpStatus(contactId, 'done',
           eventId: eventId, scopeToEvent: true);
@@ -559,12 +570,10 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Expanded(child: _summaryCol('$_pendingCount', 'Pending', _c.accent)),
-              _vDivider(),
-              Expanded(child: _summaryCol('$_doneCount', 'Done', _c.success)),
-              _vDivider(),
-              Expanded(child: _summaryCol('$_newCount', 'New', context.theme.colors.mutedForeground)),
+            AppStatRow(dividerHeight: 32, stats: [
+              AppStat(value: '$_pendingCount', label: 'Pending', valueColor: _c.accent),
+              AppStat(value: '$_doneCount', label: 'Done', valueColor: _c.success),
+              AppStat(value: '$_newCount', label: 'New', valueColor: context.theme.colors.mutedForeground),
             ]),
             const SizedBox(height: 14),
             ClipRRect(
@@ -585,21 +594,11 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
     );
   }
 
-  Widget _summaryCol(String value, String label, Color valueColor) => Column(children: [
-    Text(value, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800,
-        color: valueColor, height: 1.0)),
-    const SizedBox(height: 3),
-    Text(label, style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w600,
-        color: context.theme.colors.mutedForeground, letterSpacing: 0.3)),
-  ]);
-
-  Widget _vDivider() =>
-      Container(width: 1, height: 32, color: context.theme.colors.border.withValues(alpha: 0.5));
-
   Widget _buildContactCard(Map<String, dynamic> contact) {
     final status = contact['follow_up_status'] as String? ?? '';
     final isDone = status == 'done';
     final company = _company(contact);
+    final designation = (contact['job_title'] as String? ?? '').trim();
     final lastTouched = _lastTouched(contact);
     final contactId = contact['id'] as String;
     // Every card expands into its per-event record rows. The home collapse always
@@ -637,9 +636,19 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                           decorationColor: context.theme.colors.mutedForeground,
                         ),
                         overflow: TextOverflow.ellipsis),
-                      if (company.isNotEmpty) ...[
+                      if (designation.isNotEmpty || company.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        Text(company,
+                        Text.rich(
+                          TextSpan(children: [
+                            if (designation.isNotEmpty)
+                              TextSpan(text: designation),
+                            if (designation.isNotEmpty && company.isNotEmpty)
+                              const TextSpan(text: ' · '),
+                            if (company.isNotEmpty)
+                              TextSpan(
+                                text: company,
+                                style: TextStyle(color: _c.accent, fontWeight: FontWeight.w600)),
+                          ]),
                           maxLines: 1,
                           style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
                           overflow: TextOverflow.ellipsis),
@@ -718,83 +727,108 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
     final summary = (r['last_interaction_summary'] as String?)?.trim();
     final when = _relativeTime(r['last_interaction_date'] as String?);
 
+    final isDone = status == 'done';
+    final (actionLabel, actionVariant, VoidCallback onAction) = switch (status) {
+      'done'    => ('Undo', ButtonVariant.outline, () => _setRecordStatus(contactId, eventId, 'pending')),
+      'skipped' => ('To Pending', ButtonVariant.secondary, () => _setRecordStatus(contactId, eventId, 'pending')),
+      _         => ('Followed Up', ButtonVariant.primary, () => _logFollowUp(contactId, contactName, eventId)),
+    };
+
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-        decoration: BoxDecoration(
-          color: _c.surfaceAlt,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: context.theme.colors.border),
-        ),
-        child: Row(
-          children: [
-            Icon(eventId == null ? Icons.event_note_rounded : Icons.event_rounded,
-                size: 14, color: context.theme.colors.mutedForeground),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: context.theme.typography.xs.copyWith(
-                      fontWeight: FontWeight.w600, color: context.theme.colors.foreground)),
-                  const SizedBox(height: 2),
-                  Row(children: [
-                    Text(chipText,
-                      style: context.theme.typography.xs.copyWith(
-                        fontWeight: FontWeight.w700, letterSpacing: 0.4, color: chipColor)),
-                    if (when.isNotEmpty) ...[
-                      Text('  ·  ', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
-                      Text(when, style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
-                    ],
-                  ]),
-                  // Last interaction detail for this specific event record.
-                  // Set apart from the status/date line with a left accent rule
-                  // and italic body so it reads as a distinct quote, not metadata.
-                  if (summary != null && summary.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.only(left: 8),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          left: BorderSide(color: _c.accent.withValues(alpha: 0.4), width: 2),
+      padding: const EdgeInsets.only(top: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: _c.surfaceAlt,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: chipColor.withValues(alpha: 0.22)),
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Status-colored spine — instant visual scan of where this
+                // record stands without reading the badge text.
+                Container(width: 4, color: chipColor),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header: status pill + relative time.
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: chipColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(chipText,
+                                style: context.theme.typography.xs.copyWith(
+                                  fontWeight: FontWeight.w700, letterSpacing: 0.5,
+                                  color: chipColor, height: 1.0)),
+                            ),
+                            if (when.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(when,
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: context.theme.typography.xs.copyWith(
+                                    color: context.theme.colors.mutedForeground)),
+                              ),
+                            ],
+                          ],
                         ),
-                      ),
-                      child: Text(summary,
-                        maxLines: 2, overflow: TextOverflow.ellipsis,
-                        style: context.theme.typography.xs.copyWith(
-                          color: context.theme.colors.foreground.withValues(alpha: 0.75),
-                          fontStyle: FontStyle.italic, height: 1.35)),
+                        const SizedBox(height: 8),
+                        // Event / interaction label — the row's title.
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Icon(eventId == null ? Icons.event_note_rounded : Icons.event_rounded,
+                                size: 15, color: context.theme.colors.mutedForeground),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(label,
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: context.theme.typography.sm.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: context.theme.colors.foreground)),
+                            ),
+                          ],
+                        ),
+                        // Last interaction detail — quoted, indented under title.
+                        if (summary != null && summary.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(summary,
+                            maxLines: 2, overflow: TextOverflow.ellipsis,
+                            style: context.theme.typography.xs.copyWith(
+                              color: context.theme.colors.mutedForeground,
+                              height: 1.4)),
+                        ],
+                        const SizedBox(height: 12),
+                        // Full-width action — generous tap target, never crowded.
+                        AppButton(
+                          label: actionLabel,
+                          onPressed: onAction,
+                          variant: actionVariant,
+                          size: ButtonSize.sm,
+                          fullWidth: true,
+                          prefixIcon: isDone
+                              ? null
+                              : Icon(status == 'skipped'
+                                  ? Icons.undo_rounded
+                                  : Icons.check_circle_outline_rounded),
+                        ),
+                      ],
                     ),
-                  ],
-                ],
-              ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            if (status == 'done')
-              AppButton(
-                label: 'Undo',
-                onPressed: () => _setRecordStatus(contactId, eventId, 'pending'),
-                variant: ButtonVariant.outline,
-                size: ButtonSize.sm,
-              )
-            else if (status == 'skipped')
-              AppButton(
-                label: 'To Pending',
-                onPressed: () => _setRecordStatus(contactId, eventId, 'pending'),
-                variant: ButtonVariant.secondary,
-                size: ButtonSize.sm,
-              )
-            else
-              AppButton(
-                label: 'Followed Up',
-                onPressed: () => _logFollowUp(contactId, contactName, eventId),
-                variant: ButtonVariant.secondary,
-                size: ButtonSize.sm,
-              ),
-          ],
+          ),
         ),
       ),
     );

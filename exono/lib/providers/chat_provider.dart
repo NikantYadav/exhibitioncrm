@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -35,6 +36,28 @@ class ChatMessage {
   }
 }
 
+/// A write operation the assistant wants to perform, awaiting user permission.
+class PendingAction {
+  final String id;
+  final String toolName;
+  final String summary;
+  final Map<String, dynamic> toolArgs;
+
+  PendingAction({
+    required this.id,
+    required this.toolName,
+    required this.summary,
+    required this.toolArgs,
+  });
+
+  factory PendingAction.fromJson(Map<String, dynamic> json) => PendingAction(
+        id: json['id'] as String,
+        toolName: (json['tool_name'] ?? '') as String,
+        summary: (json['summary'] ?? 'The assistant wants to make a change.') as String,
+        toolArgs: (json['tool_args'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+}
+
 class ChatProvider extends ChangeNotifier {
   final List<ChatMessage> _messages = [];
   final Set<String> _messageIds = {};
@@ -50,8 +73,19 @@ class ChatProvider extends ChangeNotifier {
   String? _failedText;
   bool _failedResearch = false;
   RealtimeChannel? _channel;
+  // The assistant has paused awaiting permission for a write. The UI renders an
+  // inline confirmation card while this is non-null.
+  PendingAction? _pendingAction;
+  bool _resolvingPending = false;
+  // While a turn is in flight, poll the server as a safety net in case the
+  // realtime push is missed (socket asleep, delivery dropped). Stops the instant
+  // the turn resolves. Realtime stays the primary, instant path.
+  Timer? _inFlightPoll;
+  bool _resyncing = false;
 
   List<ChatMessage> get messages => List.unmodifiable(_messages);
+  PendingAction? get pendingAction => _pendingAction;
+  bool get resolvingPending => _resolvingPending;
   bool get isTyping => _isTyping;
   bool get isLoadingHistory => _isLoadingHistory;
   bool get hasMore => _hasMore;
@@ -62,9 +96,24 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> loadConversation(String conversationId,
       {String? accessToken}) async {
-    if (_conversationId == conversationId) return;
+    // Re-entering the SAME conversation (e.g. popping back to the chat screen):
+    // don't blow away the message list, but DO reconcile with the server. A turn
+    // may have completed — or suspended for permission — while we were away and
+    // realtime missed it (socket dropped / channel torn down). Resync recovers it.
+    if (_conversationId == conversationId) {
+      if (accessToken != null) {
+        try {
+          Supabase.instance.client.realtime.setAuth(accessToken);
+        } catch (_) {}
+      }
+      // Re-subscribe if the channel was torn down, then pull the latest state.
+      if (_channel == null) _subscribeRealtime(conversationId);
+      await resync();
+      return;
+    }
 
-    // Tear down old subscription
+    // Tear down old subscription + any in-flight poll for the previous convo
+    _stopInFlightPoll();
     await _channel?.unsubscribe();
     _channel = null;
 
@@ -74,9 +123,11 @@ class ChatProvider extends ChangeNotifier {
     _nextBefore = null;
     _hasMore = true;
     _error = null;
+    _pendingAction = null;
     notifyListeners();
 
     await _loadHistory(force: true);
+    await _refreshPending();
 
     // Set realtime auth
     if (accessToken != null) {
@@ -86,6 +137,92 @@ class ChatProvider extends ChangeNotifier {
     }
 
     _subscribeRealtime(conversationId);
+  }
+
+  /// Reconcile in-memory state with the server for the current conversation:
+  /// pull the latest messages (merged by id) and any unresolved pending write,
+  /// and clear a stale typing indicator. Safe to call on every screen re-entry.
+  // Poll the server while a turn is in flight, in case realtime misses the push.
+  void _startInFlightPoll() {
+    _inFlightPoll?.cancel();
+    _inFlightPoll = Timer.periodic(const Duration(seconds: 3), (_) {
+      // Stop once the turn has resolved (reply landed or a permission card showed).
+      if (!_isTyping && !_resolvingPending) {
+        _stopInFlightPoll();
+        return;
+      }
+      resync();
+    });
+  }
+
+  void _stopInFlightPoll() {
+    _inFlightPoll?.cancel();
+    _inFlightPoll = null;
+  }
+
+  // True if an in-flight optimistic user bubble with this exact text exists.
+  bool _hasOptimisticFor(String content) =>
+      _messages.any((m) => m.id.startsWith('optimistic_') && m.text == content);
+
+  Future<void> resync() async {
+    if (_conversationId == null || _resyncing) return;
+    _resyncing = true;
+    final convId = _conversationId!;
+
+    try {
+      final result = await ApiService.getMessages(convId, limit: 50);
+      final msgs = result['data'] as List<Map<String, dynamic>>;
+      for (final m in msgs) {
+        final id = m['id'] as String;
+        if (_messageIds.contains(id)) continue;
+        // Skip the persisted echo of a user message we still hold as an optimistic
+        // bubble (matched by content) — otherwise it shows twice until the in-flight
+        // send swaps the bubble for the real record. Same guard the realtime path uses.
+        if (m['sender_type'] == 'user' && _hasOptimisticFor((m['content'] ?? '') as String)) {
+          continue;
+        }
+        _messageIds.add(id);
+        final entities =
+            _parseLinkedEntities(m['linked_entities']).map(LinkedEntity.fromJson).toList();
+        _insertOrdered(ChatMessage.fromJson(m, linkedEntities: entities));
+      }
+    } catch (_) {
+      // Network hiccup — keep what we have; pending refresh below still tries.
+    }
+
+    await _refreshPending();
+
+    // Clear a stale typing dot only when the turn has actually resolved: either a
+    // pending card is now showing, or the newest message is an assistant reply.
+    // If neither, the turn may still be running server-side — leave the dot and
+    // let realtime deliver the reply.
+    final lastIsAssistant = _messages.isNotEmpty && !_messages.last.isUser;
+    if (_isTyping && !_resolvingPending && (_pendingAction != null || lastIsAssistant)) {
+      _isTyping = false;
+    }
+    // Turn resolved (or never was in flight) — no reason to keep polling.
+    if (!_isTyping && !_resolvingPending) _stopInFlightPoll();
+    _resyncing = false;
+    notifyListeners();
+  }
+
+  // Fetch the latest unresolved pending write for the current conversation and
+  // restore the confirmation card, unless we already hold one or are mid-resolve.
+  // Notifies when the pending state changes so callers that don't notify
+  // afterwards (e.g. loadConversation's full-load branch) still repaint the card.
+  Future<void> _refreshPending() async {
+    if (_conversationId == null || _resolvingPending) return;
+    try {
+      final pa = await ApiService.assistantPending(_conversationId!);
+      final before = _pendingAction?.id;
+      if (pa != null) {
+        _pendingAction = PendingAction.fromJson(pa);
+      } else if (_pendingAction != null) {
+        // Server says nothing pending (resolved elsewhere) — drop a stale card.
+        _pendingAction = null;
+      }
+      if (_pendingAction?.id != before) notifyListeners();
+    } catch (_) {}
   }
 
   Future<void> _loadHistory({bool force = false}) async {
@@ -163,15 +300,13 @@ class ChatProvider extends ChangeNotifier {
               // optimistic bubble must survive to carry the inline retry. This is
               // matched by text (not _isTyping) so it holds for concurrent sends.
               final content = (record['content'] ?? '') as String;
-              final hasOptimistic = _messages.any(
-                (m) => m.id.startsWith('optimistic_') && m.text == content,
-              );
-              if (hasOptimistic) {
+              if (_hasOptimisticFor(content)) {
                 _messageIds.remove(id);
                 return;
               }
             } else if (record['sender_type'] == 'assistant') {
               _isTyping = false;
+              if (!_resolvingPending) _stopInFlightPoll();
             }
 
             _insertOrdered(ChatMessage(
@@ -206,6 +341,7 @@ class ChatProvider extends ChangeNotifier {
     _isTyping = true;
     _error = null;
     _failedMessageId = null;
+    _startInFlightPoll();
     notifyListeners();
 
     try {
@@ -219,33 +355,9 @@ class ChatProvider extends ChangeNotifier {
       _messages.removeWhere((m) => m.id == optimisticId);
       _messageIds.remove(optimisticId);
 
-      // Parse linked_entities from response
-      final rawLinkedEntities = resp['linked_entities'] as List<dynamic>? ?? [];
-      final parsedLinkedEntities = rawLinkedEntities
-          .cast<Map<String, dynamic>>()
-          .map(LinkedEntity.fromJson)
-          .toList();
+      _upsertMessage(resp['user_message'] as Map<String, dynamic>?);
 
-      // Upsert messages — if already added by realtime, replace to attach linkedEntities.
-      void upsert(Map<String, dynamic>? msg, {List<LinkedEntity> linkedEntities = const []}) {
-        if (msg == null) return;
-        final id = msg['id'] as String?;
-        if (id == null) return;
-        final newMsg = ChatMessage.fromJson(msg, linkedEntities: linkedEntities);
-        final idx = _messages.indexWhere((m) => m.id == id);
-        if (idx != -1) {
-          _messages[idx] = newMsg;
-        } else {
-          _messageIds.add(id);
-          _insertOrdered(newMsg);
-        }
-      }
-
-      upsert(resp['user_message'] as Map<String, dynamic>?);
-      upsert(resp['assistant_message'] as Map<String, dynamic>?,
-          linkedEntities: parsedLinkedEntities);
-
-      return resp['conversation'] as Map<String, dynamic>?;
+      return _handleTurnResponse(resp);
     } catch (_) {
       _error = 'Failed to send message. Please try again.';
       _failedText = text.trim();
@@ -272,6 +384,80 @@ class ChatProvider extends ChangeNotifier {
     _messages.insert(i, msg);
   }
 
+  // Upsert a message row — if already added by realtime, replace to attach
+  // linkedEntities; otherwise insert in timestamp order.
+  void _upsertMessage(Map<String, dynamic>? msg,
+      {List<LinkedEntity> linkedEntities = const []}) {
+    if (msg == null) return;
+    final id = msg['id'] as String?;
+    if (id == null) return;
+    final newMsg = ChatMessage.fromJson(msg, linkedEntities: linkedEntities);
+    final idx = _messages.indexWhere((m) => m.id == id);
+    if (idx != -1) {
+      _messages[idx] = newMsg;
+    } else {
+      _messageIds.add(id);
+      _insertOrdered(newMsg);
+    }
+  }
+
+  // Process a /respond or /resume response: either the assistant paused for a
+  // write permission, or it completed with an assistant message. Shared so both
+  // sendMessage and resolvePending behave identically. Returns the conversation
+  // map (may be null on resume responses).
+  Map<String, dynamic>? _handleTurnResponse(Map<String, dynamic> resp) {
+    if (resp['status'] == 'awaiting_permission') {
+      final pa = resp['pending_action'] as Map<String, dynamic>?;
+      if (pa != null) {
+        _pendingAction = PendingAction.fromJson(pa);
+        _isTyping = false;
+        return resp['conversation'] as Map<String, dynamic>?;
+      }
+    }
+
+    _pendingAction = null;
+    final rawLinkedEntities = resp['linked_entities'] as List<dynamic>? ?? [];
+    final parsedLinkedEntities = rawLinkedEntities
+        .cast<Map<String, dynamic>>()
+        .map(LinkedEntity.fromJson)
+        .toList();
+    _upsertMessage(resp['assistant_message'] as Map<String, dynamic>?,
+        linkedEntities: parsedLinkedEntities);
+    return resp['conversation'] as Map<String, dynamic>?;
+  }
+
+  /// Approve or deny the current pending write. On approve the backend executes
+  /// the write and continues the agent (which may surface another pending action).
+  Future<Map<String, dynamic>?> resolvePending({required bool approve}) async {
+    final pa = _pendingAction;
+    if (pa == null || _resolvingPending) return null;
+
+    _resolvingPending = true;
+    _error = null;
+    // Clear the card and show the typing indicator while the agent continues.
+    _pendingAction = null;
+    _isTyping = true;
+    _startInFlightPoll();
+    notifyListeners();
+
+    try {
+      final resp = await ApiService.assistantResume(
+        pendingActionId: pa.id,
+        decision: approve ? 'approve' : 'deny',
+      );
+      return _handleTurnResponse(resp);
+    } catch (_) {
+      _error = 'Failed to ${approve ? 'approve' : 'deny'} the action. Please try again.';
+      // Restore the card so the user can retry the decision.
+      _pendingAction = pa;
+      return null;
+    } finally {
+      _resolvingPending = false;
+      _isTyping = false;
+      notifyListeners();
+    }
+  }
+
   // Supabase may return jsonb columns as a pre-serialized String instead of a List.
   static List<Map<String, dynamic>> _parseLinkedEntities(dynamic raw) {
     if (raw == null) return const [];
@@ -287,11 +473,13 @@ class ChatProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _stopInFlightPoll();
     _channel?.unsubscribe();
     super.dispose();
   }
 
   void reset({bool loading = true}) {
+    _stopInFlightPoll();
     _channel?.unsubscribe();
     _channel = null;
     _conversationId = null;
@@ -302,6 +490,8 @@ class ChatProvider extends ChangeNotifier {
     _error = null;
     _failedMessageId = null;
     _failedText = null;
+    _pendingAction = null;
+    _resolvingPending = false;
     _isTyping = false;
     _isLoadingHistory = loading;
     notifyListeners();

@@ -21,6 +21,7 @@ import '../widgets/app_feedback.dart';
 import '../widgets/app_sheet_content.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
+import 'app_shell.dart' show navBarHide, navBarShow;
 
 class TargetCompanyPrepScreen extends StatefulWidget {
   final Event event;
@@ -59,6 +60,10 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
   @override
   void initState() {
     super.initState();
+    // Pushed full-screen into the shell's nested navigator, so the shell's
+    // bottom nav + live bar would otherwise stay mounted underneath. Hide them
+    // while this screen is open (restored in dispose).
+    navBarHide();
     _boothCtrl = TextEditingController();
     _notesCtrl = TextEditingController();
     _briefingFocusCtrl = TextEditingController();
@@ -102,6 +107,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
 
   @override
   void dispose() {
+    navBarShow();
     _boothCtrl.dispose();
     _notesCtrl.dispose();
     _briefingFocusCtrl.dispose();
@@ -244,9 +250,15 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
         },
       ),
     );
-    industryCtrl.dispose();
-    locationCtrl.dispose();
-    websiteCtrl.dispose();
+    // Defer one frame: the sheet's exit animation is still running when the
+    // await returns, so the FTextField (and its managed control) is briefly
+    // still mounted and depends on these controllers. Synchronous disposal
+    // throws `_dependents.isEmpty is not true`.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      industryCtrl.dispose();
+      locationCtrl.dispose();
+      websiteCtrl.dispose();
+    });
   }
 
   Future<void> _generateBriefing(String companyId, String? notes) async {

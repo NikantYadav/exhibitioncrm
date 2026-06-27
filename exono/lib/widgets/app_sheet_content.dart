@@ -32,15 +32,13 @@ class AppSheetContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Keyboard avoidance is handled centrally by `showAppSheet` (it pads the
+    // sheet by the keyboard inset). Do NOT add `viewInsets.bottom` here or the
+    // keyboard is counted twice and the sheet rides up into the status bar.
     return SafeArea(
       top: false,
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          20,
-          16,
-          MediaQuery.of(context).viewInsets.bottom + 32,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

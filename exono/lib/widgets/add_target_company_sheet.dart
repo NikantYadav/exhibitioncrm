@@ -63,7 +63,10 @@ class _AddTargetCompanySheetState extends State<AddTargetCompanySheet> {
   Widget build(BuildContext context) {
     final c = AppTheme.colorsOf(context);
     final mq = MediaQuery.of(context);
-    final maxHeight = mq.size.height - mq.viewInsets.bottom - mq.padding.top - 24;
+    // Keyboard avoidance is handled centrally by showAppSheet (it pads the
+    // sheet by the keyboard inset). We only size to a fraction of the screen
+    // here; do NOT subtract viewInsets.bottom or the keyboard is double-counted.
+    final maxHeight = mq.size.height - mq.padding.top - 24;
 
     return SafeArea(
       top: false,

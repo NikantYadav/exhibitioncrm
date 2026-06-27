@@ -8,6 +8,16 @@ import '../config/app_theme.dart';
 /// selectedIndex mapping:
 ///   0 = Home, 1 = Events, 2 = QR/Capture, 3 = Contacts,
 ///   5 = Profile, 7 = AI Chat, 4 = sentinel (no tab active)
+///
+/// This is a fully custom bar (NOT forui's `FBottomNavigationBar`). forui's bar
+/// hardcodes its bottom inset as `viewPadding.bottom * 2/3` plus an internal
+/// SafeArea, which double-counts on some devices and under-counts on others —
+/// producing extra space below the bar on iOS and the bar sliding under the
+/// system nav bar on certain Android devices. We replicate forui's exact visual
+/// style (top border, background, icon/label colors, sizes, spacing) but own the
+/// inset: we add the real system bottom inset, read from the raw FlutterView so
+/// it is correct on every device regardless of edge-to-edge / Scaffold inset
+/// stripping.
 class AppBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onNavigate;
@@ -18,31 +28,40 @@ class AppBottomNav extends StatelessWidget {
     required this.onNavigate,
   });
 
-  // Map app selectedIndex to FBottomNavigationBar 0-based index.
-  // Items order: 0=Home, 1=AIChat, 2=placeholder(QR), 3=Contacts, 4=Events
-  int get _forIndex {
+  // Items, left-to-right. Index 2 (QR) is an invisible placeholder so the
+  // floating QR button sits centered above it. `appIndex` is the value passed
+  // back to onNavigate; null means non-tappable placeholder.
+  static const _items = <_NavItem>[
+    _NavItem(icon: Icons.home_outlined, label: 'Home', appIndex: 0),
+    _NavItem(icon: Icons.auto_awesome_outlined, label: 'AI Chat', appIndex: 7),
+    _NavItem(icon: null, label: '', appIndex: null), // QR placeholder
+    _NavItem(icon: Icons.group_outlined, label: 'Contacts', appIndex: 3),
+    _NavItem(icon: Icons.calendar_today_outlined, label: 'Events', appIndex: 4),
+  ];
+
+  // Which item index (0-based, left-to-right) is highlighted for the current
+  // app selectedIndex. -1 = no tab active (e.g. scanner / detail routes).
+  int get _activeItem {
     switch (selectedIndex) {
       case 0:
-        return 0;
+        return 0; // Home
       case 7:
-        return 1;
+        return 1; // AI Chat
       case 3:
-        return 3;
+        return 3; // Contacts
       case 1:
-        return 4;
+        return 4; // Events
       default:
-        return -1; // no tab active
+        return -1;
     }
   }
 
-  void _handleChange(int forIndex) {
-    switch (forIndex) {
+  void _onTapItem(_NavItem item) {
+    switch (item.appIndex) {
       case 0:
         onNavigate(0);
-      case 1:
+      case 7:
         onNavigate(7);
-      case 2:
-        onNavigate(2); // QR placeholder — handled by the floating button
       case 3:
         onNavigate(3);
       case 4:
@@ -53,49 +72,20 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AppTheme.colorsOf(context);
+    final theme = context.theme;
+    final activeItem = selectedIndex == 2 ? -1 : _activeItem;
 
-    if (selectedIndex == 2) {
-      return _buildScannerNav(colors, context);
-    }
+    final bar = _buildBar(context, theme, activeItem);
 
-    final nav = _safeArea(
-      context,
-      FBottomNavigationBar(
-        index: _forIndex,
-        onChange: _handleChange,
-        safeAreaBottom: false,
-      children: const [
-        FBottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: Text('Home'),
-        ),
-        FBottomNavigationBarItem(
-          icon: Icon(Icons.auto_awesome_outlined),
-          label: Text('AI Chat'),
-        ),
-        // Invisible placeholder so the QR floating button sits centered above it
-        FBottomNavigationBarItem(
-          icon: SizedBox(width: 24, height: 24),
-          label: Text(''),
-        ),
-        FBottomNavigationBarItem(
-          icon: Icon(Icons.group_outlined),
-          label: Text('Contacts'),
-        ),
-        FBottomNavigationBarItem(
-          icon: Icon(Icons.calendar_today_outlined),
-          label: Text('Events'),
-        ),
-      ],
-    ),
-    );
+    // When the scanner is active there is no elevated QR button overlay.
+    if (selectedIndex == 2) return bar;
 
-    // Wrap with the QR center button overlay
+    // Wrap with the QR center button overlay.
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.topCenter,
       children: [
-        nav,
+        bar,
         Positioned(
           top: -14,
           child: GestureDetector(
@@ -120,61 +110,99 @@ class AppBottomNav extends StatelessWidget {
     );
   }
 
-  // Apply the system bottom inset exactly once, matching forui's own design.
-  //
-  // forui's FBottomNavigationBar internally adds `viewPadding.bottom * 2/3` as
-  // extra bottom padding (its base item padding is 5). That 2/3 factor is
-  // forui's intended look for the home indicator — applying the *full* inset on
-  // top instead leaves an oversized gap below the bar (most visible on iOS).
-  //
-  // `viewPadding.bottom` (unlike `padding.bottom`) is never consumed by an
-  // ancestor SafeArea, so reading it here is reliable even with Scaffold's
-  // body-inset stripping or Android edge-to-edge. We therefore feed forui the
-  // raw FlutterView inset and let it apply its own `* 2/3` — no extra Padding,
-  // and `safeAreaBottom: false` so SafeArea doesn't double-count.
-  Widget _safeArea(BuildContext context, Widget child) {
-    final mq = MediaQuery.of(context);
+  Widget _buildBar(BuildContext context, FThemeData theme, int activeItem) {
+    // Real system bottom inset, read from the raw FlutterView so it is correct
+    // on every device — never 0 from an ancestor SafeArea, never the doubled /
+    // 2-3 value forui produced. Logical pixels = physical inset / dpr.
     final view = View.of(context);
-    final inset = view.viewPadding.bottom / view.devicePixelRatio;
-    return MediaQuery(
-      data: mq.copyWith(
-        viewPadding: mq.viewPadding.copyWith(bottom: inset),
-        padding: mq.padding.copyWith(bottom: 0),
+    final bottomInset = view.viewPadding.bottom / view.devicePixelRatio;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colors.background,
+        border: Border(
+          top: BorderSide(
+            color: theme.colors.border,
+            width: theme.style.borderWidth,
+          ),
+        ),
       ),
-      child: child,
+      child: Padding(
+        // forui's base item padding is EdgeInsets.all(5); we keep the 5px top
+        // band and add the real system inset below the row.
+        padding: EdgeInsets.fromLTRB(5, 5, 5, 5 + bottomInset),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            for (final (i, item) in _items.indexed)
+              Expanded(
+                child: _buildItem(context, theme, item, selected: i == activeItem),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildScannerNav(ExonoColors colors, BuildContext context) {
-    return _safeArea(
-      context,
-      FBottomNavigationBar(
-      index: -1,
-      onChange: _handleChange,
-      safeAreaBottom: false,
-      children: const [
-        FBottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: Text('Home'),
+  Widget _buildItem(
+    BuildContext context,
+    FThemeData theme,
+    _NavItem item, {
+    required bool selected,
+  }) {
+    // Placeholder slot under the floating QR button: keep the same footprint
+    // (24px icon box) so spacing matches the other items, but render nothing.
+    if (item.icon == null) {
+      return const Padding(
+        padding: EdgeInsets.all(5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [SizedBox(width: 24, height: 24)],
         ),
-        FBottomNavigationBarItem(
-          icon: Icon(Icons.auto_awesome_outlined),
-          label: Text('AI Chat'),
+      );
+    }
+
+    final color = selected ? theme.colors.primary : theme.colors.mutedForeground;
+    // forui: label is typography.xs3 with height 1.5; selected = bold.
+    final textStyle = theme.typography.xs3.copyWith(
+      color: color,
+      height: 1.5,
+      fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+    );
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _onTapItem(item),
+      child: Padding(
+        padding: const EdgeInsets.all(5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              item.icon,
+              size: 24,
+              color: color,
+              // forui bumps the selected icon to weight 700.
+              weight: selected ? 700 : null,
+            ),
+            const SizedBox(height: 2), // forui item spacing
+            Text(
+              item.label,
+              style: textStyle,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ],
         ),
-        FBottomNavigationBarItem(
-          icon: SizedBox(width: 24, height: 24),
-          label: Text(''),
-        ),
-        FBottomNavigationBarItem(
-          icon: Icon(Icons.group_outlined),
-          label: Text('Contacts'),
-        ),
-        FBottomNavigationBarItem(
-          icon: Icon(Icons.calendar_today_outlined),
-          label: Text('Events'),
-        ),
-      ],
-    ),
+      ),
     );
   }
+}
+
+class _NavItem {
+  final IconData? icon;
+  final String label;
+  final int? appIndex;
+
+  const _NavItem({required this.icon, required this.label, required this.appIndex});
 }

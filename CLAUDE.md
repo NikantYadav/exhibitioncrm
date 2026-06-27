@@ -21,6 +21,7 @@ The wrappers already exist in `exono/lib/widgets/`. They wrap forui correctly an
 | Status badge (icon/spinner) | `AppStatusBadge` (`lib/widgets/app_status_badge.dart`) | hand-rolled `Row`+badge for offline/syncing indicators; use `leading:` for icon, `spinner: true` for inline spinner |
 | Header / app bar | `AppHeader` (`lib/widgets/app_header.dart`) | `AppBar`, custom header rows |
 | Section label | `AppSectionLabel` (`lib/widgets/app_section_label.dart`) | small uppercase label text |
+| Stat row (value/label cells) | `AppStatRow` (`lib/widgets/app_stat_row.dart`) | a `Row` of equal `Expanded` value+label cells with dividers (CONTACTS/PENDING/SKIPPED/DONE etc). Pass `stats: [AppStat(value, label, valueColor?)]`. Scales ALL labels by one shared factor so they stay the same size and never wrap on small screens — do NOT per-cell `FittedBox` |
 | Checkbox | `AppCheckbox` (`lib/widgets/app_checkbox.dart`) | custom `GestureDetector`+`AnimatedContainer` checkbox |
 | Bottom sheet | `showAppSheet(...)` (`lib/widgets/app_feedback.dart`) | `showModalBottomSheet` |
 | Snackbar / toast | `showAppToast(context, 'msg')` (`lib/widgets/app_feedback.dart`) | `ScaffoldMessenger.of(context).showSnackBar` |
@@ -98,9 +99,21 @@ The system reserves space at the bottom of the window (Android nav bar, iOS home
 | Trailing spacer at the end of a list (`SizedBox(height: …)`) | `SizedBox(height: bottomScrollInset(context))` |
 | A widget **pinned** to the bottom (fixed save bar, floating dock, in-screen `Positioned(bottom:0)` overlay sheet) | `padding: EdgeInsets.fromLTRB(.., .., .., bottomBarInset(context, extra: 12))` — `extra` is design padding on top of the inset |
 | A `showAppSheet` bottom sheet | nothing — `showAppSheet` already injects the inset; builders keep `SafeArea(top: false)` |
-| Keyboard avoidance | unchanged — keep `MediaQuery.of(context).viewInsets.bottom` (that's the keyboard, a different inset) |
+| Keyboard avoidance — **inside a `showAppSheet` builder** | nothing — `showAppSheet` owns the keyboard inset centrally (see next section). NEVER read `viewInsets.bottom` in a sheet builder. |
+| Keyboard avoidance — **full-screen pushed screen** (`AppHeader`/back button, not a sheet, e.g. `company_detail`, `target_company_prep`) | keep `MediaQuery.of(context).viewInsets.bottom` in that screen's own scroll padding (that's the keyboard, a different inset) |
 
 Why one helper works for tab screens AND pushed/detail screens: `bottomScrollInset` returns `viewPadding.bottom + margin`. When a `Scaffold` has a `bottomNavigationBar` (the app shell on tab routes, and `live_*` screens), Flutter strips the body's bottom inset, so `viewPadding.bottom` is ~0 there and the helper yields just the margin — the nav bar covers the system inset. Pushed/detail screens have no nav bar, keep the real inset, and reserve it. So you **don't** need to know which kind of screen you're on — just call `bottomScrollInset(context)`. Tune the app-wide base margin via `kBottomScrollMargin` in the helper file.
+
+### Keyboard inset for bottom sheets (MANDATORY — `showAppSheet` is the single owner)
+
+`showAppSheet` ([`lib/widgets/app_feedback.dart`](exono/lib/widgets/app_feedback.dart)) owns the keyboard inset for **every** bottom sheet. It calls forui's `showFSheet` with `resizeToAvoidBottomInset: false` (so forui does NOT lift the whole sheet) and instead wraps the builder in an `AnimatedPadding(bottom: viewInsets.bottom)`. The sheet stays **bottom-anchored**; the keyboard overlaps the lower portion; content scrolls above it. This behaves identically on every phone size and never rides up into the status bar / time area.
+
+**Why this matters:** previously the keyboard was counted twice — forui lifted the entire sheet AND each sheet builder subtracted `viewInsets.bottom` in its own layout — so the sheet's top edge rode up into the status bar when the keyboard opened (reported on Add Goal / Add Company / Add Contact and other sheets). Removing forui's lift and centralizing the inset in one place is the fix; re-introducing a per-sheet `viewInsets.bottom` re-creates the double-count.
+
+Rules for any widget rendered as a `showAppSheet` builder:
+- **NEVER reference `MediaQuery.viewInsets.bottom` inside a sheet builder** — not in `padding`, not in `maxHeight`/`SizedBox` height calc, not in an inner `AnimatedPadding`. Use a static bottom pad (e.g. `EdgeInsets.fromLTRB(20, 20, 20, 32)`).
+- **Make short sheet content a `SingleChildScrollView`** so the centrally-added keyboard padding never overflows on small phones. (`AppSheetContent` and `_LogFollowUpSheet` already do this.)
+- This is **sheets-only**. Full-screen *pushed* screens (those with an `AppHeader`/back button, e.g. `company_detail`, `target_company_prep`) are NOT sheets — they keep their own `viewInsets.bottom` for keyboard avoidance.
 
 ### Keep as-is (no forui equivalent — do NOT replace)
 - Layout: `Row Column Stack Positioned Expanded Spacer Padding SizedBox Center Wrap ConstrainedBox FractionallySizedBox`

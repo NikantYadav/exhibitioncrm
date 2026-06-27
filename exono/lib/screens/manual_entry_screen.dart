@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
+import '../providers/live_event_provider.dart';
 
 import '../config/app_theme.dart';
 import '../models/event.dart';
@@ -107,7 +108,15 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     final rows = await context.read<SyncProvider>().events.watchAll().first;
     if (!mounted) return;
     final events = rows.map(Event.fromDrift).toList();
-    setState(() => _events = events);
+    // When an event is live, auto-select it for manual entry — universal rule
+    // across capture/contact actions.
+    final liveEvent = context.read<LiveEventProvider>().liveEvent;
+    setState(() {
+      _events = events;
+      if (liveEvent != null && events.any((e) => e.id == liveEvent.id)) {
+        _eventId = liveEvent.id;
+      }
+    });
   }
 
   // ── Build ───────────────────────────────────────────────────

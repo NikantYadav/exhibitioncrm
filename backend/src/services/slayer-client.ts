@@ -30,19 +30,26 @@ const ALLOWED_MODELS = [
   'contact_documents', 'user_profiles',
   'target_companies', 'event_goals',
   'message_attachments',
+  'contact_events', 'follow_ups', 'target_company_met',
 ] as const;
 
 type AllowedModel = typeof ALLOWED_MODELS[number];
 
-// Tables that carry user_id — the authenticated user's ownership filter is injected for these
+// Tables that carry a user_id column — the authenticated user's ownership filter
+// is injected for these. Mirrors the live DB (verified via information_schema).
 export const USER_ID_TABLES = new Set<string>([
   'contacts', 'events', 'user_profiles', 'captures', 'conversations', 'messages',
+  'email_drafts', 'interactions', 'target_companies', 'event_goals',
+  'contact_events', 'follow_ups', 'target_company_met',
 ]);
 
-// Tables with soft deletes — deleted_at IS NULL is always injected so the LLM never sees deleted rows
+// Tables with a deleted_at column — `deleted_at IS NULL` is always injected so the
+// LLM never sees soft-deleted rows. Mirrors the live DB (verified via
+// information_schema). NOTE: companies has NO deleted_at, so it must NOT be here.
 const SOFT_DELETE_TABLES = new Set<string>([
-  'contacts', 'events', 'captures', 'companies', 'interactions',
+  'contacts', 'events', 'captures', 'interactions',
   'email_drafts', 'target_companies', 'event_goals',
+  'contact_events', 'follow_ups', 'target_company_met',
 ]);
 
 // ─── Zod schema for SlayerQuery ───────────────────────────────────────────────

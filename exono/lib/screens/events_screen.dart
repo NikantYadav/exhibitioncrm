@@ -12,7 +12,7 @@ import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_checkbox.dart';
 import '../widgets/app_feedback.dart';
-import '../widgets/app_section_label.dart';
+import '../widgets/app_stat_row.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/skeleton_loader.dart';
@@ -364,6 +364,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   Widget _buildTabButton({required String label, required int count, required bool isActive}) {
     return Expanded(
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () => setState(() {
           _showUpcoming = label == 'Upcoming';
           _searchQuery = '';
@@ -747,20 +748,26 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
             ),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              _buildStatCell('Contacts', '$totalContacts', context.theme.colors.foreground),
-              _buildStatDivider(),
-              _buildStatCell('Pending', '$pending',
-                  pending > 0 ? context.theme.colors.primary : context.theme.colors.mutedForeground),
-              _buildStatDivider(),
-              _buildStatCell('Skipped', '$skipped',
-                  skipped > 0 ? context.theme.colors.error : context.theme.colors.mutedForeground),
-              _buildStatDivider(),
-              _buildStatCell('Done', '$done',
-                  done > 0 ? _c.success : context.theme.colors.mutedForeground),
-            ],
-          ),
+          AppStatRow(stats: [
+            AppStat(value: '$totalContacts', label: 'Contacts'),
+            AppStat(
+                value: '$pending',
+                label: 'Pending',
+                valueColor: pending > 0
+                    ? context.theme.colors.primary
+                    : context.theme.colors.mutedForeground),
+            AppStat(
+                value: '$skipped',
+                label: 'Skipped',
+                valueColor: skipped > 0
+                    ? context.theme.colors.error
+                    : context.theme.colors.mutedForeground),
+            AppStat(
+                value: '$done',
+                label: 'Done',
+                valueColor:
+                    done > 0 ? _c.success : context.theme.colors.mutedForeground),
+          ]),
           const SizedBox(height: 14),
           AppButton(
             label: 'FOLLOW-UP QUEUE',
@@ -774,36 +781,6 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     );
   }
 
-  Widget _buildStatCell(String label, String value, Color valueColor) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: context.theme.typography.lg.copyWith(
-              fontWeight: FontWeight.w700,
-              color: valueColor,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: AppSectionLabel(label, letterSpacing: 0.8),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatDivider() {
-    return Container(
-      width: 1,
-      height: 28,
-      color: context.theme.colors.border,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-    );
-  }
 
   Widget _buildMetaRow(IconData icon, String value) {
     return Row(
@@ -1029,6 +1006,19 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
                     _showEditEventSheet(event);
                   },
                 ),
+                if (event.status == 'ongoing') ...[
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: 'Stop Live Event',
+                    prefixIcon: Icon(Icons.stop_circle_outlined, size: 18, color: _c.destructive),
+                    variant: ButtonVariant.outline,
+                    fullWidth: true,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _stopLiveEvent(event);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 8),
                 AppButton(
                   label: 'Delete Event',
@@ -1063,6 +1053,51 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
         ],
       ),
     );
+  }
+
+  // Ends a currently-live event by setting its end boundary to "now" (local),
+  // so computeEventStatus flips it to 'completed'. For a multi-day event we also
+  // pin end_date to today; single-day events just get an end_time.
+  Future<void> _stopLiveEvent(Event event) async {
+    final confirmed = await showAppConfirmDialog(
+      context: context,
+      title: 'Stop Live Event',
+      message: 'End "${event.name}" now? Its floor will close and it will move to past events.',
+      confirmLabel: 'Stop Event',
+      destructive: true,
+    );
+    if (confirmed != true) return;
+
+    final now = DateTime.now();
+    final endTime =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    // The backend's end_time validation requires start_time in the same payload
+    // (the patch schema validates in isolation, so it can't see the stored
+    // start_time). Open-ended events have no start_time — anchor them to midnight.
+    final startTime = event.startTime ?? '00:00';
+    final updates = <String, dynamic>{
+      'start_time': startTime,
+      'end_time': endTime,
+    };
+    if (event.endDate != null) {
+      updates['end_date'] =
+          '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    }
+
+    try {
+      await ApiService.updateEvent(event.id, updates);
+      if (!mounted) return;
+      await context.read<SyncProvider>().events.catchUp();
+      if (!mounted) return;
+      context.read<LiveEventProvider>().refresh();
+      showAppToast(context, 'Live event ended.');
+    } on UnauthorizedException {
+      rethrow;
+    } on EventValidationException catch (e) {
+      if (mounted) { showAppToast(context, e.message); }
+    } catch (e) {
+      if (mounted) { showAppToast(context, 'Failed to stop event.'); }
+    }
   }
 
   Widget _buildSkeletonLoader() {

@@ -176,6 +176,11 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
   Future<void> _showAddGoalSheet(Event event, LiveEventProvider lep) async {
     final labelCtrl = TextEditingController();
     final totalCtrl = TextEditingController(text: '1');
+    // Persistent focus node for the label field. The Counted/Checkbox toggle is
+    // a tap *outside* the field, which fires AppInput's onTapOutside -> unfocus
+    // and dismisses the keyboard. We hold the node so the toggle can immediately
+    // re-request focus, keeping the keyboard up.
+    final labelFocus = FocusNode();
     bool isCheckbox = false;
     final c = _c;
 
@@ -184,11 +189,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => SafeArea(
           top: false,
-          child: Padding(
-          // forui's showFSheet already shifts the sheet up by the keyboard
-          // inset (resizeToAvoidBottomInset). Adding viewInsets.bottom here too
-          // double-counts the keyboard height and pushes the sheet to the status
-          // bar, so use a static bottom pad only.
+          child: SingleChildScrollView(
+          // Keyboard avoidance is handled centrally by showAppSheet (it pads
+          // the sheet by the keyboard inset). Scrollable so the content never
+          // overflows on small phones once the keyboard padding is added.
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -198,6 +202,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
               const SizedBox(height: 20),
               AppInput(
                 controller: labelCtrl,
+                focusNode: labelFocus,
                 autofocus: true,
                 hint: isCheckbox ? 'e.g. Visit the sponsor booth' : 'e.g. Meet 5 VCs',
               ),
@@ -225,7 +230,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   Row(children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => setModalState(() => isCheckbox = true),
+                        onTap: () {
+                          setModalState(() => isCheckbox = true);
+                          _keepLabelFocus(labelFocus);
+                        },
                         behavior: HitTestBehavior.opaque,
                         child: Center(child: Text('Checkbox', style: context.theme.typography.sm.copyWith(
                             fontWeight: FontWeight.w600,
@@ -234,7 +242,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                     ),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => setModalState(() => isCheckbox = false),
+                        onTap: () {
+                          setModalState(() => isCheckbox = false);
+                          _keepLabelFocus(labelFocus);
+                        },
                         behavior: HitTestBehavior.opaque,
                         child: Center(child: Text('Counted', style: context.theme.typography.sm.copyWith(
                             fontWeight: FontWeight.w600,
@@ -244,14 +255,26 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
                   ]),
                 ]),
               ),
-              if (!isCheckbox) ...[
-                const SizedBox(height: 12),
-                AppInput(
-                  controller: totalCtrl,
-                  keyboardType: TextInputType.number,
-                  hint: 'Target count',
-                ),
-              ],
+              // Keep the target-count field permanently in the tree and just
+              // collapse its height when in Checkbox mode. Conditionally
+              // adding/removing it (`if (!isCheckbox) ...`) reshapes the
+              // children list, which makes the label field above lose focus and
+              // dismisses the keyboard on toggle. AnimatedSize avoids that.
+              AnimatedSize(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topCenter,
+                child: isCheckbox
+                    ? const SizedBox(width: double.infinity)
+                    : Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: AppInput(
+                          controller: totalCtrl,
+                          keyboardType: TextInputType.number,
+                          hint: 'Target count',
+                        ),
+                      ),
+              ),
               const SizedBox(height: 20),
               AppButton(
                 label: 'ADD GOAL',
@@ -276,6 +299,28 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
         ),
       ),
     );
+    // Dispose after the next frame: when the sheet is dismissed its exit
+    // animation is still running, so the FTextField (and its managed control)
+    // is briefly still mounted and depends on these controllers. Disposing them
+    // synchronously here throws `_dependents.isEmpty is not true`. Deferring one
+    // frame lets the field detach first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      labelCtrl.dispose();
+      totalCtrl.dispose();
+      labelFocus.dispose();
+    });
+  }
+
+  /// Re-focuses the goal-label field after a tap on the mode toggle. The toggle
+  /// is a tap *outside* the field, which fires AppInput's onTapOutside ->
+  /// unfocus and hides the keyboard; re-requesting focus on the next frame (so
+  /// the rebuilt field is attached) keeps the keyboard up across the toggle.
+  void _keepLabelFocus(FocusNode node) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (node.canRequestFocus && !node.hasFocus) {
+        node.requestFocus();
+      }
+    });
   }
 
   // ── Target actions ─────────────────────────────────────────────────────────
@@ -393,8 +438,8 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
       context: context,
       builder: (ctx) => SafeArea(
         top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(16, 20, 16, MediaQuery.of(ctx).viewInsets.bottom + 32),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1536,11 +1581,12 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
     }).toList();
 
     // Adaptive height matching AddTargetCompanySheet: a 70%-of-screen target,
-    // clamped to the space actually available (screen minus keyboard inset minus
-    // status bar). This prevents the sheet from riding up under the status bar on
-    // small phones when the keyboard is open, while still adapting across sizes.
+    // clamped to the space actually available (screen minus status bar). The
+    // keyboard inset is handled centrally by showAppSheet, so it must NOT be
+    // subtracted here or it would be double-counted and ride up under the status
+    // bar. This still adapts across phone sizes.
     final mq = MediaQuery.of(context);
-    final maxHeight = mq.size.height - mq.viewInsets.bottom - mq.padding.top - 24;
+    final maxHeight = mq.size.height - mq.padding.top - 24;
     final sheetHeight = (mq.size.height * 0.7).clamp(0.0, maxHeight);
     return SafeArea(
       top: false,

@@ -789,10 +789,8 @@ class _FilterSheetState extends State<_FilterSheet> {
                 maxHeight: MediaQuery.of(context).size.height * 0.6,
               ),
               child: SingleChildScrollView(
-                padding: EdgeInsets.only(
-                  left: 20, right: 20, top: 12,
-                  bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
-                ),
+                // Keyboard inset handled centrally by showAppSheet.
+                padding: const EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

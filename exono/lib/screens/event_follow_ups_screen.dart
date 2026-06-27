@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../utils/safe_area_insets.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_input.dart';
@@ -23,6 +24,7 @@ import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
+import 'app_shell.dart' show navBarHide, navBarShow;
 
 // ---------------------------------------------------------------------------
 // Public screen
@@ -80,6 +82,10 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   @override
   void initState() {
     super.initState();
+    // Pushed full-screen into the shell's nested navigator, so the shell's
+    // bottom nav + live bar would otherwise stay mounted underneath. Hide them
+    // while this screen is open (restored in dispose).
+    navBarHide();
     _subjectCtrl = TextEditingController();
     _bodyCtrl = TextEditingController();
     _sync = context.read<SyncProvider>();
@@ -88,6 +94,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
 
   @override
   void dispose() {
+    navBarShow();
     _subjectCtrl.dispose();
     _bodyCtrl.dispose();
     super.dispose();
@@ -144,11 +151,9 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
 
   String _fullName(FollowUpRow fu) => '${fu.firstName} ${fu.lastName ?? ''}'.trim();
 
-  String _roleCompany(FollowUpRow fu) {
-    final role = fu.jobTitle?.isNotEmpty == true ? fu.jobTitle! : 'Contact';
-    final companyName = fu.companyName ?? '';
-    return companyName.isNotEmpty ? '$role · $companyName' : role;
-  }
+  String _role(FollowUpRow fu) =>
+      fu.jobTitle?.isNotEmpty == true ? fu.jobTitle! : 'Contact';
+
 
   String _draftSubject(FollowUpRow fu) {
     final saved = fu.draftSubject;
@@ -278,6 +283,9 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
     setState(() => _expandedContactId = null);
     _snack('Contact skipped for now.');
     if (_eventId.isNotEmpty) {
+      // Mirror into drift so the home "Follow-ups Due" stat updates live.
+      await _sync.followUps.setStatusLocal(contactId, 'skipped',
+          eventId: _eventId, scopeToEvent: true);
       await ApiService.skipFollowUp(_eventId, contactId).catchError((_) {});
       await _afterFollowUpWrite();
     }
@@ -287,6 +295,9 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
     setState(() => _expandedContactId = null);
     _snack('Moved back to pending.');
     if (_eventId.isNotEmpty) {
+      // Mirror into drift so the home "Follow-ups Due" stat updates live.
+      await _sync.followUps.setStatusLocal(contactId, 'pending',
+          eventId: _eventId, scopeToEvent: true);
       await ApiService.unskipFollowUp(_eventId, contactId).catchError((_) {});
       await _afterFollowUpWrite();
     }
@@ -421,7 +432,8 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                     onFollowedUp: () => _showFollowedUpDialog(fu),
                     initials: _initials(fu),
                     fullName: _fullName(fu),
-                    roleCompany: _roleCompany(fu),
+                    role: _role(fu),
+                    companyName: fu.companyName ?? '',
                   ),
                 );
               },
@@ -692,7 +704,8 @@ class _ContactFollowUpCard extends StatelessWidget {
   final VoidCallback onFollowedUp;
   final String initials;
   final String fullName;
-  final String roleCompany;
+  final String role;
+  final String companyName;
 
   const _ContactFollowUpCard({
     required this.fu,
@@ -711,7 +724,8 @@ class _ContactFollowUpCard extends StatelessWidget {
     required this.onFollowedUp,
     required this.initials,
     required this.fullName,
-    required this.roleCompany,
+    required this.role,
+    required this.companyName,
   });
 
   ExonoColors get _c => colors;
@@ -770,17 +784,38 @@ class _ContactFollowUpCard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 3),
-                        Text(
-                          roleCompany,
-                          style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
+                        Text.rich(
+                          TextSpan(
+                            style: context.theme.typography.xs
+                                .copyWith(color: context.theme.colors.mutedForeground),
+                            children: [
+                              TextSpan(text: role),
+                              if (companyName.isNotEmpty) ...[
+                                const TextSpan(text: ' · '),
+                                TextSpan(
+                                  text: companyName,
+                                  style: TextStyle(
+                                    color: _c.accent,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
+                  // Contact detail button — quick access to full profile.
+                  AppHeaderActionButton(
+                    icon: Icons.person_outline_rounded,
+                    onPressed: () => context.push('/contacts/$contactId'),
+                  ),
                   // Trailing action
                   if (isSent) ...[
+                    const SizedBox(width: 8),
                     Icon(Icons.check_circle_rounded, color: _c.success, size: 22),
                   ] else if (isSkipped) ...[
                     const SizedBox(width: 8),

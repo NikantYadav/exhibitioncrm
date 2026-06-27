@@ -12,7 +12,6 @@ import '../providers/auth_provider.dart';
 import '../providers/live_event_provider.dart';
 import '../providers/offline_provider.dart';
 import '../providers/sync_provider.dart';
-import '../services/api_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
@@ -48,7 +47,6 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     captureReturnSignalHome.addListener(_onCaptureReturn);
     _subscribeUpcomingEvents();
     _subscribeDueCount();
-    _loadPriorities();
   }
 
   // ValueNotifier used to refresh live data after capture
@@ -66,25 +64,16 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     super.dispose();
   }
 
-  // Drive the "Follow-ups Due" stat off the live follow_ups drift stream so it
-  // updates the moment an interaction syncs — no reload needed. The one-shot
-  // API call in _loadPriorities still seeds it before the first stream tick.
+  // The local follow_ups drift stream is the single source of truth for the
+  // "Follow-ups Due" stat: it updates the moment an interaction syncs, with no
+  // reload, and (unlike the old dashboard API seed) excludes follow-ups on
+  // soft-deleted contacts — so the number never flips between two definitions.
+  // Pull-to-refresh triggers sync.resume(), which re-pulls follow_ups and the
+  // stream re-emits the fresh count automatically.
   void _subscribeDueCount() {
     _dueSub = context.read<SyncProvider>().followUps.watchDueCount().listen((count) {
       if (mounted) setState(() => _followUpsDue = count);
     });
-  }
-
-  Future<void> _loadPriorities() async {
-    try {
-      final data = await ApiService.getDashboardPriorities();
-      if (!mounted) return;
-      setState(() {
-        _followUpsDue = (data['followUpsDue'] as num?)?.toInt() ?? 0;
-      });
-    } on UnauthorizedException { rethrow; } catch (_) {
-      if (mounted) setState(() { _followUpsDue = 0; });
-    }
   }
 
   void _openEvent(Event event) {
@@ -167,7 +156,6 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
                     await Future.wait([
                       lep.refresh(),
                       sync.resume(),
-                      _loadPriorities(),
                     ]);
                   },
                   child: SingleChildScrollView(

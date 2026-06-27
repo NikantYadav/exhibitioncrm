@@ -82,11 +82,11 @@ router.get('/', async (req, res, next) => {
     // follow-up record can show its last interaction detail. One batched query
     // over the involved contacts, reduced to the latest summary per key.
     const contactIds = [...new Set((rows || []).map((r: any) => r.contact_id))];
-    const latestByKey = new Map<string, { summary: string | null; type: string | null; date: string | null }>();
+    const latestByKey = new Map<string, { summary: string | null; note: string | null; type: string | null; date: string | null }>();
     if (contactIds.length > 0) {
       let iq = supabase
         .from('interactions')
-        .select('contact_id, event_id, summary, interaction_type, interaction_date')
+        .select('contact_id, event_id, summary, interaction_type, interaction_date, details')
         .in('contact_id', contactIds)
         .is('deleted_at', null)
         .order('interaction_date', { ascending: false });
@@ -97,8 +97,10 @@ router.get('/', async (req, res, next) => {
       for (const i of ints || []) {
         const key = `${i.contact_id}|${i.event_id ?? ''}`;
         if (!latestByKey.has(key)) {
+          const note = typeof i.details?.note === 'string' ? i.details.note.trim() : '';
           latestByKey.set(key, {
             summary: i.summary ?? null,
+            note: note || null,
             type: i.interaction_type ?? null,
             date: i.interaction_date ?? null,
           });
@@ -110,15 +112,25 @@ router.get('/', async (req, res, next) => {
     // renders, carrying follow-up fields onto the contact for back-compat.
     const shape = (r: any) => {
       const last = latestByKey.get(`${r.contact_id}|${r.event_id ?? ''}`);
+      const eventName = r.event?.name ?? null;
+      // The event name is already shown as its own label on the card, so don't
+      // repeat it in the subtitle. Prefer the user's note; otherwise fall back
+      // to the interaction summary with a trailing " at {event}" stripped off.
+      let subtitle = last?.summary ?? null;
+      if (last?.note) {
+        subtitle = last.note;
+      } else if (subtitle && eventName && subtitle.endsWith(` at ${eventName}`)) {
+        subtitle = subtitle.slice(0, subtitle.length - ` at ${eventName}`.length);
+      }
       return {
         ...r.contact,
         follow_up_id: r.id,
         follow_up_status: r.status,
         event_id: r.event_id,
-        event_name: r.event?.name ?? null,
+        event_name: eventName,
         channel: r.channel,
         last_interaction: r.last_interaction_at,
-        last_interaction_summary: last?.summary ?? null,
+        last_interaction_summary: subtitle,
         last_interaction_type: last?.type ?? null,
         last_interaction_date: last?.date ?? r.last_interaction_at,
         done_at: r.done_at,

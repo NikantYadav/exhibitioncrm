@@ -35,22 +35,26 @@ Future<LogFollowUpResult?> showLogFollowUpSheet({
   LogFollowUpResult? result;
   await showAppSheet<void>(
     context: context,
-    builder: (ctx) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-      child: _LogFollowUpSheet(
-        name: name,
-        noteCtrl: noteCtrl,
-        modeCtrl: modeCtrl,
-        hasDraftEmail: hasDraftEmail,
-        onSubmit: (r) {
-          result = r;
-          Navigator.of(ctx).pop();
-        },
-      ),
+    // Keyboard inset is handled centrally by showAppSheet — do not re-add it.
+    builder: (ctx) => _LogFollowUpSheet(
+      name: name,
+      noteCtrl: noteCtrl,
+      modeCtrl: modeCtrl,
+      hasDraftEmail: hasDraftEmail,
+      onSubmit: (r) {
+        result = r;
+        Navigator.of(ctx).pop();
+      },
     ),
   );
-  noteCtrl.dispose();
-  modeCtrl.dispose();
+  // Defer disposal one frame: the sheet's exit animation is still running when
+  // the await returns, so the FTextField (and its managed control) is briefly
+  // still mounted and depends on these controllers. Synchronous disposal throws
+  // `_dependents.isEmpty is not true`.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    noteCtrl.dispose();
+    modeCtrl.dispose();
+  });
   return result;
 }
 
