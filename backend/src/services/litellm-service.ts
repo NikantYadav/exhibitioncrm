@@ -45,6 +45,33 @@ export interface CompletionOptions {
     jsonMode?: boolean;
 }
 
+// JSON Schema keywords Gemini's function-declaration validator rejects with a
+// 400 "Unknown name ..." error. Valid in standard JSON Schema (and accepted by
+// OpenAI), so we only strip them on the Gemini path.
+const GEMINI_UNSUPPORTED_SCHEMA_KEYS = new Set([
+    'additionalProperties', '$schema', 'default', 'examples', 'example',
+    '$id', 'definitions', '$defs', 'patternProperties',
+]);
+
+/**
+ * Recursively remove Gemini-unsupported keywords from a JSON Schema object so a
+ * tool's `parameters` can be sent to Gemini's generateContent without a 400.
+ * Returns a new object; does not mutate the input (the original is reused for the
+ * OpenAI path, which accepts the full schema).
+ */
+function sanitiseGeminiSchema(schema: unknown): unknown {
+    if (Array.isArray(schema)) return schema.map(sanitiseGeminiSchema);
+    if (schema && typeof schema === 'object') {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(schema as Record<string, unknown>)) {
+            if (GEMINI_UNSUPPORTED_SCHEMA_KEYS.has(k)) continue;
+            out[k] = sanitiseGeminiSchema(v);
+        }
+        return out;
+    }
+    return schema;
+}
+
 export class LiteLLMService {
     private config: LiteLLMConfig;
     private static geminiKeys: string[] = [];
@@ -244,11 +271,16 @@ export class LiteLLMService {
     ): Promise<ToolCallingResult> {
         const genAI = new GoogleGenerativeAI(apiKey);
 
-        // Convert our ToolSchema[] to Gemini function declarations
+        // Convert our ToolSchema[] to Gemini function declarations.
+        // Gemini's function-declaration schema is a restricted subset of JSON
+        // Schema and 400s on keywords it doesn't know (e.g. additionalProperties,
+        // $schema, default). Our tool defs use some of those (scanned_details uses
+        // additionalProperties) and they're valid for the OpenAI path, so we strip
+        // the unsupported keywords here, only for Gemini.
         const functionDeclarations = tools.map((t) => ({
             name: t.name,
             description: t.description,
-            parameters: t.parameters as any,
+            parameters: sanitiseGeminiSchema(t.parameters) as any,
         }));
 
         // When no tools are offered (e.g. the loop-exhaustion summary call), Gemini

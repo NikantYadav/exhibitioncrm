@@ -986,6 +986,11 @@ class _ChatScreenState extends State<ChatScreen>
     'follow_up_status': 'Follow-up',
     'last_contacted_at': 'Last contacted',
     'scanned_details': 'Card details',
+    'interaction_type': 'Type',
+    'interaction_date': 'Date',
+    'summary': 'Summary',
+    'status': 'Status',
+    'is_priority': 'Priority',
   };
 
   // Keys that select the target record rather than set a value — never shown.
@@ -1019,6 +1024,12 @@ class _ChatScreenState extends State<ChatScreen>
         return (verb: 'Update', entity: 'Event', name: nameArg('event_name') ?? nameArg('name'));
       case 'draft_email':
         return (verb: 'Draft', entity: 'Email', name: nameArg('subject'));
+      case 'log_interaction':
+        return (verb: 'Log', entity: 'Interaction', name: nameArg('contact_name'));
+      case 'set_follow_up_status':
+        return (verb: 'Set', entity: 'Follow-up', name: nameArg('contact_name'));
+      case 'set_follow_up_priority':
+        return (verb: 'Set', entity: 'Priority', name: nameArg('contact_name'));
       default:
         return (verb: 'Action', entity: a.toolName.replaceAll('_', ' '), name: null);
     }
@@ -1029,13 +1040,28 @@ class _ChatScreenState extends State<ChatScreen>
     action.toolArgs.forEach((key, value) {
       if (_internalArgKeys.contains(key)) return;
       if (value == null) return;
-      // Object values (e.g. scanned_details) render as readable "key: value" lines.
-      var s = value is Map
-          ? value.entries
-              .where((e) => '${e.value}'.trim().isNotEmpty)
-              .map((e) => '${_humanizeKey('${e.key}')}: ${e.value}')
-              .join('\n')
-          : value.toString().trim();
+      // scanned_details arrives as a list of {key, value} pairs; render each as a
+      // readable "Key: value" line. Other object values render the same way; the
+      // rest fall back to their string form.
+      String s;
+      if (value is List) {
+        s = value
+            .whereType<Map>()
+            .map((m) => (
+                  _humanizeKey('${m['key'] ?? ''}'),
+                  '${m['value'] ?? ''}'.trim(),
+                ))
+            .where((p) => p.$1.isNotEmpty && p.$2.isNotEmpty)
+            .map((p) => '${p.$1}: ${p.$2}')
+            .join('\n');
+      } else if (value is Map) {
+        s = value.entries
+            .where((e) => '${e.value}'.trim().isNotEmpty)
+            .map((e) => '${_humanizeKey('${e.key}')}: ${e.value}')
+            .join('\n');
+      } else {
+        s = value.toString().trim();
+      }
       if (s.isEmpty) return;
       if (s.length > 200) s = '${s.substring(0, 200)}…';
       final label = _fieldLabels[key] ?? _humanizeKey(key);

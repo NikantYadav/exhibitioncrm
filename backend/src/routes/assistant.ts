@@ -8,6 +8,7 @@ import { litellm, ConversationTurn, ToolCall } from '../services/litellm-service
 import { slayerQuery, slayerHealthy, USER_ID_TABLES, slayerGetModelColumnsTyped, ALLOWED_MODELS } from '../services/slayer-client';
 import { autoTitleConversation } from '../services/ai/titling';
 import { TavilyService } from '../services/tavily-service';
+import { upsertFollowUp, syncContactStatus } from '../services/followUps';
 
 const router = Router();
 router.use(requireAuth);
@@ -202,9 +203,16 @@ export const WRITE_TOOLS = [
         linkedin_url: { type: 'string', description: 'LinkedIn profile URL' },
         notes: { type: 'string' },
         scanned_details: {
-          type: 'object',
-          description: 'Extra business-card details as a FLAT object of string values (e.g. {"address": "Doha, Qatar", "fax": "+974..."}). For fields with no dedicated parameter (address, fax, alternate phone, website, etc.) — NOT notes. Values must be strings; no nested objects or arrays.',
-          additionalProperties: { type: 'string' },
+          type: 'array',
+          description: 'Extra business-card details with no dedicated parameter (address, fax, alternate phone, website, etc.) — NOT notes. Provide as a list of {key, value} pairs, e.g. [{"key":"address","value":"Doha, Qatar"},{"key":"fax","value":"+974..."}]. Both key and value are strings.',
+          items: {
+            type: 'object',
+            properties: {
+              key: { type: 'string', description: 'Field name, e.g. "address", "fax", "website"' },
+              value: { type: 'string', description: 'Field value' },
+            },
+            required: ['key', 'value'],
+          },
         },
         company_name: { type: 'string', description: 'Company name — will be created if not found' },
         company_id: { type: 'string', description: 'Existing company UUID (use instead of company_name if known)' },
@@ -233,9 +241,16 @@ export const WRITE_TOOLS = [
         follow_up_status: { type: 'string', enum: ['not_contacted', 'contacted', 'needs_followup', 'ignore'] },
         last_contacted_at: { type: 'string', description: 'ISO 8601 datetime' },
         scanned_details: {
-          type: 'object',
-          description: 'Extra business-card details as a FLAT object of string values (e.g. {"address": "Doha, Qatar", "fax": "+974...", "website": "x.com"}). Merged into existing scanned details — only include the keys you are adding or changing; set a key to "" to remove it. Use this (NOT notes) when the user wants to add an address, fax, alternate phone, website, or other card field. Values must be strings; no nested objects or arrays.',
-          additionalProperties: { type: 'string' },
+          type: 'array',
+          description: 'Extra business-card details (address, fax, alternate phone, website, etc.) — NOT notes. Provide as a list of {key, value} pairs, e.g. [{"key":"address","value":"Doha, Qatar"},{"key":"website","value":"x.com"}]. Merged into existing scanned details — only include the keys you are adding or changing; set a key\'s value to "" to remove it. Both key and value are strings.',
+          items: {
+            type: 'object',
+            properties: {
+              key: { type: 'string', description: 'Field name, e.g. "address", "fax", "website"' },
+              value: { type: 'string', description: 'Field value, or "" to remove this key' },
+            },
+            required: ['key', 'value'],
+          },
         },
       },
       required: [],
@@ -309,7 +324,72 @@ export const WRITE_TOOLS = [
       required: ['contact_id', 'subject', 'body'],
     },
   },
+  {
+    name: 'log_interaction',
+    description: 'Record an interaction with a contact — a call, meeting, note, or other touch (e.g. "log that I called Sasha and she wants a quote"). Provide contact_id if known, otherwise contact_name. Logging a non-capture interaction also promotes the contact\'s follow-up to pending (re-opening it if it was done), matching the app. Use this for "I called/met/spoke to/noted ...", NOT for drafting emails.',
+    parameters: {
+      type: 'object',
+      properties: {
+        contact_id: { type: 'string', description: 'UUID of the contact.' },
+        contact_name: { type: 'string', description: 'Full or partial name of the contact — use this if you do not have the contact_id.' },
+        event_id: { type: 'string', description: 'UUID of the event this interaction relates to (optional).' },
+        event_name: { type: 'string', description: 'Name of the related event — use this instead of event_id if needed (optional).' },
+        interaction_type: {
+          type: 'string',
+          enum: ['call', 'meeting', 'note', 'manual', 'email'],
+          description: 'Kind of interaction. Defaults to "note" if omitted.',
+        },
+        summary: { type: 'string', description: 'A short description of what happened.' },
+        interaction_date: { type: 'string', description: 'ISO 8601 datetime of the interaction. Defaults to now if omitted.' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'set_follow_up_status',
+    description: 'Set a contact\'s follow-up status. With an event_id/event_name it sets the per-event follow-up; without one it applies to ALL of the contact\'s follow-up records (the collapsed/global view). Use for "mark X as followed up / done", "reopen X", "skip X". Provide contact_id or contact_name.',
+    parameters: {
+      type: 'object',
+      properties: {
+        contact_id: { type: 'string', description: 'UUID of the contact.' },
+        contact_name: { type: 'string', description: 'Full or partial name of the contact — use this if you do not have the contact_id.' },
+        event_id: { type: 'string', description: 'UUID of the event to scope to (optional; omit to apply to all of the contact\'s follow-ups).' },
+        event_name: { type: 'string', description: 'Name of the event to scope to — use instead of event_id (optional).' },
+        status: {
+          type: 'string',
+          enum: ['new', 'pending', 'done', 'skipped'],
+          description: 'new = just added, not engaged; pending = follow-up owed; done = followed up; skipped = intentionally skipped.',
+        },
+      },
+      required: ['status'],
+    },
+  },
+  {
+    name: 'set_follow_up_priority',
+    description: 'Flag or unflag a contact as a priority follow-up. With an event_id/event_name it sets the per-event priority (drives that event\'s queue); without one it sets the contact\'s global priority (drives the global queue). Use for "mark X as priority", "remove priority from X". Provide contact_id or contact_name.',
+    parameters: {
+      type: 'object',
+      properties: {
+        contact_id: { type: 'string', description: 'UUID of the contact.' },
+        contact_name: { type: 'string', description: 'Full or partial name of the contact — use this if you do not have the contact_id.' },
+        event_id: { type: 'string', description: 'UUID of the event to scope the priority to (optional; omit for global priority).' },
+        event_name: { type: 'string', description: 'Name of the event to scope to — use instead of event_id (optional).' },
+        is_priority: { type: 'boolean', description: 'true to flag as priority, false to remove the flag.' },
+      },
+      required: ['is_priority'],
+    },
+  },
 ];
+
+const GET_PRIORITIES_TOOL = {
+  name: 'get_priorities',
+  description: `Get the user's follow-up workload summary — how many follow-ups are currently DUE
+(distinct contacts whose follow-up is "new" or "pending"). Use this for "what should I do today",
+"how many follow-ups do I have", "what's on my plate". This is the same number shown on the
+home screen's Today's Priorities. It is a count summary, not a list — to list the actual
+contacts, use query_crm on the follow_ups model.`,
+  parameters: { type: 'object', properties: {} },
+};
 
 const WEB_SEARCH_TOOL = {
   name: 'web_search',
@@ -378,12 +458,13 @@ Returns the column list (name + type) plus a reminder of the correct filter form
   },
 };
 
-const ALL_TOOLS = [SLAYER_QUERY_TOOL, DESCRIBE_MODEL_TOOL, ...WRITE_TOOLS, WEB_SEARCH_TOOL];
+const ALL_TOOLS = [SLAYER_QUERY_TOOL, DESCRIBE_MODEL_TOOL, GET_PRIORITIES_TOOL, ...WRITE_TOOLS, WEB_SEARCH_TOOL];
 
 // Tools that MUTATE data — these require explicit user permission before they run.
 // get_event_followups is a read despite living in WRITE_TOOLS, so it is excluded.
 const WRITE_TOOL_NAMES = new Set([
   'create_contact', 'update_contact', 'create_event', 'update_event', 'draft_email',
+  'log_interaction', 'set_follow_up_status', 'set_follow_up_priority',
 ]);
 
 // Build a short, human-readable description of a proposed write for the
@@ -509,15 +590,31 @@ function assertTimeRange(start?: string, end?: string): void {
   if (start != null && end != null && end <= start) throw new Error('end_time must be after start_time');
 }
 
-// scanned_details is a flat { key: string } dictionary of extra business-card
-// fields (address, website, fax, telephone, …). The assistant may edit it, but
-// only as a flat object of string (or number→string) values — nested objects /
-// arrays would break the card-scan UI that reads it. Numbers/bools are coerced
-// to strings; anything else is rejected.
-const scannedDetailsSchema = z.record(
-  z.string().min(1),
-  z.union([z.string(), z.number(), z.boolean()]).transform((v) => String(v)),
-);
+// scanned_details is stored as a flat { key: string } dictionary of extra
+// business-card fields (address, website, fax, telephone, …). The card-scan UI
+// and mergeScannedDetails() both read it as that flat object.
+//
+// The WRITE TOOLS, however, expose it to the LLM as an ARRAY of {key, value}
+// pairs — not a free-form object. JSON Schema can only describe an open-ended
+// object via `additionalProperties`, which Gemini's function-declaration schema
+// rejects; an array of fixed-shape items is fully expressible, so the model gets
+// a complete formal contract instead of a prose hint. This schema validates that
+// array and TRANSFORMS it back into the flat object the rest of the code expects,
+// so executors, the merge helper, the DB column, and the UI are all unchanged.
+// A pair with an empty `value` is preserved as "" so mergeScannedDetails() can
+// use it to delete a key. Duplicate keys: last one wins.
+const scannedDetailsSchema = z
+  .array(
+    z.object({
+      key: z.string().trim().min(1),
+      value: z.union([z.string(), z.number(), z.boolean()]).transform((v) => String(v)),
+    }),
+  )
+  .transform((pairs) => {
+    const out: Record<string, string> = {};
+    for (const { key, value } of pairs) out[key] = value;
+    return out;
+  });
 
 /**
  * Merge a partial scanned_details patch into the existing object so editing one
@@ -877,6 +974,162 @@ async function execDraftEmail(args: Record<string, unknown>, userId: string) {
   return data;
 }
 
+// Mirrors POST /api/interactions: insert the interaction (after verifying the
+// contact is the user's), then promote the follow-up to 'pending' for non-capture
+// touches — same as the app's "follow-up trigger #2".
+async function execLogInteraction(args: Record<string, unknown>, userId: string) {
+  const a = z.object({
+    contact_id: z.string().uuid().optional(),
+    contact_name: z.string().trim().optional(),
+    event_id: z.string().uuid().optional(),
+    event_name: z.string().trim().optional(),
+    interaction_type: z.enum(['call', 'meeting', 'note', 'manual', 'email']).optional(),
+    summary: z.string().trim().max(5000).optional(),
+    interaction_date: z.any().optional(),
+  }).refine((v) => !!(v.contact_id || v.contact_name), {
+    message: 'Either contact_id or contact_name is required.',
+  }).parse(args);
+
+  const contactId = await resolveContactId(a, userId);
+  const eventId = (a.event_id || a.event_name)
+    ? await resolveEventId({ event_id: a.event_id, event_name: a.event_name }, userId)
+    : null;
+
+  const interactionType = a.interaction_type ?? 'note';
+  const { data, error } = await supabaseAdmin
+    .from('interactions')
+    .insert({
+      contact_id: contactId,
+      ...(eventId ? { event_id: eventId } : {}),
+      interaction_type: interactionType,
+      summary: a.summary ?? '',
+      interaction_date: a.interaction_date ? toIso(a.interaction_date, 'interaction_date') : new Date().toISOString(),
+      details: {},
+      user_id: userId,
+    })
+    .select('*').single();
+  if (error) throw new Error(error.message);
+
+  // Promote the follow-up to pending (reopening done/skipped). 'capture' is not a
+  // follow-up-worthy touch, but it isn't an option here, so every logged
+  // interaction counts. Best-effort: never fail the log on a follow-up hiccup.
+  try {
+    await upsertFollowUp(supabaseAdmin, userId, {
+      contactId,
+      eventId,
+      seedStatus: 'pending',
+      touchInteraction: true,
+    });
+  } catch (e) {
+    console.error('[assistant] follow_up upsert (log_interaction) failed:', e);
+  }
+
+  return data;
+}
+
+// Mirrors PATCH /api/follow-ups/contact/:contactId. With an event, scopes to that
+// (contact, event) record; without one, applies to ALL the contact's records.
+// On reopen (-> pending) it removes the follow-up-completion interaction logs, as
+// the route does, then syncs the legacy contacts.follow_up_status.
+async function execSetFollowUpStatus(args: Record<string, unknown>, userId: string) {
+  const a = z.object({
+    contact_id: z.string().uuid().optional(),
+    contact_name: z.string().trim().optional(),
+    event_id: z.string().uuid().optional(),
+    event_name: z.string().trim().optional(),
+    status: z.enum(['new', 'pending', 'done', 'skipped']),
+  }).refine((v) => !!(v.contact_id || v.contact_name), {
+    message: 'Either contact_id or contact_name is required.',
+  }).parse(args);
+
+  const contactId = await resolveContactId(a, userId);
+  const scoped = !!(a.event_id || a.event_name);
+  const eventId = scoped
+    ? await resolveEventId({ event_id: a.event_id, event_name: a.event_name }, userId)
+    : null;
+
+  const now = new Date().toISOString();
+  let q = supabaseAdmin
+    .from('follow_ups')
+    .update({ status: a.status, done_at: a.status === 'done' ? now : null })
+    .eq('user_id', userId)
+    .eq('contact_id', contactId)
+    .is('deleted_at', null);
+  if (scoped) q = q.eq('event_id', eventId as string);
+  const { error } = await q;
+  if (error) throw new Error(error.message);
+
+  if (a.status === 'pending') {
+    let del = supabaseAdmin
+      .from('interactions')
+      .update({ deleted_at: now })
+      .eq('user_id', userId)
+      .eq('contact_id', contactId)
+      .is('deleted_at', null)
+      .eq('details->>follow_up_log', 'true');
+    if (scoped) del = del.eq('event_id', eventId as string);
+    await del;
+  }
+
+  await syncContactStatus(supabaseAdmin, userId, contactId);
+  return { contact_id: contactId, event_id: eventId, status: a.status, scope: scoped ? 'event' : 'all' };
+}
+
+// Mirrors PATCH /api/follow-ups/contact/:contactId/priority. With an event_id it
+// flips the per-event follow_ups.is_priority; without one it flips the global
+// contacts.is_priority (the app's split priority model).
+async function execSetFollowUpPriority(args: Record<string, unknown>, userId: string) {
+  const a = z.object({
+    contact_id: z.string().uuid().optional(),
+    contact_name: z.string().trim().optional(),
+    event_id: z.string().uuid().optional(),
+    event_name: z.string().trim().optional(),
+    is_priority: z.boolean(),
+  }).refine((v) => !!(v.contact_id || v.contact_name), {
+    message: 'Either contact_id or contact_name is required.',
+  }).parse(args);
+
+  const contactId = await resolveContactId(a, userId);
+  const scoped = !!(a.event_id || a.event_name);
+  const now = new Date().toISOString();
+
+  if (scoped) {
+    const eventId = await resolveEventId({ event_id: a.event_id, event_name: a.event_name }, userId);
+    const { error } = await supabaseAdmin
+      .from('follow_ups')
+      .update({ is_priority: a.is_priority, updated_at: now })
+      .eq('user_id', userId)
+      .eq('contact_id', contactId)
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
+    if (error) throw new Error(error.message);
+    return { contact_id: contactId, event_id: eventId, is_priority: a.is_priority, scope: 'event' };
+  }
+
+  const { error } = await supabaseAdmin
+    .from('contacts')
+    .update({ is_priority: a.is_priority, updated_at: now })
+    .eq('user_id', userId)
+    .eq('id', contactId);
+  if (error) throw new Error(error.message);
+  return { contact_id: contactId, is_priority: a.is_priority, scope: 'global' };
+}
+
+// Mirrors GET /api/dashboard/priorities: count of DISTINCT contacts whose
+// follow-up is due (status new|pending), excluding soft-deleted contacts.
+async function execGetPriorities(userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('follow_ups')
+    .select('contact_id, contacts!inner(id)')
+    .eq('user_id', userId)
+    .in('status', ['new', 'pending'])
+    .is('deleted_at', null)
+    .is('contacts.deleted_at', null);
+  if (error) throw new Error(error.message);
+  const followUpsDue = new Set((data ?? []).map((r: any) => r.contact_id)).size;
+  return { follow_ups_due: followUpsDue };
+}
+
 // ─── Tool dispatcher ──────────────────────────────────────────────────────────
 
 type ToolResult = { name: string; ok: boolean; result?: unknown; error?: string };
@@ -956,6 +1209,9 @@ async function executeTool(
           "equality, and for relative event windows use the date_window parameter instead. " +
           "Do not add user_id filters — ownership is enforced automatically.",
       };
+    } else if (call.name === 'get_priorities') {
+      // ── READ: follow-up workload summary (home dashboard count) ─────────────
+      result = await execGetPriorities(userId);
     } else if (call.name === 'web_search') {
       const a = call.args;
       const query = typeof a.query === 'string' ? a.query.trim() : '';
@@ -974,6 +1230,9 @@ async function executeTool(
         case 'update_event': result = await execUpdateEvent(call.args, userId); break;
         case 'get_event_followups': result = await execGetEventFollowups(call.args, userId); break;
         case 'draft_email': result = await execDraftEmail(call.args, userId); break;
+        case 'log_interaction': result = await execLogInteraction(call.args, userId); break;
+        case 'set_follow_up_status': result = await execSetFollowUpStatus(call.args, userId); break;
+        case 'set_follow_up_priority': result = await execSetFollowUpPriority(call.args, userId); break;
         default:
           throw new Error(`Unknown tool: ${call.name}`);
       }
@@ -1098,7 +1357,7 @@ Rules:
 - NEVER include UUIDs or any database IDs in your text reply. Entity cards are shown separately — just refer to things by name.
 - When drafting emails, follow-up messages, or any outbound communication, incorporate the user's products, value proposition, and tone naturally.
 - NEVER invent, guess, or default any field value. This includes dates, times, locations, names, emails, and any other data. If the user has not provided a required or relevant detail, you MUST ask a short clarifying question instead of filling it in.
-- WRITABLE FIELDS ONLY: you can only write the fields exposed by the write tools' parameters. For extra business-card details that have no dedicated parameter — address, fax, alternate/secondary phone, website, PO box, etc. — use the "scanned_details" object parameter on create_contact/update_contact (a flat {key: "value"} map, merged into the existing details). Do NOT dump such details into "notes". Some data IS system-managed and NOT editable at all: AI-generated insights/summaries, avatar image, enrichment data, and all timestamps/IDs. If the user asks to edit one of those, say plainly it can't be edited here rather than silently writing a different field.
+- WRITABLE FIELDS ONLY: you can only write the fields exposed by the write tools' parameters. For extra business-card details that have no dedicated parameter — address, fax, alternate/secondary phone, website, PO box, etc. — use the "scanned_details" parameter on create_contact/update_contact. It is a LIST of {key, value} pairs (e.g. [{"key":"address","value":"Doha, Qatar"}]), merged into the existing details; set a pair's value to "" to remove that key. Do NOT dump such details into "notes". Some data IS system-managed and NOT editable at all: AI-generated insights/summaries, avatar image, enrichment data, and all timestamps/IDs. If the user asks to edit one of those, say plainly it can't be edited here rather than silently writing a different field.
 - create_event REQUIRES a date. If the user asks to create an event without giving a date, DO NOT pick a date — ask: "What date is the event?" Optionally also ask for location and event type in the same question. Only call create_event once you have a real date from the user.
 - When the user refers to an existing record by name (update/find/draft-for), prefer passing that name to the tool's *_name parameter (event_name / contact_name) so the system resolves it against the live database. Use query_crm to LIST or confirm names, but you do not need a UUID before calling an update tool — the update tool resolves names itself.
 - If a tool returns an error saying a record was not found or that multiple matched, relay that to the user and ask them to clarify — NEVER retry with a guessed ID or guessed name.

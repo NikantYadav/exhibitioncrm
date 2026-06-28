@@ -6,8 +6,12 @@ Slayer semantic layer. The AI assistant lives in [src/routes/assistant.ts](src/r
 ## Keeping the AI assistant in sync with the DB schema (MANDATORY)
 
 The assistant's write tools (`create_contact`, `update_contact`, `create_event`,
-`update_event`, `draft_email`) and the Slayer read path hardcode some schema
-knowledge in TypeScript. **When the database schema changes (a column is added,
+`update_event`, `draft_email`, `log_interaction`, `set_follow_up_status`,
+`set_follow_up_priority`) and the Slayer read path hardcode some schema
+knowledge in TypeScript. (The follow-up/interaction tools delegate to the shared
+`services/followUps.ts` engine and `services/...` route logic, so they inherit the
+app's status-promotion + priority-split rules rather than re-implementing them.)
+**When the database schema changes (a column is added,
 removed, or renamed on a table the assistant can read or write), update ALL of
 the following in the same change** — they do NOT auto-derive from the DB:
 

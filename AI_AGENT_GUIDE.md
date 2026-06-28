@@ -110,19 +110,23 @@ backend is the clerk who actually opens the filing cabinet. The clerk can refuse
 double-check, or ask you for permission first.
 
 The menu of tools in Exono (defined in
-[`backend/src/routes/assistant.ts`](../backend/src/routes/assistant.ts)):
+[`backend/src/routes/assistant.ts`](backend/src/routes/assistant.ts)):
 
 | Tool name | Type | What it does |
 |-----------|------|--------------|
 | `query_crm` | **read** | Look up anything: contacts, events, emails, stats. Goes through Slayer. |
 | `describe_model` | **read (schema)** | Get one table's exact column names + types, on demand, before querying it (lazy schema — section 10.5). |
 | `get_event_followups` | **read** | List contacts attached to one event (a convenience read). |
+| `get_priorities` | **read** | How many follow-ups are currently due (the home "Today's Priorities" count). |
 | `web_search` | external | Search the live internet (via a service called Tavily). |
 | `create_contact` | **write** | Add a new contact. |
 | `update_contact` | **write** | Change an existing contact. |
 | `create_event` | **write** | Add a new event/exhibition. |
 | `update_event` | **write** | Change an existing event. |
 | `draft_email` | **write** | Save a draft email for a contact. |
+| `log_interaction` | **write** | Record a call/meeting/note with a contact (also re-opens their follow-up to pending). |
+| `set_follow_up_status` | **write** | Set a contact's follow-up status (new/pending/done/skipped), per-event or across all. |
+| `set_follow_up_priority` | **write** | Flag/unflag a contact as a priority follow-up, per-event or global. |
 
 Reads run instantly. **Writes always pause and ask you "Approve / Deny" first**
 (explained in section 8).
@@ -133,7 +137,7 @@ Reads run instantly. **Writes always pause and ask you "Approve / Deny" first**
 
 Let's follow the exact path of one message through the backend. The entry point
 is the function that handles `POST /api/assistant/respond` in
-[`assistant.ts`](../backend/src/routes/assistant.ts) (around line 1265). Don't
+[`assistant.ts`](backend/src/routes/assistant.ts) (around line 1265). Don't
 worry about the code — here's what happens in order:
 
 **Step 1 — Validate the request.**
@@ -241,7 +245,7 @@ writes the SQL.
 ### The security magic: ownership injection
 
 Before the request ever reaches Slayer, the backend file
-[`slayer-client.ts`](../backend/src/services/slayer-client.ts) does three
+[`slayer-client.ts`](backend/src/services/slayer-client.ts) does three
 critical things in `applyOwnership()`:
 
 1. **Strips any `user_id` filter the AI tried to set.** Even if the AI tried to
@@ -295,7 +299,7 @@ which is exactly why every write is wrapped in a gauntlet of checks: the
 connection itself is powerful, so the *code* must be the thing that restricts it.
 
 Each write tool has a matching "executor" function in
-[`assistant.ts`](../backend/src/routes/assistant.ts): `execCreateContact`,
+[`assistant.ts`](backend/src/routes/assistant.ts): `execCreateContact`,
 `execUpdateContact`, `execCreateEvent`, `execUpdateEvent`, `execDraftEmail`.
 All of them are dispatched from one place, `executeTool()`, which routes a tool
 name to its executor.
@@ -415,17 +419,20 @@ section 8. Here we pick up *after* you tapped Approve.)
 #### `update_contact` → `execUpdateContact`  ("Add a fax number for Sasha")
 
 - **LLM:** Requests `update_contact` with `{ contact_name: "Sasha",
-  scanned_details: { fax: "+974..." } }`.
+  scanned_details: [{ key: "fax", value: "+974..." }] }`. Note `scanned_details`
+  is a **list of `{key, value}` pairs** in the tool API (see section 6.6 for why).
 - **System:** Pauses for permission. You approve.
-- **System:** Zod-validates the args.
+- **System:** Zod-validates the args, and **converts the `{key,value}` list into a
+  flat `{ fax: "+974..." }` object** (the form the rest of the code and the DB
+  use).
 - **System (name resolution, Layer 3):** Turns "Sasha" into an id by querying the
   **primary** database. If 0 match → error "No contact named Sasha." If 2+ match
   → error "Multiple contacts match Sasha — ask the user." It **never guesses.**
 - **System (merge, not overwrite):** For `scanned_details` it *loads the existing*
-  business-card extras and merges the new `fax` key in (a key set to `""` would
-  remove it) via `mergeScannedDetails` — so adding a fax doesn't wipe the existing
-  address/website. (`last_contacted_at`, if present, is converted to an ISO
-  timestamp here too.)
+  business-card extras and merges the new `fax` key in (a pair whose value is `""`
+  removes that key) via `mergeScannedDetails` — so adding a fax doesn't wipe the
+  existing address/website. (`last_contacted_at`, if present, is converted to an
+  ISO timestamp here too.)
 - **System:** Runs `stripImmutable()`. If nothing valid is left to write, it
   errors instead of running an empty update. Otherwise it updates the row **with
   the ownership filter** (`WHERE id=... AND user_id=YOU AND deleted_at IS NULL`).
@@ -524,7 +531,7 @@ implied; this is exactly how it works in the code.
 #### (a) How does the LLM know what `create_contact` accepts?
 
 It is **told**, via the tool's **JSON Schema** — the `parameters` block in the
-tool definition in [`assistant.ts`](../backend/src/routes/assistant.ts). For
+tool definition in [`assistant.ts`](backend/src/routes/assistant.ts). For
 `create_contact` it literally includes:
 
 ```js
@@ -629,11 +636,60 @@ impossible and makes the ownership filters (`.eq('user_id', userId)`) reliable.
 Our code only ever says *what* it wants — through a structured request (reads) or
 a query builder (writes) — never *how* to fetch it as a SQL string.
 
+### 6.6 A tool-shape gotcha: Gemini's schema subset and `scanned_details`
+
+This is a small but real wrinkle worth knowing, because it shaped how one field
+is designed.
+
+The AI provider validates each tool's JSON Schema. **Gemini's function-calling
+validator accepts only a restricted subset of JSON Schema** and returns a `400`
+error on keywords it doesn't know — notably `additionalProperties`, `default`,
+`$schema`, and a few others. (OpenAI's path accepts the full schema.)
+
+Two defenses, working together:
+
+1. **A sanitizer strips unsupported keywords on the Gemini path only.**
+   `sanitiseGeminiSchema()` in
+   [`litellm-service.ts`](backend/src/services/litellm-service.ts) recursively
+   removes those keywords from each tool's `parameters` *just before* sending to
+   Gemini. The original tool definitions are untouched (OpenAI still gets the
+   full schema). Stripping a keyword like `additionalProperties` only removes a
+   *hint* to the model — the real enforcement is Zod on the server (section 6.1,
+   Layer 2), so safety is never affected.
+
+2. **`scanned_details` was redesigned to avoid needing the keyword at all.**
+   `scanned_details` is the "extra business-card fields" bag (address, fax,
+   website…). The natural JSON Schema for "an object with arbitrary string keys"
+   is `additionalProperties: { type: 'string' }` — exactly the keyword Gemini
+   rejects. Rather than rely only on stripping it (which would leave the model
+   with a vaguer hint), the tool exposes `scanned_details` as a **list of
+   `{key, value}` pairs**, which Gemini's subset *can* fully describe:
+
+   ```jsonc
+   // what the LLM is asked to produce:
+   "scanned_details": [
+     { "key": "address", "value": "Doha, Qatar" },
+     { "key": "website", "value": "acme.com" }
+   ]
+   ```
+
+   The **Zod schema then transforms that list back into the flat object**
+   (`{ address: "Doha, Qatar", website: "acme.com" }`) that the database column,
+   `mergeScannedDetails`, and the card-scan UI all expect. So the on-disk shape
+   and every downstream consumer are unchanged — only the *tool input shape* the
+   LLM sees became array-of-pairs. (A pair with `value: ""` still means "remove
+   this key" on update.)
+
+The payoff: Gemini gets a **complete, formal contract** for `scanned_details`
+instead of a stripped-down hint, which means the model produces the right shape
+more reliably — verified live, the model emits the `{key, value}` list exactly as
+intended.
+
 ---
 
 ## 7. The agentic loop, step by step
 
-This is `runLoop()` in [`assistant.ts`](../backend/src/routes/assistant.ts). It's
+This is `runLoop()` in [`assistant.ts`](backend/src/routes/assistant.ts). It's
 a loop that runs up to 6 times (`MAX_ITERATIONS`). Each pass:
 
 1. **Ask the LLM.** Send it the system prompt + the conversation so far + the
@@ -759,7 +815,7 @@ physically cannot do harm even if it tries.**
 The AI's tools hardcode some knowledge about your database in TypeScript. When
 you change the database schema (add/rename/remove a column), some of that has to
 be kept in step. Two automated safety nets now help (see
-[`backend/CLAUDE.md`](../backend/CLAUDE.md) for the authoritative version):
+[`backend/CLAUDE.md`](backend/CLAUDE.md) for the authoritative version):
 
 **Auto-derived (you don't maintain these):**
 - The lists of which tables have `user_id` and `deleted_at` columns
@@ -795,7 +851,7 @@ against.
 1. **The system prompt carries only a table *directory*** — one line per table:
    its name plus a short description of what it holds, with **no columns**. It is
    built by `buildModelDirectorySection()` from the `MODEL_DIRECTORY` map in
-   [`assistant.ts`](../backend/src/routes/assistant.ts). Example lines:
+   [`assistant.ts`](backend/src/routes/assistant.ts). Example lines:
    ```
    - contacts: People you have met / your leads (name, email, phone, job, follow-up status).
    - events: Exhibitions / trade shows (name, location, start/end date & time).
@@ -807,7 +863,7 @@ against.
    `describe_model(source_model)` to get its exact column names and types — never
    guess.* The tool's executor (in `executeTool`) validates the table is
    allowlisted, then calls `slayerGetModelColumnsTyped(model)` in
-   [`slayer-client.ts`](../backend/src/services/slayer-client.ts), which fetches
+   [`slayer-client.ts`](backend/src/services/slayer-client.ts), which fetches
    that one table's non-hidden columns (name + type) from Slayer. It returns the
    column list **plus a `filter_format` reminder** (how to write filter strings,
    to use `date_window` for relative dates, and that ownership filters are
@@ -879,13 +935,13 @@ enforces.
 
 | File | What's in it |
 |------|--------------|
-| [`backend/src/routes/assistant.ts`](../backend/src/routes/assistant.ts) | **The heart.** Tool definitions, the system prompt, the agentic loop (`runLoop`), all write executors, the permission pause/resume, and the `/respond`, `/resume`, `/pending` endpoints. |
-| [`backend/src/services/slayer-client.ts`](../backend/src/services/slayer-client.ts) | Talks to Slayer for reads. Ownership injection, the user_id/deleted_at table sets, and the boot-time schema auto-derive. |
-| [`backend/src/services/litellm-service.ts`](../backend/src/services/litellm-service.ts) | Wraps the actual calls to the Gemini LLM (including tool-calling). |
-| [`backend/src/services/schema-introspection.ts`](../backend/src/services/schema-introspection.ts) | Reads the live DB column layout for the auto-derive. |
-| [`backend/scripts/check-schema-drift.ts`](../backend/scripts/check-schema-drift.ts) | The CI check that prevents schema/AI drift. |
+| [`backend/src/routes/assistant.ts`](backend/src/routes/assistant.ts) | **The heart.** Tool definitions, the system prompt, the agentic loop (`runLoop`), all write executors, the permission pause/resume, and the `/respond`, `/resume`, `/pending` endpoints. |
+| [`backend/src/services/slayer-client.ts`](backend/src/services/slayer-client.ts) | Talks to Slayer for reads. Ownership injection, the user_id/deleted_at table sets, and the boot-time schema auto-derive. |
+| [`backend/src/services/litellm-service.ts`](backend/src/services/litellm-service.ts) | Wraps the actual calls to the Gemini/OpenAI LLM (including tool-calling). Also sanitizes tool schemas for Gemini's restricted subset (section 6.6). |
+| [`backend/src/services/schema-introspection.ts`](backend/src/services/schema-introspection.ts) | Reads the live DB column layout for the auto-derive. |
+| [`backend/scripts/check-schema-drift.ts`](backend/scripts/check-schema-drift.ts) | The CI check that prevents schema/AI drift. |
 | `slayer/slayer_data/models/exono/*.yaml` | Auto-generated descriptions of each table that Slayer uses. |
-| [`backend/CLAUDE.md`](../backend/CLAUDE.md) | The authoritative rules for keeping the AI and DB schema in sync. |
+| [`backend/CLAUDE.md`](backend/CLAUDE.md) | The authoritative rules for keeping the AI and DB schema in sync. |
 
 ---
 
