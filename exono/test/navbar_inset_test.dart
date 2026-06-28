@@ -8,6 +8,7 @@
 //
 // This is keyed off the inset VALUE, not the screen height, so the behaviour is
 // identical on every screen size — which the size sweep below verifies.
+import 'package:flutter/foundation.dart' show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart';
@@ -24,8 +25,15 @@ void main() {
   ];
 
   // Returns the gap (logical px) between the bottom of the "Home" label and the
-  // bottom of the screen, for a given system inset + screen size.
-  Future<double> gapFor(WidgetTester tester, double insetLogical, Size physical) async {
+  // bottom of the screen, for a given system inset + screen size + platform.
+  Future<double> gapFor(
+    WidgetTester tester,
+    double insetLogical,
+    Size physical, {
+    TargetPlatform platform = TargetPlatform.android,
+  }) async {
+    debugDefaultTargetPlatformOverride = platform;
+
     const dpr = 3.0;
     tester.view.devicePixelRatio = dpr;
     tester.view.physicalSize = physical;
@@ -52,31 +60,38 @@ void main() {
 
     final screenBottom = physical.height / dpr;
     final labelRect = tester.getRect(find.text('Home'));
+    // Gap is already measured; clear the override before the framework's
+    // end-of-test debug-variable check runs.
+    debugDefaultTargetPlatformOverride = null;
     return screenBottom - labelRect.bottom;
   }
 
   for (final (name, size) in screens) {
-    testWidgets('FLUSH on iPhone home indicator (34) — $name', (tester) async {
-      final gap = await gapFor(tester, 34.0, size);
+    testWidgets('iPhone home indicator (34) — small lift, not flush — $name',
+        (tester) async {
+      final gap = await gapFor(tester, 34.0, size, platform: TargetPlatform.iOS);
       // ignore: avoid_print
-      print('NAVBAR TEST [$name] inset=34 gap=$gap');
-      // Flush: only the 5px base pad + a few px font descent. Never the inset.
-      expect(gap, lessThan(20),
-          reason: 'Expected flush (~10px) on home indicator; got $gap');
+      print('NAVBAR TEST [iOS $name] inset=34 gap=$gap');
+      // Lifted: base pad (5) + iOS lift (10) + descent (~5) ≈ 20. Above flush
+      // (~10) but well below one home-indicator inset (34).
+      expect(gap, greaterThan(12),
+          reason: 'Expected a small lift on iPhone; got $gap');
+      expect(gap, lessThan(34),
+          reason: 'iPhone lift should stay well under a full inset; got $gap');
     });
 
     testWidgets('FLUSH on Android gesture pill (20) — $name', (tester) async {
-      final gap = await gapFor(tester, 20.0, size);
+      final gap = await gapFor(tester, 20.0, size, platform: TargetPlatform.android);
       // ignore: avoid_print
-      print('NAVBAR TEST [$name] inset=20 gap=$gap');
-      expect(gap, lessThan(20),
-          reason: 'Expected flush (~10px) on gesture pill; got $gap');
+      print('NAVBAR TEST [android $name] inset=20 gap=$gap');
+      expect(gap, lessThan(12),
+          reason: 'Expected flush (~10px) on Android gesture pill; got $gap');
     });
 
     testWidgets('RESERVE on Android 3-button bar (48) — $name', (tester) async {
-      final gap = await gapFor(tester, 48.0, size);
+      final gap = await gapFor(tester, 48.0, size, platform: TargetPlatform.android);
       // ignore: avoid_print
-      print('NAVBAR TEST [$name] inset=48 gap=$gap');
+      print('NAVBAR TEST [android $name] inset=48 gap=$gap');
       // Inset reserved: gap is roughly base pad + the 48px inset.
       expect(gap, greaterThan(48),
           reason: 'Expected the 48px button-bar inset to be reserved; got $gap');

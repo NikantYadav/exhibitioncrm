@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import '../config/app_theme.dart';
@@ -117,11 +118,24 @@ class AppBottomNav extends StatelessWidget {
   // separates "decorative indicator" (ignore) from "button bar" (reserve).
   static const double _buttonBarThreshold = 40.0;
 
+  // Small extra lift on iOS only, so the bar isn't pressed right against the
+  // home indicator. Android (gesture or 3-button) keeps zero/threshold logic.
+  static const double _iosLift = 10.0;
+
   Widget _buildBar(BuildContext context, FThemeData theme, int activeItem) {
     final view = View.of(context);
     final inset = view.viewPadding.bottom / view.devicePixelRatio;
-    // Flush on iPhone / gesture-nav; reserve the full inset on 3-button Android.
-    final bottomPad = inset >= _buttonBarThreshold ? 5 + inset : 5.0;
+    // 3-button Android: reserve the full inset so the row clears the buttons.
+    // iPhone: stay flush but nudge up by [_iosLift] off the home indicator.
+    // Android gesture-nav: flush to the bottom.
+    final double bottomPad;
+    if (inset >= _buttonBarThreshold) {
+      bottomPad = 5 + inset;
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      bottomPad = 5 + _iosLift;
+    } else {
+      bottomPad = 5.0;
+    }
 
     return DecoratedBox(
       decoration: BoxDecoration(
