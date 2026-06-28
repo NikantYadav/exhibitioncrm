@@ -13,6 +13,7 @@ class FollowUpsTable extends Table {
   TextColumn get eventId => text().nullable()();
   TextColumn get status => text().withDefault(const Constant('new'))();
   TextColumn get channel => text().withDefault(const Constant('email'))();
+  BoolColumn get isPriority => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastInteractionAt => dateTime().nullable()();
   DateTimeColumn get doneAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().nullable()();

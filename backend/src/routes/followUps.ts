@@ -62,7 +62,7 @@ router.get('/', async (req, res, next) => {
     let fq = supabase
       .from('follow_ups')
       .select(`
-        id, contact_id, event_id, status, channel, last_interaction_at, done_at, updated_at,
+        id, contact_id, event_id, status, channel, is_priority, last_interaction_at, done_at, updated_at,
         contact:contacts!inner(*, company:companies(*)),
         event:events(id, name)
       `)
@@ -124,6 +124,10 @@ router.get('/', async (req, res, next) => {
       }
       return {
         ...r.contact,
+        // ...r.contact carries the contact's GLOBAL is_priority (drives the
+        // collapsed home view). The per-event flag is exposed separately and,
+        // in the event view below, promoted to is_priority for that card.
+        follow_up_is_priority: r.is_priority ?? false,
         follow_up_id: r.id,
         follow_up_status: r.status,
         event_id: r.event_id,
@@ -141,7 +145,8 @@ router.get('/', async (req, res, next) => {
       // Event view: flat, one card per record.
       const bucket = { not_contacted: [] as any[], followed_up: [] as any[], needs_followup: [] as any[], skipped: [] as any[] };
       (rows || []).forEach((r: any) => {
-        const c = shape(r);
+        // Event view uses the per-event priority flag, not the contact's global one.
+        const c = { ...shape(r), is_priority: r.is_priority ?? false };
         if (r.status === 'done') bucket.followed_up.push(c);
         else if (r.status === 'pending') bucket.needs_followup.push(c);
         else if (r.status === 'skipped') bucket.skipped.push(c);
@@ -229,6 +234,56 @@ router.patch('/contact/:contactId', async (req, res) => {
     res.json({ message: 'Follow-up updated' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update follow-up' });
+  }
+});
+
+// Toggle the priority flag for a contact's follow-ups. With an event_id, flips
+// the per-event follow_ups.is_priority (drives the event queue). Without an
+// event_id, flips the global contacts.is_priority (drives the global queue).
+// Mirrors the app's split model: event queue uses the per-event flag only,
+// global queue uses the contact flag only.
+router.patch('/contact/:contactId/priority', async (req, res) => {
+  try {
+    const supabase = req.supabase!;
+    const userId = req.user!.id;
+    const { contactId } = req.params;
+
+    if (!(await ownsContact(supabase, userId, contactId))) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const parsed = z.object({
+      is_priority: z.boolean(),
+      event_id: z.string().uuid().nullable().optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const { is_priority, event_id } = parsed.data;
+    const now = new Date().toISOString();
+
+    if (event_id) {
+      // Per-event: stamp the follow_ups row for this (contact, event).
+      const { error } = await supabase
+        .from('follow_ups')
+        .update({ is_priority, updated_at: now })
+        .eq('user_id', userId)
+        .eq('contact_id', contactId)
+        .eq('event_id', event_id)
+        .is('deleted_at', null);
+      if (error) return res.status(400).json({ error: error.message });
+    } else {
+      // Global: stamp the contact.
+      const { error } = await supabase
+        .from('contacts')
+        .update({ is_priority, updated_at: now })
+        .eq('user_id', userId)
+        .eq('id', contactId);
+      if (error) return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ message: 'Priority updated' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update priority' });
   }
 });
 

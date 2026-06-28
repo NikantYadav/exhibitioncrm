@@ -280,6 +280,7 @@ router.post('/', async (req, res, next) => {
             ? `${raw_text}\n\n[System Note: Captured at ${eventName}]`
             : raw_text || null,
           follow_up_status: 'not_contacted',
+          is_priority: extracted_data.is_priority === true,
           ...(scannedDetails ? { scanned_details: scannedDetails } : {}),
         })
         .select()
@@ -333,6 +334,9 @@ router.post('/', async (req, res, next) => {
             contactId: contact.id,
             eventId: event_id || null,
             seedStatus: 'new',
+            // Per-event priority only when captured at an event; the contact's
+            // global is_priority above covers the no-event case.
+            isPriority: event_id ? extracted_data.is_priority === true : undefined,
           });
         } catch (e) {
           console.error('follow_up upsert (capture) failed:', e);

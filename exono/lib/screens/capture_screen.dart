@@ -31,6 +31,7 @@ import '../services/web_file_picker.dart' if (dart.library.io) '../services/web_
 import '../widgets/additional_details_editor.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
+import '../widgets/app_checkbox.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_filter_row.dart';
@@ -101,6 +102,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   // ── Events ─────────────────────────────────────────────────
   List<Event> _events = [];
   String? _eventId;
+  bool _isPriority = false;
   final _meetContextCtrl = TextEditingController();
 
   // ── Dedup (online only — offline dedup goes through notifications) ─────
@@ -597,6 +599,13 @@ class _CaptureScreenState extends State<CaptureScreen>
                           label: 'How did you meet? (optional)',
                         ),
                       ],
+                      const SizedBox(height: 14),
+                      AppCheckbox(
+                        value: _isPriority,
+                        label: 'Mark as Priority',
+                        description: 'Surface this contact at the top of your follow-ups.',
+                        onChanged: (v) => setState(() => _isPriority = v),
+                      ),
                       const SizedBox(height: 24),
                       AdditionalDetailsEditor(controller: _detailsController),
                       const SizedBox(height: 24),
@@ -1536,6 +1545,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         'email':      _emailCtrl.text.trim(),
         'phone':      _phoneCtrl.text.trim(),
         'job_title':  _titleCtrl.text.trim(),
+        'is_priority': _isPriority,
         if (_detailsController.toMap().isNotEmpty)
           'scanned_details': _detailsController.toMap(),
       };
@@ -1636,6 +1646,14 @@ class _CaptureScreenState extends State<CaptureScreen>
       if (_eventId != null) {
         try {
           await ApiService.linkContactToEvent(existingId, _eventId!);
+        } on UnauthorizedException { rethrow; } catch (_) {}
+      }
+
+      // Honor the priority toggle when merging into an existing contact:
+      // per-event when captured at an event, otherwise global.
+      if (_isPriority) {
+        try {
+          await ApiService.setContactPriority(existingId, true, eventId: _eventId);
         } on UnauthorizedException { rethrow; } catch (_) {}
       }
 

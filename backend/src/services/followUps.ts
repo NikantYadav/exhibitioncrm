@@ -78,6 +78,12 @@ interface UpsertArgs {
   /** When true (interaction/target triggers), bump last_interaction_at to now. */
   touchInteraction?: boolean;
   channel?: string;
+  /**
+   * When set, stamps the per-event priority flag on this follow-up record.
+   * Left `undefined` by most triggers so they never clobber an existing flag;
+   * only capture flows that explicitly mark priority pass `true`.
+   */
+  isPriority?: boolean;
 }
 
 /**
@@ -115,6 +121,7 @@ export async function upsertFollowUp(
     };
     if (args.touchInteraction) update.last_interaction_at = now;
     if (args.channel) update.channel = args.channel;
+    if (args.isPriority !== undefined) update.is_priority = args.isPriority;
     if (next === 'done') update.done_at = now;
     else update.done_at = null;
 
@@ -132,6 +139,7 @@ export async function upsertFollowUp(
     status: args.seedStatus,
     channel: args.channel ?? 'email',
     last_interaction_at: args.touchInteraction ? now : null,
+    ...(args.isPriority !== undefined ? { is_priority: args.isPriority } : {}),
   };
   const { error } = await db.from('follow_ups').insert(insert);
   if (error && error.code === '23505') {

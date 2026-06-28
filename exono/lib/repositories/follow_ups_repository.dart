@@ -27,6 +27,7 @@ class FollowUpsRepository extends SyncedRepository<FollowUpsTableData, $FollowUp
       eventId: Value(json['event_id'] as String?),
       status: Value(json['status'] as String? ?? 'new'),
       channel: Value(json['channel'] as String? ?? 'email'),
+      isPriority: Value(json['is_priority'] as bool? ?? false),
       lastInteractionAt: Value(json['last_interaction_at'] != null
           ? DateTime.parse(json['last_interaction_at'] as String)
           : null),
@@ -87,6 +88,26 @@ class FollowUpsRepository extends SyncedRepository<FollowUpsTableData, $FollowUp
     ));
   }
 
+  /// Optimistically flip the per-event priority flag on the follow_ups row for
+  /// (contact, event) so the event queue re-sorts/re-styles immediately, before
+  /// the backend echo. We bump updated_at so a stale echo doesn't clobber it.
+  Future<void> setEventPriorityLocal(
+    String contactId,
+    String eventId,
+    bool isPriority,
+  ) async {
+    final now = DateTime.now().toUtc();
+    final update = db.update(db.followUpsTable)
+      ..where((t) =>
+          t.contactId.equals(contactId) &
+          t.eventId.equals(eventId) &
+          t.deletedAt.isNull());
+    await update.write(FollowUpsTableCompanion(
+      isPriority: Value(isPriority),
+      updatedAt: Value(now),
+    ));
+  }
+
   /// Per-event follow-up queue: every follow_ups row for [eventId], joined to
   /// its contact + company + latest email draft for this event. Mirrors the
   /// old derived `watchFollowUps` shape but with a real per-event status.
@@ -129,6 +150,7 @@ class FollowUpsRepository extends SyncedRepository<FollowUpsTableData, $FollowUp
           email: c.email,
           jobTitle: c.jobTitle,
           followUpStatus: fu.status,
+          isPriority: fu.isPriority,
           companyId: c.companyId,
           companyName: company?.name,
           draftSubject: draft?.subject,

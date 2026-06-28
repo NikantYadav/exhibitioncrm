@@ -659,6 +659,27 @@ class ApiService {
     }
   }
 
+  /// Toggle a contact's priority. With [eventId], flips the per-event
+  /// follow_ups.is_priority (event queue); without it, flips the global
+  /// contacts.is_priority (global queue). Mirrors the split priority model.
+  static Future<void> setContactPriority(
+    String contactId,
+    bool isPriority, {
+    String? eventId,
+  }) async {
+    final body = <String, dynamic>{'is_priority': isPriority};
+    if (eventId != null) body['event_id'] = eventId;
+    final response = await _send(() async => http.patch(
+      Uri.parse('${ApiConfig.baseUrl}/follow-ups/contact/$contactId/priority'),
+      headers: await _headers(),
+      body: json.encode(body),
+    ));
+    checkUnauthorized(response);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update priority');
+    }
+  }
+
   static Future<void> unskipFollowUp(String eventId, String contactId) async {
     final response = await _send(() async => http.patch(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/follow-ups/$contactId'),

@@ -24,6 +24,7 @@ import '../services/api_service.dart';
 import '../services/offline/write_gateway.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
+import '../widgets/app_checkbox.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
@@ -82,6 +83,9 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
   String? _pickedEventName;
   List<Event>? _events;
   bool _loadingEvents = false;
+
+  // ── Priority ──────────────────────────────────────────────────────────────
+  bool _isPriority = false;
 
   // ── Voice recording ──────────────────────────────────────────────────────────
   final AudioRecorder _recorder = AudioRecorder();
@@ -326,6 +330,15 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
         interactionDate: _selectedDate.toUtc().toIso8601String(),
         details: mode.isNotEmpty ? {'mode': mode} : null,
       );
+
+      // Apply the priority toggle: per-event when an event is picked, otherwise
+      // global on the contact. Online-only (offline interactions sync first).
+      if (_isPriority && !result.savedOffline) {
+        try {
+          await ApiService.setContactPriority(
+            _effectiveContactId!, true, eventId: _pickedEventId);
+        } on UnauthorizedException { rethrow; } catch (_) {}
+      }
 
       if (mounted) {
         showAppToast(context, result.savedOffline
@@ -599,12 +612,25 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
     );
   }
 
+  Widget _buildPriorityToggle() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: AppCheckbox(
+        value: _isPriority,
+        label: 'Mark as Priority',
+        description: 'Surface this contact at the top of your follow-ups.',
+        onChanged: (v) => setState(() => _isPriority = v),
+      ),
+    );
+  }
+
   Widget _buildTextContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildContactPicker(),
         _buildEventPicker(),
+        _buildPriorityToggle(),
         AppSectionLabel('Date'),
         const SizedBox(height: 8),
         GestureDetector(
@@ -656,6 +682,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
       children: [
         _buildContactPicker(),
         _buildEventPicker(),
+        _buildPriorityToggle(),
         AppSectionLabel('Date'),
         const SizedBox(height: 8),
         GestureDetector(

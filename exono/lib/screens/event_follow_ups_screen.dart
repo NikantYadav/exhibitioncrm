@@ -121,7 +121,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   bool _isSkipped(FollowUpRow fu) => fu.followUpStatus == 'skipped';
 
   List<FollowUpRow> get _filteredFollowUps {
-    return _followUps.where((fu) {
+    final list = _followUps.where((fu) {
       final sent = _isSent(fu);
       switch (_activeFilter) {
         case 'Pending':
@@ -134,6 +134,14 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
           return true;
       }
     }).toList();
+    // Priority follow-ups (per-event follow_ups.is_priority) surface first;
+    // stable sort preserves the existing order within each group.
+    list.sort((a, b) {
+      final pa = a.isPriority ? 0 : 1;
+      final pb = b.isPriority ? 0 : 1;
+      return pa.compareTo(pb);
+    });
+    return list;
   }
 
   int get _totalContacts => _followUps.length;
@@ -277,6 +285,17 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
       ).catchError((_) {});
       await _afterFollowUpWrite();
     }
+  }
+
+  // Toggle the PER-EVENT priority flag (follow_ups.is_priority) for this
+  // (contact, event). Optimistically write through to drift so the stream
+  // re-emits and the queue re-sorts/re-styles immediately; then persist.
+  Future<void> _togglePriority(String contactId, bool next) async {
+    if (_eventId.isEmpty) return;
+    await _sync.followUps.setEventPriorityLocal(contactId, _eventId, next);
+    try {
+      await ApiService.setContactPriority(contactId, next, eventId: _eventId);
+    } on UnauthorizedException { rethrow; } catch (_) {/* drift echo reconciles */}
   }
 
   Future<void> _markSkipped(String contactId) async {
@@ -430,6 +449,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                     onSkip: () => _markSkipped(key),
                     onUnskip: () => _unskip(key),
                     onFollowedUp: () => _showFollowedUpDialog(fu),
+                    onTogglePriority: () => _togglePriority(key, !fu.isPriority),
                     initials: _initials(fu),
                     fullName: _fullName(fu),
                     role: _role(fu),
@@ -702,6 +722,7 @@ class _ContactFollowUpCard extends StatelessWidget {
   final VoidCallback onSkip;
   final VoidCallback onUnskip;
   final VoidCallback onFollowedUp;
+  final VoidCallback onTogglePriority;
   final String initials;
   final String fullName;
   final String role;
@@ -722,6 +743,7 @@ class _ContactFollowUpCard extends StatelessWidget {
     required this.onSkip,
     required this.onUnskip,
     required this.onFollowedUp,
+    required this.onTogglePriority,
     required this.initials,
     required this.fullName,
     required this.role,
@@ -732,11 +754,19 @@ class _ContactFollowUpCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: EdgeInsets.zero,
-      radius: 20,
-      borderColor: isSent ? _c.success.withValues(alpha: 0.4) : null,
-      child: Column(
+    // Full-accent priority surface, but only while collapsed and actionable —
+    // an expanded composer (white inputs) or a sent/skipped card keeps the
+    // normal surface so its content stays legible.
+    final accentSurface =
+        fu.isPriority && !isExpanded && !isSent && !isSkipped;
+    final fg = accentSurface
+        ? context.theme.colors.primaryForeground
+        : context.theme.colors.foreground;
+    final mutedFg = accentSurface
+        ? context.theme.colors.primaryForeground.withValues(alpha: 0.75)
+        : context.theme.colors.mutedForeground;
+
+    final card = Column(
         children: [
           // ── Header row (always visible) ─────────────────────────────────
           GestureDetector(
@@ -762,7 +792,7 @@ class _ContactFollowUpCard extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: context.theme.typography.lg.copyWith(
                                   fontWeight: FontWeight.w600,
-                                  color: context.theme.colors.foreground,
+                                  color: fg,
                                   letterSpacing: -0.2,
                                   height: 1.1,
                                 ),
@@ -789,19 +819,32 @@ class _ContactFollowUpCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: context.theme.typography.xs
-                                .copyWith(color: context.theme.colors.mutedForeground)),
+                                .copyWith(color: mutedFg)),
                         ],
                         if (companyName.isNotEmpty) ...[
                           const SizedBox(height: 1),
                           Text(companyName,
                             softWrap: true,
                             style: context.theme.typography.xs.copyWith(
-                              color: _c.accent,
+                              color: accentSurface ? context.theme.colors.primaryForeground : _c.accent,
                               fontWeight: FontWeight.w600,
                               height: 1.2,
                             )),
                         ],
                       ],
+                    ),
+                  ),
+                  // Priority toggle — star fills when this follow-up is priority.
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onTogglePriority,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Icon(
+                        fu.isPriority ? Icons.star_rounded : Icons.star_outline_rounded,
+                        size: 22,
+                        color: accentSurface ? context.theme.colors.primaryForeground : _c.accent,
+                      ),
                     ),
                   ),
                   // Contact detail button — quick access to full profile.
@@ -830,7 +873,7 @@ class _ContactFollowUpCard extends StatelessWidget {
                       turns: isExpanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 200),
                       child: Icon(Icons.keyboard_arrow_down_rounded,
-                          color: _c.accent, size: 18),
+                          color: accentSurface ? context.theme.colors.primaryForeground : _c.accent, size: 18),
                     ),
                   ],
                 ],
@@ -846,7 +889,26 @@ class _ContactFollowUpCard extends StatelessWidget {
                 : const SizedBox.shrink(),
           ),
         ],
-      ),
+      );
+
+    // Priority cards drop AppCard for a full-accent Container (AppCard can't do
+    // a conditional background). Only while collapsed + actionable; otherwise the
+    // normal AppCard surface is used so composer inputs / status stay legible.
+    if (accentSurface) {
+      return Container(
+        decoration: BoxDecoration(
+          color: _c.accent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: card,
+      );
+    }
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      radius: 20,
+      borderColor: isSent ? _c.success.withValues(alpha: 0.4) : null,
+      child: card,
     );
   }
 

@@ -23,6 +23,7 @@ const contactWriteSchema = z.object({
   company_name: z.string().trim().max(200).optional(),
   event_id: uuidSchema.optional(),
   scanned_details: z.record(z.string(), z.any()).optional(),
+  is_priority: z.boolean().optional(),
 });
 
 const contactPatchSchema = contactWriteSchema.partial();
@@ -248,6 +249,7 @@ router.post('/', async (req, res, next) => {
         linkedin_url: body.linkedin_url,
         company_id,
         notes: body.notes,
+        is_priority: body.is_priority ?? false,
         user_id: req.user!.id,
         ...(idempotencyKey ? { client_op_id: idempotencyKey } : {}),
       })
@@ -285,6 +287,9 @@ router.post('/', async (req, res, next) => {
         contactId: data.id,
         eventId: body.event_id ?? null,
         seedStatus: 'new',
+        // Stamp per-event priority only when an event is selected; the global
+        // contacts.is_priority above covers the no-event case.
+        isPriority: body.event_id ? (body.is_priority ?? false) : undefined,
       });
     } catch (e) {
       console.error('follow_up upsert (manual contact) failed:', e);

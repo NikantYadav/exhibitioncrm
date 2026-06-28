@@ -840,6 +840,21 @@ class $ContactsTableTable extends ContactsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('not_contacted'),
   );
+  static const VerificationMeta _isPriorityMeta = const VerificationMeta(
+    'isPriority',
+  );
+  @override
+  late final GeneratedColumn<bool> isPriority = GeneratedColumn<bool>(
+    'is_priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_priority" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _lastContactedAtMeta = const VerificationMeta(
     'lastContactedAt',
   );
@@ -944,6 +959,7 @@ class $ContactsTableTable extends ContactsTable
     notes,
     avatarUrl,
     followUpStatus,
+    isPriority,
     lastContactedAt,
     contactAssetsJson,
     scannedDetailsJson,
@@ -1042,6 +1058,12 @@ class $ContactsTableTable extends ContactsTable
           data['follow_up_status']!,
           _followUpStatusMeta,
         ),
+      );
+    }
+    if (data.containsKey('is_priority')) {
+      context.handle(
+        _isPriorityMeta,
+        isPriority.isAcceptableOrUnknown(data['is_priority']!, _isPriorityMeta),
       );
     }
     if (data.containsKey('last_contacted_at')) {
@@ -1166,6 +1188,10 @@ class $ContactsTableTable extends ContactsTable
         DriftSqlType.string,
         data['${effectivePrefix}follow_up_status'],
       )!,
+      isPriority: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_priority'],
+      )!,
       lastContactedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_contacted_at'],
@@ -1221,6 +1247,7 @@ class ContactsTableData extends DataClass
   final String? notes;
   final String? avatarUrl;
   final String followUpStatus;
+  final bool isPriority;
   final DateTime? lastContactedAt;
   final String? contactAssetsJson;
   final String? scannedDetailsJson;
@@ -1242,6 +1269,7 @@ class ContactsTableData extends DataClass
     this.notes,
     this.avatarUrl,
     required this.followUpStatus,
+    required this.isPriority,
     this.lastContactedAt,
     this.contactAssetsJson,
     this.scannedDetailsJson,
@@ -1284,6 +1312,7 @@ class ContactsTableData extends DataClass
       map['avatar_url'] = Variable<String>(avatarUrl);
     }
     map['follow_up_status'] = Variable<String>(followUpStatus);
+    map['is_priority'] = Variable<bool>(isPriority);
     if (!nullToAbsent || lastContactedAt != null) {
       map['last_contacted_at'] = Variable<DateTime>(lastContactedAt);
     }
@@ -1341,6 +1370,7 @@ class ContactsTableData extends DataClass
           ? const Value.absent()
           : Value(avatarUrl),
       followUpStatus: Value(followUpStatus),
+      isPriority: Value(isPriority),
       lastContactedAt: lastContactedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastContactedAt),
@@ -1384,6 +1414,7 @@ class ContactsTableData extends DataClass
       notes: serializer.fromJson<String?>(json['notes']),
       avatarUrl: serializer.fromJson<String?>(json['avatarUrl']),
       followUpStatus: serializer.fromJson<String>(json['followUpStatus']),
+      isPriority: serializer.fromJson<bool>(json['isPriority']),
       lastContactedAt: serializer.fromJson<DateTime?>(json['lastContactedAt']),
       contactAssetsJson: serializer.fromJson<String?>(
         json['contactAssetsJson'],
@@ -1414,6 +1445,7 @@ class ContactsTableData extends DataClass
       'notes': serializer.toJson<String?>(notes),
       'avatarUrl': serializer.toJson<String?>(avatarUrl),
       'followUpStatus': serializer.toJson<String>(followUpStatus),
+      'isPriority': serializer.toJson<bool>(isPriority),
       'lastContactedAt': serializer.toJson<DateTime?>(lastContactedAt),
       'contactAssetsJson': serializer.toJson<String?>(contactAssetsJson),
       'scannedDetailsJson': serializer.toJson<String?>(scannedDetailsJson),
@@ -1438,6 +1470,7 @@ class ContactsTableData extends DataClass
     Value<String?> notes = const Value.absent(),
     Value<String?> avatarUrl = const Value.absent(),
     String? followUpStatus,
+    bool? isPriority,
     Value<DateTime?> lastContactedAt = const Value.absent(),
     Value<String?> contactAssetsJson = const Value.absent(),
     Value<String?> scannedDetailsJson = const Value.absent(),
@@ -1459,6 +1492,7 @@ class ContactsTableData extends DataClass
     notes: notes.present ? notes.value : this.notes,
     avatarUrl: avatarUrl.present ? avatarUrl.value : this.avatarUrl,
     followUpStatus: followUpStatus ?? this.followUpStatus,
+    isPriority: isPriority ?? this.isPriority,
     lastContactedAt: lastContactedAt.present
         ? lastContactedAt.value
         : this.lastContactedAt,
@@ -1496,6 +1530,9 @@ class ContactsTableData extends DataClass
       followUpStatus: data.followUpStatus.present
           ? data.followUpStatus.value
           : this.followUpStatus,
+      isPriority: data.isPriority.present
+          ? data.isPriority.value
+          : this.isPriority,
       lastContactedAt: data.lastContactedAt.present
           ? data.lastContactedAt.value
           : this.lastContactedAt,
@@ -1532,6 +1569,7 @@ class ContactsTableData extends DataClass
           ..write('notes: $notes, ')
           ..write('avatarUrl: $avatarUrl, ')
           ..write('followUpStatus: $followUpStatus, ')
+          ..write('isPriority: $isPriority, ')
           ..write('lastContactedAt: $lastContactedAt, ')
           ..write('contactAssetsJson: $contactAssetsJson, ')
           ..write('scannedDetailsJson: $scannedDetailsJson, ')
@@ -1545,7 +1583,7 @@ class ContactsTableData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     userId,
     companyId,
@@ -1558,6 +1596,7 @@ class ContactsTableData extends DataClass
     notes,
     avatarUrl,
     followUpStatus,
+    isPriority,
     lastContactedAt,
     contactAssetsJson,
     scannedDetailsJson,
@@ -1566,7 +1605,7 @@ class ContactsTableData extends DataClass
     createdAt,
     updatedAt,
     deletedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1583,6 +1622,7 @@ class ContactsTableData extends DataClass
           other.notes == this.notes &&
           other.avatarUrl == this.avatarUrl &&
           other.followUpStatus == this.followUpStatus &&
+          other.isPriority == this.isPriority &&
           other.lastContactedAt == this.lastContactedAt &&
           other.contactAssetsJson == this.contactAssetsJson &&
           other.scannedDetailsJson == this.scannedDetailsJson &&
@@ -1606,6 +1646,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
   final Value<String?> notes;
   final Value<String?> avatarUrl;
   final Value<String> followUpStatus;
+  final Value<bool> isPriority;
   final Value<DateTime?> lastContactedAt;
   final Value<String?> contactAssetsJson;
   final Value<String?> scannedDetailsJson;
@@ -1628,6 +1669,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     this.notes = const Value.absent(),
     this.avatarUrl = const Value.absent(),
     this.followUpStatus = const Value.absent(),
+    this.isPriority = const Value.absent(),
     this.lastContactedAt = const Value.absent(),
     this.contactAssetsJson = const Value.absent(),
     this.scannedDetailsJson = const Value.absent(),
@@ -1651,6 +1693,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     this.notes = const Value.absent(),
     this.avatarUrl = const Value.absent(),
     this.followUpStatus = const Value.absent(),
+    this.isPriority = const Value.absent(),
     this.lastContactedAt = const Value.absent(),
     this.contactAssetsJson = const Value.absent(),
     this.scannedDetailsJson = const Value.absent(),
@@ -1676,6 +1719,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     Expression<String>? notes,
     Expression<String>? avatarUrl,
     Expression<String>? followUpStatus,
+    Expression<bool>? isPriority,
     Expression<DateTime>? lastContactedAt,
     Expression<String>? contactAssetsJson,
     Expression<String>? scannedDetailsJson,
@@ -1699,6 +1743,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
       if (notes != null) 'notes': notes,
       if (avatarUrl != null) 'avatar_url': avatarUrl,
       if (followUpStatus != null) 'follow_up_status': followUpStatus,
+      if (isPriority != null) 'is_priority': isPriority,
       if (lastContactedAt != null) 'last_contacted_at': lastContactedAt,
       if (contactAssetsJson != null) 'contact_assets_json': contactAssetsJson,
       if (scannedDetailsJson != null)
@@ -1725,6 +1770,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     Value<String?>? notes,
     Value<String?>? avatarUrl,
     Value<String>? followUpStatus,
+    Value<bool>? isPriority,
     Value<DateTime?>? lastContactedAt,
     Value<String?>? contactAssetsJson,
     Value<String?>? scannedDetailsJson,
@@ -1748,6 +1794,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
       notes: notes ?? this.notes,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       followUpStatus: followUpStatus ?? this.followUpStatus,
+      isPriority: isPriority ?? this.isPriority,
       lastContactedAt: lastContactedAt ?? this.lastContactedAt,
       contactAssetsJson: contactAssetsJson ?? this.contactAssetsJson,
       scannedDetailsJson: scannedDetailsJson ?? this.scannedDetailsJson,
@@ -1799,6 +1846,9 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     if (followUpStatus.present) {
       map['follow_up_status'] = Variable<String>(followUpStatus.value);
     }
+    if (isPriority.present) {
+      map['is_priority'] = Variable<bool>(isPriority.value);
+    }
     if (lastContactedAt.present) {
       map['last_contacted_at'] = Variable<DateTime>(lastContactedAt.value);
     }
@@ -1844,6 +1894,7 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
           ..write('notes: $notes, ')
           ..write('avatarUrl: $avatarUrl, ')
           ..write('followUpStatus: $followUpStatus, ')
+          ..write('isPriority: $isPriority, ')
           ..write('lastContactedAt: $lastContactedAt, ')
           ..write('contactAssetsJson: $contactAssetsJson, ')
           ..write('scannedDetailsJson: $scannedDetailsJson, ')
@@ -7104,6 +7155,21 @@ class $FollowUpsTableTable extends FollowUpsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('email'),
   );
+  static const VerificationMeta _isPriorityMeta = const VerificationMeta(
+    'isPriority',
+  );
+  @override
+  late final GeneratedColumn<bool> isPriority = GeneratedColumn<bool>(
+    'is_priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_priority" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _lastInteractionAtMeta = const VerificationMeta(
     'lastInteractionAt',
   );
@@ -7166,6 +7232,7 @@ class $FollowUpsTableTable extends FollowUpsTable
     eventId,
     status,
     channel,
+    isPriority,
     lastInteractionAt,
     doneAt,
     createdAt,
@@ -7219,6 +7286,12 @@ class $FollowUpsTableTable extends FollowUpsTable
       context.handle(
         _channelMeta,
         channel.isAcceptableOrUnknown(data['channel']!, _channelMeta),
+      );
+    }
+    if (data.containsKey('is_priority')) {
+      context.handle(
+        _isPriorityMeta,
+        isPriority.isAcceptableOrUnknown(data['is_priority']!, _isPriorityMeta),
       );
     }
     if (data.containsKey('last_interaction_at')) {
@@ -7289,6 +7362,10 @@ class $FollowUpsTableTable extends FollowUpsTable
         DriftSqlType.string,
         data['${effectivePrefix}channel'],
       )!,
+      isPriority: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_priority'],
+      )!,
       lastInteractionAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_interaction_at'],
@@ -7326,6 +7403,7 @@ class FollowUpsTableData extends DataClass
   final String? eventId;
   final String status;
   final String channel;
+  final bool isPriority;
   final DateTime? lastInteractionAt;
   final DateTime? doneAt;
   final DateTime? createdAt;
@@ -7338,6 +7416,7 @@ class FollowUpsTableData extends DataClass
     this.eventId,
     required this.status,
     required this.channel,
+    required this.isPriority,
     this.lastInteractionAt,
     this.doneAt,
     this.createdAt,
@@ -7357,6 +7436,7 @@ class FollowUpsTableData extends DataClass
     }
     map['status'] = Variable<String>(status);
     map['channel'] = Variable<String>(channel);
+    map['is_priority'] = Variable<bool>(isPriority);
     if (!nullToAbsent || lastInteractionAt != null) {
       map['last_interaction_at'] = Variable<DateTime>(lastInteractionAt);
     }
@@ -7385,6 +7465,7 @@ class FollowUpsTableData extends DataClass
           : Value(eventId),
       status: Value(status),
       channel: Value(channel),
+      isPriority: Value(isPriority),
       lastInteractionAt: lastInteractionAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastInteractionAt),
@@ -7413,6 +7494,7 @@ class FollowUpsTableData extends DataClass
       eventId: serializer.fromJson<String?>(json['eventId']),
       status: serializer.fromJson<String>(json['status']),
       channel: serializer.fromJson<String>(json['channel']),
+      isPriority: serializer.fromJson<bool>(json['isPriority']),
       lastInteractionAt: serializer.fromJson<DateTime?>(
         json['lastInteractionAt'],
       ),
@@ -7432,6 +7514,7 @@ class FollowUpsTableData extends DataClass
       'eventId': serializer.toJson<String?>(eventId),
       'status': serializer.toJson<String>(status),
       'channel': serializer.toJson<String>(channel),
+      'isPriority': serializer.toJson<bool>(isPriority),
       'lastInteractionAt': serializer.toJson<DateTime?>(lastInteractionAt),
       'doneAt': serializer.toJson<DateTime?>(doneAt),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
@@ -7447,6 +7530,7 @@ class FollowUpsTableData extends DataClass
     Value<String?> eventId = const Value.absent(),
     String? status,
     String? channel,
+    bool? isPriority,
     Value<DateTime?> lastInteractionAt = const Value.absent(),
     Value<DateTime?> doneAt = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
@@ -7459,6 +7543,7 @@ class FollowUpsTableData extends DataClass
     eventId: eventId.present ? eventId.value : this.eventId,
     status: status ?? this.status,
     channel: channel ?? this.channel,
+    isPriority: isPriority ?? this.isPriority,
     lastInteractionAt: lastInteractionAt.present
         ? lastInteractionAt.value
         : this.lastInteractionAt,
@@ -7475,6 +7560,9 @@ class FollowUpsTableData extends DataClass
       eventId: data.eventId.present ? data.eventId.value : this.eventId,
       status: data.status.present ? data.status.value : this.status,
       channel: data.channel.present ? data.channel.value : this.channel,
+      isPriority: data.isPriority.present
+          ? data.isPriority.value
+          : this.isPriority,
       lastInteractionAt: data.lastInteractionAt.present
           ? data.lastInteractionAt.value
           : this.lastInteractionAt,
@@ -7494,6 +7582,7 @@ class FollowUpsTableData extends DataClass
           ..write('eventId: $eventId, ')
           ..write('status: $status, ')
           ..write('channel: $channel, ')
+          ..write('isPriority: $isPriority, ')
           ..write('lastInteractionAt: $lastInteractionAt, ')
           ..write('doneAt: $doneAt, ')
           ..write('createdAt: $createdAt, ')
@@ -7511,6 +7600,7 @@ class FollowUpsTableData extends DataClass
     eventId,
     status,
     channel,
+    isPriority,
     lastInteractionAt,
     doneAt,
     createdAt,
@@ -7527,6 +7617,7 @@ class FollowUpsTableData extends DataClass
           other.eventId == this.eventId &&
           other.status == this.status &&
           other.channel == this.channel &&
+          other.isPriority == this.isPriority &&
           other.lastInteractionAt == this.lastInteractionAt &&
           other.doneAt == this.doneAt &&
           other.createdAt == this.createdAt &&
@@ -7541,6 +7632,7 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
   final Value<String?> eventId;
   final Value<String> status;
   final Value<String> channel;
+  final Value<bool> isPriority;
   final Value<DateTime?> lastInteractionAt;
   final Value<DateTime?> doneAt;
   final Value<DateTime?> createdAt;
@@ -7554,6 +7646,7 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
     this.eventId = const Value.absent(),
     this.status = const Value.absent(),
     this.channel = const Value.absent(),
+    this.isPriority = const Value.absent(),
     this.lastInteractionAt = const Value.absent(),
     this.doneAt = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -7568,6 +7661,7 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
     this.eventId = const Value.absent(),
     this.status = const Value.absent(),
     this.channel = const Value.absent(),
+    this.isPriority = const Value.absent(),
     this.lastInteractionAt = const Value.absent(),
     this.doneAt = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -7584,6 +7678,7 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
     Expression<String>? eventId,
     Expression<String>? status,
     Expression<String>? channel,
+    Expression<bool>? isPriority,
     Expression<DateTime>? lastInteractionAt,
     Expression<DateTime>? doneAt,
     Expression<DateTime>? createdAt,
@@ -7598,6 +7693,7 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
       if (eventId != null) 'event_id': eventId,
       if (status != null) 'status': status,
       if (channel != null) 'channel': channel,
+      if (isPriority != null) 'is_priority': isPriority,
       if (lastInteractionAt != null) 'last_interaction_at': lastInteractionAt,
       if (doneAt != null) 'done_at': doneAt,
       if (createdAt != null) 'created_at': createdAt,
@@ -7614,6 +7710,7 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
     Value<String?>? eventId,
     Value<String>? status,
     Value<String>? channel,
+    Value<bool>? isPriority,
     Value<DateTime?>? lastInteractionAt,
     Value<DateTime?>? doneAt,
     Value<DateTime?>? createdAt,
@@ -7628,6 +7725,7 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
       eventId: eventId ?? this.eventId,
       status: status ?? this.status,
       channel: channel ?? this.channel,
+      isPriority: isPriority ?? this.isPriority,
       lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
       doneAt: doneAt ?? this.doneAt,
       createdAt: createdAt ?? this.createdAt,
@@ -7657,6 +7755,9 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
     }
     if (channel.present) {
       map['channel'] = Variable<String>(channel.value);
+    }
+    if (isPriority.present) {
+      map['is_priority'] = Variable<bool>(isPriority.value);
     }
     if (lastInteractionAt.present) {
       map['last_interaction_at'] = Variable<DateTime>(lastInteractionAt.value);
@@ -7688,6 +7789,7 @@ class FollowUpsTableCompanion extends UpdateCompanion<FollowUpsTableData> {
           ..write('eventId: $eventId, ')
           ..write('status: $status, ')
           ..write('channel: $channel, ')
+          ..write('isPriority: $isPriority, ')
           ..write('lastInteractionAt: $lastInteractionAt, ')
           ..write('doneAt: $doneAt, ')
           ..write('createdAt: $createdAt, ')
@@ -8839,6 +8941,7 @@ typedef $$ContactsTableTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<String?> avatarUrl,
       Value<String> followUpStatus,
+      Value<bool> isPriority,
       Value<DateTime?> lastContactedAt,
       Value<String?> contactAssetsJson,
       Value<String?> scannedDetailsJson,
@@ -8863,6 +8966,7 @@ typedef $$ContactsTableTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<String?> avatarUrl,
       Value<String> followUpStatus,
+      Value<bool> isPriority,
       Value<DateTime?> lastContactedAt,
       Value<String?> contactAssetsJson,
       Value<String?> scannedDetailsJson,
@@ -8940,6 +9044,11 @@ class $$ContactsTableTableFilterComposer
 
   ColumnFilters<String> get followUpStatus => $composableBuilder(
     column: $table.followUpStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isPriority => $composableBuilder(
+    column: $table.isPriority,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9053,6 +9162,11 @@ class $$ContactsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isPriority => $composableBuilder(
+    column: $table.isPriority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastContactedAt => $composableBuilder(
     column: $table.lastContactedAt,
     builder: (column) => ColumnOrderings(column),
@@ -9143,6 +9257,11 @@ class $$ContactsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get isPriority => $composableBuilder(
+    column: $table.isPriority,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get lastContactedAt => $composableBuilder(
     column: $table.lastContactedAt,
     builder: (column) => column,
@@ -9225,6 +9344,7 @@ class $$ContactsTableTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarUrl = const Value.absent(),
                 Value<String> followUpStatus = const Value.absent(),
+                Value<bool> isPriority = const Value.absent(),
                 Value<DateTime?> lastContactedAt = const Value.absent(),
                 Value<String?> contactAssetsJson = const Value.absent(),
                 Value<String?> scannedDetailsJson = const Value.absent(),
@@ -9247,6 +9367,7 @@ class $$ContactsTableTableTableManager
                 notes: notes,
                 avatarUrl: avatarUrl,
                 followUpStatus: followUpStatus,
+                isPriority: isPriority,
                 lastContactedAt: lastContactedAt,
                 contactAssetsJson: contactAssetsJson,
                 scannedDetailsJson: scannedDetailsJson,
@@ -9271,6 +9392,7 @@ class $$ContactsTableTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarUrl = const Value.absent(),
                 Value<String> followUpStatus = const Value.absent(),
+                Value<bool> isPriority = const Value.absent(),
                 Value<DateTime?> lastContactedAt = const Value.absent(),
                 Value<String?> contactAssetsJson = const Value.absent(),
                 Value<String?> scannedDetailsJson = const Value.absent(),
@@ -9293,6 +9415,7 @@ class $$ContactsTableTableTableManager
                 notes: notes,
                 avatarUrl: avatarUrl,
                 followUpStatus: followUpStatus,
+                isPriority: isPriority,
                 lastContactedAt: lastContactedAt,
                 contactAssetsJson: contactAssetsJson,
                 scannedDetailsJson: scannedDetailsJson,
@@ -11821,6 +11944,7 @@ typedef $$FollowUpsTableTableCreateCompanionBuilder =
       Value<String?> eventId,
       Value<String> status,
       Value<String> channel,
+      Value<bool> isPriority,
       Value<DateTime?> lastInteractionAt,
       Value<DateTime?> doneAt,
       Value<DateTime?> createdAt,
@@ -11836,6 +11960,7 @@ typedef $$FollowUpsTableTableUpdateCompanionBuilder =
       Value<String?> eventId,
       Value<String> status,
       Value<String> channel,
+      Value<bool> isPriority,
       Value<DateTime?> lastInteractionAt,
       Value<DateTime?> doneAt,
       Value<DateTime?> createdAt,
@@ -11880,6 +12005,11 @@ class $$FollowUpsTableTableFilterComposer
 
   ColumnFilters<String> get channel => $composableBuilder(
     column: $table.channel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isPriority => $composableBuilder(
+    column: $table.isPriority,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11948,6 +12078,11 @@ class $$FollowUpsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isPriority => $composableBuilder(
+    column: $table.isPriority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastInteractionAt => $composableBuilder(
     column: $table.lastInteractionAt,
     builder: (column) => ColumnOrderings(column),
@@ -12000,6 +12135,11 @@ class $$FollowUpsTableTableAnnotationComposer
 
   GeneratedColumn<String> get channel =>
       $composableBuilder(column: $table.channel, builder: (column) => column);
+
+  GeneratedColumn<bool> get isPriority => $composableBuilder(
+    column: $table.isPriority,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get lastInteractionAt => $composableBuilder(
     column: $table.lastInteractionAt,
@@ -12062,6 +12202,7 @@ class $$FollowUpsTableTableTableManager
                 Value<String?> eventId = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String> channel = const Value.absent(),
+                Value<bool> isPriority = const Value.absent(),
                 Value<DateTime?> lastInteractionAt = const Value.absent(),
                 Value<DateTime?> doneAt = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -12075,6 +12216,7 @@ class $$FollowUpsTableTableTableManager
                 eventId: eventId,
                 status: status,
                 channel: channel,
+                isPriority: isPriority,
                 lastInteractionAt: lastInteractionAt,
                 doneAt: doneAt,
                 createdAt: createdAt,
@@ -12090,6 +12232,7 @@ class $$FollowUpsTableTableTableManager
                 Value<String?> eventId = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String> channel = const Value.absent(),
+                Value<bool> isPriority = const Value.absent(),
                 Value<DateTime?> lastInteractionAt = const Value.absent(),
                 Value<DateTime?> doneAt = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -12103,6 +12246,7 @@ class $$FollowUpsTableTableTableManager
                 eventId: eventId,
                 status: status,
                 channel: channel,
+                isPriority: isPriority,
                 lastInteractionAt: lastInteractionAt,
                 doneAt: doneAt,
                 createdAt: createdAt,

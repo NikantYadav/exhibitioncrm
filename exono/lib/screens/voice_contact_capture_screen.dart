@@ -23,6 +23,7 @@ import '../services/api_service.dart';
 import '../widgets/additional_details_editor.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
+import '../widgets/app_checkbox.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
@@ -88,6 +89,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   // ── Events ───────────────────────────────────────────────────
   List<Event> _events = [];
   String? _eventId;
+  bool _isPriority = false;
   final _meetContextCtrl = TextEditingController();
   final _detailsController = AdditionalDetailsController();
 
@@ -869,6 +871,14 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             ],
           ],
 
+          const SizedBox(height: 14),
+          AppCheckbox(
+            value: _isPriority,
+            label: 'Mark as Priority',
+            description: 'Surface this contact at the top of your follow-ups.',
+            onChanged: (v) => setState(() => _isPriority = v),
+          ),
+
           if (_transcript.isNotEmpty) ...[
             const SizedBox(height: 24),
             _buildTranscriptCard(),
@@ -1488,6 +1498,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           'email': _emailCtrl.text.trim(),
           'phone': _phoneCtrl.text.trim(),
           'job_title': _titleCtrl.text.trim(),
+          'is_priority': _isPriority,
           if (_detailsController.toMap().isNotEmpty)
             'scanned_details': _detailsController.toMap(),
         },

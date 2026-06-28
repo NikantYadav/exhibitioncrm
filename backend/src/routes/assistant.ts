@@ -209,6 +209,7 @@ const WRITE_TOOLS = [
         company_name: { type: 'string', description: 'Company name — will be created if not found' },
         company_id: { type: 'string', description: 'Existing company UUID (use instead of company_name if known)' },
         event_id: { type: 'string', description: 'Link contact to this event UUID' },
+        is_priority: { type: 'boolean', description: 'Mark this contact as a priority follow-up' },
       },
       required: ['first_name'],
     },
@@ -228,6 +229,7 @@ const WRITE_TOOLS = [
         job_title: { type: 'string' },
         linkedin_url: { type: 'string', description: 'LinkedIn profile URL' },
         notes: { type: 'string' },
+        is_priority: { type: 'boolean', description: 'Mark this contact as a priority follow-up' },
         follow_up_status: { type: 'string', enum: ['not_contacted', 'contacted', 'needs_followup', 'ignore'] },
         last_contacted_at: { type: 'string', description: 'ISO 8601 datetime' },
         scanned_details: {
@@ -508,6 +510,7 @@ async function execCreateContact(args: Record<string, unknown>, userId: string) 
     company_id: z.string().uuid().optional(),
     company_name: z.string().trim().optional(),
     event_id: z.string().uuid().optional(),
+    is_priority: z.boolean().optional(),
   }).parse(args);
 
   // Verify the linked event belongs to this user
@@ -599,6 +602,7 @@ async function execUpdateContact(args: Record<string, unknown>, userId: string) 
     job_title: z.string().trim().optional(),
     linkedin_url: z.string().trim().optional(),
     notes: z.string().trim().optional(),
+    is_priority: z.boolean().optional(),
     follow_up_status: z.string().trim().optional(),
     last_contacted_at: z.any().optional(),
     scanned_details: scannedDetailsSchema.optional(),

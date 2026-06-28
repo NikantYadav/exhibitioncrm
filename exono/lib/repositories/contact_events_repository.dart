@@ -15,6 +15,7 @@ class FollowUpRow {
   final String? email;
   final String? jobTitle;
   final String followUpStatus;
+  final bool isPriority;
   final String? companyId;
   final String? companyName;
   final String? draftSubject;
@@ -27,6 +28,7 @@ class FollowUpRow {
     this.email,
     this.jobTitle,
     required this.followUpStatus,
+    this.isPriority = false,
     this.companyId,
     this.companyName,
     this.draftSubject,

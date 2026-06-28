@@ -119,7 +119,16 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
       'Skipped' => _skipped,
       _         => _needsFollowup,
     };
-    return _filterByEvent(base);
+    final filtered = _filterByEvent(base);
+    // Priority contacts (global contacts.is_priority) surface at the top; order
+    // is otherwise preserved (stable sort) so the existing recency order holds
+    // within each group.
+    final sorted = [...filtered]..sort((a, b) {
+      final pa = a['is_priority'] == true ? 0 : 1;
+      final pb = b['is_priority'] == true ? 0 : 1;
+      return pa.compareTo(pb);
+    });
+    return sorted;
   }
 
   String? get _selectedEventName {
@@ -253,6 +262,24 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
     try {
       await ApiService.setFollowUpStatus(contactId, status,
           eventId: eventId, scopeToEvent: true);
+    } on UnauthorizedException { rethrow; } catch (_) {
+      if (mounted) await _load(); // reconcile on failure
+    }
+  }
+
+  // Toggle the GLOBAL priority flag on a contact (contacts.is_priority). The
+  // global Follow-Ups screen is contact-scoped, so this is never per-event.
+  // Optimistically flip every in-memory card for the contact, then write through.
+  Future<void> _togglePriority(String contactId, bool next) async {
+    setState(() {
+      for (final list in [_needsFollowup, _followedUp, _notContacted, _skipped]) {
+        for (final c in list) {
+          if (c['id'] == contactId) c['is_priority'] = next;
+        }
+      }
+    });
+    try {
+      await ApiService.setContactPriority(contactId, next);
     } on UnauthorizedException { rethrow; } catch (_) {
       if (mounted) await _load(); // reconcile on failure
     }
@@ -610,11 +637,15 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
         : <Map<String, dynamic>>[contact];
     final recordCount = records.length;
     final isExpanded = _expandedContactId == contactId;
+    final isPriority = contact['is_priority'] == true;
+    // Priority cards use a full accent background, so foreground text/icons flip
+    // to the inverted (on-accent) color. Non-priority cards keep theme colors.
+    final fg = isPriority ? context.theme.colors.primaryForeground : context.theme.colors.foreground;
+    final mutedFg = isPriority
+        ? context.theme.colors.primaryForeground.withValues(alpha: 0.75)
+        : context.theme.colors.mutedForeground;
 
-    return AppCard(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        radius: 16,
-        child: Column(
+    final cardChild = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Top row: avatar + info
@@ -631,9 +662,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                         maxLines: 2,
                         style: context.theme.typography.sm.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: isDone ? context.theme.colors.mutedForeground : context.theme.colors.foreground,
+                          color: isDone ? mutedFg : fg,
                           decoration: isDone ? TextDecoration.lineThrough : null,
-                          decorationColor: context.theme.colors.mutedForeground,
+                          decorationColor: mutedFg,
                         ),
                         overflow: TextOverflow.ellipsis),
                       if (designation.isNotEmpty) ...[
@@ -641,30 +672,43 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                         Text(designation,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                          style: context.theme.typography.xs.copyWith(color: mutedFg)),
                       ],
                       if (company.isNotEmpty) ...[
                         const SizedBox(height: 1),
                         Text(company,
                           softWrap: true,
                           style: context.theme.typography.xs.copyWith(
-                            color: _c.accent,
+                            color: isPriority ? context.theme.colors.primaryForeground : _c.accent,
                             fontWeight: FontWeight.w600,
                             height: 1.2,
                           )),
                       ],
                       const SizedBox(height: 4),
                       Row(children: [
-                        Icon(Icons.access_time_rounded, size: 11, color: context.theme.colors.mutedForeground),
+                        Icon(Icons.access_time_rounded, size: 11, color: mutedFg),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             recordCount > 1 ? '$recordCount follow-ups' : lastTouched,
-                            style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
+                            style: context.theme.typography.xs.copyWith(color: mutedFg),
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                         ),
                       ]),
                     ],
+                  ),
+                ),
+                // Priority toggle — star fills when the contact is a priority.
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _togglePriority(contactId, !isPriority),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Icon(
+                      isPriority ? Icons.star_rounded : Icons.star_outline_rounded,
+                      size: 22,
+                      color: isPriority ? context.theme.colors.primaryForeground : _c.accent,
+                    ),
                   ),
                 ),
                 // Contact detail button — system-themed action button.
@@ -682,7 +726,8 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                     child: AnimatedRotation(
                       turns: isExpanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 200),
-                      child: Icon(Icons.keyboard_arrow_down_rounded, color: _c.accent, size: 22),
+                      child: Icon(Icons.keyboard_arrow_down_rounded,
+                        color: isPriority ? context.theme.colors.primaryForeground : _c.accent, size: 22),
                     ),
                   ),
                 ),
@@ -701,7 +746,25 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                 ),
               ),
           ],
+        );
+
+    // Priority cards drop AppCard for a full-accent Container (AppCard can't do
+    // a conditional/gradient background); the star + inverted text mark them out.
+    if (isPriority) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: _c.accent,
+          borderRadius: BorderRadius.circular(16),
         ),
+        child: cardChild,
+      );
+    }
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      radius: 16,
+      child: cardChild,
     );
   }
 
