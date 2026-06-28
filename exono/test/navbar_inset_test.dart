@@ -1,12 +1,13 @@
-// Host test that reproduces the AppBottomNav in the shell's Scaffold structure
-// with a SIMULATED iOS home-indicator inset (viewPadding.bottom = 34), then
-// measures how much empty space sits below the bar's content row.
+// Host test that reproduces AppBottomNav in the shell's Scaffold structure with
+// a SIMULATED system bottom inset, then measures the gap below the content row.
 //
-// The iOS "too much space" bug is a layout/logic issue (how the inset is added),
-// not a device rendering quirk — so it reproduces here without a real device.
+// The bar's contract:
+//   - iPhone home indicator (~34) and Android gesture pill (~16-24) -> FLUSH
+//     (no inset reserved; gap below content is just the 5px base pad + descent).
+//   - Android 3-button nav (~48) -> RESERVE the inset (row never overlapped).
 //
-// Expected correct behaviour: the gap below the row equals ONE inset (~34).
-// If the inset is double-counted, the gap will be ~68.
+// This is keyed off the inset VALUE, not the screen height, so the behaviour is
+// identical on every screen size — which the size sweep below verifies.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart';
@@ -15,16 +16,21 @@ import 'package:exono/config/app_theme.dart';
 import 'package:exono/widgets/app_bottom_nav.dart';
 
 void main() {
-  const double kInset = 34.0; // iPhone home-indicator inset, logical px.
+  // (label, physical screen size) — small to large phones.
+  const screens = <(String, Size)>[
+    ('small 360x640', Size(360, 640)),
+    ('medium 393x852', Size(393, 852)),
+    ('large 430x932', Size(430, 932)),
+  ];
 
-  testWidgets('AppBottomNav leaves exactly one inset below its content row',
-      (tester) async {
-    // Force a bottom viewPadding like an iPhone with a home indicator.
-    // FlutterView values are in PHYSICAL pixels; dpr=3 so 34 logical = 102.
-    tester.view.devicePixelRatio = 3.0;
-    tester.view.viewPadding = const FakeViewPadding(bottom: kInset * 3.0);
-    tester.view.padding = const FakeViewPadding(bottom: kInset * 3.0);
-
+  // Returns the gap (logical px) between the bottom of the "Home" label and the
+  // bottom of the screen, for a given system inset + screen size.
+  Future<double> gapFor(WidgetTester tester, double insetLogical, Size physical) async {
+    const dpr = 3.0;
+    tester.view.devicePixelRatio = dpr;
+    tester.view.physicalSize = physical;
+    tester.view.viewPadding = FakeViewPadding(bottom: insetLogical * dpr);
+    tester.view.padding = FakeViewPadding(bottom: insetLogical * dpr);
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
@@ -44,31 +50,38 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final screenBottom = tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final screenBottom = physical.height / dpr;
+    final labelRect = tester.getRect(find.text('Home'));
+    return screenBottom - labelRect.bottom;
+  }
 
-    // Bottom edge of the "Home" label (last content in the row).
-    final homeLabel = find.text('Home');
-    expect(homeLabel, findsOneWidget);
-    final labelRect = tester.getRect(homeLabel);
+  for (final (name, size) in screens) {
+    testWidgets('FLUSH on iPhone home indicator (34) — $name', (tester) async {
+      final gap = await gapFor(tester, 34.0, size);
+      // ignore: avoid_print
+      print('NAVBAR TEST [$name] inset=34 gap=$gap');
+      // Flush: only the 5px base pad + a few px font descent. Never the inset.
+      expect(gap, lessThan(20),
+          reason: 'Expected flush (~10px) on home indicator; got $gap');
+    });
 
-    final gapBelowContent = screenBottom - labelRect.bottom;
+    testWidgets('FLUSH on Android gesture pill (20) — $name', (tester) async {
+      final gap = await gapFor(tester, 20.0, size);
+      // ignore: avoid_print
+      print('NAVBAR TEST [$name] inset=20 gap=$gap');
+      expect(gap, lessThan(20),
+          reason: 'Expected flush (~10px) on gesture pill; got $gap');
+    });
 
-    // ignore: avoid_print
-    print('NAVBAR TEST screenBottom=$screenBottom '
-        'labelBottom=${labelRect.bottom} gapBelowContent=$gapBelowContent '
-        'inset=$kInset');
-
-    // By design the bar adds NO system inset — it sits flush to the screen
-    // bottom. So the gap below the label is just the 5px base padding plus a
-    // few px of font descent, and must be well under one home-indicator inset.
-    expect(
-      gapBelowContent,
-      lessThan(kInset,
-      ),
-      reason: 'Nav bar should sit flush to the bottom (no system inset added); '
-          'gap below content was $gapBelowContent, expected < $kInset.',
-    );
-  });
+    testWidgets('RESERVE on Android 3-button bar (48) — $name', (tester) async {
+      final gap = await gapFor(tester, 48.0, size);
+      // ignore: avoid_print
+      print('NAVBAR TEST [$name] inset=48 gap=$gap');
+      // Inset reserved: gap is roughly base pad + the 48px inset.
+      expect(gap, greaterThan(48),
+          reason: 'Expected the 48px button-bar inset to be reserved; got $gap');
+    });
+  }
 }
 
 void _noop(int _) {}

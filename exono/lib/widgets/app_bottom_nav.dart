@@ -14,8 +14,10 @@ import '../config/app_theme.dart';
 /// SafeArea, which rendered inconsistently across devices (extra space on iOS,
 /// the bar sliding under the system nav on some Android devices). We replicate
 /// forui's exact visual style (top border, background, icon/label colors, sizes,
-/// spacing) but add NO system bottom inset — the bar sits flush against the very
-/// bottom of the screen on every device, by design.
+/// spacing) and own the bottom inset explicitly: the bar sits FLUSH to the
+/// bottom on iPhone (home indicator) and Android gesture nav, but reserves the
+/// system inset on Android 3-button nav so the row is never overlapped by the
+/// system buttons. The cutoff is [_buttonBarThreshold].
 class AppBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onNavigate;
@@ -108,7 +110,19 @@ class AppBottomNav extends StatelessWidget {
     );
   }
 
+  // Above this inset (logical px) we treat the system bottom area as a real
+  // 3-button navigation bar and reserve space so the row never sits behind it.
+  // At or below it (iPhone home indicator ~34, Android gesture pill ~16-24) we
+  // stay flush to the bottom. Android 3-button bars report ~48, so 40 cleanly
+  // separates "decorative indicator" (ignore) from "button bar" (reserve).
+  static const double _buttonBarThreshold = 40.0;
+
   Widget _buildBar(BuildContext context, FThemeData theme, int activeItem) {
+    final view = View.of(context);
+    final inset = view.viewPadding.bottom / view.devicePixelRatio;
+    // Flush on iPhone / gesture-nav; reserve the full inset on 3-button Android.
+    final bottomPad = inset >= _buttonBarThreshold ? 5 + inset : 5.0;
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colors.background,
@@ -120,10 +134,7 @@ class AppBottomNav extends StatelessWidget {
         ),
       ),
       child: Padding(
-        // Zero system bottom inset by design: the bar sits flush against the
-        // very bottom of the screen (no home-indicator / nav-bar gap). Only
-        // forui's base 5px item band is kept around the row.
-        padding: const EdgeInsets.all(5),
+        padding: EdgeInsets.fromLTRB(5, 5, 5, bottomPad),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
