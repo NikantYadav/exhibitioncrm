@@ -1,0 +1,87 @@
+name: navbar-inset-debug
+
+# Manual one-shot: boots an iOS Simulator and captures the bottom-nav inset
+# values printed by lib/main_navbar_debug.dart, so we can diagnose the iOS
+# bottom-gap without a Mac/iOS device locally. Trigger from the Actions tab.
+on:
+  workflow_dispatch:
+
+jobs:
+  ios-insets:
+    runs-on: macos-14
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: exono
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: List available simulators
+        run: xcrun simctl list devices available
+
+      - name: Boot an iPhone simulator
+        id: sim
+        run: |
+          cat > pick_sim.py <<'PY'
+          import json, subprocess, itertools
+          out = subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "--json"])
+          devs = list(itertools.chain.from_iterable(json.loads(out)["devices"].values()))
+          iphones = [d for d in devs if d["name"].startswith("iPhone")]
+          print(iphones[0]["udid"])
+          PY
+          UDID=$(python3 pick_sim.py)
+          echo "Picked simulator UDID=$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Run debug harness and capture NAVBAR INSETS
+        run: |
+          set -o pipefail
+          # flutter run stays attached; run it in the background, capture logs,
+          # wait for the inset line, then quit.
+          LOG=run.log
+          ( flutter run \
+              -t lib/main_navbar_debug.dart \
+              -d "${{ steps.sim.outputs.udid }}" \
+              --no-pub \
+            > "$LOG" 2>&1 ) &
+          RUN_PID=$!
+
+          echo "Waiting for NAVBAR INSETS line (up to 8 min)..."
+          for i in $(seq 1 96); do
+            if grep -q "NAVBAR INSETS" "$LOG"; then
+              break
+            fi
+            if ! kill -0 "$RUN_PID" 2>/dev/null; then
+              echo "flutter run exited early"; break
+            fi
+            sleep 5
+          done
+
+          echo "----- captured inset line(s) -----"
+          grep "NAVBAR INSETS" "$LOG" || echo "NOT FOUND — see full log below"
+          echo "----------------------------------"
+
+          # Stop the app.
+          kill "$RUN_PID" 2>/dev/null || true
+          wait "$RUN_PID" 2>/dev/null || true
+
+      - name: Upload full run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: navbar-run-log
+          path: exono/run.log
