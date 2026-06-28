@@ -19,6 +19,7 @@ import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_sheet_content.dart';
+import '../widgets/briefing_body.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
 import 'app_shell.dart' show navBarHide, navBarShow;
@@ -44,6 +45,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
   String? _briefingError;
   List<String> _talkingPoints = [];
   bool _useNotesForBriefing = false;
+  bool _useNotesWriteInFlight = false;
   bool _autoEnrichTried = false;
 
   bool _editingBooth = false;
@@ -120,7 +122,9 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
   void _syncControllersWith(TargetCompanyRow target) {
     if (!_editingBooth) _boothCtrl.text = target.target.boothLocation ?? '';
     if (!_editingNotes) _notesCtrl.text = target.target.notes ?? '';
-    _useNotesForBriefing = target.target.useNotesForBriefing;
+    // Don't let a stream re-emit clobber an in-flight optimistic toggle —
+    // the local value is the source of truth until the write resolves.
+    if (!_useNotesWriteInFlight) _useNotesForBriefing = target.target.useNotesForBriefing;
     final raw = target.target.talkingPoints;
     if (raw != null && raw.trim().isNotEmpty && _talkingPoints.isEmpty) {
       _talkingPoints = raw.split('\n').where((s) => s.trim().isNotEmpty).toList();
@@ -640,30 +644,16 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                 child: _editingNotes
                                     ? AppInput(
                                         controller: _notesCtrl,
-                                        maxLines: 4,
+                                        maxLines: 20,
+                                        minLines: 6,
                                         hintText: 'Add notes about this company...',
                                       )
-                                    : Text(
-                                        (target.target.notes?.isNotEmpty ?? false)
-                                            ? target.target.notes!
-                                            : 'No notes yet',
-                                        maxLines: 3,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: context.theme.typography.sm.copyWith(
-                                          color: (target.target.notes?.isNotEmpty ?? false)
-                                              ? context.theme.colors.foreground
-                                              : context.theme.colors.mutedForeground,
-                                          height: 1.5,
-                                        ),
+                                    : _NotesReadView(
+                                        notes: target.target.notes,
+                                        theme: context.theme,
                                       ),
                               ),
-                              if (_editingNotes) ...[
-                                const SizedBox(width: 8),
-                                Column(children: [
-                                  AppButton(label: 'Save', variant: ButtonVariant.secondary, size: ButtonSize.sm, onPressed: () => _saveNotes(companyId)),
-                                  AppButton(label: 'Cancel', variant: ButtonVariant.ghost, size: ButtonSize.sm, onPressed: () => setState(() => _editingNotes = false)),
-                                ]),
-                              ] else
+                              if (!_editingNotes)
                                 AppButton(
                                   variant: ButtonVariant.ghost,
                                   size: ButtonSize.sm,
@@ -672,6 +662,28 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                                 ),
                             ],
                           ),
+                          if (_editingNotes) ...[
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: AppButton(
+                                    label: 'Save',
+                                    variant: ButtonVariant.primary,
+                                    onPressed: () => _saveNotes(companyId),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: AppButton(
+                                    label: 'Cancel',
+                                    variant: ButtonVariant.outline,
+                                    onPressed: () => setState(() => _editingNotes = false),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -699,13 +711,26 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                           const SizedBox(height: 16),
                           if (target.target.notes?.isNotEmpty ?? false) ...[
                             GestureDetector(
-                              onTap: () async {
+                              onTap: () {
                                 final newVal = !_useNotesForBriefing;
-                                setState(() => _useNotesForBriefing = newVal);
-                                try {
-                                  await ApiService.updateEventTarget(widget.event.id, widget.targetId, {'use_notes_for_briefing': newVal});
-                                  await _targetsRepo.catchUp();
-                                } on UnauthorizedException { rethrow; } catch (_) {}
+                                // Optimistic flip — instant, no awaiting the network.
+                                setState(() {
+                                  _useNotesForBriefing = newVal;
+                                  _useNotesWriteInFlight = true;
+                                });
+                                () async {
+                                  try {
+                                    await ApiService.updateEventTarget(widget.event.id, widget.targetId, {'use_notes_for_briefing': newVal});
+                                    await _targetsRepo.catchUp();
+                                  } on UnauthorizedException {
+                                    // surfaced elsewhere; keep optimistic state
+                                  } catch (_) {
+                                    // revert on failure
+                                    if (mounted) { setState(() => _useNotesForBriefing = !newVal); }
+                                  } finally {
+                                    if (mounted) { setState(() => _useNotesWriteInFlight = false); }
+                                  }
+                                }();
                               },
                               behavior: HitTestBehavior.opaque,
                               child: Container(
@@ -799,26 +824,8 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
                             _buildInfoBanner(_briefingError!, isError: true),
                           ],
                           if (_talkingPoints.isNotEmpty && !_isGenerating) ...[
-                            const SizedBox(height: 24),
-                            AppSectionLabel('Talking Points', color: _c.accent),
-                            const SizedBox(height: 14),
-                            ..._talkingPoints.asMap().entries.map((e) => Padding(
-                              padding: EdgeInsets.only(bottom: e.key < _talkingPoints.length - 1 ? 14 : 0),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: 22, height: 22,
-                                    margin: const EdgeInsets.only(top: 1),
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(color: _c.accentSoft, borderRadius: BorderRadius.circular(6)),
-                                    child: Text('${e.key + 1}', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: Text(e.value, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5))),
-                                ],
-                              ),
-                            )),
+                            const SizedBox(height: 20),
+                            BriefingBody(lines: _talkingPoints, accentColor: _c.accent),
                             const SizedBox(height: 16),
                             AppButton(
                               label: _briefingInNotes ? 'ALREADY IN NOTES' : 'ADD TO NOTES',
@@ -1118,5 +1125,140 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
       const SizedBox(width: 10),
       SkeletonLoader(width: 60, height: 28, borderRadius: BorderRadius.circular(8)),
     ]);
+  }
+}
+
+// Scrollable read-only notes view capped at ~8 lines with a fade-out
+// indicator when there is more content below.
+class _NotesReadView extends StatefulWidget {
+  final String? notes;
+  final FThemeData theme;
+
+  const _NotesReadView({required this.notes, required this.theme});
+
+  @override
+  State<_NotesReadView> createState() => _NotesReadViewState();
+}
+
+class _NotesReadViewState extends State<_NotesReadView> {
+  final ScrollController _scroll = ScrollController();
+  bool _hasMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflow());
+  }
+
+  void _onScroll() {
+    final more = _scroll.position.extentAfter > 1;
+    if (more != _hasMore) setState(() => _hasMore = more);
+  }
+
+  void _checkOverflow() {
+    if (!_scroll.hasClients) return;
+    final more = _scroll.position.extentAfter > 1;
+    if (more != _hasMore) setState(() => _hasMore = more);
+  }
+
+  @override
+  void didUpdateWidget(_NotesReadView old) {
+    super.didUpdateWidget(old);
+    if (old.notes != widget.notes) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflow());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasNotes = widget.notes?.isNotEmpty ?? false;
+    if (!hasNotes) {
+      return Text(
+        'No notes yet',
+        style: widget.theme.typography.sm.copyWith(
+          color: widget.theme.colors.mutedForeground,
+          height: 1.5,
+        ),
+      );
+    }
+
+    // ~20 lines at 1.5 line-height × ~14px font ≈ 420px
+    const double maxHeight = 420;
+    final cardBg = widget.theme.colors.background;
+    final accentColor = AppTheme.colorsOf(context).accent;
+
+    return Stack(
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: maxHeight),
+          child: SingleChildScrollView(
+            controller: _scroll,
+            physics: const ClampingScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                widget.notes!,
+                style: widget.theme.typography.sm.copyWith(
+                  color: widget.theme.colors.foreground,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (_hasMore)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          cardBg.withValues(alpha: 0),
+                          cardBg.withValues(alpha: 0.85),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Container(
+                    color: cardBg,
+                    padding: const EdgeInsets.only(bottom: 2, top: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: accentColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          'scroll for more',
+                          style: widget.theme.typography.xs.copyWith(
+                            color: accentColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }

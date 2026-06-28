@@ -10,6 +10,7 @@ import '../providers/offline_provider.dart';
 import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
 import '../services/offline/write_gateway.dart';
+import '../widgets/additional_details_editor.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -66,6 +67,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
   List<Event> _events    = [];
   String?     _eventId;
   final _meetContextCtrl = TextEditingController();
+  final _detailsController = AdditionalDetailsController();
   bool        _isSaving  = false;
   bool        _saved     = false;
   // Dedup (online only — offline dedup goes through notifications).
@@ -101,6 +103,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
     _phoneFocus.dispose();
     _linkedinFocus.dispose();
     _meetContextCtrl.dispose();
+    _detailsController.dispose();
     super.dispose();
   }
 
@@ -146,6 +149,8 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
                       AppSectionLabel('Contact Info'),
                       const SizedBox(height: 10),
                       _buildContactInfoCard(),
+                      const SizedBox(height: 24),
+                      AdditionalDetailsEditor(controller: _detailsController),
                       const SizedBox(height: 24),
                       AppSectionLabel('Event'),
                       const SizedBox(height: 10),
@@ -552,6 +557,8 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
           'phone':        _phoneCtrl.text.trim(),
           'job_title':    _titleCtrl.text.trim(),
           'linkedin_url': _linkedinCtrl.text.trim(),
+          if (_detailsController.toMap().isNotEmpty)
+            'scanned_details': _detailsController.toMap(),
         },
       );
       if (!mounted) return;

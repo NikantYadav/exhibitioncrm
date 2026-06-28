@@ -20,6 +20,7 @@ import '../models/event.dart';
 import '../providers/offline_provider.dart';
 import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/additional_details_editor.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -88,6 +89,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
   List<Event> _events = [];
   String? _eventId;
   final _meetContextCtrl = TextEditingController();
+  final _detailsController = AdditionalDetailsController();
 
   // ── Save state ───────────────────────────────────────────────
   bool _isSaving = false;
@@ -139,6 +141,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     _titleCtrl.dispose();
     _transcriptCtrl.dispose();
     _meetContextCtrl.dispose();
+    _detailsController.dispose();
     super.dispose();
   }
 
@@ -849,6 +852,9 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
             keyboardType: TextInputType.phone,
           ),
 
+          const SizedBox(height: 24),
+          AdditionalDetailsEditor(controller: _detailsController),
+
           if (_events.isNotEmpty) ...[
             const SizedBox(height: 24),
             _sectionHeader(context, 'Event'),
@@ -1482,6 +1488,8 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
           'email': _emailCtrl.text.trim(),
           'phone': _phoneCtrl.text.trim(),
           'job_title': _titleCtrl.text.trim(),
+          if (_detailsController.toMap().isNotEmpty)
+            'scanned_details': _detailsController.toMap(),
         },
       );
       if (!mounted) return;

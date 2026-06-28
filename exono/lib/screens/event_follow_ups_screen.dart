@@ -335,7 +335,7 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
                         }
                         if (!snapshot.hasData) return _buildSkeleton();
                         _followUps = snapshot.data!;
-                        return _followUps.isEmpty ? _buildEmptyState() : _buildBody();
+                        return _buildBody();
                       },
                     ),
             ),
@@ -783,28 +783,24 @@ class _ContactFollowUpCard extends StatelessWidget {
                             ],
                           ],
                         ),
-                        const SizedBox(height: 3),
-                        Text.rich(
-                          TextSpan(
+                        if (role.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(role,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: context.theme.typography.xs
-                                .copyWith(color: context.theme.colors.mutedForeground),
-                            children: [
-                              TextSpan(text: role),
-                              if (companyName.isNotEmpty) ...[
-                                const TextSpan(text: ' · '),
-                                TextSpan(
-                                  text: companyName,
-                                  style: TextStyle(
-                                    color: _c.accent,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                                .copyWith(color: context.theme.colors.mutedForeground)),
+                        ],
+                        if (companyName.isNotEmpty) ...[
+                          const SizedBox(height: 1),
+                          Text(companyName,
+                            softWrap: true,
+                            style: context.theme.typography.xs.copyWith(
+                              color: _c.accent,
+                              fontWeight: FontWeight.w600,
+                              height: 1.2,
+                            )),
+                        ],
                       ],
                     ),
                   ),

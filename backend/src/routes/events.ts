@@ -1401,11 +1401,21 @@ router.post('/:id/targets/:targetId/briefing', async (req, res, next) => {
     const webContext = TavilyService.formatForPrompt([...overviewResults, ...newsResults]);
     console.log(`[briefing] → Tavily returned ${overviewResults.length + newsResults.length} results`);
 
-    let prompt = `Generate 4 concise, specific talking points for a business networking conversation with ${companyName}${industry ? ` (${industry})` : ''}${description ? `. Company description: ${description}` : ''}.`;
-    if (webContext) {
-      prompt += `\n\nUse the following real-time web research to make the talking points current and specific:\n\n${webContext}`;
+    const companyContext = `${companyName}${industry ? ` (${industry})` : ''}${description ? `. ${description}` : ''}`;
+    const userNotes = (target.use_notes_for_briefing && target.notes?.trim()) ? target.notes.trim() : null;
+
+    let prompt = `You are preparing a pre-meeting briefing for someone about to have a business networking conversation with ${companyContext}.
+
+Write it in whatever structure best fits what you actually know about this company — there is no required format. Use short paragraphs, and where a section heading genuinely helps the reader skim, write it on its own line wrapped in **double asterisks**. Don't force headings or a fixed number of sections; let the content decide the shape. Keep it concise and skimmable.`;
+
+    if (userNotes) {
+      prompt += `\n\nThe user has provided the following personal notes about this company — treat these as high-priority context and let them shape the briefing:\n\n${userNotes}`;
     }
-    prompt += `\n\nFormat: one talking point per line, no bullet points or numbering, plain text only.`;
+
+    if (webContext) {
+      prompt += `\n\nUse the following real-time web research to make the briefing current and specific:\n\n${webContext}`;
+    }
+    prompt += `\n\nPlain text only — no bullet points, no numbered lists. Separate paragraphs with a blank line.`;
 
     const llm = new LiteLLMService();
     const talkingPoints = await llm.generateCompletion([{ role: 'user', content: prompt }]);

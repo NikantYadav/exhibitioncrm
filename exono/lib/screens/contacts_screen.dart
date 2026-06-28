@@ -23,6 +23,7 @@ import '../widgets/app_feedback.dart';
 import '../widgets/app_offline_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import 'manual_entry_screen.dart';
+import 'voice_contact_capture_screen.dart';
 import '../utils/screen_logger.dart';
 
 class ContactsScreen extends StatefulWidget {
@@ -425,6 +426,21 @@ class _AddContactSheet extends StatelessWidget {
 
   const _AddContactSheet({required this.onContactAdded});
 
+  // Pushes the Manual Entry screen. Shared by the Manual Entry button and the
+  // Voice screen's "switch to manual" handoff (which pops with goManual=true).
+  // Takes a NavigatorState (captured before the add-contact sheet is dismissed)
+  // so it stays valid after the sheet's own BuildContext is gone.
+  Future<void> _openManualEntry(NavigatorState navigator) async {
+    navBarHide();
+    final result = await navigator.push<ManualEntryResult>(
+      MaterialPageRoute(
+        builder: (_) => const ManualEntryScreen(),
+      ),
+    );
+    navBarShow();
+    if (result != null) { onContactAdded(); }
+  }
+
   Future<void> _showBulkImportSheet(BuildContext context) async {
     await showAppSheet(
       context: context,
@@ -610,9 +626,14 @@ class _AddContactSheet extends StatelessWidget {
               variant: ButtonVariant.outline,
               fullWidth: true,
               onPressed: () async {
+                final navigator = Navigator.of(context);
                 context.pop();
                 final result = await context.push('/voice-capture');
-                if (result != null) { onContactAdded(); }
+                if (result is VoiceContactResult && result.goManual) {
+                  await _openManualEntry(navigator);
+                } else if (result != null) {
+                  onContactAdded();
+                }
               },
             ),
             const SizedBox(height: 12),
@@ -622,15 +643,9 @@ class _AddContactSheet extends StatelessWidget {
               variant: ButtonVariant.outline,
               fullWidth: true,
               onPressed: () async {
+                final navigator = Navigator.of(context);
                 context.pop();
-                navBarHide();
-                final result = await Navigator.of(context).push<ManualEntryResult>(
-                  MaterialPageRoute(
-                    builder: (_) => const ManualEntryScreen(),
-                  ),
-                );
-                navBarShow();
-                if (result != null) { onContactAdded(); }
+                await _openManualEntry(navigator);
               },
             ),
             const SizedBox(height: 12),

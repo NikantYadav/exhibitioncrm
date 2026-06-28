@@ -609,7 +609,8 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
                       Text(contact.company, style: theme.typography.sm.copyWith(
                         fontWeight: FontWeight.w600,
                         color: theme.colors.primary,
-                      ), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        height: 1.2,
+                      ), softWrap: true),
                     ],
                     const SizedBox(height: 8),
                     _followUpBadge(contact.followUpStatus),
@@ -721,8 +722,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
             Expanded(
               child: Text(
                 value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                softWrap: true,
                 style: context.theme.typography.sm.copyWith(color: fg),
               ),
             ),

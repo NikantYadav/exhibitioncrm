@@ -21,6 +21,7 @@ import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/app_sheet_content.dart';
+import '../widgets/briefing_body.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
 
@@ -680,30 +681,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
                 // Talking Points section
                 if (talkingPoints.isNotEmpty && !_isGenerating) ...[
                   const SizedBox(height: 20),
-                  AppSectionLabel('Talking Points', color: _c.accent),
-                  const SizedBox(height: 14),
-                  ...talkingPoints.asMap().entries.map((e) => Padding(
-                    padding: EdgeInsets.only(bottom: e.key < talkingPoints.length - 1 ? 14 : 0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 22,
-                          height: 22,
-                          margin: const EdgeInsets.only(top: 1),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: _c.accentSoft, borderRadius: BorderRadius.circular(6)),
-                          child: Text('${e.key + 1}',
-                              style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(e.value,
-                              style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.5)),
-                        ),
-                      ],
-                    ),
-                  )),
+                  BriefingBody(lines: talkingPoints, accentColor: _c.accent),
                 ] else if (!_isGenerating && talkingPoints.isEmpty) ...[
                   const SizedBox(height: 14),
                   Text('Generate an AI briefing to get talking points for your next meeting.',

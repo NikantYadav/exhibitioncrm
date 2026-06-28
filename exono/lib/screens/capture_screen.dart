@@ -28,6 +28,7 @@ import '../providers/sync_provider.dart';
 import '../services/api_service.dart';
 import '../services/offline/write_gateway.dart';
 import '../services/web_file_picker.dart' if (dart.library.io) '../services/web_file_picker_stub.dart';
+import '../widgets/additional_details_editor.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -93,8 +94,9 @@ class _CaptureScreenState extends State<CaptureScreen>
   final _titleCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final _voiceCtrl = TextEditingController();
-  Map<String, dynamic>? _scannedDetails;
-  final Map<String, TextEditingController> _scannedDetailCtrls = {};
+  // Additional details as editable label/value pairs. Pre-filled from a card
+  // scan's extracted `scanned_details`, and also addable from scratch.
+  final _detailsController = AdditionalDetailsController();
 
   // ── Events ─────────────────────────────────────────────────
   List<Event> _events = [];
@@ -135,7 +137,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     _fnCtrl.dispose(); _lnCtrl.dispose(); _coCtrl.dispose();
     _emailCtrl.dispose(); _phoneCtrl.dispose(); _titleCtrl.dispose();
     _notesCtrl.dispose(); _voiceCtrl.dispose(); _meetContextCtrl.dispose();
-    for (final c in _scannedDetailCtrls.values) { c.dispose(); }
+    _detailsController.dispose();
     super.dispose();
   }
 
@@ -595,12 +597,8 @@ class _CaptureScreenState extends State<CaptureScreen>
                           label: 'How did you meet? (optional)',
                         ),
                       ],
-                      if (_scannedDetails != null && _scannedDetails!.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        AppSectionLabel('Additional Details'),
-                        const SizedBox(height: 10),
-                        _buildScannedDetailsCard(),
-                      ],
+                      const SizedBox(height: 24),
+                      AdditionalDetailsEditor(controller: _detailsController),
                       const SizedBox(height: 24),
                       AppSectionLabel('Meeting Notes'),
                       const SizedBox(height: 12),
@@ -771,66 +769,6 @@ class _CaptureScreenState extends State<CaptureScreen>
           ),
         ],
       ),
-    );
-  }
-
-  // ── Additional details (scanned card text that didn't map to a field) ──
-
-  Widget _buildScannedDetailsCard() {
-    final keys = _scannedDetails!.keys.toList();
-    return AppCard(
-      radius: 20,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var i = 0; i < keys.length; i++) ...[
-            if (i > 0) const SizedBox(height: 16),
-            _scannedDetailRow(keys[i]),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _scannedDetailRow(String key) {
-    final label = key
-        .replaceAll('_', ' ')
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .map((w) => w[0].toUpperCase() + w.substring(1))
-        .join(' ');
-    final ctrl = _scannedDetailCtrls.putIfAbsent(
-      key,
-      () => TextEditingController(text: _scannedDetails![key]?.toString() ?? ''),
-    );
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AppSectionLabel(label),
-              const SizedBox(height: 6),
-              AppInput(
-                controller: ctrl,
-                onChanged: (v) => _scannedDetails![key] = v,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        AppButton(
-          onPressed: () => setState(() {
-            _scannedDetails!.remove(key);
-            _scannedDetailCtrls.remove(key)?.dispose();
-          }),
-          variant: ButtonVariant.ghost,
-          size: ButtonSize.sm,
-          child: Icon(Icons.close_rounded, size: 16, color: _c.accent),
-        ),
-      ],
     );
   }
 
@@ -1598,8 +1536,8 @@ class _CaptureScreenState extends State<CaptureScreen>
         'email':      _emailCtrl.text.trim(),
         'phone':      _phoneCtrl.text.trim(),
         'job_title':  _titleCtrl.text.trim(),
-        if (_scannedDetails != null && _scannedDetails!.isNotEmpty)
-          'scanned_details': _scannedDetails,
+        if (_detailsController.toMap().isNotEmpty)
+          'scanned_details': _detailsController.toMap(),
       };
 
       // Use WriteGateway so offline scans get queued with their image bytes.
@@ -1619,20 +1557,25 @@ class _CaptureScreenState extends State<CaptureScreen>
         if (!mounted) return;
         context.read<OfflineProvider>().refreshPendingCount();
         showAppToast(context, 'Saved offline - will be processed when online');
+        _detailsController.clear();
+        _meetContextCtrl.clear();
+        _notesCtrl.clear();
+        _voiceCtrl.clear();
         setState(() { _isSaving = false; _pendingImageBytes = null; _stage = _Stage.scan; });
         captureReturnSignal.value++;
         return;
       }
 
       final captureName = '${_fnCtrl.text.trim()} (${_coCtrl.text.trim()})'.trim();
-      for (final c in _scannedDetailCtrls.values) { c.dispose(); }
-      _scannedDetailCtrls.clear();
+      _detailsController.clear();
+      _meetContextCtrl.clear();
+      _notesCtrl.clear();
+      _voiceCtrl.clear();
       setState(() {
         _saved = true;
         _isSaving = false;
         _lastCapture = captureName;
         _pendingImageBytes = null;
-        _scannedDetails = null;
       });
       captureReturnSignal.value++;
       await Future<void>.delayed(const Duration(milliseconds: 1800));
@@ -1698,6 +1641,10 @@ class _CaptureScreenState extends State<CaptureScreen>
 
       if (!mounted) return;
       final captureName = '${_fnCtrl.text.trim()} (${_coCtrl.text.trim()})'.trim();
+      _detailsController.clear();
+      _meetContextCtrl.clear();
+      _notesCtrl.clear();
+      _voiceCtrl.clear();
       setState(() {
         _saved = true;
         _isSaving = false;
@@ -1787,12 +1734,8 @@ class _CaptureScreenState extends State<CaptureScreen>
     _emailCtrl.text = (d['email']     as String?)?.trim() ?? '';
     _phoneCtrl.text = (d['phone']     as String?)?.trim() ?? '';
     _titleCtrl.text = (d['job_title'] as String?)?.trim() ?? (d['title'] as String?)?.trim() ?? '';
-    for (final c in _scannedDetailCtrls.values) { c.dispose(); }
-    _scannedDetailCtrls.clear();
     final extra = d['scanned_details'];
-    _scannedDetails = (extra is Map && extra.isNotEmpty)
-        ? Map<String, dynamic>.from(extra)
-        : null;
+    _detailsController.setFromMap(extra is Map ? Map<String, dynamic>.from(extra) : null);
   }
 
   String _fmtDur(Duration d) {

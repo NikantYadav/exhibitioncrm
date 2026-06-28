@@ -636,22 +636,22 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                           decorationColor: context.theme.colors.mutedForeground,
                         ),
                         overflow: TextOverflow.ellipsis),
-                      if (designation.isNotEmpty || company.isNotEmpty) ...[
+                      if (designation.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        Text.rich(
-                          TextSpan(children: [
-                            if (designation.isNotEmpty)
-                              TextSpan(text: designation),
-                            if (designation.isNotEmpty && company.isNotEmpty)
-                              const TextSpan(text: ' · '),
-                            if (company.isNotEmpty)
-                              TextSpan(
-                                text: company,
-                                style: TextStyle(color: _c.accent, fontWeight: FontWeight.w600)),
-                          ]),
+                        Text(designation,
                           maxLines: 1,
-                          style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground),
-                          overflow: TextOverflow.ellipsis),
+                          overflow: TextOverflow.ellipsis,
+                          style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
+                      ],
+                      if (company.isNotEmpty) ...[
+                        const SizedBox(height: 1),
+                        Text(company,
+                          softWrap: true,
+                          style: context.theme.typography.xs.copyWith(
+                            color: _c.accent,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          )),
                       ],
                       const SizedBox(height: 4),
                       Row(children: [
@@ -809,19 +809,41 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                               height: 1.4)),
                         ],
                         const SizedBox(height: 12),
-                        // Full-width action — generous tap target, never crowded.
-                        AppButton(
-                          label: actionLabel,
-                          onPressed: onAction,
-                          variant: actionVariant,
-                          size: ButtonSize.sm,
-                          fullWidth: true,
-                          prefixIcon: isDone
-                              ? null
-                              : Icon(status == 'skipped'
-                                  ? Icons.undo_rounded
-                                  : Icons.check_circle_outline_rounded),
-                        ),
+                        if (status != 'done' && status != 'skipped')
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AppButton(
+                                  label: actionLabel,
+                                  onPressed: onAction,
+                                  variant: actionVariant,
+                                  size: ButtonSize.sm,
+                                  prefixIcon: const Icon(Icons.check_circle_outline_rounded),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: AppButton(
+                                  label: 'Skip',
+                                  onPressed: () => _setRecordStatus(contactId, eventId, 'skipped'),
+                                  variant: ButtonVariant.outline,
+                                  size: ButtonSize.sm,
+                                  prefixIcon: const Icon(Icons.skip_next_rounded),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          AppButton(
+                            label: actionLabel,
+                            onPressed: onAction,
+                            variant: actionVariant,
+                            size: ButtonSize.sm,
+                            fullWidth: true,
+                            prefixIcon: isDone
+                                ? null
+                                : const Icon(Icons.undo_rounded),
+                          ),
                       ],
                     ),
                   ),
