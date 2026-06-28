@@ -15,6 +15,10 @@ class AppAvatar extends StatelessWidget {
   final double size;
   final bool done;
   final String? imageUrl;
+  /// Renders white/glass for placement on an accent-filled surface (e.g. a
+  /// priority follow-up card), where the default translucent-accent gradient +
+  /// accent initials would be invisible blue-on-blue. Reads in both modes.
+  final bool onAccent;
 
   const AppAvatar({
     super.key,
@@ -22,6 +26,7 @@ class AppAvatar extends StatelessWidget {
     this.size = 44,
     this.done = false,
     this.imageUrl,
+    this.onAccent = false,
   });
 
   const AppAvatar.network({
@@ -30,6 +35,7 @@ class AppAvatar extends StatelessWidget {
     required this.initials,
     this.size = 44,
     this.done = false,
+    this.onAccent = false,
   }) : imageUrl = url;
 
   @override
@@ -73,6 +79,24 @@ class AppAvatar extends StatelessWidget {
     }
 
     final fontSize = size < 36 ? context.theme.typography.xs : context.theme.typography.sm;
+
+    if (onAccent) {
+      final white = context.theme.colors.primaryForeground;
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: white.withValues(alpha: 0.18),
+          borderRadius: radius,
+          border: Border.all(color: white.withValues(alpha: 0.45)),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          initials.toUpperCase(),
+          style: fontSize.copyWith(fontWeight: FontWeight.w700, color: white),
+        ),
+      );
+    }
 
     return Container(
       width: size,

@@ -161,11 +161,26 @@ class AppHeader extends StatelessWidget {
 class AppHeaderActionButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
+  /// Renders white-on-transparent for placement on an accent-filled surface
+  /// (e.g. a priority follow-up card), where the default accent icon/border
+  /// would be invisible blue-on-blue. White reads on the accent in both modes.
+  final bool onAccent;
 
-  const AppHeaderActionButton({super.key, required this.icon, this.onPressed});
+  const AppHeaderActionButton({
+    super.key,
+    required this.icon,
+    this.onPressed,
+    this.onAccent = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final fg = onAccent
+        ? context.theme.colors.primaryForeground
+        : AppTheme.colorsOf(context).accent;
+    final borderColor = onAccent
+        ? context.theme.colors.primaryForeground.withValues(alpha: 0.5)
+        : context.theme.colors.border;
     return GestureDetector(
       onTap: onPressed,
       child: Container(
@@ -173,10 +188,10 @@ class AppHeaderActionButton extends StatelessWidget {
         height: 34,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: context.theme.colors.border, width: 1.5),
+          border: Border.all(color: borderColor, width: 1.5),
         ),
         alignment: Alignment.center,
-        child: Icon(icon, size: 18, color: AppTheme.colorsOf(context).accent),
+        child: Icon(icon, size: 18, color: fg),
       ),
     );
   }

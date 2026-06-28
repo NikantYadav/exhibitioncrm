@@ -11,13 +11,11 @@ import '../config/app_theme.dart';
 ///
 /// This is a fully custom bar (NOT forui's `FBottomNavigationBar`). forui's bar
 /// hardcodes its bottom inset as `viewPadding.bottom * 2/3` plus an internal
-/// SafeArea, which double-counts on some devices and under-counts on others —
-/// producing extra space below the bar on iOS and the bar sliding under the
-/// system nav bar on certain Android devices. We replicate forui's exact visual
-/// style (top border, background, icon/label colors, sizes, spacing) but own the
-/// inset: we add the real system bottom inset, read from the raw FlutterView so
-/// it is correct on every device regardless of edge-to-edge / Scaffold inset
-/// stripping.
+/// SafeArea, which rendered inconsistently across devices (extra space on iOS,
+/// the bar sliding under the system nav on some Android devices). We replicate
+/// forui's exact visual style (top border, background, icon/label colors, sizes,
+/// spacing) but add NO system bottom inset — the bar sits flush against the very
+/// bottom of the screen on every device, by design.
 class AppBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onNavigate;
@@ -111,12 +109,6 @@ class AppBottomNav extends StatelessWidget {
   }
 
   Widget _buildBar(BuildContext context, FThemeData theme, int activeItem) {
-    // Real system bottom inset, read from the raw FlutterView so it is correct
-    // on every device — never 0 from an ancestor SafeArea, never the doubled /
-    // 2-3 value forui produced. Logical pixels = physical inset / dpr.
-    final view = View.of(context);
-    final bottomInset = view.viewPadding.bottom / view.devicePixelRatio;
-
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colors.background,
@@ -128,9 +120,10 @@ class AppBottomNav extends StatelessWidget {
         ),
       ),
       child: Padding(
-        // forui's base item padding is EdgeInsets.all(5); we keep the 5px top
-        // band and add the real system inset below the row.
-        padding: EdgeInsets.fromLTRB(5, 5, 5, 5 + bottomInset),
+        // Zero system bottom inset by design: the bar sits flush against the
+        // very bottom of the screen (no home-indicator / nav-bar gap). Only
+        // forui's base 5px item band is kept around the row.
+        padding: const EdgeInsets.all(5),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [

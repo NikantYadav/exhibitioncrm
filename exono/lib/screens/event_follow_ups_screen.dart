@@ -775,7 +775,7 @@ class _ContactFollowUpCard extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  AppAvatar(initials: initials, size: 46, done: isSent),
+                  AppAvatar(initials: initials, size: 46, done: isSent, onAccent: accentSurface),
                   const SizedBox(width: 14),
                   // Name + role
                   Expanded(
@@ -851,6 +851,7 @@ class _ContactFollowUpCard extends StatelessWidget {
                   AppHeaderActionButton(
                     icon: Icons.person_outline_rounded,
                     onPressed: () => context.push('/contacts/$contactId'),
+                    onAccent: accentSurface,
                   ),
                   // Trailing action
                   if (isSent) ...[

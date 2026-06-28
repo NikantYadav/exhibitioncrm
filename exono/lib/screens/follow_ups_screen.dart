@@ -652,7 +652,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                AppAvatar(initials: _initials(contact), done: isDone),
+                AppAvatar(initials: _initials(contact), done: isDone, onAccent: isPriority),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -715,6 +715,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                 AppHeaderActionButton(
                   icon: Icons.person_outline_rounded,
                   onPressed: () => context.push('/contacts/$contactId'),
+                  onAccent: isPriority,
                 ),
                 // Chevron toggle — every card expands into its record rows.
                 GestureDetector(
