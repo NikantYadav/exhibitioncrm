@@ -1,6 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
+import '../utils/markdown_normalize.dart';
 import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
@@ -548,7 +551,25 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
 
                 if (desc.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Text(desc, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.55)),
+                  MarkdownBody(
+                    data: normalizeMarkdownTables(desc),
+                    extensionSet: md.ExtensionSet.gitHubFlavored,
+                    styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+                      p: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.55),
+                      h1: context.theme.typography.xl.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w700),
+                      h2: context.theme.typography.lg.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w700),
+                      h3: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w700),
+                      strong: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w700, height: 1.55),
+                      em: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, fontStyle: FontStyle.italic, height: 1.55),
+                      code: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontFamily: 'monospace', height: 1.55),
+                      tableHead: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, fontWeight: FontWeight.w700),
+                      tableBody: context.theme.typography.sm.copyWith(color: context.theme.colors.foreground, height: 1.55),
+                      tableBorder: TableBorder.all(color: context.theme.colors.border, width: 1),
+                      tableHeadAlign: TextAlign.left,
+                      blockquote: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, fontStyle: FontStyle.italic, height: 1.55),
+                      listBullet: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground, height: 1.55),
+                    ),
+                  ),
                 ],
               ],
             ),

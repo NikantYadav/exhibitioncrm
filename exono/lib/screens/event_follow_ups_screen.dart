@@ -148,8 +148,11 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   int get _sentCount => _followUps.where(_isSent).length;
   int get _skippedCount => _followUps.where((fu) => _isSkipped(fu) && !_isSent(fu)).length;
   int get _pendingCount => _followUps.where((fu) => !_isSent(fu) && !_isSkipped(fu)).length;
-  double get _completionRate =>
-      _totalContacts == 0 ? 0 : _sentCount / _totalContacts;
+  // Skipped follow-ups count as completed for progress purposes — the user has
+  // dealt with them, they're no longer pending.
+  double get _completionRate => _totalContacts == 0
+      ? 0
+      : (_sentCount + _skippedCount) / _totalContacts;
 
   String _initials(FollowUpRow fu) {
     final f = fu.firstName;

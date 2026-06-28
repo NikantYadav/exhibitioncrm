@@ -193,9 +193,12 @@ class ApiService {
     }
   }
 
-  static Future<List<Event>> getEvents() async {
+  static Future<List<Event>> getEvents({String? query}) async {
+    final url = query != null && query.isNotEmpty
+        ? '${ApiConfig.baseUrl}${ApiConfig.events}?q=${Uri.encodeComponent(query)}'
+        : '${ApiConfig.baseUrl}${ApiConfig.events}';
     final response = await _send(() async => http.get(
-      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}'),
+      Uri.parse(url),
       headers: await _headers(),
     ));
 

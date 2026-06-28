@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../utils/safe_area_insets.dart';
@@ -40,14 +42,19 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
   final ScrollController _scrollController = ScrollController();
 
   String? _filterCompany;
-  String? _filterLocation;
+  String? _filterCompanyId;
   String? _filterStatus;
   String? _filterEventId;
+  String? _filterEventName;
 
   String _searchQuery = '';
 
   // Alphabet index
   final List<String> _alphabet = ['#', ...List.generate(26, (i) => String.fromCharCode(65 + i))];
+
+  // contactId -> set of eventIds the contact has a follow-up for (from the
+  // follow_ups table). Source of truth for the event filter.
+  Map<String, Set<String>> _contactEventIds = {};
 
   List<ContactProfileData> _filteredContacts(List<ContactProfileData> allContacts) {
     final query = _searchQuery.trim().toLowerCase();
@@ -56,10 +63,20 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
           !c.listName.toLowerCase().contains(query) &&
           !c.listSubtitle.toLowerCase().contains(query) &&
           !c.location.toLowerCase().contains(query)) { return false; }
-      if (_filterCompany != null && c.company != _filterCompany) { return false; }
-      if (_filterLocation != null && c.location != _filterLocation) { return false; }
+      if (_filterCompany != null) {
+        // Match by company id when we have one (reliable across casing/whitespace
+        // drift in the denormalized company text); otherwise fall back to a
+        // case-insensitive name compare.
+        final byId = _filterCompanyId != null &&
+            _filterCompanyId!.isNotEmpty &&
+            c.companyId == _filterCompanyId;
+        final byName = c.company.toLowerCase().trim() ==
+            _filterCompany!.toLowerCase().trim();
+        if (!byId && !byName) { return false; }
+      }
       if (_filterStatus != null && c.followUpStatus != _filterStatus) { return false; }
-      if (_filterEventId != null && !c.linkedEvents.any((e) => e.id == _filterEventId)) { return false; }
+      if (_filterEventId != null &&
+          !(_contactEventIds[c.id]?.contains(_filterEventId) ?? false)) { return false; }
       return true;
     }).toList();
   }
@@ -94,7 +111,8 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
     final isOnline = context.watch<OfflineProvider>().isOnline;
     if (!isOnline) return const AppOfflineScreen(title: 'Contacts');
 
-    final contactsRepo = context.read<SyncProvider>().contacts;
+    final sync = context.read<SyncProvider>();
+    final contactsRepo = sync.contacts;
 
     return FScaffold(
       header: AppHeader(
@@ -103,7 +121,11 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
         onActionPressed: () => _showAddContactSheet(contactsRepo),
       ),
       childPad: false,
-      child: StreamBuilder<List<Contact>>(
+      child: StreamBuilder<Map<String, Set<String>>>(
+        stream: sync.followUps.watchContactEventIds(),
+        builder: (context, followUpSnapshot) {
+          _contactEventIds = followUpSnapshot.data ?? _contactEventIds;
+          return StreamBuilder<List<Contact>>(
         stream: contactsRepo.watchAllWithCompany(),
         builder: (context, snapshot) {
           // Surface a stream error instead of skeletoning forever — a silent
@@ -130,6 +152,8 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
           final allContacts = (snapshot.data ?? []).map(mapContactToProfileData).toList();
           return _buildListBody(allContacts, contactsRepo);
         },
+          );
+        },
       ),
     );
   }
@@ -146,11 +170,10 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
   }
 
   bool get _hasActiveFilters =>
-      _filterCompany != null || _filterLocation != null ||
-      _filterStatus != null || _filterEventId != null;
+      _filterCompany != null || _filterStatus != null || _filterEventId != null;
 
-  Widget _buildSearchBar(FThemeData theme, List<ContactProfileData> allContacts) {
-    final activeCount = [_filterCompany, _filterLocation, _filterStatus, _filterEventId]
+  Widget _buildSearchBar(FThemeData theme) {
+    final activeCount = [_filterCompany, _filterStatus, _filterEventId]
         .where((f) => f != null)
         .length;
     return Padding(
@@ -168,8 +191,14 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
           const SizedBox(width: 8),
           AppButton(
             variant: _hasActiveFilters ? ButtonVariant.primary : ButtonVariant.outline,
-            onPressed: () => _showFilterSheet(allContacts),
-            prefixIcon: Icon(Icons.tune_rounded, size: 18, color: AppTheme.colorsOf(context).accent),
+            onPressed: () => _showFilterSheet(),
+            prefixIcon: Icon(
+              Icons.tune_rounded,
+              size: 18,
+              color: _hasActiveFilters
+                  ? theme.colors.primaryForeground
+                  : AppTheme.colorsOf(context).accent,
+            ),
             label: activeCount > 0 ? 'Filters ($activeCount)' : 'Filter',
           ),
           if (_hasActiveFilters) ...[
@@ -178,9 +207,10 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
               variant: ButtonVariant.ghost,
               onPressed: () => setState(() {
                 _filterCompany = null;
-                _filterLocation = null;
+                _filterCompanyId = null;
                 _filterStatus = null;
                 _filterEventId = null;
+                _filterEventName = null;
               }),
               child: Icon(Icons.close_rounded, size: 18, color: AppTheme.colorsOf(context).accent),
             ),
@@ -190,17 +220,7 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
     );
   }
 
-  void _showFilterSheet(List<ContactProfileData> allContacts) {
-    final allCompanies = allContacts
-        .map((c) => c.company).where((c) => c.isNotEmpty).toSet().toList()..sort();
-    final allLocations = allContacts
-        .map((c) => c.location).where((l) => l.isNotEmpty).toSet().toList()..sort();
-    final eventMap = <String, Event>{};
-    for (final c in allContacts) {
-      for (final e in c.linkedEvents) { eventMap[e.id] = e; }
-    }
-    final allEvents = eventMap.values.toList()..sort((a, b) => a.name.compareTo(b.name));
-
+  void _showFilterSheet() {
     const statuses = [
       ('not_contacted', 'Not Contacted'),
       ('contacted', 'Contacted'),
@@ -210,19 +230,18 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
       context: context,
       builder: (ctx) => _FilterSheet(
         initialCompany: _filterCompany,
-        initialLocation: _filterLocation,
+        initialCompanyId: _filterCompanyId,
         initialStatus: _filterStatus,
         initialEventId: _filterEventId,
-        allCompanies: allCompanies,
-        allLocations: allLocations,
-        allEvents: allEvents,
+        initialEventName: _filterEventName,
         statuses: statuses,
-        onApply: (company, location, status, eventId) {
+        onApply: (company, companyId, status, eventId, eventName) {
           setState(() {
             _filterCompany = company;
-            _filterLocation = location;
+            _filterCompanyId = companyId;
             _filterStatus = status;
             _filterEventId = eventId;
+            _filterEventName = eventName;
           });
         },
       ),
@@ -235,7 +254,7 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
 
     return Column(
       children: [
-        _buildSearchBar(theme, allContacts),
+        _buildSearchBar(theme),
         Expanded(
           child: groups.isEmpty
               ? Center(
@@ -255,9 +274,10 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
                             _searchController.clear();
                             _searchQuery = '';
                             _filterCompany = null;
-                            _filterLocation = null;
+                            _filterCompanyId = null;
                             _filterStatus = null;
                             _filterEventId = null;
+                            _filterEventName = null;
                           }),
                         ),
                       ],
@@ -341,15 +361,40 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      contact.phone.isNotEmpty ? contact.phone : contact.listSubtitle,
-                      style: theme.typography.xs.copyWith(
-                        color: theme.colors.mutedForeground,
+                    if (contact.title.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        contact.title,
+                        style: theme.typography.xs.copyWith(
+                          color: theme.colors.mutedForeground,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    ],
+                    if (contact.company.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        contact.company,
+                        style: theme.typography.xs.copyWith(
+                          color: AppTheme.colorsOf(context).accent,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (contact.phone.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        contact.phone,
+                        style: theme.typography.xs.copyWith(
+                          color: theme.colors.mutedForeground,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -672,23 +717,19 @@ class _AddContactSheet extends StatelessWidget {
 
 class _FilterSheet extends StatefulWidget {
   final String? initialCompany;
-  final String? initialLocation;
+  final String? initialCompanyId;
   final String? initialStatus;
   final String? initialEventId;
-  final List<String> allCompanies;
-  final List<String> allLocations;
-  final List<Event> allEvents;
+  final String? initialEventName;
   final List<(String, String)> statuses;
-  final void Function(String? company, String? location, String? status, String? eventId) onApply;
+  final void Function(String? company, String? companyId, String? status, String? eventId, String? eventName) onApply;
 
   const _FilterSheet({
     required this.initialCompany,
-    required this.initialLocation,
+    this.initialCompanyId,
     required this.initialStatus,
     this.initialEventId,
-    required this.allCompanies,
-    required this.allLocations,
-    required this.allEvents,
+    this.initialEventName,
     required this.statuses,
     required this.onApply,
   });
@@ -699,75 +740,149 @@ class _FilterSheet extends StatefulWidget {
 
 class _FilterSheetState extends State<_FilterSheet> {
   late final TextEditingController _companyCtrl = TextEditingController(text: widget.initialCompany ?? '');
-  late final TextEditingController _locationCtrl = TextEditingController(text: widget.initialLocation ?? '');
   late final TextEditingController _eventCtrl = TextEditingController();
+  final FocusNode _companyFocus = FocusNode();
+  final FocusNode _eventFocus = FocusNode();
   String? _tempStatus;
   String? _tempEventId;
-  List<String> _companySuggestions = [];
-  List<String> _locationSuggestions = [];
+  // (id, name) pairs from the companies table search.
+  List<(String, String)> _companySuggestions = [];
+  bool _companyLoading = false;
+  Timer? _companyDebounce;
+  int _companyReqId = 0;
+  String _lastCompanyQuery = '';
+  // The company picked from the list. When the field text equals the name, a
+  // selection is active and we must NOT show the "no results" empty state.
+  String? _selectedCompany;
+  String? _selectedCompanyId;
+  // Server-side event typeahead state (mirrors the company field).
   List<Event> _eventSuggestions = [];
+  bool _eventLoading = false;
+  Timer? _eventDebounce;
+  int _eventReqId = 0;
+  String _lastEventQuery = '';
 
   @override
   void initState() {
     super.initState();
     _tempStatus = widget.initialStatus;
     _tempEventId = widget.initialEventId;
-    _companyCtrl.addListener(_updateCompanySuggestions);
-    _locationCtrl.addListener(_updateLocationSuggestions);
-    _eventCtrl.addListener(_updateEventSuggestions);
+    _selectedCompany = widget.initialCompany;
+    _selectedCompanyId = widget.initialCompanyId;
+    _lastCompanyQuery = widget.initialCompany ?? '';
+    if (widget.initialEventId != null && widget.initialEventName != null) {
+      _eventCtrl.text = widget.initialEventName!;
+      _lastEventQuery = widget.initialEventName!;
+    }
+    _companyCtrl.addListener(_onCompanyChanged);
+    _eventCtrl.addListener(_onEventChanged);
   }
 
-  void _updateCompanySuggestions() {
-    final q = _companyCtrl.text.trim().toLowerCase();
-    setState(() {
-      _companySuggestions = q.isEmpty
-          ? widget.allCompanies
-          : widget.allCompanies.where((c) => c.toLowerCase().contains(q)).toList();
-    });
+  // Server-side company typeahead: debounce keystrokes, fetch from the companies
+  // table (backend already searches by name and caps at 20). Falls back to first
+  // page when the field is empty so a list shows on focus.
+  void _onCompanyChanged() {
+    final q = _companyCtrl.text.trim();
+    if (q == _lastCompanyQuery) return;
+    _lastCompanyQuery = q;
+    // Typing diverged from the picked company → no longer a selection.
+    if (q != _selectedCompany) { _selectedCompany = null; _selectedCompanyId = null; }
+    _companyDebounce?.cancel();
+    _companyDebounce = Timer(const Duration(milliseconds: 280), () => _fetchCompanies(q));
   }
 
-  void _updateLocationSuggestions() {
-    final q = _locationCtrl.text.trim().toLowerCase();
-    setState(() {
-      _locationSuggestions = q.isEmpty
-          ? widget.allLocations
-          : widget.allLocations.where((l) => l.toLowerCase().contains(q)).toList();
-    });
+  Future<void> _fetchCompanies(String query) async {
+    final reqId = ++_companyReqId;
+    if (mounted) { setState(() => _companyLoading = true); }
+    try {
+      final rows = await ApiService.getCompanies(query: query.isEmpty ? null : query);
+      if (!mounted || reqId != _companyReqId) return;
+      final items = <(String, String)>[
+        for (final r in rows)
+          if (((r['name'] as String?)?.trim() ?? '').isNotEmpty)
+            ((r['id'] as String?) ?? '', (r['name'] as String?)!.trim()),
+      ];
+      setState(() {
+        _companySuggestions = items;
+        _companyLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || reqId != _companyReqId) return;
+      setState(() {
+        _companySuggestions = [];
+        _companyLoading = false;
+      });
+    }
   }
 
-  void _updateEventSuggestions() {
-    final q = _eventCtrl.text.trim().toLowerCase();
-    if (q.isEmpty && _tempEventId != null) return;
-    setState(() {
-      _eventSuggestions = q.isEmpty
-          ? widget.allEvents
-          : widget.allEvents.where((e) => e.name.toLowerCase().contains(q)).toList();
-    });
+  // Server-side event typeahead (mirrors the company field): debounce keystrokes
+  // and fetch the user's events filtered by name on the backend.
+  void _onEventChanged() {
+    final q = _eventCtrl.text.trim();
+    if (q == _lastEventQuery) return;
+    _lastEventQuery = q;
+    // Typing after a selection clears it so the list can show again.
+    if (_tempEventId != null) _tempEventId = null;
+    _eventDebounce?.cancel();
+    _eventDebounce = Timer(const Duration(milliseconds: 280), () => _fetchEvents(q));
+  }
+
+  Future<void> _fetchEvents(String query) async {
+    final reqId = ++_eventReqId;
+    if (mounted) { setState(() => _eventLoading = true); }
+    try {
+      final events = await ApiService.getEvents(query: query.isEmpty ? null : query);
+      if (!mounted || reqId != _eventReqId) return;
+      setState(() {
+        _eventSuggestions = events;
+        _eventLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || reqId != _eventReqId) return;
+      setState(() {
+        _eventSuggestions = [];
+        _eventLoading = false;
+      });
+    }
   }
 
   @override
   void dispose() {
+    _companyDebounce?.cancel();
+    _eventDebounce?.cancel();
+    _companyFocus.dispose();
+    _eventFocus.dispose();
     _companyCtrl.dispose();
-    _locationCtrl.dispose();
     _eventCtrl.dispose();
     super.dispose();
   }
 
   void _reset() => setState(() {
+    // Cancel pending searches and pre-sync the "last query" guards BEFORE
+    // clearing the controllers, so the change listeners see no diff and don't
+    // schedule a fetch that would re-open a dropdown.
+    _companyDebounce?.cancel();
+    _eventDebounce?.cancel();
+    _lastCompanyQuery = '';
+    _lastEventQuery = '';
     _companyCtrl.clear();
-    _locationCtrl.clear();
     _eventCtrl.clear();
     _tempStatus = null;
     _tempEventId = null;
     _companySuggestions = [];
-    _locationSuggestions = [];
+    _companyLoading = false;
+    _selectedCompany = null;
+    _selectedCompanyId = null;
     _eventSuggestions = [];
+    _eventLoading = false;
   });
 
   void _apply() {
     final company = _companyCtrl.text.trim().isEmpty ? null : _companyCtrl.text.trim();
-    final location = _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim();
-    widget.onApply(company, location, _tempStatus, _tempEventId);
+    // Only carry the id when it still matches the typed text (a selection).
+    final companyId = (company != null && company == _selectedCompany) ? _selectedCompanyId : null;
+    final eventName = _tempEventId == null ? null : _eventCtrl.text.trim();
+    widget.onApply(company, companyId, _tempStatus, _tempEventId, eventName);
     context.pop();
   }
 
@@ -799,10 +914,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                 ],
               ),
             ),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.6,
-              ),
+            Flexible(
               child: SingleChildScrollView(
                 // Keyboard inset handled centrally by showAppSheet.
                 padding: const EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 20),
@@ -810,47 +922,145 @@ class _FilterSheetState extends State<_FilterSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _sectionLabel('Company'),
-                    _searchField(_companyCtrl, 'Search company...'),
-                    if (_companySuggestions.isNotEmpty)
-                      _suggestionList(_companySuggestions, (v) {
-                        _companyCtrl.text = v;
-                        setState(() => _companySuggestions = []);
-                      }),
-                    const SizedBox(height: 20),
-                    _sectionLabel('Location / Country'),
-                    _searchField(_locationCtrl, 'Search location...'),
-                    if (_locationSuggestions.isNotEmpty)
-                      _suggestionList(_locationSuggestions, (v) {
-                        _locationCtrl.text = v;
-                        setState(() => _locationSuggestions = []);
-                      }),
-                    const SizedBox(height: 20),
-                    _sectionLabel('Event'),
-                    _searchField(_eventCtrl, 'Search event...'),
-                    if (_tempEventId != null) ...[
-                      const SizedBox(height: 6),
-                      Row(
+                    TapRegion(
+                      groupId: 'company-field',
+                      // Tap outside the field + its dropdown closes the list.
+                      onTapOutside: (_) {
+                        if (_companySuggestions.isNotEmpty) {
+                          setState(() => _companySuggestions = []);
+                        }
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.event_available_outlined, size: 14, color: AppTheme.colorsOf(context).accent),
-                          const SizedBox(width: 6),
-                          Expanded(child: Text(_eventCtrl.text, style: theme.typography.sm.copyWith(color: theme.colors.primary, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                          const Spacer(),
-                          AppButton(
-                            variant: ButtonVariant.ghost,
-                            onPressed: () => setState(() { _tempEventId = null; _eventCtrl.clear(); }),
-                            child: Icon(Icons.close_rounded, size: 14, color: AppTheme.colorsOf(context).accent),
+                          _searchField(
+                            _companyCtrl,
+                            'Search company...',
+                            focusNode: _companyFocus,
+                            onTap: () {
+                              // Load first page on focus if nothing has been fetched yet.
+                              if (_companySuggestions.isEmpty && !_companyLoading) {
+                                _fetchCompanies(_companyCtrl.text.trim());
+                              }
+                            },
+                            onClear: () {
+                              _companyDebounce?.cancel();
+                              setState(() {
+                                _selectedCompany = null;
+                                _selectedCompanyId = null;
+                                _lastCompanyQuery = '';
+                                _companySuggestions = [];
+                                _companyLoading = false;
+                              });
+                            },
                           ),
+                          if (_companyLoading)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: AppCard(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const FCircularProgress(size: FCircularProgressSizeVariant.sm),
+                                    const SizedBox(width: 10),
+                                    Text('Searching companies',
+                                        style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else if (_companySuggestions.isNotEmpty)
+                            _companySuggestionList(_companySuggestions, (id, name) {
+                              // Guard the listener BEFORE mutating the controller, and
+                              // cancel any in-flight debounce, so writing the selected
+                              // name does not trigger another search.
+                              _companyDebounce?.cancel();
+                              _lastCompanyQuery = name;
+                              _selectedCompany = name;
+                              _selectedCompanyId = id;
+                              _companyCtrl.text = name;
+                              _companyFocus.unfocus();
+                              setState(() => _companySuggestions = []);
+                            })
+                          else if (_companyCtrl.text.trim().isNotEmpty && _selectedCompany == null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Text('No companies found.',
+                                  style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground)),
+                            ),
                         ],
                       ),
-                    ],
-                    if (_eventSuggestions.isNotEmpty && _tempEventId == null)
-                      _eventSuggestionList(_eventSuggestions, (event) {
-                        setState(() {
-                          _tempEventId = event.id;
-                          _eventCtrl.text = event.name;
-                          _eventSuggestions = [];
-                        });
-                      }),
+                    ),
+                    const SizedBox(height: 20),
+                    _sectionLabel('Event'),
+                    TapRegion(
+                      groupId: 'event-field',
+                      onTapOutside: (_) {
+                        if (_eventSuggestions.isNotEmpty) {
+                          setState(() => _eventSuggestions = []);
+                        }
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _searchField(
+                            _eventCtrl,
+                            'Search event...',
+                            focusNode: _eventFocus,
+                            onTap: () {
+                              if (_eventSuggestions.isEmpty && !_eventLoading && _tempEventId == null) {
+                                _fetchEvents(_eventCtrl.text.trim());
+                              }
+                            },
+                            onClear: () {
+                              _eventDebounce?.cancel();
+                              setState(() {
+                                _tempEventId = null;
+                                _lastEventQuery = '';
+                                _eventSuggestions = [];
+                                _eventLoading = false;
+                              });
+                            },
+                          ),
+                          if (_tempEventId != null)
+                            const SizedBox.shrink()
+                          else if (_eventLoading)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: AppCard(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const FCircularProgress(size: FCircularProgressSizeVariant.sm),
+                                    const SizedBox(width: 10),
+                                    Text('Searching events',
+                                        style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground)),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else if (_eventSuggestions.isNotEmpty)
+                            _eventSuggestionList(_eventSuggestions, (event) {
+                              _eventDebounce?.cancel();
+                              _lastEventQuery = event.name;
+                              _eventFocus.unfocus();
+                              setState(() {
+                                _tempEventId = event.id;
+                                _eventCtrl.text = event.name;
+                                _eventSuggestions = [];
+                              });
+                            })
+                          else if (_eventCtrl.text.trim().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Text('No events found.',
+                                  style: theme.typography.xs.copyWith(color: theme.colors.mutedForeground)),
+                            ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     _sectionLabel('Communication Status'),
                     Wrap(
@@ -892,30 +1102,38 @@ class _FilterSheetState extends State<_FilterSheet> {
     );
   }
 
-  Widget _searchField(TextEditingController ctrl, String hint) => AppInput(
+  Widget _searchField(TextEditingController ctrl, String hint, {VoidCallback? onTap, VoidCallback? onClear, FocusNode? focusNode}) => AppInput(
     controller: ctrl,
     hint: hint,
+    focusNode: focusNode,
+    onTap: onTap,
     prefixIcon: Icon(Icons.search_rounded, color: AppTheme.colorsOf(context).accent, size: 18),
     suffixIcon: ctrl.text.isNotEmpty
-        ? Icon(Icons.clear_rounded, size: 16, color: AppTheme.colorsOf(context).accent)
+        ? FTappable(
+            onPress: () {
+              ctrl.clear();
+              onClear?.call();
+            },
+            child: Icon(Icons.clear_rounded, size: 16, color: AppTheme.colorsOf(context).accent),
+          )
         : null,
   );
 
-  Widget _suggestionList(List<String> items, ValueChanged<String> onTap) {
+  Widget _companySuggestionList(List<(String, String)> items, void Function(String id, String name) onTap) {
     final theme = context.theme;
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: items.take(5).map((item) => FTappable(
-          onPress: () => onTap(item),
+        children: items.take(20).map((item) => FTappable(
+          onPress: () => onTap(item.$1, item.$2),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Row(
               children: [
                 Icon(Icons.business_outlined, size: 14, color: AppTheme.colorsOf(context).accent),
                 const SizedBox(width: 8),
-                Expanded(child: Text(item, style: theme.typography.sm.copyWith(color: theme.colors.foreground), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text(item.$2, style: theme.typography.sm.copyWith(color: theme.colors.foreground), maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),

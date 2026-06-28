@@ -58,6 +58,24 @@ class FollowUpsRepository extends SyncedRepository<FollowUpsTableData, $FollowUp
     });
   }
 
+  /// Watches every (contact, event) follow-up link, grouped as a
+  /// `contactId -> {eventId, ...}` map. Used by the contacts list to filter by
+  /// event (the per-event follow_ups table is the source of truth for which
+  /// contacts belong to an event — the same set the event follow-up screen shows).
+  Stream<Map<String, Set<String>>> watchContactEventIds() {
+    final query = db.select(db.followUpsTable)
+      ..where((t) => t.deletedAt.isNull() & t.eventId.isNotNull());
+    return query.watch().map((rows) {
+      final map = <String, Set<String>>{};
+      for (final r in rows) {
+        final eventId = r.eventId;
+        if (eventId == null) continue;
+        map.putIfAbsent(r.contactId, () => <String>{}).add(eventId);
+      }
+      return map;
+    });
+  }
+
   /// Optimistically apply a status change to the local drift cache so streams
   /// (e.g. [watchDueCount]) re-emit immediately, before the backend write's
   /// Realtime echo arrives. [eventId] scopes to one (contact, event) record;

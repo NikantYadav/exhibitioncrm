@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
+import '../utils/markdown_normalize.dart';
 import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:provider/provider.dart';
@@ -1204,11 +1207,23 @@ class _NotesReadViewState extends State<_NotesReadView> {
             physics: const ClampingScrollPhysics(),
             child: Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                widget.notes!,
-                style: widget.theme.typography.sm.copyWith(
-                  color: widget.theme.colors.foreground,
-                  height: 1.5,
+              child: MarkdownBody(
+                data: normalizeMarkdownTables(widget.notes!),
+                extensionSet: md.ExtensionSet.gitHubFlavored,
+                styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+                  p: widget.theme.typography.sm.copyWith(color: widget.theme.colors.foreground, height: 1.5),
+                  h1: widget.theme.typography.xl.copyWith(color: widget.theme.colors.foreground, fontWeight: FontWeight.w700),
+                  h2: widget.theme.typography.lg.copyWith(color: widget.theme.colors.foreground, fontWeight: FontWeight.w700),
+                  h3: widget.theme.typography.sm.copyWith(color: widget.theme.colors.foreground, fontWeight: FontWeight.w700),
+                  strong: widget.theme.typography.sm.copyWith(color: widget.theme.colors.foreground, fontWeight: FontWeight.w700, height: 1.5),
+                  em: widget.theme.typography.sm.copyWith(color: widget.theme.colors.foreground, fontStyle: FontStyle.italic, height: 1.5),
+                  code: widget.theme.typography.sm.copyWith(color: widget.theme.colors.foreground, fontFamily: 'monospace', height: 1.5),
+                  tableHead: widget.theme.typography.sm.copyWith(color: widget.theme.colors.foreground, fontWeight: FontWeight.w700),
+                  tableBody: widget.theme.typography.sm.copyWith(color: widget.theme.colors.foreground, height: 1.5),
+                  tableBorder: TableBorder.all(color: widget.theme.colors.border, width: 1),
+                  tableHeadAlign: TextAlign.left,
+                  blockquote: widget.theme.typography.sm.copyWith(color: widget.theme.colors.mutedForeground, fontStyle: FontStyle.italic, height: 1.5),
+                  listBullet: widget.theme.typography.sm.copyWith(color: widget.theme.colors.foreground, height: 1.5),
                 ),
               ),
             ),

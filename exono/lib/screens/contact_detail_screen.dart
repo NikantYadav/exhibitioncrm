@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -191,6 +192,41 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     }
   }
 
+  // Card URL may be a real http(s) URL (Image.network) or an inline
+  // data:...;base64,... URI from legacy captures. Image.network cannot decode
+  // the data: scheme, so route those through Image.memory.
+  Widget _cardImageWidget(String url) {
+    const error = SizedBox(
+      height: 200,
+      child: Center(
+        child: Icon(Icons.broken_image_outlined,
+            color: Colors.white54, size: 48),
+      ),
+    );
+
+    if (url.startsWith('data:')) {
+      try {
+        final bytes = base64Decode(url.substring(url.indexOf(',') + 1));
+        return Image.memory(bytes, fit: BoxFit.contain,
+            errorBuilder: (c, e, s) => error);
+      } catch (_) {
+        return error;
+      }
+    }
+
+    return Image.network(
+      url,
+      fit: BoxFit.contain,
+      loadingBuilder: (c, child, progress) => progress == null
+          ? child
+          : const SizedBox(
+              height: 200,
+              child: Center(child: FCircularProgress()),
+            ),
+      errorBuilder: (c, e, s) => error,
+    );
+  }
+
   void _showCardImage(String url) {
     showDialog<void>(
       context: context,
@@ -206,23 +242,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
               child: Center(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    url,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (c, child, progress) => progress == null
-                        ? child
-                        : const SizedBox(
-                            height: 200,
-                            child: Center(child: FCircularProgress()),
-                          ),
-                    errorBuilder: (c, e, s) => const SizedBox(
-                      height: 200,
-                      child: Center(
-                        child: Icon(Icons.broken_image_outlined,
-                            color: Colors.white54, size: 48),
-                      ),
-                    ),
-                  ),
+                  child: _cardImageWidget(url),
                 ),
               ),
             ),

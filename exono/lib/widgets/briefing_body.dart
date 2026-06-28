@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:forui/forui.dart';
+import '../utils/markdown_normalize.dart';
 
-/// Renders AI briefing output where **bold** lines are section headings
-/// and everything else is body text. Handles both the new `**Label**\nbody`
-/// format and legacy `LABEL: body` single-line format gracefully.
+/// Renders AI briefing output as GitHub-flavored markdown so headings, lists
+/// and **tables** all render correctly. Bold lines that act as section headings
+/// (`**Label**`) are rendered with the accent color via the `strong` style.
+///
+/// Input is the briefing as a list of lines (split on `\n`); they are rejoined
+/// and normalized so table blocks parse reliably.
 class BriefingBody extends StatelessWidget {
   final List<String> lines;
   final Color accentColor;
@@ -13,45 +19,60 @@ class BriefingBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
-    final widgets = <Widget>[];
-    bool prevWasHeading = false;
+    final data = normalizeMarkdownTables(lines.join('\n'));
 
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i].trim();
-      if (line.isEmpty) continue;
-
-      final isHeading = line.startsWith('**') && line.endsWith('**') && line.length > 4;
-
-      if (isHeading) {
-        final label = line.substring(2, line.length - 2).trim();
-        if (widgets.isNotEmpty && !prevWasHeading) {
-          widgets.add(const SizedBox(height: 14));
-        }
-        widgets.add(Text(
-          label,
-          style: theme.typography.sm.copyWith(
-            fontWeight: FontWeight.w700,
-            color: accentColor,
-            height: 1.3,
-          ),
-        ));
-        widgets.add(const SizedBox(height: 4));
-        prevWasHeading = true;
-      } else {
-        widgets.add(Text(
-          line,
-          style: theme.typography.sm.copyWith(
-            color: theme.colors.mutedForeground,
-            height: 1.55,
-          ),
-        ));
-        prevWasHeading = false;
-      }
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: widgets,
+    return MarkdownBody(
+      data: data,
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+        p: theme.typography.sm.copyWith(
+          color: theme.colors.mutedForeground,
+          height: 1.55,
+        ),
+        // Bold lines act as accent-colored section headings.
+        strong: theme.typography.sm.copyWith(
+          fontWeight: FontWeight.w700,
+          color: accentColor,
+          height: 1.3,
+        ),
+        em: theme.typography.sm.copyWith(
+          color: theme.colors.mutedForeground,
+          fontStyle: FontStyle.italic,
+          height: 1.55,
+        ),
+        h1: theme.typography.lg.copyWith(
+          fontWeight: FontWeight.w700,
+          color: accentColor,
+        ),
+        h2: theme.typography.sm.copyWith(
+          fontWeight: FontWeight.w700,
+          color: accentColor,
+        ),
+        h3: theme.typography.sm.copyWith(
+          fontWeight: FontWeight.w700,
+          color: accentColor,
+        ),
+        listBullet: theme.typography.sm.copyWith(
+          color: theme.colors.mutedForeground,
+          height: 1.55,
+        ),
+        tableHead: theme.typography.sm.copyWith(
+          color: theme.colors.foreground,
+          fontWeight: FontWeight.w700,
+        ),
+        tableBody: theme.typography.sm.copyWith(
+          color: theme.colors.foreground,
+          height: 1.5,
+        ),
+        tableBorder: TableBorder.all(color: theme.colors.border, width: 1),
+        tableHeadAlign: TextAlign.left,
+        tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        blockquote: theme.typography.sm.copyWith(
+          color: theme.colors.mutedForeground,
+          fontStyle: FontStyle.italic,
+          height: 1.55,
+        ),
+      ),
     );
   }
 }

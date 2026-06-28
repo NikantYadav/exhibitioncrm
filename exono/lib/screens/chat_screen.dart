@@ -6,6 +6,8 @@ import '../utils/safe_area_insets.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
+import '../utils/markdown_normalize.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -629,7 +631,8 @@ class _ChatScreenState extends State<ChatScreen>
                         ),
                       )
                     : MarkdownBody(
-                        data: message.text,
+                        data: normalizeMarkdownTables(message.text),
+                        extensionSet: md.ExtensionSet.gitHubFlavored,
                         styleSheet: MarkdownStyleSheet.fromTheme(
                             Theme.of(context)).copyWith(
                           p: context.theme.typography.sm.copyWith(
@@ -651,6 +654,23 @@ class _ChatScreenState extends State<ChatScreen>
                           blockquoteDecoration: BoxDecoration(
                             color: _c.accentSoft.withValues(alpha: 0.6),
                             borderRadius: BorderRadius.circular(6),
+                          ),
+                          tableHead: context.theme.typography.sm.copyWith(
+                            color: context.theme.colors.foreground,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          tableBody: context.theme.typography.sm.copyWith(
+                            color: _c.textSecondary,
+                            height: 1.5,
+                          ),
+                          tableBorder: TableBorder.all(
+                            color: context.theme.colors.border,
+                            width: 1,
+                          ),
+                          tableHeadAlign: TextAlign.left,
+                          tableCellsPadding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
                           ),
                         ),
                         selectable: true,

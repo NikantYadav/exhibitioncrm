@@ -253,7 +253,14 @@ router.post('/:id/briefing', async (req, res, next) => {
 
     let prompt = `You are preparing a pre-meeting briefing for someone about to have a business networking conversation with ${companyContext}.
 
-Write it in whatever structure best fits what you actually know about this company — there is no required format. Use short paragraphs, and where a section heading genuinely helps the reader skim, write it on its own line wrapped in **double asterisks**. Don't force headings or a fixed number of sections; let the content decide the shape. Keep it concise and skimmable.`;
+Write it in whatever structure best fits what you actually know about this company — there is no required format. Don't force headings or a fixed number of sections; let the content decide the shape. Keep it concise and skimmable.
+
+Format the entire response as proper GitHub-flavored Markdown, following these rules exactly:
+- Section headings MUST be on their own line, starting with "## " (e.g. "## Strategic Priorities"). NEVER put a heading inline in the middle of a paragraph, and never use bold (**...**) as a substitute for a heading.
+- Separate every block (heading, paragraph, list, table) with one blank line.
+- Use bold (**...**) ONLY for emphasis on a word or phrase inside a sentence — never for section titles.
+- When presenting structured comparisons, use a proper Markdown table with a header row and a separator row, with a blank line before and after the table.
+- Use "- " for bullet lists when listing items.`;
 
     if (hasFocus) {
       prompt += `\n\nThe user has asked you to focus on: "${focus!.trim()}". Build the briefing around this angle.`;

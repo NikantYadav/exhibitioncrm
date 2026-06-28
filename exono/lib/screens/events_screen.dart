@@ -653,7 +653,10 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
     final pending = (stats['follow_ups_needed'] as num?)?.toInt() ?? 0;
     final skipped = (stats['follow_ups_skipped'] as num?)?.toInt() ?? 0;
     final done = (stats['follow_ups_done'] as num?)?.toInt() ?? 0;
-    final followUpPct = totalContacts > 0 ? (done / totalContacts).clamp(0.0, 1.0) : 0.0;
+    // Skipped follow-ups count as completed for progress — the user has dealt
+    // with them, they're no longer pending. Matches event_follow_ups_screen.
+    final followUpPct =
+        totalContacts > 0 ? ((done + skipped) / totalContacts).clamp(0.0, 1.0) : 0.0;
     final pctLabel = '${(followUpPct * 100).round()}%';
     final isComplete = followUpPct >= 1.0 && totalContacts > 0;
     final barColor = isComplete ? _c.success : context.theme.colors.primary;
