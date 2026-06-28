@@ -60,7 +60,7 @@ const targetWriteSchema = z.object({
   company_id: uuidSchema,
   priority: z.enum(['high', 'medium', 'low']).optional(),
   booth_location: optText(100),
-  notes: optText(2000),
+  notes: optText(10000),
   status: z.enum(['not_contacted', 'contacted', 'researched', 'met']).optional(),
   use_notes_for_briefing: z.boolean().optional(),
 });
