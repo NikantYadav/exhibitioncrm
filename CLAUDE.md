@@ -195,41 +195,24 @@ These rules exist to keep sessions cheap. Follow them by default.
 - Verify with `flutter analyze <file>` (from `exono/`), not by re-reading.
 - App entry/structure: `exono/lib/` → `screens/` (35 screens), `widgets/` (the `App*` forui wrappers live here, alongside other shared widgets like `badge.dart`, `skeleton_loader.dart`, `empty_state.dart`), `config/` (`app_theme.dart` = `ExonoColors` + `AppTheme`; also `api_config.dart`, `supabase_config.dart`), `models/`, `services/` (`api_service.dart`, `auth_service.dart`, …), `providers/` (`auth_provider.dart`, `theme_provider.dart`, …), `main.dart`, `router.dart`. Check here before searching for where something lives.
 
-<!-- code-review-graph MCP tools -->
-## MCP Tools: code-review-graph
+## Backend / AI assistant (see `backend/CLAUDE.md` for the full rules)
 
-**IMPORTANT: This project has a knowledge graph. ALWAYS use the
-code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
-the codebase.** The graph is faster, cheaper (fewer tokens), and gives
-you structural context (callers, dependents, test coverage) that file
-scanning cannot.
+The Express backend lives in `backend/`; the AI assistant is in
+`backend/src/routes/assistant.ts`. `backend/CLAUDE.md` is authoritative — read it
+before touching backend code. A beginner-friendly end-to-end explanation of how
+the assistant reads (Slayer) and writes (Supabase) is in
+[docs/AI_AGENT_GUIDE.md](docs/AI_AGENT_GUIDE.md).
 
-### When to use graph tools FIRST
-
-- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
-- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
-- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
-- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
-- **Architecture questions**: `get_architecture_overview` + `list_communities`
-
-Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
-
-### Key Tools
-
-| Tool | Use when |
-| ------ | ---------- |
-| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
-| `get_review_context` | Need source snippets for review — token-efficient |
-| `get_impact_radius` | Understanding blast radius of a change |
-| `get_affected_flows` | Finding which execution paths are impacted |
-| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
-| `semantic_search_nodes` | Finding functions/classes by name or keyword |
-| `get_architecture_overview` | Understanding high-level codebase structure |
-| `refactor_tool` | Planning renames, finding dead code |
-
-### Workflow
-
-1. The graph auto-updates on file changes (via hooks).
-2. Use `detect_changes` for code review.
-3. Use `get_affected_flows` to understand impact.
-4. Use `query_graph` pattern="tests_for" to check coverage.
+- **Zod validation in the assistant's write tools is hand-written, per field, and
+  MUST be updated manually on every relevant DB schema change.** When a column is
+  added/renamed/removed on a table the assistant writes (`contacts`, `events`,
+  `email_drafts`), update the Zod schema in the matching `exec*` function in
+  `assistant.ts` (and the tool's JSON params). The DB cannot enforce format rules
+  (valid email, parseable date, `end_time` after `start_time`) — only Zod can, so
+  it is intentionally not auto-derived.
+- The CI drift-check (`backend/scripts/check-schema-drift.ts`) fails the build on
+  a forgotten *tool param* or unclassified writable column, but does **not**
+  verify the Zod rules themselves — those stay human-owned.
+- `USER_ID_TABLES` / `SOFT_DELETE_TABLES` ARE auto-derived from the live DB at
+  boot (`initSchemaFlags()` in `slayer-client.ts`); the `IMMUTABLE_FIELDS`
+  denylist and the writable-vs-system-managed decision stay manual.

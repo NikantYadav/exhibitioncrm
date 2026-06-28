@@ -1,0 +1,42 @@
+name: AI assistant schema-drift check
+
+# Fails the build when the live DB schema drifts away from what the AI assistant
+# has been told (ownership/soft-delete table flags, and writable-table column
+# classification). See backend/scripts/check-schema-drift.ts.
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/schema-drift.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+jobs:
+  schema-drift:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Check schema drift
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run check:schema-drift

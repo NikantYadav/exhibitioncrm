@@ -7,8 +7,15 @@ import { requestLogger, logInfo } from './middleware/logger';
 import routes from './routes';
 import { AI_PROVIDER } from './config/ai';
 import { supabase } from './config/supabase';
+import { initSchemaFlags } from './services/slayer-client';
 
 dotenv.config();
+
+// Auto-derive the assistant's ownership / soft-delete table flags from the live
+// DB schema. Fire-and-forget at module load so it runs in both the long-lived
+// server and the Vercel serverless cold-start; failure is a safe no-op (the
+// hardcoded fallback sets stay in effect).
+void initSchemaFlags();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -76,6 +83,8 @@ if (process.env.VERCEL !== '1') {
     console.log(`AI Provider: ${AI_PROVIDER}`);
 
     logInfo('Server is ready to accept requests');
+
+    await initSchemaFlags();
 
     const { error: schemaError } = await supabase.rpc('pgrst_reload_schema');
     if (schemaError) {

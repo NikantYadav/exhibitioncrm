@@ -5,7 +5,7 @@ import { requireAuth } from '../middleware/requireAuth';
 import { createSupabaseUserClient } from '../config/supabaseClients';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { litellm, ConversationTurn, ToolCall } from '../services/litellm-service';
-import { slayerQuery, slayerHealthy, USER_ID_TABLES, slayerSchemaMap } from '../services/slayer-client';
+import { slayerQuery, slayerHealthy, USER_ID_TABLES, slayerGetModelColumnsTyped, ALLOWED_MODELS } from '../services/slayer-client';
 import { autoTitleConversation } from '../services/ai/titling';
 import { TavilyService } from '../services/tavily-service';
 
@@ -80,7 +80,7 @@ function sanitiseUserInput(text: string, userId: string): string {
 // NOTE: relational FKs (event_id, company_id, contact_id, …) are intentionally
 // NOT denied here — some are legitimate write-tool inputs (create_contact links an
 // event_id/company_id). They are gated per-tool by Zod + ownership checks instead.
-const IMMUTABLE_FIELDS = new Set([
+export const IMMUTABLE_FIELDS = new Set([
   // identity / ownership keys set by the system
   'id', 'user_id', 'sender_user_id',
   // audit + soft-delete bookkeeping
@@ -187,7 +187,7 @@ DATE FILTERING — IMPORTANT:
   },
 };
 
-const WRITE_TOOLS = [
+export const WRITE_TOOLS = [
   {
     name: 'create_contact',
     description: 'Create a new contact in the CRM',
@@ -333,7 +333,52 @@ Do NOT use this for CRM data — use query_crm for that.`,
   },
 };
 
-const ALL_TOOLS = [SLAYER_QUERY_TOOL, ...WRITE_TOOLS, WEB_SEARCH_TOOL];
+// ─── Table directory + describe_model (lazy / just-in-time schema) ────────────
+// Instead of dumping every table's columns into the system prompt, the prompt
+// carries only this one-line-per-table directory, and the model calls
+// describe_model(source_model) to fetch one table's columns (with types) right
+// before it builds a query_crm call. Smaller prompt + smaller hallucination
+// surface (the model only ever sees the columns for the table it chose).
+// Keep keys in sync with slayer-client ALLOWED_MODELS.
+const MODEL_DIRECTORY: Record<string, string> = {
+  contacts: 'People you have met / your leads (name, email, phone, job, follow-up status).',
+  events: 'Exhibitions / trade shows (name, location, start/end date & time).',
+  email_drafts: 'Saved draft emails for contacts (subject, body, status).',
+  captures: 'Business-card / lead captures taken at an event.',
+  companies: 'Companies that contacts belong to (name, industry, website).',
+  interactions: 'Logged interactions with a contact (type, date, summary).',
+  messages: 'Chat messages in AI assistant conversations.',
+  conversations: 'AI assistant conversation threads (title, timestamps).',
+  attachments: 'Files attached to email drafts or interactions.',
+  contact_documents: 'Documents uploaded against a contact (name, summary).',
+  user_profiles: 'The user\'s own profile (name, role, products, tone).',
+  target_companies: 'Companies targeted for a specific event (priority, booth, status).',
+  event_goals: 'Goals/objectives set for an event (label, current, total).',
+  message_attachments: 'Files attached to chat messages.',
+  contact_events: 'Links between a contact and an event (status, notes).',
+  follow_ups: 'Per-contact-per-event follow-up state (status, channel, priority).',
+  target_company_met: 'Per-user record of which target companies were met at an event.',
+};
+
+const DESCRIBE_MODEL_TOOL = {
+  name: 'describe_model',
+  description: `Get the exact column names and types for ONE CRM table before you query it.
+Call this right before query_crm whenever you are not 100% sure of a table's column names.
+This is the ONLY reliable way to know a table's columns — never guess column names.
+Returns the column list (name + type) plus a reminder of the correct filter format.`,
+  parameters: {
+    type: 'object',
+    properties: {
+      source_model: {
+        type: 'string',
+        description: 'The CRM table to describe (e.g. "contacts", "events"). Must be one of the tables in the directory in the system prompt.',
+      },
+    },
+    required: ['source_model'],
+  },
+};
+
+const ALL_TOOLS = [SLAYER_QUERY_TOOL, DESCRIBE_MODEL_TOOL, ...WRITE_TOOLS, WEB_SEARCH_TOOL];
 
 // Tools that MUTATE data — these require explicit user permission before they run.
 // get_event_followups is a read despite living in WRITE_TOOLS, so it is excluded.
@@ -809,7 +854,9 @@ async function execDraftEmail(args: Record<string, unknown>, userId: string) {
     contact_id: z.string().uuid(),
     subject: z.string().trim().min(1).max(300),
     body: z.string().trim().min(1),
-    email_type: z.string().trim().optional(),
+    // email_drafts.email_type is NOT NULL in the DB — default it so a draft
+    // always carries a type even when the model omits it.
+    email_type: z.string().trim().min(1).default('general'),
     event_id: z.string().uuid().optional(),
   }).parse(args);
 
@@ -823,7 +870,7 @@ async function execDraftEmail(args: Record<string, unknown>, userId: string) {
 
   const { data, error } = await supabaseAdmin.from('email_drafts').insert({
     contact_id: a.contact_id, subject: a.subject, body: a.body,
-    email_type: a.email_type ?? null, event_id: a.event_id ?? null, status: 'draft',
+    email_type: a.email_type, event_id: a.event_id ?? null, status: 'draft',
     user_id: userId,
   }).select('*').single();
   if (error) throw new Error(error.message);
@@ -888,6 +935,27 @@ async function executeTool(
         columns: slayerResult.columns,
         data: slayerResult.data.slice(0, 100), // cap rows sent back to LLM
       };
+    } else if (call.name === 'describe_model') {
+      // ── READ (schema): return one table's columns + types, on demand ─────────
+      const model = typeof call.args.source_model === 'string' ? call.args.source_model.trim() : '';
+      if (!model) throw new Error('source_model is required');
+      if (!(ALLOWED_MODELS as readonly string[]).includes(model)) {
+        throw new Error(`Unknown model "${model}". Valid models: ${ALLOWED_MODELS.join(', ')}.`);
+      }
+      const columns = await slayerGetModelColumnsTyped(model);
+      if (columns.length === 0) {
+        throw new Error(`Could not load columns for "${model}" — the schema service may be unavailable. Try again shortly.`);
+      }
+      result = {
+        source_model: model,
+        columns,
+        filter_format:
+          "When you call query_crm, each filter is a plain condition string like " +
+          "\"follow_up_status = 'needs_followup'\". For date/timestamp columns use a " +
+          "half-open range (\"start_date >= '2026-06-21T00:00:00Z'\"), never bare date " +
+          "equality, and for relative event windows use the date_window parameter instead. " +
+          "Do not add user_id filters — ownership is enforced automatically.",
+      };
     } else if (call.name === 'web_search') {
       const a = call.args;
       const query = typeof a.query === 'string' ? a.query.trim() : '';
@@ -932,36 +1000,21 @@ interface UserProfile {
   linkedin_url?: string;
 }
 
-// Real CRM schema (model -> column names), fetched once from Slayer and cached.
-// Grounds the LLM in actual column names so it never invents them (e.g. guessing
-// "notes" when the interactions content column is "summary"). Refreshes on restart.
-let schemaMapCache: Record<string, string[]> | null = null;
-let schemaMapPromise: Promise<Record<string, string[]>> | null = null;
-
-async function getSchemaMap(): Promise<Record<string, string[]>> {
-  if (schemaMapCache) return schemaMapCache;
-  if (!schemaMapPromise) {
-    schemaMapPromise = slayerSchemaMap()
-      .then((map) => {
-        // Only cache a non-empty result so a transient Slayer outage at first
-        // call doesn't permanently poison the cache with an empty schema.
-        if (Object.keys(map).length > 0) schemaMapCache = map;
-        return map;
-      })
-      .catch(() => ({}))
-      .finally(() => { schemaMapPromise = null; });
-  }
-  return schemaMapPromise;
+// Lazy / just-in-time schema: instead of dumping every table's columns into the
+// system prompt, we list only a one-line directory of tables (MODEL_DIRECTORY)
+// and let the model call describe_model(source_model) to fetch one table's
+// columns on demand. This keeps the prompt small and shrinks the column-name
+// surface the model can hallucinate against. The actual column names come from
+// Slayer via the describe_model tool, so there is no cached schema map to keep.
+function buildModelDirectorySection(): string {
+  const lines = Object.keys(MODEL_DIRECTORY).map((m) => `- ${m}: ${MODEL_DIRECTORY[m]}`);
+  return `\n\nCRM TABLES (the only tables you may query). Each line is "table: what it holds". ` +
+    `These are the ONLY valid table names for query_crm's source_model. You are NOT given the ` +
+    `columns here — before you query a table, call describe_model(source_model) to get its exact ` +
+    `column names and types. NEVER guess column names.\n${lines.join('\n')}`;
 }
 
-function buildSchemaSection(schema: Record<string, string[]>): string {
-  const models = Object.keys(schema);
-  if (models.length === 0) return '';
-  const lines = models.map((m) => `- ${m}: ${schema[m].join(', ')}`);
-  return `\n\nCRM SCHEMA — these are the ONLY valid column names per model. Use them exactly as written for dimensions, filters, and order. NEVER invent or guess a column name that is not listed here:\n${lines.join('\n')}`;
-}
-
-function buildSystemPrompt(userProfile?: UserProfile, researchMode = false, schema: Record<string, string[]> = {}): string {
+function buildSystemPrompt(userProfile?: UserProfile, researchMode = false): string {
   const tone = userProfile?.ai_tone ?? 'professional';
   const nowDate = new Date();
   const todayIso = nowDate.toISOString().slice(0, 10); // YYYY-MM-DD UTC
@@ -989,7 +1042,7 @@ function buildSystemPrompt(userProfile?: UserProfile, researchMode = false, sche
     ? `\n\nAbout the user you are assisting:\n${profileLines.join('\n')}`
     : '';
 
-  const schemaSection = buildSchemaSection(schema);
+  const schemaSection = buildModelDirectorySection();
 
   return `You are an AI CRM assistant for exhibitions and trade shows. ${toneInstruction}
 
@@ -1010,6 +1063,20 @@ READ: Use query_crm for any data retrieval — listing contacts, events,
 email drafts, captures, companies, searching messages, or reading event goals.
 The semantic layer handles SQL — just describe what you want with source_model,
 dimensions, filters, and optional measures.
+SCHEMA WORKFLOW (MANDATORY — follow exactly). The system prompt lists the TABLES but
+deliberately does NOT list their columns. You do not know any table's column names until
+you fetch them. Therefore:
+  1. The FIRST time you need a given table in this conversation, you MUST call
+     describe_model(source_model) for that table BEFORE you call query_crm on it.
+  2. ONLY use column names that appeared in a describe_model result for that exact table.
+     Do NOT use a column name from memory, from another table, or from the user's wording.
+  3. After you have a table's columns, you may reuse them for the rest of the conversation
+     without describing it again.
+  4. If a query_crm call fails with an unknown/invalid column, call describe_model for that
+     table and retry with a real column — do NOT guess a different name.
+This applies to columns used anywhere in query_crm: dimensions, filters, order, measures.
+Calling query_crm with a column you have not seen in a describe_model result is an error.
+Example of the required order: describe_model("contacts") -> read its columns -> query_crm({source_model:"contacts", filters:["follow_up_status = 'needs_followup'"]}).
 Model hints: event goals (targets/objectives set for an event) live in the "event_goals" model — filter by event_id. Target companies for an event are in "target_companies" — filter by event_id.${schemaSection}
 
 WRITE: Use create_contact, update_contact, create_event, update_event,
@@ -1020,6 +1087,7 @@ news, company/person background, industry context, or anything that may have
 changed since your training data. Use "advanced" search_depth for in-depth research.
 
 Rules:
+- ALWAYS call describe_model(source_model) for a table before the first query_crm on that table this conversation, and only use column names it returned. Never guess column names. (See SCHEMA WORKFLOW above.)
 - ALWAYS call query_crm FIRST before any write operation to look up the record's ID. Never assume you know an ID.
 - If the user says "update", "change", "reschedule", "rename", "edit", or anything that implies modifying an existing record: query_crm first by name, get the ID, then call the update tool. NEVER call create_* for an update request.
 - Only call create_* when the user explicitly wants a brand-new record that does not yet exist.
@@ -1295,8 +1363,7 @@ router.post('/respond', async (req, res) => {
   try {
     // 2. Load user profile context
     const { data: userProfile } = await supabaseAdmin.from('user_profiles').select('name, designation, profile_type, products_services, value_proposition, additional_context, ai_tone, website, linkedin_url').eq('user_id', userId).maybeSingle();
-    const schema = await getSchemaMap();
-    const systemPrompt = buildSystemPrompt(userProfile ?? undefined, research_mode === true, schema);
+    const systemPrompt = buildSystemPrompt(userProfile ?? undefined, research_mode === true);
 
     // 3. Build conversation history (last 20 messages)
     const { data: recentMessages } = await supabaseUser
@@ -1418,8 +1485,7 @@ router.post('/resume', async (req, res) => {
     // Rebuild the system prompt, preserving research mode from the original turn
     // so web_search stays "advanced" after the user approves a write mid-turn.
     const { data: userProfile } = await supabaseAdmin.from('user_profiles').select('name, designation, profile_type, products_services, value_proposition, additional_context, ai_tone, website, linkedin_url').eq('user_id', userId).maybeSingle();
-    const schema = await getSchemaMap();
-    const systemPrompt = buildSystemPrompt(userProfile ?? undefined, state.researchMode, schema);
+    const systemPrompt = buildSystemPrompt(userProfile ?? undefined, state.researchMode);
 
     const outcome = await runLoop(state, systemPrompt, userId);
 

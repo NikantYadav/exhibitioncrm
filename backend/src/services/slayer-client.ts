@@ -23,7 +23,7 @@ const SLAYER_URL = (process.env.SLAYER_URL || 'http://127.0.0.1:5143').replace(/
 // ─── Allowlisted models ───────────────────────────────────────────────────────
 // The LLM can only query these tables. Anything else (pg_catalog, auth.users,
 // etc.) is blocked at validation time before the request reaches Slayer.
-const ALLOWED_MODELS = [
+export const ALLOWED_MODELS = [
   'contacts', 'events', 'email_drafts',
   'captures', 'companies', 'interactions',
   'messages', 'conversations', 'attachments',
@@ -36,7 +36,15 @@ const ALLOWED_MODELS = [
 type AllowedModel = typeof ALLOWED_MODELS[number];
 
 // Tables that carry a user_id column — the authenticated user's ownership filter
-// is injected for these. Mirrors the live DB (verified via information_schema).
+// is injected for these.
+//
+// These two sets are AUTO-DERIVED from the live DB at boot by initSchemaFlags()
+// (see below) — they are purely structural ("does the table have a user_id /
+// deleted_at column"), so the database is the source of truth and there is no
+// judgement to hand-maintain. The literals here are the FALLBACK seed used if
+// boot-time introspection fails (DB down at startup); keep them roughly in step
+// with the live schema so the fallback is safe. The CI drift-check
+// (scripts/check-schema-drift.ts) fails the build if they drift.
 export const USER_ID_TABLES = new Set<string>([
   'contacts', 'events', 'user_profiles', 'captures', 'conversations', 'messages',
   'email_drafts', 'interactions', 'target_companies', 'event_goals',
@@ -44,9 +52,8 @@ export const USER_ID_TABLES = new Set<string>([
 ]);
 
 // Tables with a deleted_at column — `deleted_at IS NULL` is always injected so the
-// LLM never sees soft-deleted rows. Mirrors the live DB (verified via
-// information_schema). NOTE: companies has NO deleted_at, so it must NOT be here.
-const SOFT_DELETE_TABLES = new Set<string>([
+// LLM never sees soft-deleted rows. NOTE: companies has NO deleted_at.
+export const SOFT_DELETE_TABLES = new Set<string>([
   'contacts', 'events', 'captures', 'interactions',
   'email_drafts', 'target_companies', 'event_goals',
   'contact_events', 'follow_ups', 'target_company_met',
@@ -162,6 +169,43 @@ export async function slayerQuery(
   return result;
 }
 
+/**
+ * Auto-derive USER_ID_TABLES and SOFT_DELETE_TABLES from the live database at
+ * boot, replacing the hardcoded fallback seeds. Mutates the exported Set objects
+ * in place so existing imports keep their reference. Only allowlisted models are
+ * considered (a stray user_id/deleted_at on a non-queryable table is irrelevant).
+ *
+ * On any introspection failure this is a no-op: the hardcoded fallback sets stay
+ * in effect and a warning is logged. Ownership/soft-delete injection therefore
+ * always has a safe value — it never ends up empty because introspection blipped.
+ */
+export async function initSchemaFlags(): Promise<void> {
+  let snapshot;
+  try {
+    // Imported lazily to avoid a config import cycle at module load.
+    const { introspectSchema } = await import('./schema-introspection');
+    snapshot = await introspectSchema();
+  } catch (e: any) {
+    console.warn(`[slayer] schema flag auto-derive failed, using fallback sets: ${e?.message ?? e}`);
+    return;
+  }
+
+  const allowed = new Set<string>(ALLOWED_MODELS);
+  const derivedUserId = new Set([...snapshot.userIdTables].filter((t) => allowed.has(t)));
+  const derivedSoftDelete = new Set([...snapshot.softDeleteTables].filter((t) => allowed.has(t)));
+
+  // Mutate in place (preserve the exported Set identity).
+  USER_ID_TABLES.clear();
+  for (const t of derivedUserId) USER_ID_TABLES.add(t);
+  SOFT_DELETE_TABLES.clear();
+  for (const t of derivedSoftDelete) SOFT_DELETE_TABLES.add(t);
+
+  console.log(
+    `[slayer] schema flags derived from DB: ` +
+    `${USER_ID_TABLES.size} user_id tables, ${SOFT_DELETE_TABLES.size} soft-delete tables`,
+  );
+}
+
 export async function slayerHealthy(): Promise<boolean> {
   try {
     const res = await fetch(`${SLAYER_URL}/health`, { signal: AbortSignal.timeout(3_000) });
@@ -182,36 +226,32 @@ export async function slayerListModels(): Promise<string[]> {
   }
 }
 
+export interface SlayerColumn {
+  name: string;
+  type: string;
+}
+
 /**
- * Fetch the non-hidden column names for one Slayer model.
- * GET /models/{name} already filters out hidden columns server-side.
- * Returns [] on any failure so callers can degrade gracefully.
+ * Fetch the non-hidden columns (name + type) for one Slayer model. Powers the
+ * `describe_model` tool's just-in-time schema loading — the model asks for one
+ * table's shape right before building a query_crm call, instead of being handed
+ * every table's columns up front. Hidden columns are filtered out. Returns []
+ * on any failure so the caller can report a clean error.
  */
-export async function slayerGetModelColumns(model: string): Promise<string[]> {
+export async function slayerGetModelColumnsTyped(model: string): Promise<SlayerColumn[]> {
   try {
     const res = await fetch(`${SLAYER_URL}/models/${encodeURIComponent(model)}`, {
       signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) return [];
-    const data = (await res.json()) as { columns?: Array<{ name: string }> };
-    return (data.columns ?? []).map((c) => c.name);
+    const data = (await res.json()) as {
+      columns?: Array<{ name: string; type?: string; hidden?: boolean }>;
+    };
+    return (data.columns ?? [])
+      .filter((c) => c.hidden !== true)
+      .map((c) => ({ name: c.name, type: (c.type ?? 'TEXT').toUpperCase() }));
   } catch {
     return [];
   }
 }
 
-/**
- * Build a {model -> column names} map across every allowlisted model.
- * Used to ground the LLM in the real schema so it never invents column
- * names. Models that fail to load are simply omitted.
- */
-export async function slayerSchemaMap(): Promise<Record<string, string[]>> {
-  const entries = await Promise.all(
-    ALLOWED_MODELS.map(async (m) => [m, await slayerGetModelColumns(m)] as const),
-  );
-  const map: Record<string, string[]> = {};
-  for (const [model, cols] of entries) {
-    if (cols.length > 0) map[model] = cols;
-  }
-  return map;
-}
