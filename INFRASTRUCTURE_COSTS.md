@@ -57,7 +57,7 @@ launch** — no amount of local testing produces them. Do **NOT** invent a singl
 |---|---|---|
 | Mobile/web client | Flutter app | `exono/pubspec.yaml` |
 | Backend API | Express on **Vercel** | `backend/vercel.json` (`@vercel/node`); client points at `https://exhibitioncrm.vercel.app/api` (`exono/lib/config/api_config.dart:5`) |
-| Database + Auth + Storage + Realtime | **Supabase** | `@supabase/supabase-js`, `supabase_flutter`, realtime channels in `chat_provider.dart:280`, `synced_repository.dart:138`, `live_event_provider.dart:206` |
+| Database + Auth + Storage + Realtime | **Supabase** | `@supabase/supabase-js`, `supabase_flutter`; realtime is a **single per-user Broadcast channel** (`sync_provider.dart:158-177`) + a per-conversation chat channel (`chat_provider.dart:306-308`) — see §2.1d |
 | Read-only NL→SQL service | **Slayer** (Python) on **Railway** | `Dockerfile.slayer` (`SLAYER_READONLY_PASSWORD must be set as a Railway env var`); backend calls `SLAYER_URL/query` (`slayer-client.ts:154`) |
 | LLM (text + multimodal) | **Google Gemini** `gemini-3.1-flash-lite` via **`@google/genai`** SDK | `litellm-service.ts:128`, `config/ai.ts` |
 | LLM (embeddings) | **Google Gemini** `gemini-embedding-001` @ 768 dims | `litellm-service.ts:499-523` — used for the oversized-document RAG fallback |
@@ -85,7 +85,7 @@ table queried via the `match_document_chunks` RPC, `assistant/tools/executors/do
 
 ### 2.1 Supabase (Database + Auth + Storage + Realtime) — fixed + usage
 **Why:** Primary datastore (~30+ tables, `SUPABASE_SCHEMA.md`), user auth (MAU), private Storage
-buckets (`contact-cards`, `chat-attachments` — `captures.ts:18`, `conversations.ts:213`), and
+buckets (`contact-cards`, `chat-attachments` — `captures.ts:18`, `conversations.ts:285`), and
 Realtime for chat/sync/live-events.
 
 - **Plan:** Pro **$25/mo fixed** (needed for >500 realtime connections + production).
@@ -176,40 +176,43 @@ of **a few KB of row data + indexes**; enrichment text and chat messages add mor
 - **Relation to MAU (cumulative, assumed inputs):** `GB_db ≈ MAU × contacts_per_user_per_mo × bytes_per_contact × M_months / 1e9`
 - **Worked with assumed 5 KB & 40/mo — 1,000 MAU, 12 months:** `1000 × 40 × 5 KB × 12 / 1e6 ≈ 2.4 GB` → **under 8 GB included → $0**. The DB likely stays free until ~**3,000+ MAU sustained for a year** — **confirm with the two queries above.**
 
-#### 2.1d Realtime — the real scaling constraint (peak **concurrent** connections, cap 500)
-**This is the variable most likely to force an overage, well before storage/DB/egress do.** The code
-opens, per logged-in user:
+#### 2.1d Realtime — peak **concurrent** connections (cap 500) — **architecture rewritten since the prior doc**
+**The old "10 channels per user" fan-out is GONE.** The sync layer was rewritten to use a **single private
+Broadcast channel per user** as a wake-up signal, not one `postgres_changes` channel per table. A DB trigger
+(`broadcast_sync_change()`) emits a per-user "table changed" poke; on any poke the client runs the existing
+debounced `catchUpAll()` delta-sync over HTTP — **Realtime is now only a wake-up signal, not the data path**
+(`sync_provider.dart:154-186`). The code opens, per logged-in user:
 
 | When | Channels opened | Source |
 |---|---|---|
-| **Always, while the app is foregrounded** | **10** — one Realtime channel **per synced table** (`events, contacts, captures, targetCompanies, contactEvents, eventGoals, emailDrafts, interactions, followUps, targetCompanyMet`) | `sync_provider.dart:46-57` + `synced_repository.dart:137` |
-| Chat screen open | **+1** (`messages:{conversationId}`) | `chat_provider.dart:279` |
-| During a **live event** | **+5** (`captures, event_goals, target_companies, contact_events, contacts`) | `live_event_provider.dart:49-55,205` |
+| **Always, while the app is foregrounded** | **1** — a single private Broadcast channel `sync:user={userId}` | `sync_provider.dart:158-177` (`_subscribeSyncBroadcast`) |
+| Chat screen open | **+1** (`messages:{conversationId}`) | `chat_provider.dart:306-308` |
+| During a **live event** | **+0** — live mode reuses the same broadcast via `onSyncPoke`; **no per-table channels** | `live_event_provider.dart:46-47` (comment: *"no per-table postgres_changes channels needed here"*) |
 
-So a single active user holds **~10 concurrent connections** baseline, **11** with chat open, and **up to
-~15** during a live event (live channels are scoped to live mode — opened in `_enterLiveMode`, torn down in
-`_leaveLiveMode`, `live_event_provider.dart:182-189`).
+So a single active user holds **1 concurrent connection** baseline, **2** with a chat screen open, and **still
+1–2** during a live event. The old 10 (baseline) / +5 (live) channels no longer exist.
 
-The **per-user channel counts (10 / +1 / +5) are MEASURED from code, not assumed.** What's assumed is the
-**human behaviour**: how many users are foregrounded at once, and what fraction are in a live event / chat.
+The **per-user channel counts (1 / +1 / +0) are MEASURED from code, not assumed.** What's assumed is the
+**human behaviour**: how many users are foregrounded at once, and what fraction have a chat screen open.
 
-> ⚠️ **ASSUMED: peak concurrent users and the live/chat fractions — Kind-B, NOT measurable pre-launch.** The
-> connections-per-user multiplier (10–15) is **code-derived and exact**; the number of *simultaneous* users is a
-> business-scenario input, not a measurement. **Pre-launch:** set it from your launch plan (*"one exhibition team
-> of T reps, all live on the show floor at once"* → peak ≈ T×15) and compute the range. **Post-pilot:** read the
-> true peak off **Supabase → Reports → Realtime** during a real show day. Don't fabricate a user count — name the scenario.
+> ⚠️ **ASSUMED: peak concurrent users and the chat fraction — Kind-B, NOT measurable pre-launch.** The
+> connections-per-user multiplier (1–2) is **code-derived and exact**; the number of *simultaneous* users is a
+> business-scenario input. **Pre-launch:** set it from your launch plan (*"one exhibition team of T reps, all live
+> on the show floor at once"* → peak ≈ T×1, +1 each for anyone in chat). **Post-pilot:** read the true peak off
+> **Supabase → Reports → Realtime** during a real show day. Don't fabricate a user count — name the scenario.
 
-- **Concurrent connections ≈ (peak simultaneously-active users) × 10** (→ ×15 if many are in a live event at once — the realistic worst case for an *exhibition* CRM, where the whole team is live on the show floor together).
-- **The 500 included connections are exhausted at only ~50 simultaneously-active users** (~33 if all are in live mode) — a **code-derived** figure (500 ÷ 10), independent of the behaviour assumptions. This is **far** below the MAU at which any other Supabase resource costs money.
+- **Concurrent connections ≈ (peak simultaneously-active users) × (1 + fraction_in_chat)** — i.e. roughly **1 per user**, up to ~2 for the fraction with a chat open. Live mode adds nothing.
+- **The 500 included connections are now exhausted at ~250–500 simultaneously-active users** (500 ÷ ~1–2), a **code-derived** figure — a **~10× improvement** over the old ~50-user ceiling. This is now comfortably in line with the MAU at which other Supabase resources start to cost money, rather than far below it.
 - **Overage:** Supabase Pro bills **$10 per additional 1,000 peak connections**.
 - **Realtime formula:**
-  `peak_connections ≈ peak_concurrent_users × (10 + 5·fraction_in_live_event + 1·fraction_in_chat)`
+  `peak_connections ≈ peak_concurrent_users × (1 + 1·fraction_in_chat)`
   `realtime_overage = max(peak_connections − 500, 0) / 1000 × 10`
-- **Worked: 200 concurrent users, 50% in a live event →** `200 × (10 + 5×0.5) = 2,500` peak connections → `(2500-500)/1000 × 10 = $20/mo`. At **500 concurrent live users** → `500 × 12.5 ≈ 6,250` → `~$57.50/mo`.
+- **Worked: 400 concurrent users, 25% with chat open →** `400 × (1 + 0.25) = 500` peak connections → **$0** (right at the included cap). At **2,000 concurrent users, 25% in chat** → `2,500` → `(2500-500)/1000 × 10 = $20/mo`.
 
-> **Bottom line on Supabase relations:** at the scales this app realistically hits, **storage, DB, and
-> egress stay inside the free Pro allotments into the low-thousands of MAU.** The first thing to cost money
-> is **realtime peak connections**, because every foregrounded user pins ~10 channels — see §6 for the fix.
+> **Bottom line on Supabase relations:** with the single-broadcast-channel rewrite, **realtime is no longer the
+> first cost ceiling.** Storage, DB, and egress stay inside the free Pro allotments into the low-thousands of MAU,
+> and realtime now also scales to roughly that same range on the included 500 connections. The earlier "#1 scaling
+> cost" finding has been **resolved in code** — see §6 item 1.
 
 ### 2.2 Google Gemini API (`gemini-3.1-flash-lite` + `gemini-embedding-001`) — usage (tokens)
 **Why:** Gemini is invoked on **six** distinct paths in code (SDK is now `@google/genai`):
@@ -396,7 +399,8 @@ via `--dart-define=UXCAM_APP_KEY=...`, so on those builds UXCam **authenticates 
 Tesseract.js (OCR), `exceljs`/`xlsx`/`papaparse` (import/export), `pdf-parse`/`mammoth`/`officeparser`
 (doc parsing, lazily loaded — `document-extraction.ts`), `cheerio`, `multer` (upload parsing), `helmet`
 (headers), `image_picker`/`camera`/`file_picker`/`record` (Flutter capture/upload), `drift`/`sqflite`
-(local DB), `flutter_uxcam` SDK (inert), `google_fonts` (Google's free font CDN). No API cost — they
+(local DB), `flutter_uxcam` SDK (now active — billed on UXCam's own session quota, see §2.9, not an
+in-process cost), `google_fonts` (Google's free font CDN). No API cost — they
 consume Vercel/Railway compute already counted.
 
 ---
@@ -420,10 +424,11 @@ The *per-action shape* is determinable from code; absolute volumes (users, cards
 | Normal browsing | served from local **drift** DB; realtime keeps it synced | 0 | 0 | realtime connection (counts vs 500 cap) | 0 |
 | Import file (CSV/XLSX) | 1 (parsed in-process) | 0 | 0 | bulk writes | 0 |
 
-**Realtime is the silent scaler (and the first cost ceiling — see §2.1d):** every foregrounded user
-pins **~10 concurrent channels** (one per synced table, `sync_provider.dart:46`), +1 with chat open,
-+5 during a live event. The Pro plan's **500 concurrent connections are spent at only ~50 simultaneously
-active users** — long before MAU drives any storage/DB/egress cost. Overage is **$10 / extra 1,000 peak connections**.
+**Realtime (rewritten — see §2.1d):** every foregrounded user now holds **1 concurrent Broadcast channel**
+(`sync:user={userId}`, `sync_provider.dart:158`), +1 with a chat screen open, +0 during a live event (live
+mode reuses the same broadcast). The Pro plan's **500 concurrent connections now last to ~250–500 simultaneously
+active users** (≈10× the old per-table-channel ceiling), roughly in line with where storage/DB/egress costs
+begin rather than far below them. Overage is **$10 / extra 1,000 peak connections**.
 
 **Cron/background jobs:** `workmanager` runs **on-device** offline-sync (free). No server-side cron found.
 
@@ -478,13 +483,13 @@ Supabase MAU/egress/storage, Vercel compute/egress, Railway resources.
 
 ## 6. Cost-reduction opportunities & dead weight
 
-1. **Collapse the 10-channels-per-user realtime fan-out — this is the #1 scaling cost.** Today each user
-   opens one Realtime channel **per table** (`sync_provider.dart:46`, 10 channels), so 500 included
-   connections run out at ~50 concurrent users. Two fixes: **(a)** subscribe to a **single** channel and
-   multiplex all 10 tables through it (Supabase Realtime supports multiple `postgres_changes` bindings on
-   one channel) — cuts connections ~10×, pushing the cap to ~500 concurrent users on the same plan; **(b)**
-   only open realtime for the table(s) the current screen needs, and rely on the existing drift `catchUp`
-   delta-sync on resume for the rest. Either keeps you on the $25 plan far longer. **Biggest lever.**
+1. **Realtime fan-out — ALREADY FIXED (was the #1 scaling cost in the prior version of this doc).** The
+   10-channels-per-user model is gone: the app now opens a **single private Broadcast channel per user** as a
+   wake-up poke and runs the drift `catchUpAll()` delta-sync over HTTP on each poke (`sync_provider.dart:154-186`);
+   live mode reuses it via `onSyncPoke` (`live_event_provider.dart:46`). This is essentially fix (a)/(b) from the
+   earlier recommendation, implemented — the 500-connection cap now lasts to ~250–500 concurrent users instead of
+   ~50. **No action needed here.** Only remaining realtime channel beyond the broadcast is the per-conversation
+   `messages:{id}` channel while a chat screen is open (`chat_provider.dart:306`), which is fine.
 
 2. **Lower Sentry replay `sessionSampleRate` from 1.0 — a one-line change that can save $100+/mo.** At
    `replay.sessionSampleRate = 1.0` (`main.dart:93`) Sentry records **every app session** as a billable mobile
@@ -512,7 +517,7 @@ Supabase MAU/egress/storage, Vercel compute/egress, Railway resources.
 6. **Enrichment burns Exa AND Gemini per entity** (but Exa is now far cheaper). Company/contact enrichment
    each fire **2 Exa searches + 1 Gemini call** (exact, §2.3). Exa's **20,000 free requests/mo** cover
    ~10,000 enrichments/mo — ~30× the old Tavily headroom, so Exa is unlikely to cost anything for a long time.
-   **Cache enrichment results** — the code short-circuits when `enriched_at` is set (`companies.ts:114`);
+   **Cache enrichment results** — the code short-circuits when `enriched_at` is set (`companies.ts:109`);
    ensure the client doesn't force-refresh. The Gemini call is now the more meaningful per-enrichment cost.
 
 7. **Voice transcription** — the silence gate (`ai.ts:113-152`) already avoids paying for silent clips;

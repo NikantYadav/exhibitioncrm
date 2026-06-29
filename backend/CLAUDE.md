@@ -221,6 +221,29 @@ caches). Do NOT hand-edit them to fix schema drift — regenerate via Slayer's
 ingest / `validate-models` tooling so the caches stay consistent. The only drift
 found in the last audit was a stale `contacts.follow_up_urgency` column.
 
+## Database / RLS conventions (MANDATORY)
+
+- **Enable RLS AND `FORCE` it on every new table that holds tenant data.** When
+  you create or migrate a table with a `user_id` (or any per-tenant ownership),
+  do BOTH:
+  ```sql
+  ALTER TABLE public.<t> ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.<t> FORCE  ROW LEVEL SECURITY;
+  ```
+  Plain `ENABLE` leaves the **table owner exempt from RLS** (a defense-in-depth
+  gap); `FORCE` applies the policies to everyone including the owner. The
+  standing audit sweep in [CYBERSECURITY.md](../CYBERSECURITY.md) treats any
+  RLS-enabled-but-not-FORCEd tenant table as a finding (see B14) and must return
+  empty. The only deliberate exception is a deny-all bookkeeping table accessed
+  solely via a `SECURITY DEFINER` RPC (e.g. `scoped_rate_limits`, B13) — document
+  the intent on the table.
+- **Give the table real policies before FORCE-ing it.** `FORCE` is only safe if
+  every non-`service_role` path the app uses is covered by a policy
+  (`service_role` is exempt even under FORCE). Verify with the Supabase MCP which
+  client each access uses (`req.supabase` user-client paths need full CRUD
+  policies scoped `user_id = (select auth.uid())`; pure `supabaseAdmin` paths
+  don't, but adding the policies anyway is the safer default).
+
 ## Verify
 - Typecheck with `npx tsc --noEmit` from `backend/` after edits.
 - Use the Supabase MCP (`list_tables` verbose, or `information_schema` via

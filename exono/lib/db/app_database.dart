@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:drift/drift.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import 'connection/connection.dart';
 import 'tables/events_table.dart';
@@ -95,6 +99,30 @@ class AppDatabase extends _$AppDatabase {
       );
 
   static QueryExecutor _openConnection() => openConnection();
+
+  /// Opens the DB, recreating the file from scratch if the SQLCipher key
+  /// cannot open it (e.g. the device has a pre-existing plaintext DB from a
+  /// version of the app before the C2 encryption migration). The local DB is a
+  /// sync cache — deleting it is safe; data re-syncs from the server online.
+  static Future<AppDatabase> openOrRecreate() async {
+    try {
+      final db = AppDatabase();
+      // Force Drift to actually open the connection so we discover any
+      // SQLCipher key mismatch early, before the caller tries a real query.
+      await db.customSelect('SELECT 1').get();
+      return db;
+    } catch (_) {
+      // Best-effort delete of the plaintext file so SQLCipher can start fresh.
+      try {
+        final dbFolder = await getApplicationDocumentsDirectory();
+        final file = File(p.join(dbFolder.path, 'exono_sync.sqlite'));
+        if (await file.exists()) await file.delete();
+      } catch (_) {
+        // If deletion fails, the next open will also fail — nothing more to do.
+      }
+      return AppDatabase();
+    }
+  }
 
   // Drops and recreates every synced table's local cache; called on logout
   // so a different login on the same device can't read a prior user's rows.

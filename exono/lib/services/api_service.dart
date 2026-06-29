@@ -1319,18 +1319,6 @@ class ApiService {
     return List<Map<String, dynamic>>.from(body['data'] as List);
   }
 
-  static Future<String> askEventQuestion(String eventId, String question) async {
-    final response = await _send(() async => http.post(
-      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/ask'),
-      headers: await _headers(),
-      body: jsonEncode({'question': question}),
-    ));
-    checkUnauthorized(response);
-    if (response.statusCode != 200) throw Exception('Failed to get AI answer');
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    return body['answer'] as String? ?? '';
-  }
-
   static Future<String> transcribeAudio(String base64Audio, {int? durationSeconds}) async {
     final response = await _send(() async => http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ai}/transcribe'),

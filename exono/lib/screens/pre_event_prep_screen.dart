@@ -372,7 +372,8 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
     FilePickerResult? result;
     try {
       result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'xlsx', 'xls'],
         withData: true,
       );
     } on UnauthorizedException { rethrow; } catch (_) {
@@ -382,6 +383,11 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
 
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
+    const maxImportBytes = 10 * 1024 * 1024;
+    if (file.size > maxImportBytes) {
+      if (mounted) showAppToast(context, 'File too large (max 10 MB)');
+      return;
+    }
     final name = file.name.toLowerCase();
     if (!name.endsWith('.csv') && !name.endsWith('.xlsx') && !name.endsWith('.xls')) {
       if (mounted) showAppToast(context, 'Please select a CSV or Excel file.');

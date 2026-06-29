@@ -1,8 +1,30 @@
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { supabaseAdmin as supabase } from '../config/supabase';
 import { supabaseAuth } from '../config/supabaseClients';
 import { logInfo, logError, logSuccess, logWarning } from '../middleware/logger';
+
+// IP-keyed rate limiters for brute-forceable auth routes.
+// NOTE: uses express's default in-memory store — per-process, not shared.
+// On serverless deployments the effective limit is max × number of instances;
+// this is acceptable as a first-pass defence (see CYBERSECURITY.md B11).
+// Upgrade to a Redis store (rate-limit-redis) for a shared counter if needed.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later.' },
+});
+
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later.' },
+});
 
 const signupSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -35,7 +57,7 @@ const router = Router();
  * POST /api/auth/signup
  * Register a new user
  */
-router.post('/signup', async (req: Request, res: Response) => {
+router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
   try {
     const parsed = signupSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -183,7 +205,7 @@ router.post('/complete-profile', async (req: Request, res: Response) => {
  * POST /api/auth/login
  * Login existing user
  */
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', authLimiter, async (req: Request, res: Response) => {
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -302,7 +324,7 @@ router.get('/session', async (req: Request, res: Response) => {
  * POST /api/auth/refresh
  * Refresh access token
  */
-router.post('/refresh', async (req: Request, res: Response) => {
+router.post('/refresh', authLimiter, async (req: Request, res: Response) => {
   try {
     const bodyParsed = z.object({ refresh_token: z.string().min(1).max(2048) }).safeParse(req.body);
     if (!bodyParsed.success) {

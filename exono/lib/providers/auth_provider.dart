@@ -1,11 +1,60 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/exo_chat_sheet.dart';
+
+/// Secure storage instance used for all sensitive keys (tokens + identity cache).
+/// Android: EncryptedSharedPreferences backed by the Android Keystore.
+/// iOS/macOS: Keychain.
+const _secureStorage = FlutterSecureStorage(
+  aOptions: AndroidOptions(encryptedSharedPreferences: true),
+);
+
+/// Keys stored in FlutterSecureStorage (sensitive).
+const _kAccessToken = 'access_token';
+const _kRefreshToken = 'refresh_token';
+const _kCachedUser = 'cached_user';
+const _kCachedProfile = 'cached_profile';
+const _kLastVerifiedMs = 'session_last_verified_ms';
+
+/// Perform a one-time migration of sensitive values from SharedPreferences
+/// (where they lived before this version) to secure storage, then wipe them
+/// from prefs so they no longer sit in plaintext. Safe to call on every start;
+/// it is a no-op once the values are gone from prefs.
+Future<void> _migrateFromPrefsIfNeeded(SharedPreferences prefs) async {
+  final keysToMigrate = [
+    _kAccessToken,
+    _kRefreshToken,
+    _kCachedUser,
+    _kCachedProfile,
+  ];
+  for (final key in keysToMigrate) {
+    final existing = prefs.getString(key);
+    if (existing != null && existing.isNotEmpty) {
+      // Only write to secure storage if the key is not already there (don't
+      // overwrite a newer value that was already written by this version).
+      final alreadySecure = await _secureStorage.read(key: key);
+      if (alreadySecure == null || alreadySecure.isEmpty) {
+        await _secureStorage.write(key: key, value: existing);
+      }
+      await prefs.remove(key);
+    }
+  }
+  // session_last_verified_ms is an int in prefs; migrate it too.
+  final lastMs = prefs.getInt(_kLastVerifiedMs);
+  if (lastMs != null) {
+    final alreadySecure = await _secureStorage.read(key: _kLastVerifiedMs);
+    if (alreadySecure == null || alreadySecure.isEmpty) {
+      await _secureStorage.write(key: _kLastVerifiedMs, value: lastMs.toString());
+    }
+    await prefs.remove(_kLastVerifiedMs);
+  }
+}
 
 class AuthProvider extends ChangeNotifier {
   Map<String, dynamic>? _user;
@@ -62,8 +111,7 @@ class AuthProvider extends ChangeNotifier {
     // A 401 only reaches here after ApiService has already tried (and failed)
     // to refresh the token, so the session is genuinely unrecoverable: log out.
     ApiService.onUnauthorized = () async {
-      final prefs = await SharedPreferences.getInstance();
-      await _clearSession(prefs);
+      await _clearSession();
       notifyListeners();
     };
 
@@ -78,8 +126,11 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Migrate any values still sitting in plaintext SharedPreferences.
       final prefs = await SharedPreferences.getInstance();
-      var token = prefs.getString('access_token');
+      await _migrateFromPrefsIfNeeded(prefs);
+
+      var token = await _secureStorage.read(key: _kAccessToken);
       if (token != null && token.isNotEmpty) {
         var result = await AuthService.getSession(token);
         // The stored access token may have expired while the app was closed.
@@ -87,17 +138,17 @@ class AuthProvider extends ChangeNotifier {
         // Skip the refresh attempt if the session check failed purely because
         // we're offline — the refresh would fail the same way.
         if (result['success'] != true && result['network'] != true) {
-          final refresh = prefs.getString('refresh_token');
+          final refresh = await _secureStorage.read(key: _kRefreshToken);
           if (refresh != null && refresh.isNotEmpty) {
             final refreshed = await AuthService.refresh(refresh);
             final session = refreshed['session'] as Map<String, dynamic>?;
             final newToken = session?['access_token'] as String?;
             if (refreshed['success'] == true && newToken != null && newToken.isNotEmpty) {
               token = newToken;
-              await prefs.setString('access_token', newToken);
+              await _secureStorage.write(key: _kAccessToken, value: newToken);
               final newRefresh = session?['refresh_token'] as String?;
               if (newRefresh != null && newRefresh.isNotEmpty) {
-                await prefs.setString('refresh_token', newRefresh);
+                await _secureStorage.write(key: _kRefreshToken, value: newRefresh);
               }
               result = await AuthService.getSession(newToken);
             } else if (refreshed['network'] == true) {
@@ -110,12 +161,12 @@ class AuthProvider extends ChangeNotifier {
           _accessToken = token;
           _user = result['user'] as Map<String, dynamic>?;
           _profile = result['profile'] as Map<String, dynamic>?;
-          await _cacheIdentity(prefs);
+          await _cacheIdentity();
           // Keep Supabase realtime auth in sync
           _syncRealtimeAuth(token);
         } else if (result['network'] == true &&
-            _offlineRestoreAllowed(prefs) &&
-            _restoreCachedIdentity(prefs)) {
+            await _offlineRestoreAllowed() &&
+            await _restoreCachedIdentity()) {
           // Offline: the token couldn't be verified, but it isn't rejected
           // either. Keep the user signed in from cache so they can work offline;
           // the token is revalidated (and refreshed if needed) once back online.
@@ -126,7 +177,7 @@ class AuthProvider extends ChangeNotifier {
         } else {
           // Genuine auth rejection, expired token, stale offline session, or no
           // cached identity — sign out.
-          await _clearSession(prefs);
+          await _clearSession();
         }
       }
     } catch (_) {
@@ -154,10 +205,11 @@ class AuthProvider extends ChangeNotifier {
           _accessToken = token;
           _user = result['user'] as Map<String, dynamic>?;
           _profile = result['profile'] as Map<String, dynamic>?;
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('access_token', token);
-          if (refresh != null) await prefs.setString('refresh_token', refresh);
-          await _cacheIdentity(prefs);
+          await _secureStorage.write(key: _kAccessToken, value: token);
+          if (refresh != null) {
+            await _secureStorage.write(key: _kRefreshToken, value: refresh);
+          }
+          await _cacheIdentity();
           _syncRealtimeAuth(token);
         }
       }
@@ -185,10 +237,11 @@ class AuthProvider extends ChangeNotifier {
         if (token != null) {
           _accessToken = token;
           _user = result['user'] as Map<String, dynamic>?;
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('access_token', token);
-          if (refresh != null) await prefs.setString('refresh_token', refresh);
-          await _cacheIdentity(prefs);
+          await _secureStorage.write(key: _kAccessToken, value: token);
+          if (refresh != null) {
+            await _secureStorage.write(key: _kRefreshToken, value: refresh);
+          }
+          await _cacheIdentity();
           _syncRealtimeAuth(token);
         }
       }
@@ -200,8 +253,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await _clearSession(prefs);
+    await _clearSession();
     clearExoSessions();
     notifyListeners();
   }
@@ -212,8 +264,7 @@ class AuthProvider extends ChangeNotifier {
       final result = await AuthService.getSession(_accessToken!);
       if (result['success'] == true) {
         _profile = result['profile'] as Map<String, dynamic>?;
-        final prefs = await SharedPreferences.getInstance();
-        await _cacheIdentity(prefs);
+        await _cacheIdentity();
         notifyListeners();
       }
     } catch (_) {}
@@ -245,8 +296,7 @@ class AuthProvider extends ChangeNotifier {
       );
       if (result['success'] == true) {
         _profile = result['profile'] as Map<String, dynamic>?;
-        final prefs = await SharedPreferences.getInstance();
-        await _cacheIdentity(prefs);
+        await _cacheIdentity();
         notifyListeners();
       }
       return result;
@@ -254,10 +304,6 @@ class AuthProvider extends ChangeNotifier {
       return {'success': false, 'error': 'Unable to connect. Please check your internet connection and try again.'};
     }
   }
-
-  static const _userKey = 'cached_user';
-  static const _profileKey = 'cached_profile';
-  static const _lastVerifiedKey = 'session_last_verified_ms';
 
   /// Maximum time an offline session may be honoured without a successful
   /// server-side token verification. Even though the backend re-verifies every
@@ -269,16 +315,19 @@ class AuthProvider extends ChangeNotifier {
   /// Caches the current user/profile JSON so the app can restore an
   /// authenticated session offline (when the server can't be reached to verify
   /// the token). Called whenever a fresh session/profile is obtained.
-  Future<void> _cacheIdentity(SharedPreferences prefs) async {
+  Future<void> _cacheIdentity() async {
     if (_user != null) {
-      await prefs.setString(_userKey, jsonEncode(_user));
+      await _secureStorage.write(key: _kCachedUser, value: jsonEncode(_user));
     }
     if (_profile != null) {
-      await prefs.setString(_profileKey, jsonEncode(_profile));
+      await _secureStorage.write(key: _kCachedProfile, value: jsonEncode(_profile));
     }
     // Stamp the moment of a confirmed server-side verification. Used to bound
     // how long the session may be restored purely from cache while offline.
-    await prefs.setInt(_lastVerifiedKey, DateTime.now().millisecondsSinceEpoch);
+    await _secureStorage.write(
+      key: _kLastVerifiedMs,
+      value: DateTime.now().millisecondsSinceEpoch.toString(),
+    );
   }
 
   /// Decides whether a cached session may be honoured offline. Enforced locally
@@ -292,8 +341,10 @@ class AuthProvider extends ChangeNotifier {
   /// lifetime is bounded instead by the time since the last *confirmed* server
   /// verification — a missing/garbled timestamp is treated as expired
   /// (fail closed).
-  bool _offlineRestoreAllowed(SharedPreferences prefs) {
-    final lastMs = prefs.getInt(_lastVerifiedKey);
+  Future<bool> _offlineRestoreAllowed() async {
+    final lastStr = await _secureStorage.read(key: _kLastVerifiedMs);
+    if (lastStr == null) return false;
+    final lastMs = int.tryParse(lastStr);
     if (lastMs == null) return false;
     final last = DateTime.fromMillisecondsSinceEpoch(lastMs);
     final elapsed = DateTime.now().difference(last);
@@ -304,12 +355,12 @@ class AuthProvider extends ChangeNotifier {
 
   /// Restores user/profile from the offline cache. Returns true if a cached
   /// identity was found and loaded.
-  bool _restoreCachedIdentity(SharedPreferences prefs) {
-    final userJson = prefs.getString(_userKey);
+  Future<bool> _restoreCachedIdentity() async {
+    final userJson = await _secureStorage.read(key: _kCachedUser);
     if (userJson == null) return false;
     try {
       _user = jsonDecode(userJson) as Map<String, dynamic>;
-      final profileJson = prefs.getString(_profileKey);
+      final profileJson = await _secureStorage.read(key: _kCachedProfile);
       if (profileJson != null) {
         _profile = jsonDecode(profileJson) as Map<String, dynamic>;
       }
@@ -319,16 +370,18 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _clearSession(SharedPreferences prefs) async {
+  Future<void> _clearSession() async {
     _accessToken = null;
     _user = null;
     _profile = null;
-    await prefs.remove('access_token');
-    await prefs.remove('refresh_token');
+    await _secureStorage.delete(key: _kAccessToken);
+    await _secureStorage.delete(key: _kRefreshToken);
+    await _secureStorage.delete(key: _kCachedUser);
+    await _secureStorage.delete(key: _kCachedProfile);
+    await _secureStorage.delete(key: _kLastVerifiedMs);
+    // Also clear non-sensitive prefs.
+    final prefs = await SharedPreferences.getInstance();
     await prefs.remove('selected_mode');
-    await prefs.remove(_userKey);
-    await prefs.remove(_profileKey);
-    await prefs.remove(_lastVerifiedKey);
   }
 
   void _syncRealtimeAuth(String token) {

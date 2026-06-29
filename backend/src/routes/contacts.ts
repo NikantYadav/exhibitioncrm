@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/requireAuth';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { decodeAndValidateImage } from '../utils/imageValidation';
 import { upsertFollowUp } from '../services/followUps';
+import { fenceUntrusted } from '../assistant/security';
 
 const CARD_BUCKET = 'contact-cards';
 
@@ -787,9 +788,9 @@ router.get('/:id/insights', async (req, res, next) => {
       `- Job Title: ${contact.job_title || 'Unknown'}\n` +
       `- LinkedIn: ${contact.linkedin_url || 'Not provided'}\n` +
       `- Follow-up Status: ${contact.follow_up_status || 'not_contacted'}\n\n` +
-      `${companyContext}\n` +
+      fenceUntrusted(companyContext, 'company-db-record') + '\n' +
       (assetsContext ? `${assetsContext}\n` : '') +
-      `\nEngagement History:\n${timelineContext || 'No prior engagement recorded.'}\n\n` +
+      `\nEngagement History:\n${fenceUntrusted(timelineContext || 'No prior engagement recorded.', 'contact-timeline')}\n\n` +
       `Return ONLY a single-line minified JSON with exactly these keys. No literal newlines inside string values:\n` +
       `{"briefing_items":["up to 3 short bullets"],"buying_authority":"Decision Maker|Influencer|Evaluator|Gatekeeper|Unknown","current_sentiment":"Hot Lead|Warm Opportunity|Evaluating|Cold|Unknown","primary_pain_point":"one sentence","ai_insights":["up to 3 insights"],"strategic_context":"one sentence","key_markets":["up to 3 markets"],"decision_structure":"one sentence"}`;
 

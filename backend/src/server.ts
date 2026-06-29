@@ -18,6 +18,10 @@ dotenv.config();
 void initSchemaFlags();
 
 const app = express();
+// Trust the first proxy hop so req.ip reflects the real client IP behind
+// Vercel/Firebase reverse proxies (required for express-rate-limit to key on
+// the correct IP rather than the proxy's address).
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS

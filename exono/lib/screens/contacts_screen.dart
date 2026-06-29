@@ -621,13 +621,18 @@ class _AddContactSheet extends StatelessWidget {
   Future<void> _pickAndUpload(BuildContext context) async {
     FilePickerResult? result;
     try {
-      result = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
+      result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv', 'xlsx', 'xls'], withData: true);
     } catch (_) {
       if (context.mounted) showAppToast(context, 'Could not open file picker.');
       return;
     }
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
+    const maxImportBytes = 10 * 1024 * 1024;
+    if (file.size > maxImportBytes) {
+      if (context.mounted) showAppToast(context, 'File too large (max 10 MB)');
+      return;
+    }
     final name = file.name.toLowerCase();
     if (!name.endsWith('.csv') && !name.endsWith('.xlsx') && !name.endsWith('.xls')) {
       if (context.mounted) showAppToast(context, 'Please select a CSV or Excel file.');

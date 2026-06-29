@@ -7,7 +7,35 @@ import { requireAuth } from '../middleware/requireAuth';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { upsertFollowUp, setEventFollowUpStatus } from '../services/followUps';
 import multer from 'multer';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+
+/** Keys that must never become object properties (prototype-pollution guard). */
+const FORBIDDEN_KEYS_XLSX = new Set(['__proto__', 'constructor', 'prototype']);
+
+async function parseSpreadsheetBuffer(buf: Buffer): Promise<Record<string, string>[]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
+  const ws = wb.worksheets[0];
+  if (!ws) return [];
+
+  const rows: Record<string, string>[] = [];
+  let headers: string[] = [];
+  ws.eachRow((row, rowNumber) => {
+    const values = (row.values as ExcelJS.CellValue[]).slice(1);
+    if (rowNumber === 1) {
+      headers = values.map((v) => (v == null ? '' : String(v).trim()));
+      return;
+    }
+    const obj = Object.create(null) as Record<string, string>;
+    headers.forEach((key, i) => {
+      if (!key || FORBIDDEN_KEYS_XLSX.has(key)) return;
+      const cell = values[i];
+      obj[key] = cell == null ? '' : String(cell).trim();
+    });
+    rows.push(obj);
+  });
+  return rows;
+}
 
 const uuidSchema = z.string().uuid();
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]*)?$/, 'Invalid date format').nullable().optional();
@@ -1084,51 +1112,6 @@ router.get('/:id/goals', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// POST /api/events/:id/ask
-router.post('/:id/ask', async (req, res, next) => {
-  try {
-    const supabase = req.supabase!;
-    const parsed = z.object({ question: z.string().trim().min(1).max(1000) }).safeParse(req.body);
-    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
-    const { question } = parsed.data;
-    const [{ data: event }, { data: targets }] = await Promise.all([
-      supabase.from('events').select('name, location, start_date, end_date').eq('id', req.params.id).is('deleted_at', null).single(),
-      supabase.from('target_companies').select('company:companies(name, industry), booth_location, status, priority').eq('event_id', req.params.id).is('deleted_at', null).limit(20),
-    ]);
-    if (!event) { res.status(404).json({ error: 'Event not found' }); return; }
-
-    const eventName = event.name as string;
-    const eventLocation = event.location || '';
-    const eventDates = event.start_date
-      ? `${event.start_date.slice(0, 10)}${event.end_date ? ` to ${event.end_date.slice(0, 10)}` : ''}`
-      : '';
-    const targetSummary = (targets || []).map((t: any) =>
-      `${t.company?.name} (${t.company?.industry || 'unknown'}, booth: ${t.booth_location || 'TBD'}, status: ${t.status})`
-    ).join('\n');
-
-    // Exa search — include event name, location, schedule and the question
-    let webContext = '';
-    try {
-      const searchQuery = [eventName, eventLocation, eventDates, question].filter(Boolean).join(' ');
-      const results = await ExaService.search(searchQuery, { maxResults: 5, searchDepth: 'basic' });
-      webContext = ExaService.formatForPrompt(results);
-    } catch (_) { /* Exa failure is non-fatal */ }
-
-    const eventContext = [
-      `Event: "${eventName}"`,
-      eventLocation ? `Location: ${eventLocation}` : '',
-      eventDates ? `Dates: ${eventDates}` : '',
-    ].filter(Boolean).join('\n');
-
-    const llm = new LiteLLMService();
-    const answer = await llm.generateCompletion([{
-      role: 'user',
-      content: `You are a smart assistant helping someone attending a live event.\n\n${eventContext}\n\nTarget companies:\n${targetSummary || 'None listed'}${webContext ? `\n\nReal-time web context:\n${webContext}` : ''}\n\nQuestion: ${question}\n\nAnswer in 2-3 sentences. Be specific and actionable.`
-    }]);
-    res.json({ answer });
-  } catch (error) { next(error); }
-});
-
 // POST /api/events/:id/goals
 router.post('/:id/goals', async (req, res, next) => {
   try {
@@ -1195,10 +1178,7 @@ router.post('/:id/targets/import', upload.single('file'), async (req: any, res, 
     }
 
     // Parse file (works for .xlsx, .xls, .csv)
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const rows = await parseSpreadsheetBuffer(req.file.buffer);
 
     const results: { added: number; skipped: number; errors: string[] } = {
       added: 0,

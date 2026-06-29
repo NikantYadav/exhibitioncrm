@@ -1,10 +1,11 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { z } from 'zod';
 import { supabaseAdmin as supabase } from '../config/supabase';
 import { LiteLLMService } from '../services/litellm-service';
 import { ExaService } from '../services/exa-service';
 import { requireAuth } from '../middleware/requireAuth';
 import { checkScopedRateLimit } from '../utils/rateLimit';
+import { fenceUntrusted } from '../assistant/security';
 
 const uuidSchema = z.string().uuid();
 const optText = (max: number) => z.string().trim().max(max).optional().or(z.literal(''));
@@ -32,6 +33,34 @@ const ENRICH_MAX = 10;
 const ENRICH_WINDOW_MS = 60 * 60 * 1000;
 
 const router = Router();
+
+/**
+ * Returns true if the authenticated user owns a linkage to the given company —
+ * either via a contact whose company_id points at companyId, or via a
+ * target_companies row whose company_id points at it.
+ * Mirrors the companies READ RLS policies' join.
+ */
+async function ownsCompanyLinkage(companyId: string, userId: string, req: Request): Promise<boolean> {
+  const client = req.supabase!;
+  const [contactRes, targetRes] = await Promise.all([
+    client
+      .from('contacts')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle(),
+    client
+      .from('target_companies')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  return !!(contactRes.data || targetRes.data);
+}
 
 // All company routes require a valid session
 router.use(requireAuth);
@@ -135,10 +164,10 @@ router.post('/:id/enrich', async (req, res, next) => {
     ].filter(Boolean).join('\n');
 
     const prompt = `You are extracting factual company profile data for "${companyName}".
-${knownContext ? `\nKnown details about this company:\n${knownContext}\n` : ''}
+${knownContext ? `\nKnown details about this company:\n${fenceUntrusted(knownContext, 'company-db-hints')}\n` : ''}
 IMPORTANT: Only extract data that matches a company named "${companyName}"${location ? ` based in or associated with ${location}` : ''}${industry ? ` in the ${industry} industry` : ''}. If the web research appears to describe a different company (wrong country, wrong industry, or clearly a different entity), return all fields as null and set match_confidence to "low". Do not invent or hallucinate details.
 
-${webContext ? `Web research:\n${webContext}\n\n` : ''}Extract and return ONLY a JSON object with these fields (use null for unknown):
+${webContext ? `Web research:\n${fenceUntrusted(webContext, 'exa-web-research')}\n\n` : ''}Extract and return ONLY a JSON object with these fields (use null for unknown):
 {
   "match_confidence": "high | medium | low",
   "name": "official company name with correct capitalisation, or null if uncertain",
@@ -221,6 +250,9 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const parsedId = uuidSchema.safeParse(req.params.id);
     if (!parsedId.success) return res.status(400).json({ error: 'Invalid company id' });
+
+    const linked = await ownsCompanyLinkage(parsedId.data, req.user!.id, req);
+    if (!linked) return res.status(403).json({ error: 'Forbidden' });
 
     const parsed = companyPatchSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });

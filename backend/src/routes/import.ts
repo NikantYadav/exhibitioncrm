@@ -1,7 +1,39 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
 import multer from 'multer';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+
+/** Keys that must never become object properties (prototype-pollution guard). */
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Parse an xlsx/xls/csv buffer into an array of plain objects keyed by the
+ * first-row headers. Uses exceljs; falls back to CSV text-split for .csv.
+ */
+async function parseSpreadsheetBuffer(buf: Buffer): Promise<Record<string, string>[]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
+  const ws = wb.worksheets[0];
+  if (!ws) return [];
+
+  const rows: Record<string, string>[] = [];
+  let headers: string[] = [];
+  ws.eachRow((row, rowNumber) => {
+    const values = (row.values as ExcelJS.CellValue[]).slice(1); // index 0 is always null
+    if (rowNumber === 1) {
+      headers = values.map((v) => (v == null ? '' : String(v).trim()));
+      return;
+    }
+    const obj = Object.create(null) as Record<string, string>;
+    headers.forEach((key, i) => {
+      if (!key || FORBIDDEN_KEYS.has(key)) return;
+      const cell = values[i];
+      obj[key] = cell == null ? '' : String(cell).trim();
+    });
+    rows.push(obj);
+  });
+  return rows;
+}
 
 const router = Router();
 
@@ -37,10 +69,7 @@ router.post('/', upload.single('file'), async (req: any, res, next) => {
       return;
     }
 
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const rows = await parseSpreadsheetBuffer(req.file.buffer);
 
     const results = { imported: 0, skipped: 0, errors: [] as string[] };
 

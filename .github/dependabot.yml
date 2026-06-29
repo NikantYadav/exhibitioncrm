@@ -1,0 +1,49 @@
+# Dependabot version + security updates.
+# Covers the two npm workspaces (repo root and backend/) and the GitHub Actions
+# used by the workflows in .github/workflows. Added per CYBERSECURITY.md B3
+# (A03:2025 Software Supply Chain Failures) so dependency drift surfaces as PRs
+# instead of going stale. Note: Dependabot does not support Dart/pub (Flutter,
+# exono/) — keep an eye on `flutter pub outdated` there manually.
+version: 2
+updates:
+  # Root package.json
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+    groups:
+      # One PR for routine patch/minor bumps to cut review noise; majors and
+      # security fixes still come as their own PRs.
+      minor-and-patch:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Backend Express/TypeScript API
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "backend"
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions used by the CI workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "ci"

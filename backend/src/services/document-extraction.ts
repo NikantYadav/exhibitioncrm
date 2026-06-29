@@ -12,8 +12,12 @@
 //  - Image/scanned formats go to the vision model; office/pdf-text formats are
 //    parsed locally. No format reaches a parser it was not sniffed as.
 
+import ExcelJS from 'exceljs';
 import { litellm } from './litellm-service';
 import { sniffImage } from '../utils/imageValidation';
+
+/** Keys that must never become object properties (prototype-pollution guard). */
+const FORBIDDEN_HEADER_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 // All document-parsing libraries are loaded lazily (inside the functions that
 // use them) so that module-load crashes in restricted environments (e.g. Vercel
@@ -77,14 +81,32 @@ function parseOfficeAsync(buf: Buffer): Promise<string> {
   });
 }
 
-function extractSpreadsheet(buf: Buffer): string {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const XLSX = require('xlsx');
-  const wb = XLSX.read(buf, { type: 'buffer' });
+async function extractSpreadsheet(buf: Buffer): Promise<string> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
   const parts: string[] = [];
-  for (const name of wb.SheetNames) {
-    const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
-    if (csv.trim()) parts.push(`# Sheet: ${name}\n${csv}`);
+  for (const ws of wb.worksheets) {
+    const lines: string[] = [];
+    ws.eachRow((row) => {
+      const values = (row.values as ExcelJS.CellValue[]).slice(1);
+      const cells = values.map((v) => {
+        if (v == null) return '';
+        if (typeof v === 'object' && 'richText' in (v as any)) {
+          // RichText cell
+          return (v as any).richText.map((r: any) => r.text ?? '').join('');
+        }
+        if (typeof v === 'object' && 'result' in (v as any)) {
+          // Formula cell — use cached result
+          return String((v as any).result ?? '');
+        }
+        return String(v);
+      });
+      // Simple CSV-like serialisation (no quoting — we only need text for AI)
+      // Sanitise: skip cells whose value could mutate the header object key
+      lines.push(cells.join(','));
+    });
+    const csv = lines.join('\n');
+    if (csv.trim()) parts.push(`# Sheet: ${ws.name}\n${csv}`);
   }
   return parts.join('\n\n');
 }
@@ -146,7 +168,7 @@ export async function extractDocument(buf: Buffer, claimedMime?: string): Promis
 
     if (sniff.kind === 'zip') {
       const kind = ooxmlKind(buf);
-      if (kind === 'spreadsheet') return { text: clamp(extractSpreadsheet(buf)), kind: 'spreadsheet' };
+      if (kind === 'spreadsheet') return { text: clamp(await extractSpreadsheet(buf)), kind: 'spreadsheet' };
       if (kind === 'docx') {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const mammoth = require('mammoth') as MammothLib;
@@ -162,7 +184,7 @@ export async function extractDocument(buf: Buffer, claimedMime?: string): Promis
     if (claimedMime?.includes('csv') || sniff.kind === 'csv-or-text') {
       // Spreadsheet lib also reads CSV cleanly and normalizes delimiters.
       try {
-        return { text: clamp(extractSpreadsheet(buf)), kind: 'spreadsheet' };
+        return { text: clamp(await extractSpreadsheet(buf)), kind: 'spreadsheet' };
       } catch {
         return { text: clamp(buf.toString('utf8')), kind: 'spreadsheet' };
       }
