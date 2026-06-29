@@ -19,7 +19,7 @@
  * sets so the assistant keeps working with the last-known-good schema.
  */
 
-import { supabaseAdmin } from '../config/supabaseClients';
+import { createClient } from '@supabase/supabase-js';
 
 export interface SchemaSnapshot {
   /** table name -> sorted column names */
@@ -37,6 +37,14 @@ export interface SchemaSnapshot {
  * (never in practice), so an empty result is treated as a failure upstream.
  */
 export async function introspectSchema(): Promise<SchemaSnapshot> {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — cannot introspect schema');
+  }
+  const supabaseAdmin = createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });
   const { data, error } = await supabaseAdmin.rpc('introspect_public_columns');
   if (error) throw new Error(`introspect_public_columns failed: ${error.message}`);
   const rows = (data ?? []) as Array<{ table_name: string; column_name: string }>;
