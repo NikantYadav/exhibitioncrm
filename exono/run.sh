@@ -34,6 +34,7 @@ SUPABASE_ANON_KEY="${env_vars[SUPABASE_ANON_KEY]:-}"
 API_BASE_URL="${env_vars[API_BASE_URL]:-https://exhibitioncrm.vercel.app/}"
 SENTRY_DSN="${env_vars[SENTRY_DSN]:-}"
 SENTRY_ENV="${env_vars[SENTRY_ENV]:-development}"
+UXCAM_APP_KEY="${env_vars[UXCAM_APP_KEY]:-}"
 
 if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_ANON_KEY" ]]; then
   echo "Error: SUPABASE_URL and SUPABASE_ANON_KEY must be set in .env" >&2
@@ -46,6 +47,7 @@ DEFINES=(
   "--dart-define=API_BASE_URL=$API_BASE_URL"
   "--dart-define=SENTRY_DSN=$SENTRY_DSN"
   "--dart-define=SENTRY_ENV=$SENTRY_ENV"
+  "--dart-define=UXCAM_APP_KEY=$UXCAM_APP_KEY"
 )
 
 # Waydroid: when invoked as `-d waydroid -h <height> -w <width>`, boot Waydroid

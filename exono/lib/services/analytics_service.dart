@@ -11,17 +11,25 @@ class AnalyticsService {
   late final FirebaseAnalytics _fa;
   late final FirebaseAnalyticsObserver observer;
 
-  // ── Replace with your real UXCam app key ──────────────────────────────────
-  static const String _uxcamKey = 'YOUR_UXCAM_APP_KEY';
+  // UXCam app key. Supplied per-build with --dart-define=UXCAM_APP_KEY=...
+  // (empty when unset -> UXCam init is skipped).
+  static const String _uxcamKey = String.fromEnvironment('UXCAM_APP_KEY');
 
   Future<void> initialize() async {
     _fa = FirebaseAnalytics.instance;
     observer = FirebaseAnalyticsObserver(analytics: _fa);
 
-    if (!kIsWeb) {
-      final config = FlutterUxConfig(userAppKey: _uxcamKey);
+    if (!kIsWeb && _uxcamKey.isNotEmpty) {
+      // Capture gesture/screen recordings. Only enable once you have user
+      // consent for screen recording.
+      FlutterUxcam.optIntoSchematicRecordings();
+      final config = FlutterUxConfig(
+        userAppKey: _uxcamKey,
+        // We tag screens manually via [logScreen] / the router observer.
+        enableAutomaticScreenNameTagging: false,
+        enableIntegrationLogging: !kReleaseMode,
+      );
       await FlutterUxcam.startWithConfiguration(config);
-      await FlutterUxcam.setAutomaticScreenNameTagging(false);
     }
   }
 

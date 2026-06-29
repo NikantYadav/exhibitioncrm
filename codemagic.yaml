@@ -8,9 +8,8 @@ workflows:
       vars:
         FLUTTER_VERSION: "3.44.2"
         BUNDLE_ID: com.example.exono
-        API_BASE_URL: https://exhibitioncrm.vercel.app/api
       groups:
-        - app_secrets   # group name you created in Codemagic UI (holds SUPABASE_URL, SUPABASE_ANON_KEY)
+        - app_secrets   # group name you created in Codemagic UI (holds SUPABASE_URL, SUPABASE_ANON_KEY, API_BASE_URL, SENTRY_DSN, UXCAM_APP_KEY)
       flutter: $FLUTTER_VERSION
       xcode: latest
       cocoapods: default
@@ -41,7 +40,9 @@ workflows:
             --build-number=1 \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=API_BASE_URL="$API_BASE_URL"
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
+            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
+            --dart-define=UXCAM_APP_KEY="$UXCAM_APP_KEY"
 
           # Fail loudly if the build did not produce the .app (avoids a bogus empty IPA)
           if [ ! -d build/ios/iphoneos/Runner.app ]; then

@@ -29,7 +29,7 @@ they turn the formula constants from guesses into facts.**
 | 1 | **Avg card image size** | Run the backend locally (`npm run dev`), scan **10–20 real business cards** from the app, log `buffer.length` at upload, average | §2.1a |
 | 2 | **Bytes per DB row** | After creating ~20 contacts+captures+enrichments by hand, run `pg_total_relation_size('contacts')` ÷ row count per heavy table | §2.1c |
 | 3 | **Gemini tokens per call path** | Log `response.usageMetadata` and do **one** of each: scan a card, transcribe a clip, enrich a contact/company, send 1 assistant message. Records exact tokens per action | §2.2 |
-| 4 | **Tavily credits per enrichment** | Already exact from code (contact=2, company=3, event=2); confirm by counting requests in one enrich run | §2.3 |
+| 4 | **Exa searches per enrichment** | Already exact from code (contact=2, company=2, event=1–2; each is search+highlights); confirm by counting requests in one enrich run | §2.3 |
 | 5 | **Slayer + backend RAM/CPU** | `docker compose up` both locally, fire a burst of scans + assistant queries, watch `docker stats` peak | §7.0 |
 | 6 | **Current Railway bill** | Read the invoice/Usage tab (Slayer is already deployed there) | §7.1 |
 
@@ -59,21 +59,25 @@ launch** — no amount of local testing produces them. Do **NOT** invent a singl
 | Backend API | Express on **Vercel** | `backend/vercel.json` (`@vercel/node`); client points at `https://exhibitioncrm.vercel.app/api` (`exono/lib/config/api_config.dart:5`) |
 | Database + Auth + Storage + Realtime | **Supabase** | `@supabase/supabase-js`, `supabase_flutter`, realtime channels in `chat_provider.dart:280`, `synced_repository.dart:138`, `live_event_provider.dart:206` |
 | Read-only NL→SQL service | **Slayer** (Python) on **Railway** | `Dockerfile.slayer` (`SLAYER_READONLY_PASSWORD must be set as a Railway env var`); backend calls `SLAYER_URL/query` (`slayer-client.ts:154`) |
-| LLM | **Google Gemini** `gemini-3.1-flash-lite` | `litellm-service.ts:128`, `config/ai.ts` |
-| Web search | **Tavily** `/search` | `tavily-service.ts:20-39`; depth varies per route (basic=1 credit, advanced=2) |
-| OCR | **Tesseract.js** (in-process, no API) | `analyzeCard.ts:1-7` |
+| LLM (text + multimodal) | **Google Gemini** `gemini-3.1-flash-lite` via **`@google/genai`** SDK | `litellm-service.ts:128`, `config/ai.ts` |
+| LLM (embeddings) | **Google Gemini** `gemini-embedding-001` @ 768 dims | `litellm-service.ts:499-523` — used for the oversized-document RAG fallback |
+| Web search | **Exa** `https://api.exa.ai/search` | `exa-service.ts:51,146`; **drop-in replacement for the former Tavily service** (same public API). `searchDepth` maps to Exa `type` (`basic`→`fast`, `advanced`→`auto`); every call requests `contents:{highlights:true}` |
+| OCR | **Tesseract.js** (in-process, no API) | `analyzeCard.ts` / route OCR path |
 | Web hosting | **Firebase Hosting** | `exono/firebase.json` |
 | Analytics | **Firebase Analytics** | `analytics_service.dart:18` |
 | Crash reporting + replay | **Sentry** | `main.dart:85-99`, tracesSampleRate `0.0` (no perf) but **replay sampleRate `1.0`** (every session billable) |
-| Session replay | **UXCam** | `analytics_service.dart:22` — **key is placeholder `YOUR_UXCAM_APP_KEY`** (inactive) |
+| Session replay | **UXCam** | `analytics_service.dart:16,22-32` — key now read from `--dart-define=UXCAM_APP_KEY`; **active whenever a key is supplied at build** (schematic gesture/screen recordings enabled) |
 | iOS CI builds | **Codemagic** (mac_mini_m2) | `codemagic.yaml` |
 
 **Not present (confirmed absent):** no Redis, no queue (SQS/RabbitMQ), no dedicated email
 provider (auth emails ride on Supabase Auth's built-in SMTP), no push notifications (no
 `firebase_messaging`/FCM), no payment gateway (no Stripe), no separate CDN/object store
-beyond Supabase Storage + Firebase Hosting, no Vercel KV/Blob, no monitoring/logging SaaS.
-`openai` SDK is present but **dormant** — `AI_PROVIDER = hasGemini ? 'gemini' : 'openai'`
-(`config/ai.ts`); OpenAI only runs if `GEMINI_API_KEY` is unset.
+beyond Supabase Storage + Firebase Hosting, no Vercel KV/Blob, no monitoring/logging SaaS,
+no dedicated vector DB (RAG uses **pgvector inside Supabase Postgres** — `document_chunks`
+table queried via the `match_document_chunks` RPC, `assistant/tools/executors/documents.ts:40`).
+`openai` SDK is present but **dormant** — Gemini is the active provider whenever
+`GEMINI_API_KEY` is set (`config/ai.ts`); OpenAI only runs if it is unset.
+**Tavily is gone** — the former `tavily-service.ts` was replaced by `exa-service.ts` (Exa).
 
 ---
 
@@ -87,7 +91,7 @@ Realtime for chat/sync/live-events.
 - **Plan:** Pro **$25/mo fixed** (needed for >500 realtime connections + production).
 - **Included:** 8 GB DB, 100 GB storage, 250 GB bandwidth, 100K MAU, **500 concurrent realtime peak connections**, 5M realtime messages.
 - **Overage units:** Bandwidth **$0.09/GB** · DB storage **$0.125/GB** · File storage **$0.021/GB** · Auth **$0.00325/MAU** beyond 100K · **Realtime peak connections $10 per additional 1,000** · Realtime messages $2.50/M.
-- **Cost variables:** MAU, egress, stored card images (chat attachments exist server-side but are **not wired in the app**), DB size, **concurrent (peak) realtime connections**.
+- **Cost variables:** MAU, egress, stored card images **+ chat attachments + contact documents (all now live, see §2.1a)**, DB size (incl. `document_chunks` vectors), **concurrent (peak) realtime connections**.
 - **Headline formula (monthly):**
   `25 + max(MAU-100000,0)*0.00325 + max(GB_egress-250,0)*0.09 + max(GB_db-8,0)*0.125 + max(GB_files-100,0)*0.021 + realtime_overage`
 - Pricing: https://supabase.com/pricing
@@ -100,13 +104,22 @@ Only **one** thing actually lands in a bucket from the live app (confirmed in co
 
 | Bucket | Content | Status |
 |---|---|---|
-| `contact-cards` (private) | The **scanned business-card photo**, uploaded once per capture as `{userId}/{captureId}.{ext}` (`captures.ts:27-49`, `uploadCardImage`) | **Live** — the only real storage driver |
-| `chat-attachments` (private) | AI-chat file attachments (`conversations.ts:191-224`) | **Backend-only, never used** — see note below |
+| `contact-cards` (private) | The **scanned business-card photo**, uploaded once per capture as `{userId}/{captureId}.{ext}` (`captures.ts`, `uploadCardImage`) | **Live** — the primary storage driver |
+| `chat-attachments` (private) | AI-chat file attachments (images + documents) uploaded from the composer (`conversations.ts:191-266`) | **NOW LIVE** — see note below |
+| Contact documents | Per-contact files (PDF proposals, notes) backing the `contact_documents` table (`documents.ts`) | **Live** — user-facing "Documents" on a contact profile |
 
-> **Chat attachments are dead backend code.** The endpoints `/conversations/:id/attachments/upload`
-> and the `chat-attachments` bucket exist server-side, but **nothing in the Flutter app ever calls them**
-> — there is no file picker or upload call in `chat_provider.dart`, `chat_screen.dart`, or `api_service.dart`.
-> So chat attachments contribute **0 GB** today. (Either wire them up or delete the unused route + bucket.)
+> **Chat attachments are now wired (this changed since the prior version of this doc).** The Flutter app
+> added `file_picker: ^8.0.0` (`pubspec.yaml:66`) and `chat_provider.dart` carries optimistic attachments
+> through the send path (`chat_provider.dart:16,356-424`, `ChatAttachment` model). The backend endpoints
+> under `/conversations/:id/attachments` (`conversations.ts:266+`) now receive real uploads. So
+> chat attachments are a **live storage + bandwidth driver**, no longer dead code.
+>
+> **New cost path — oversized-document RAG (pgvector).** When an uploaded document is too large to inline,
+> it is **chunked and embedded** at upload (`conversations.ts:322-346`, `chunkText` + `litellm.embed`) and
+> the vectors stored in `document_chunks (embedding vector(768))`. Read-time queries embed the question and
+> call `match_document_chunks`. This adds **(a)** Gemini *embedding* token spend (§2.2, a new Gemini path),
+> **(b)** a little DB storage for the vectors, and **(c)** image/office documents that go to the **vision/parse
+> path** (`document-extraction.ts`) — small docs inline (no embedding), big docs chunk+embed.
 
 There is **no separate avatar upload** — the contact `avatar_url` (`contact.dart:16`) points at the
 **same stored card image** (or an external URL from enrichment), so avatars do **not** add storage.
@@ -198,22 +211,28 @@ The **per-user channel counts (10 / +1 / +5) are MEASURED from code, not assumed
 > egress stay inside the free Pro allotments into the low-thousands of MAU.** The first thing to cost money
 > is **realtime peak connections**, because every foregrounded user pins ~10 channels — see §6 for the fix.
 
-### 2.2 Google Gemini API (`gemini-3.1-flash-lite`) — usage (tokens)
-**Why:** Gemini is invoked on **five** distinct paths in code:
+### 2.2 Google Gemini API (`gemini-3.1-flash-lite` + `gemini-embedding-001`) — usage (tokens)
+**Why:** Gemini is invoked on **six** distinct paths in code (SDK is now `@google/genai`):
 
 1. **Business-card extraction** — 1 call per scanned card (`analyzeCard.ts:10`).
 2. **Voice transcription** — 1 multimodal call (audio→text) per non-silent recording
    (`litellm-service.ts:transcribeAudio`, model hard-coded `gemini-3.1-flash-lite`). Called from
    `ai.ts:156` and `captures.ts:59`, **gated by a server-side silence check** (`ai.ts:113-152`)
    so silent clips cost nothing.
-3. **Contact enrichment** — Tavily search **then** `AIService.generateCompletion(...)` to structure
-   the result (`contacts.ts:785,799`). **1 Gemini call per enrichment.**
-4. **Company / event enrichment + talking points + prep** — Tavily **then** `llm.generateCompletion(...)`
-   (`companies.ts:162`, `events.ts:1119,1445,1630`). **1+ Gemini call per enrichment/generation.**
-5. **AI assistant agentic loop** — `query_crm`, `web_search`, `describe_model` tools (`assistant.ts`).
-   **N Gemini calls per user message** (one per tool step; typically 2–5).
+3. **Contact enrichment** — Exa search **then** `AIService.generateCompletion(...)` to structure
+   the result (`contacts.ts:798`). **1 Gemini call per enrichment.**
+4. **Company / event enrichment + talking points + prep** — Exa **then** `llm.generateCompletion(...)`
+   (`companies.ts`, `events.ts`). **1+ Gemini call per enrichment/generation.**
+5. **AI assistant agentic loop** — tools dispatched in `assistant/tools/dispatcher.ts` (`query_crm`,
+   `web_search`, `describe_model`, `parse_document`, write tools). **N Gemini calls per user message**
+   (one per tool step; typically 2–5).
+6. **Document embeddings (NEW)** — `gemini-embedding-001` @ 768 dims, called on the oversized-document
+   RAG path: every chunk embedded at upload, plus 1 embed per retrieval query (`litellm-service.ts:507-523`,
+   `conversations.ts:340`). Multimodal **card/audio/vision** inputs (paths 1, 2 + document vision) bill as
+   multimodal tokens on the same Flash-Lite model.
 
 - **Pricing (Flash-Lite tier):** Input **$0.10 / 1M tokens**, Output **$0.40 / 1M tokens**.
+- **Pricing (embedding tier, `gemini-embedding-001`):** confirm current rate at the pricing URL below; embeddings are output-only token billing and far cheaper than generation. The cost is dominated by total chars chunked × embeds, not by retrieval.
 - **Free tier:** Flash-Lite retains free access with reduced daily limits. Code rotates a pool of
   multiple API keys (`litellm-service.ts:110`), consistent with free-tier key pooling.
 - **Cost variables:** cards scanned, voice clips transcribed, enrichments, assistant messages,
@@ -236,30 +255,39 @@ The **per-user channel counts (10 / +1 / +5) are MEASURED from code, not assumed
 
 - Pricing: https://ai.google.dev/gemini-api/docs/pricing
 
-### 2.3 Tavily Search API — tier + usage (credits)
-**Why:** Web enrichment for contacts/companies/events and the assistant's `web_search` tool (`tavily-service.ts`).
+### 2.3 Exa Search API — usage (per request + per content) **[replaced Tavily]**
+**Why:** Web enrichment for contacts/companies/events and the assistant's `web_search` tool. The former
+Tavily service was swapped for **Exa** (`exa-service.ts`) as a drop-in — same call sites, different vendor
+and a **different pricing model**: Exa bills **per search request** (not per "credit"), with a surcharge for
+extra results and for page content. **Every call here passes `contents:{highlights:true}`** (`exa-service.ts:152`),
+so each search is billed as a search **plus** highlights content.
 
-**Credit cost per user action is EXACT from code** — credit = `1` for `basic`, `2` for `advanced`
-(`tavily-service.ts:39`, `max_results` does **not** change the credit cost, only result count). Every call
-site enumerated:
+**Per-action SEARCH counts are EXACT from code.** `searchDepth` only changes Exa's `type` (`basic`→`fast`,
+`advanced`→`auto`); it does **not** change price. Each search requests `numResults: 5` (≤10, so it stays in
+the base search tier — no extra-result surcharge). Every call site enumerated:
 
-| Action | Route | Searches fired | Credits |
+| Action | Route | Exa searches fired | depth |
 |---|---|---|---|
-| Enrich a **contact** (with company) | `contacts.ts:785` → `searchContact` (`tavily-service.ts:80-92`) | 2 basic (person + company) | **2** |
-| Enrich a **contact** (independent / no company) | same | 1 basic (person only) | **1** |
-| Enrich a **company** | `companies.ts:130-132` | 1 advanced + 1 basic | **3** |
-| Company **briefing** | `companies.ts:238-244` | 2 basic | **2** |
-| **Event** company prep / talking points | `events.ts:1108`, `events.ts:1408-1409` | 1–2 basic | **1–2** |
-| Assistant **`web_search`** tool | `assistant.ts:1219-1221` | 1 per tool call, depth chosen by the model (defaults basic) | **1–2 each** |
+| Enrich a **contact** (with company) | `contacts.ts:798` → `searchContact` (`exa-service.ts:198-227`) | **2** (person + company) | basic/`fast` |
+| Enrich a **contact** (independent / no company) | same | **1** (person only) | basic/`fast` |
+| Enrich a **company** | `companies.ts:126-127` | **2** (1 `advanced`/`auto` + 1 `basic`/`fast`) | mixed |
+| **Event** company prep / talking points | `events.ts:1113`, `events.ts:1506-1507` | **1–2** | basic/`fast` |
+| Assistant **`web_search`** tool | `assistant/tools/dispatcher.ts:185-191` | **1 per tool call**; depth chosen by the model (defaults basic, `advanced` in research mode) | model-chosen |
 
-- **Free (Researcher):** 1,000 credits/mo, no card. **Researcher paid:** $30/mo ($25 annual). **Project:** 4,000 credits/mo. **Startup:** $100/mo (~15,000 searches). **PAYG:** **$0.008/credit** once the plan allotment is exhausted. Credits **do not roll over**.
-- **Cost variables:** all are **Kind-B volume** — `contact_enrich/mo`, `company_enrich/mo`, `briefings/mo`, `event_preps/mo`, `assistant_web_searches/mo`. The per-action credits above are fixed.
+- **Pricing (Exa, June 2026 — pay-as-you-go, no required monthly plan):**
+  - **Search** (≤10 results): **$7 / 1,000 requests** (= **$0.007/search**).
+  - **Extra results** beyond 10: +$1 / 1,000 per result tier — **not triggered here** (all calls use 5 results).
+  - **Page content** (highlights/text via the `contents` field): **$1 / 1,000 pages** (= **$0.001/page**). Every search here requests highlights, so add ~`$0.001 × results_returned` per search.
+  - **Free tier:** **up to 20,000 requests/month free** — far more generous than Tavily's 1,000 credits.
+  - Enterprise/volume = custom quote.
+- **Cost variables (all Kind-B volume):** `contact_enrich/mo`, `company_enrich/mo`, `event_preps/mo`, `assistant_web_searches/mo`. Per-action **search counts** above are fixed from code.
+- **Effective per-action cost** (search + highlights at 5 results ≈ `$0.007 + 5×$0.001 = ~$0.012`/search):
+  contact enrich ≈ **$0.024**, company enrich ≈ **$0.024**, event prep ≈ **$0.012–0.024**, assistant search ≈ **$0.012** each.
 - **Formula (monthly):**
-  `credits = 2·contact_enrich + 3·company_enrich + 2·briefings + ~1.5·event_preps + ~1.5·assistant_searches`
-  `cost = plan_fee + max(credits − plan_credits, 0) × 0.008`
-- **Concrete break-even on the free tier:** 1,000 credits ÷ 3 (a company enrich) = **~333 company enrichments/mo**, or ÷2 = **500 contact enrichments/mo**, before any PAYG. At 2,000 company enrichments/mo → `(2000×3 − 1000)×0.008 = $40/mo` PAYG (or move to the $30 Researcher / $100 Startup plan).
-- **No assumption needed for per-action cost** — only the monthly counts, which come from your launch scenario (§0 Kind-B).
-- Pricing: https://www.tavily.com/pricing · credits: https://docs.tavily.com/documentation/api-credits
+  `searches = 2·contact_enrich + 2·company_enrich + ~1.5·event_preps + ~1.5·assistant_searches`
+  `cost = max(searches − 20000, 0) × $0.007 + (highlight_pages_returned beyond free tier) × $0.001`
+- **Concrete free-tier headroom:** 20,000 free requests/mo ÷ 2 per company enrich = **~10,000 company enrichments/mo** before any spend — roughly **30× more headroom than Tavily's old 1,000 credits**. This service is very likely **$0** well into real production volume.
+- Pricing: https://exa.ai/pricing
 
 ### 2.4 Vercel (backend hosting) — fixed + usage
 **Why:** Hosts the entire Express API. **Code fact:** `backend/src/server.ts` does `export default app`
@@ -268,11 +296,11 @@ and `backend/vercel.json` routes **all** paths (`/(.*)`) to `src/server.ts` via 
 
 - **Plan:** Pro **$20/mo per seat**, includes **$20/mo usage credit**, **1 TB** Fast Data Transfer, **10M** edge requests. **Hobby is not allowed** — Vercel ToS restricts it to non-commercial use (a CRM is commercial), so Pro is the floor.
 - **Usage rates (Fluid Compute, 2026):**
-  - **Active CPU $0.128 / CPU-hour** — billed **only while your code actively runs**, *not* during I/O waits (DB queries, Gemini/Tavily HTTP calls). This matters a lot here: most request time is **waiting on Gemini/Tavily/Supabase**, which is **not** billed as Active CPU. The OCR (`tesseract.js`) and JSON work **is** billed.
+  - **Active CPU $0.128 / CPU-hour** — billed **only while your code actively runs**, *not* during I/O waits (DB queries, Gemini/Exa HTTP calls). This matters a lot here: most request time is **waiting on Gemini/Exa/Supabase**, which is **not** billed as Active CPU. The OCR (`tesseract.js`) and JSON work **is** billed.
   - **Provisioned Memory $0.0106 / GB-hour.**
   - **Fast Data Transfer (egress) $0.15/GB** over the 1 TB included.
   - Invocations counted per request.
-- **Cost variables (Kind-B volume):** requests/mo, **active-CPU seconds per request** (high for OCR routes, near-zero for proxy routes that just await Gemini/Tavily), response payload size, seats.
+- **Cost variables (Kind-B volume):** requests/mo, **active-CPU seconds per request** (high for OCR routes, near-zero for proxy routes that just await Gemini/Exa), response payload size, seats.
 - **Formula (monthly):**
   `20 + max( (active_CPU_hours×0.128) + (mem_GB_hours×0.0106) + max(egress_GB−1000,0)×0.15 − 20, 0 ) + 20×(extra_seats)`
 - **Kind-A you can measure now:** the **active-CPU seconds of each route** — log `process.hrtime()` around the handler body locally, especially `/ai/analyze-card` (OCR is CPU-heavy) vs `/ai/assistant` (mostly I/O wait). This tells you which routes actually burn the $0.128/CPU-hr.
@@ -339,16 +367,21 @@ two categories, not one:**
 - **Concrete risk:** at 100% replay sampling, replays = **every session**. 500 included (Team) is gone at ~17 sessions/day. At, say, 30,000 sessions/mo → `(30000−500)×0.00375 ≈ $111/mo` in **replay alone**, on top of error spend. **The fix is config, not money** — see §6.
 - Pricing: https://sentry.io/pricing/ · https://docs.sentry.io/pricing/quotas/manage-replay-quota/
 
-### 2.9 UXCam (mobile session analytics / replay) — **currently $0 (not wired)**
-**Why intended:** mobile session recording + screen analytics. The SDK is initialized in
-`analytics_service.dart:22` (`FlutterUxcam.startWithConfiguration`), **but with the literal placeholder key**
-`static const String _uxcamKey = 'YOUR_UXCAM_APP_KEY';` (`analytics_service.dart:15`).
+### 2.9 UXCam (mobile session analytics / replay) — **NOW ACTIVE** (key supplied at build)
+**Why:** mobile session recording + screen analytics. **This changed since the prior version of this doc:**
+the hardcoded placeholder key is gone. The key is now read from a build-time define
+(`static const String _uxcamKey = String.fromEnvironment('UXCAM_APP_KEY');`, `analytics_service.dart:16`),
+init is gated on `_uxcamKey.isNotEmpty` (`:22`), and **schematic gesture/screen recording is explicitly
+enabled** (`FlutterUxcam.optIntoSchematicRecordings()`, `:25`). The user confirms a real key is now supplied
+via `--dart-define=UXCAM_APP_KEY=...`, so on those builds UXCam **authenticates and records every session**.
 
-- **Code fact:** with a placeholder key, UXCam **does not authenticate / record** → **$0 today, and $0 of value** (the SDK ships in the app binary, adding size, but sends nothing). This overlaps with Sentry mobile replay (§2.8) and Firebase Analytics (§2.10) — **three** session/event tools, one of them inert.
+- **Code fact:** with a real key, UXCam records sessions → it is **billable on its own session quota**, in
+  addition to Sentry mobile replay (§2.8). You now have **two** recording tools running at once (UXCam +
+  Sentry replay) plus Firebase Analytics for events — overlapping coverage, see §6 item 3.
 - **Pricing (what's public, 2026):** **Free plan = 3,000 sessions/mo + 3,000 videos/mo**, resets monthly, never expires; **when 3,000 sessions is exceeded, recording simply STOPS** (it does not auto-bill). **Starter / Growth / Enterprise are sales-quote only** — UXCam does **not** publish a per-1,000-session overage rate; overages are toggled in-dashboard at a rate you negotiate.
-- **Cost variables:** sessions/mo (Kind-B). Below 3,000 sessions/mo the paid tiers are irrelevant — it stays free (and capped).
-- **Formula:** **$0** while the key is a placeholder. If wired: **$0 up to 3,000 sessions/mo**, then either recording stops (Free) or a **negotiated** per-session rate (Growth+) — **not derivable from code or public pricing; requires a sales quote.**
-- **Decision needed (not a cost estimate):** either (a) set a real key and accept the 3,000-session free cap / get a Growth quote, or (b) **remove `flutter_uxcam`** entirely since Sentry replay + Firebase Analytics already cover replay + events. See §6.
+- **Cost variables:** sessions/mo (Kind-B). Below 3,000 sessions/mo it stays free (and recording auto-caps); above that, recording stops on Free, or you pay a **negotiated** rate on Growth+.
+- **Formula:** **$0 up to 3,000 recorded sessions/mo** on Free (then recording stops, no auto-bill); on a paid tier, a **negotiated** per-session rate above the plan allotment — **not derivable from code or public pricing; requires a sales quote.** ($0 on builds where `UXCAM_APP_KEY` is empty — e.g. web, where init is also skipped via `!kIsWeb`.)
+- **Decision (now a real one, not hypothetical):** UXCam is live. Decide whether you want **both** UXCam and Sentry mobile replay recording every session — that is double recording cost/quota for overlapping data. If UXCam's UX heatmaps aren't needed, drop one. See §6 item 3.
 - Pricing: https://uxcam.com/plans/ (Free tier public; paid tiers sales-led)
 
 ### 2.10 Codemagic (iOS CI) — usage / fixed
@@ -360,9 +393,11 @@ two categories, not one:**
 - Pricing: https://codemagic.io/pricing/
 
 ### 2.11 In-process libraries — $0 (no external billing)
-Tesseract.js (OCR), `exceljs`/`xlsx`/`papaparse` (import/export), `pdf-parse`/`mammoth` (doc parsing),
-`cheerio`, `image_picker`/`camera`, `drift`/`sqflite` (local DB), `flutter_uxcam` SDK (inert),
-`google_fonts` (Google's free font CDN). No API cost — they consume Vercel/Railway compute already counted.
+Tesseract.js (OCR), `exceljs`/`xlsx`/`papaparse` (import/export), `pdf-parse`/`mammoth`/`officeparser`
+(doc parsing, lazily loaded — `document-extraction.ts`), `cheerio`, `multer` (upload parsing), `helmet`
+(headers), `image_picker`/`camera`/`file_picker`/`record` (Flutter capture/upload), `drift`/`sqflite`
+(local DB), `flutter_uxcam` SDK (inert), `google_fonts` (Google's free font CDN). No API cost — they
+consume Vercel/Railway compute already counted.
 
 ---
 
@@ -371,15 +406,17 @@ Tesseract.js (OCR), `exceljs`/`xlsx`/`papaparse` (import/export), `pdf-parse`/`m
 The *per-action shape* is determinable from code; absolute volumes (users, cards, messages, clips)
 **cannot be determined from code — user input required.**
 
-| User action | Vercel API calls | Gemini calls | Tavily credits | Supabase ops | Storage growth |
+| User action | Vercel API calls | Gemini calls | Exa searches | Supabase ops | Storage growth |
 |---|---|---|---|---|---|
 | Scan business card | 1 (`/captures`) + 1 (`/ai analyze-card`) | **1** (extract) | 0 | 1 storage upload + few DB writes | ~0.1–0.5 MB/image |
 | Record a voice note | 1 (`/ai/transcribe` or `/captures/voice-transcribe`) | **1** (audio→text, skipped if silence-gate trips) | 0 | 1 write | 0 (audio not persisted) |
-| Enrich a contact | 1 | **1** (structure result) | **~2** (basic) | reads + 1 write | 0 |
-| Enrich a company | 1 | **1** | **~3** (1 advanced + 1 basic) | reads + write | 0 |
-| Enrich an event / talking points / prep | 1 | **1–2** | **~2** (basic) | reads + write | 0 |
+| Enrich a contact | 1 | **1** (structure result) | **~2** (search+highlights) | reads + 1 write | 0 |
+| Enrich a company | 1 | **1** | **~2** (1 auto + 1 fast) | reads + write | 0 |
+| Enrich an event / talking points / prep | 1 | **1–2** | **~1–2** | reads + write | 0 |
 | Ask AI assistant 1 question | 1 (then SSE) | **N** (1 per tool step; typ. 2–5) | 0–N (only if it calls `web_search`) | Slayer `/query` per step + writes if action approved | 0 |
-| Send a chat message | 1 (then SSE) | **N** (assistant agentic loop) | 0–N | 1 write + realtime broadcast | 0 (attachment upload exists server-side but is **not wired in the app**) |
+| Send a chat message (text) | 1 (then SSE) | **N** (assistant agentic loop) | 0–N | 1 write + realtime broadcast | 0 |
+| Send a chat message **with attachment** | 1 upload + 1 send (SSE) | **N** + **embeds if doc is oversized** (chunk embed at upload + 1 query embed) | 0–N | storage upload + `document_chunks` writes (oversized only) + realtime | **attachment size** (image/doc) — now a live driver |
+| Add a contact document (PDF) | 1 (`/documents`) + parse/summarize | **1** (summarize) | 0 | storage upload + `contact_documents` write | **file size** |
 | Normal browsing | served from local **drift** DB; realtime keeps it synced | 0 | 0 | realtime connection (counts vs 500 cap) | 0 |
 | Import file (CSV/XLSX) | 1 (parsed in-process) | 0 | 0 | bulk writes | 0 |
 
@@ -407,7 +444,7 @@ active users** — long before MAU drives any storage/DB/egress cost. Overage is
 | Railway Hobby | $5 base (+ ~$15 usage for always-on Slayer ≈ ~$20 effective) |
 | Sentry | $0 (free tier) |
 | Firebase Hosting/Analytics | $0 |
-| UXCam | $0 (not wired) |
+| UXCam | $0 up to 3,000 sessions/mo (now active; Free tier auto-caps) |
 | Codemagic | $0 (within 500 free min) |
 | **Floor total** | **~$50–65/mo** before any AI/search/MAU usage |
 
@@ -415,7 +452,7 @@ active users** — long before MAU drives any storage/DB/egress cost. Overage is
 `~$600–780/yr` baseline (+ usage). Codemagic Team ($3,990/yr) only if you outgrow free build minutes — not currently needed.
 
 ### Usage-based (the variable layer)
-Gemini tokens (extraction + transcription + enrichment + assistant), Tavily credits,
+Gemini tokens (extraction + transcription + enrichment + assistant + doc embeddings), Exa search requests,
 Supabase MAU/egress/storage, Vercel compute/egress, Railway resources.
 
 ---
@@ -425,15 +462,15 @@ Supabase MAU/egress/storage, Vercel compute/egress, Railway resources.
 | Service | Feature Used | Pricing Model | Current Price | Unit | Free Tier | Monthly Cost Formula | Official Pricing URL |
 |---|---|---|---|---|---|---|---|
 | Supabase | DB + Auth + Storage + Realtime | Fixed + usage | $25 base; $0.00325 MAU; $0.09 BW; $0.125 DB; $0.021 file; $10/1k realtime conns | per MAU / per GB / per 1k conns | 100K MAU, 8GB DB, 100GB file, 250GB BW, 500 conns | `25 + max(MAU-1e5,0)*0.00325 + max(BWgb-250,0)*0.09 + max(DBgb-8,0)*0.125 + max(filegb-100,0)*0.021 + max(peak_conns-500,0)/1000*10` | https://supabase.com/pricing |
-| Google Gemini | `gemini-3.1-flash-lite`: card extraction, voice transcription, enrichment, assistant | Usage | $0.10 in / $0.40 out | per 1M tokens | Flash-Lite free w/ rate limits | `(in/1e6*0.10)+(out/1e6*0.40)` | https://ai.google.dev/gemini-api/docs/pricing |
-| Tavily | enrichment (contact 2 / company 3 / briefing 2 / event 1–2 credits) + assistant `web_search` | Tier + PAYG | $0.008/credit over plan; Researcher $30 / Startup $100 | per credit (basic=1, advanced=2) | 1,000 credits/mo | `plan_fee + max(credits-plan_credits,0)*0.008` | https://www.tavily.com/pricing |
+| Google Gemini | `gemini-3.1-flash-lite` (card/voice/enrich/assistant) + `gemini-embedding-001` (doc RAG, 768d) | Usage | $0.10 in / $0.40 out (Flash-Lite); embedding tier separate | per 1M tokens | Flash-Lite free w/ rate limits | `(in/1e6*0.10)+(out/1e6*0.40)+embed_tokens*embed_rate` | https://ai.google.dev/gemini-api/docs/pricing |
+| Exa (replaced Tavily) | enrichment (contact 2 / company 2 / event 1–2 searches) + assistant `web_search`; each = search + highlights | PAYG | $7/1k search (≤10 res) + $1/1k content pages | per request + per page | **20,000 requests/mo** | `max(searches-20000,0)*0.007 + highlight_pages*0.001` | https://exa.ai/pricing |
 | Vercel | whole Express app = 1 Fluid function | Fixed + usage | $20 base; CPU $0.128/CPU-hr; mem $0.0106/GB-hr; egress $0.15/GB | per seat / CPU-hr / GB-hr / GB | 1TB BW, 10M edge req, $20 credit | `20 + max(cpu_hr*0.128 + mem_GBhr*0.0106 + max(egressGB-1000,0)*0.15 - 20, 0)` | https://vercel.com/docs/functions/usage-and-pricing |
 | Railway | Slayer NL→SQL container (always-on 24/7) | Fixed + usage | $5 base; $20/vCPU-mo; $10/GB-mo | per vCPU-mo / GB-mo | $5 usage credit | `5 + max(vCPU*20 + RAMgb*10 + egress$ - 5, 0)` | https://railway.com/pricing |
 | Firebase Hosting | Flutter web bundle (static) | Free / usage | storage $0.026/GB; egress $0.15/GB | per GB | 10GB store + 10GB/mo egress free | `max(storeGB-10,0)*0.026 + max(egressGB-10,0)*0.15` | https://firebase.google.com/docs/hosting/usage-quotas-pricing |
 | Firebase Analytics | Event analytics | Free | $0 | — | Unlimited (500 events) | `0` | https://firebase.google.com/pricing |
 | Sentry | error/crash events (tracing off) | Tier | $0 free / $26 Team | per error event | 5K errors (Free) / 50K (Team) | `plan_fee + max(errors-incl,0)*err_rate` | https://sentry.io/pricing/ |
 | Sentry replay | mobile session replay @ 100% | Usage | ~$0.00375/replay | per replay | 50 (Free) / 500 (Team) | `max(replays-incl,0)*0.00375` where replays≈sessions | https://docs.sentry.io/pricing/quotas/manage-replay-quota/ |
-| UXCam | mobile session analytics (inactive — placeholder key) | Free tier / sales quote | $0 today | per session | 3,000 sessions/mo (then recording stops) | `0 while key is placeholder; else $0 ≤3k sessions, quote above` | https://uxcam.com/plans/ |
+| UXCam | mobile session analytics (**active** — key via `--dart-define`) | Free tier / sales quote | $0 ≤3k sessions | per session | 3,000 sessions/mo (then recording stops) | `$0 ≤3k recorded sessions/mo (Free auto-caps); negotiated rate above on paid tier` | https://uxcam.com/plans/ |
 | Codemagic | iOS CI builds | Usage / fixed | $0.095/min or $399 Team | per build-min | 500 M2 min/mo (personal) | `max(buildmin-500,0)*0.095` | https://codemagic.io/pricing/ |
 | OpenAI | dormant LLM fallback | Usage | only if Gemini key unset | per 1M tokens | n/a | `0 while GEMINI_API_KEY set` | https://openai.com/api/pricing/ |
 
@@ -455,11 +492,13 @@ Supabase MAU/egress/storage, Vercel compute/egress, Railway resources.
    The code comment literally flags this as a testing-only setting. **Set it to ~0.1 (sample 10% of sessions) and
    keep `onErrorSampleRate` high** so you still capture replays around crashes. Pure config — no functionality lost.
 
-3. **Decide UXCam vs Sentry replay — don't pay/ship for both.** UXCam ships in the binary but is inert
-   (placeholder key → $0, zero value), and Sentry mobile replay already records sessions. You have **three**
-   behaviour tools (UXCam, Sentry replay, Firebase Analytics) with overlapping jobs. **Remove `flutter_uxcam`**
-   unless you specifically want UXCam's UX heatmaps — it shrinks the app and drops an unused vendor. Firebase
-   Analytics (free) covers events; Sentry covers replay.
+3. **Decide UXCam vs Sentry replay — you are now paying/recording on BOTH.** UXCam is **no longer inert**:
+   a real key is supplied via `--dart-define=UXCAM_APP_KEY` and schematic recording is enabled
+   (`analytics_service.dart:16,25`), so UXCam records **every session** — at the same time Sentry mobile replay
+   (§2.8, `sessionSampleRate=1.0`) also records every session. That is **two full session-recording pipelines
+   capturing overlapping data**, each against its own quota. You still have **three** behaviour tools
+   (UXCam + Sentry replay + Firebase Analytics). **Pick one recorder:** keep UXCam *or* Sentry replay, not both,
+   unless you specifically need UXCam's UX heatmaps. Firebase Analytics (free) covers events regardless.
 
 4. **Railway/Slayer is the most questionable fixed line item (~$10–20/mo for an always-on box).** Slayer is a
    read-only NL→SQL layer the assistant calls. If assistant traffic is low, an always-on container is
@@ -470,11 +509,11 @@ Supabase MAU/egress/storage, Vercel compute/egress, Railway resources.
 5. **OpenAI SDK is dead weight in deps.** Only a fallback that never runs while `GEMINI_API_KEY` is set.
    Remove it or document it as intentional fallback.
 
-6. **Enrichment burns Tavily AND Gemini per entity.** Company enrichment is **3 Tavily credits + 1 Gemini
-   call**; contact enrichment **2 credits + 1 Gemini call** (exact, §2.3). The 1,000 free Tavily credits cover
-   ~333 company / ~500 contact enrichments/mo. **Cache enrichment results** — the code already short-circuits
-   when `enriched_at` is set (`companies.ts:114`); ensure the client doesn't force-refresh. Consider collapsing
-   the 2 company queries into 1 (saves a credit) and dropping the company-briefing's overlap with enrich.
+6. **Enrichment burns Exa AND Gemini per entity** (but Exa is now far cheaper). Company/contact enrichment
+   each fire **2 Exa searches + 1 Gemini call** (exact, §2.3). Exa's **20,000 free requests/mo** cover
+   ~10,000 enrichments/mo — ~30× the old Tavily headroom, so Exa is unlikely to cost anything for a long time.
+   **Cache enrichment results** — the code short-circuits when `enriched_at` is set (`companies.ts:114`);
+   ensure the client doesn't force-refresh. The Gemini call is now the more meaningful per-enrichment cost.
 
 7. **Voice transcription** — the silence gate (`ai.ts:113-152`) already avoids paying for silent clips;
    keep it. Longer recordings cost more (audio multimodal tokens) — cap recording length client-side.
@@ -495,7 +534,7 @@ Supabase MAU/egress/storage, Vercel compute/egress, Railway resources.
 ## 7. Hosting decision — VPS vs PaaS for backend + Slayer (researched)
 
 ### 7.0 What the two services actually need (from code)
-- **Express backend** — light: routing, Zod, Tavily/Gemini HTTP calls, and **OCR via `tesseract.js`** (runs
+- **Express backend** — light: routing, Zod, Exa/Gemini HTTP calls, and **OCR via `tesseract.js`** (runs
   in-process per request; CPU-spiky but short). No persistent heavy memory.
 - **Slayer** (`Dockerfile.slayer`, `slayer/pyproject.toml`) — FastAPI + `uvicorn` + `pandas` + `duckdb` +
   `sqlglot` + `tantivy`/BM25 search. **No GPU, no torch, no embedding model loaded** (the `litellm`/`numpy`
@@ -557,14 +596,14 @@ backups, and uptime monitoring. For a single always-on box this is ~an hour of s
 worth it for ~$420/yr. If that ops burden isn't wanted, the Railway-only consolidation (above) is the pragmatic pick.
 
 **Net:** Hetzner CX22 for **lowest cost** (~$5/mo, ~$420/yr saved); Railway-only for **lowest effort** (~$25–30/mo);
-avoid raw EC2/GCE due to egress pricing; Supabase + Gemini + Tavily stay exactly as they are regardless.
+avoid raw EC2/GCE due to egress pricing; Supabase + Gemini + Exa stay exactly as they are regardless.
 
 ---
 
 ## 8. Items requiring your input (not determinable from code)
 - **MAU, cards scanned/mo, voice clips/mo, enrichments/mo, assistant messages/mo, web traffic** → drive every usage formula.
 - **Apple Developer account** ($99/yr) — CI builds unsigned, so unclear if a paid account is held.
-- **UXCam plan** — inactive in code.
+- **UXCam plan** — now active (key supplied at build); which paid tier / overage rate is a sales-quote decision once you exceed 3,000 sessions/mo.
 - **Slayer container size on Railway** (vCPU/RAM allocation) — set in Railway UI, not in repo.
 - **Ops tolerance** — decides VPS (Hetzner, cheapest) vs managed PaaS (Railway-only, easiest); see §7.3.
 
@@ -575,7 +614,7 @@ avoid raw EC2/GCE due to egress pricing; Supabase + Gemini + Tavily stay exactly
 [Vercel](https://vercel.com/pricing) ·
 [Vercel Hobby ToS](https://vercel.com/legal/terms) ·
 [Gemini API](https://ai.google.dev/gemini-api/docs/pricing) ·
-[Tavily](https://www.tavily.com/pricing) ·
+[Exa](https://exa.ai/pricing) ·
 [Railway](https://railway.com/pricing) ·
 [Hetzner Cloud](https://www.hetzner.com/cloud) ·
 [DigitalOcean Droplets](https://www.digitalocean.com/pricing/droplets) ·
