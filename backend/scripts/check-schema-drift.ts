@@ -24,7 +24,8 @@
 
 import { introspectSchema } from '../src/services/schema-introspection';
 import { USER_ID_TABLES, SOFT_DELETE_TABLES } from '../src/services/slayer-client';
-import { IMMUTABLE_FIELDS, WRITE_TOOLS } from '../src/routes/assistant';
+import { IMMUTABLE_FIELDS } from '../src/assistant/tools/validation';
+import { WRITE_TOOLS } from '../src/assistant/tools/schemas';
 
 // Allowlisted models the assistant may query (mirror of slayer-client ALLOWED_MODELS).
 // Only these are checked for user_id/deleted_at drift — extra tables in the DB
