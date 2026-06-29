@@ -69,7 +69,7 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 6) {
             // Drop the retired follow_up_urgency column. SQLite 3.35+ (bundled
-            // with current sqlite3_flutter_libs) supports DROP COLUMN directly.
+            // with sqlcipher_flutter_libs) supports DROP COLUMN directly.
             await customStatement('ALTER TABLE contacts DROP COLUMN follow_up_urgency');
           }
           if (from < 7) {

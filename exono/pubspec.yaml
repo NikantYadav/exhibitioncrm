@@ -96,9 +96,12 @@ dependencies:
   go_router: ^17.3.0
   web: ^1.1.1
 
-  # Local-first sync (drift local DB)
+  # Local-first sync (drift local DB).
+  # sqlcipher_flutter_libs REPLACES sqlite3_flutter_libs — it ships the same
+  # native plugin (Sqlite3FlutterLibsPlugin) compiled with SQLCipher. Having
+  # both causes an R8 "Type ... defined multiple times" duplicate-class failure,
+  # so sqlite3_flutter_libs must NOT be listed alongside it (C2 encryption).
   drift: ^2.18.0
-  sqlite3_flutter_libs: ^0.5.0
   sqlcipher_flutter_libs: ^0.6.0
 
 dev_dependencies:

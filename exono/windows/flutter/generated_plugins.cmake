@@ -13,7 +13,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   record_windows
   sentry_flutter
   sqlcipher_flutter_libs
-  sqlite3_flutter_libs
   url_launcher_windows
 )
 
