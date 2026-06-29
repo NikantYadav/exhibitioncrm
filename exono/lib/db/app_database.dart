@@ -38,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -74,6 +74,22 @@ class AppDatabase extends _$AppDatabase {
           if (from < 8) {
             await m.addColumn(contactsTable, contactsTable.isPriority);
             await m.addColumn(followUpsTable, followUpsTable.isPriority);
+          }
+          if (from < 9) {
+            // notes column meaning changed from raw text to a JSON-encoded
+            // array of {id, body, created_at}. Wrap any existing plain-text
+            // note into a single-element JSON array; skip NULLs and rows
+            // already migrated (starting with '[').
+            await customStatement(
+              "UPDATE target_companies "
+              "SET notes = json_array(json_object('id', id, 'body', notes, 'created_at', "
+              "strftime('%Y-%m-%dT%H:%M:%SZ','now'))) "
+              "WHERE notes IS NOT NULL AND trim(notes) <> '' "
+              "AND substr(trim(notes),1,1) <> '['",
+            );
+          }
+          if (from < 10) {
+            await customStatement('ALTER TABLE contacts DROP COLUMN notes');
           }
         },
       );

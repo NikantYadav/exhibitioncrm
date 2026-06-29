@@ -1,6 +1,7 @@
 import { ToolCall } from '../../services/litellm-service';
 import { slayerQuery, USER_ID_TABLES, slayerGetModelColumnsTyped, ALLOWED_MODELS } from '../../services/slayer-client';
-import { TavilyService } from '../../services/tavily-service';
+import { ExaService } from '../../services/exa-service';
+import { fenceUntrusted } from '../security';
 import { expandDateWindow } from '../dateWindows';
 import { LINKABLE_CARD_COLUMNS, normaliseRow, readRowToEntity, unprefix } from '../entities';
 import { execCreateContact, execUpdateContact } from './executors/contacts';
@@ -169,10 +170,17 @@ export async function executeTool(
       const a = call.args;
       const query = typeof a.query === 'string' ? a.query.trim() : '';
       if (!query) throw new Error('query is required');
-      const results = await TavilyService.search(query, {
+      const rawResults = await ExaService.search(query, {
         maxResults: Math.min(typeof a.max_results === 'number' ? a.max_results : 5, 10),
         searchDepth: a.search_depth === 'advanced' ? 'advanced' : 'basic',
       });
+      // Fence each result's page body — web content is untrusted and may carry
+      // hidden instructions (indirect injection). title/url stay as-is (short,
+      // shown as citations); the body is the injection vector.
+      const results = rawResults.map((r) => ({
+        ...r,
+        content: fenceUntrusted(r.content, `web page (${r.url})`),
+      }));
       result = { query, results };
     } else {
       // ── WRITE: execute directly against Supabase ────────────────────────────

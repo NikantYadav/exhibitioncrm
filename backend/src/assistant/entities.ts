@@ -44,7 +44,7 @@ export type MentionRef = { type: 'contact' | 'event' | 'company'; id: string };
 // The columns we surface per mentioned entity. Kept lean — enough for the model
 // to reason about the record without dumping every field.
 const MENTION_SELECT: Record<MentionRef['type'], { table: string; columns: string }> = {
-  contact: { table: 'contacts', columns: 'id, first_name, last_name, email, phone, job_title, company_name, notes' },
+  contact: { table: 'contacts', columns: 'id, first_name, last_name, email, phone, job_title, company_name' },
   event: { table: 'events', columns: 'id, name, start_date, end_date, location, event_type' },
   company: { table: 'companies', columns: 'id, name, industry, website, headquarters, description' },
 };
@@ -53,7 +53,7 @@ function describeMention(type: MentionRef['type'], r: Record<string, any>): stri
   const fields: Array<[string, unknown]> = [];
   if (type === 'contact') {
     const name = `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || 'Contact';
-    fields.push(['email', r.email], ['phone', r.phone], ['job title', r.job_title], ['company', r.company_name], ['notes', r.notes]);
+    fields.push(['email', r.email], ['phone', r.phone], ['job title', r.job_title], ['company', r.company_name]);
     return `- Contact "${name}" (id: ${r.id})` + fmtFields(fields);
   }
   if (type === 'event') {
@@ -91,7 +91,7 @@ export async function buildMentionNote(
   }
   if (lines.length === 0) return '';
   return (
-    `\n\n[The user mentioned the following CRM record(s). Treat them as the subject ` +
+    `\n\n[The user mentioned the following record(s). Treat them as the subject ` +
     `of this turn and use their details directly:\n${lines.join('\n')}]`
   );
 }

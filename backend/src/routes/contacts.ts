@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { TavilyService } from '../services/tavily-service';
+import { ExaService } from '../services/exa-service';
 import { requireAuth } from '../middleware/requireAuth';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { decodeAndValidateImage } from '../utils/imageValidation';
@@ -18,7 +18,6 @@ const contactWriteSchema = z.object({
   phone: z.string().trim().max(30).optional().or(z.literal('')),
   job_title: z.string().trim().max(150).optional().or(z.literal('')),
   linkedin_url: optUrl,
-  notes: z.string().trim().max(5000).optional().or(z.literal('')),
   company_id: uuidSchema.optional(),
   company_name: z.string().trim().max(200).optional(),
   event_id: uuidSchema.optional(),
@@ -263,7 +262,6 @@ router.post('/', async (req, res, next) => {
         job_title: body.job_title,
         linkedin_url: body.linkedin_url,
         company_id,
-        notes: body.notes,
         is_priority: body.is_priority ?? false,
         user_id: req.user!.id,
         ...(idempotencyKey ? { client_op_id: idempotencyKey } : {}),
@@ -795,15 +793,15 @@ router.get('/:id/insights', async (req, res, next) => {
       `Return ONLY a single-line minified JSON with exactly these keys. No literal newlines inside string values:\n` +
       `{"briefing_items":["up to 3 short bullets"],"buying_authority":"Decision Maker|Influencer|Evaluator|Gatekeeper|Unknown","current_sentiment":"Hot Lead|Warm Opportunity|Evaluating|Cold|Unknown","primary_pain_point":"one sentence","ai_insights":["up to 3 insights"],"strategic_context":"one sentence","key_markets":["up to 3 markets"],"decision_structure":"one sentence"}`;
 
-    // ── Tavily web search for real-time grounding ────────────────────────────
-    console.log(`[insights] → running Tavily web search for "${name}"`);
-    const webContext = await TavilyService.searchContact({
+    // ── Exa web search for real-time grounding ────────────────────────────
+    console.log(`[insights] → running Exa web search for "${name}"`);
+    const webContext = await ExaService.searchContact({
       name,
       company: isIndependent ? undefined : company?.name,
       jobTitle: contact.job_title,
     });
     if (webContext) {
-      prompt += `\n\n## Live Web Research (Tavily)\n${webContext}`;
+      prompt += `\n\n## Live Web Research (Exa)\n${webContext}`;
     }
 
     const promptChars = prompt.length;

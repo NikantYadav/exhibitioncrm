@@ -808,15 +808,6 @@ class $ContactsTableTable extends ContactsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
-  @override
-  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
-    'notes',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _avatarUrlMeta = const VerificationMeta(
     'avatarUrl',
   );
@@ -956,7 +947,6 @@ class $ContactsTableTable extends ContactsTable
     phone,
     jobTitle,
     linkedinUrl,
-    notes,
     avatarUrl,
     followUpStatus,
     isPriority,
@@ -1037,12 +1027,6 @@ class $ContactsTableTable extends ContactsTable
           data['linkedin_url']!,
           _linkedinUrlMeta,
         ),
-      );
-    }
-    if (data.containsKey('notes')) {
-      context.handle(
-        _notesMeta,
-        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
     if (data.containsKey('avatar_url')) {
@@ -1176,10 +1160,6 @@ class $ContactsTableTable extends ContactsTable
         DriftSqlType.string,
         data['${effectivePrefix}linkedin_url'],
       ),
-      notes: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}notes'],
-      ),
       avatarUrl: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}avatar_url'],
@@ -1244,7 +1224,6 @@ class ContactsTableData extends DataClass
   final String? phone;
   final String? jobTitle;
   final String? linkedinUrl;
-  final String? notes;
   final String? avatarUrl;
   final String followUpStatus;
   final bool isPriority;
@@ -1266,7 +1245,6 @@ class ContactsTableData extends DataClass
     this.phone,
     this.jobTitle,
     this.linkedinUrl,
-    this.notes,
     this.avatarUrl,
     required this.followUpStatus,
     required this.isPriority,
@@ -1304,9 +1282,6 @@ class ContactsTableData extends DataClass
     }
     if (!nullToAbsent || linkedinUrl != null) {
       map['linkedin_url'] = Variable<String>(linkedinUrl);
-    }
-    if (!nullToAbsent || notes != null) {
-      map['notes'] = Variable<String>(notes);
     }
     if (!nullToAbsent || avatarUrl != null) {
       map['avatar_url'] = Variable<String>(avatarUrl);
@@ -1363,9 +1338,6 @@ class ContactsTableData extends DataClass
       linkedinUrl: linkedinUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(linkedinUrl),
-      notes: notes == null && nullToAbsent
-          ? const Value.absent()
-          : Value(notes),
       avatarUrl: avatarUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarUrl),
@@ -1411,7 +1383,6 @@ class ContactsTableData extends DataClass
       phone: serializer.fromJson<String?>(json['phone']),
       jobTitle: serializer.fromJson<String?>(json['jobTitle']),
       linkedinUrl: serializer.fromJson<String?>(json['linkedinUrl']),
-      notes: serializer.fromJson<String?>(json['notes']),
       avatarUrl: serializer.fromJson<String?>(json['avatarUrl']),
       followUpStatus: serializer.fromJson<String>(json['followUpStatus']),
       isPriority: serializer.fromJson<bool>(json['isPriority']),
@@ -1442,7 +1413,6 @@ class ContactsTableData extends DataClass
       'phone': serializer.toJson<String?>(phone),
       'jobTitle': serializer.toJson<String?>(jobTitle),
       'linkedinUrl': serializer.toJson<String?>(linkedinUrl),
-      'notes': serializer.toJson<String?>(notes),
       'avatarUrl': serializer.toJson<String?>(avatarUrl),
       'followUpStatus': serializer.toJson<String>(followUpStatus),
       'isPriority': serializer.toJson<bool>(isPriority),
@@ -1467,7 +1437,6 @@ class ContactsTableData extends DataClass
     Value<String?> phone = const Value.absent(),
     Value<String?> jobTitle = const Value.absent(),
     Value<String?> linkedinUrl = const Value.absent(),
-    Value<String?> notes = const Value.absent(),
     Value<String?> avatarUrl = const Value.absent(),
     String? followUpStatus,
     bool? isPriority,
@@ -1489,7 +1458,6 @@ class ContactsTableData extends DataClass
     phone: phone.present ? phone.value : this.phone,
     jobTitle: jobTitle.present ? jobTitle.value : this.jobTitle,
     linkedinUrl: linkedinUrl.present ? linkedinUrl.value : this.linkedinUrl,
-    notes: notes.present ? notes.value : this.notes,
     avatarUrl: avatarUrl.present ? avatarUrl.value : this.avatarUrl,
     followUpStatus: followUpStatus ?? this.followUpStatus,
     isPriority: isPriority ?? this.isPriority,
@@ -1525,7 +1493,6 @@ class ContactsTableData extends DataClass
       linkedinUrl: data.linkedinUrl.present
           ? data.linkedinUrl.value
           : this.linkedinUrl,
-      notes: data.notes.present ? data.notes.value : this.notes,
       avatarUrl: data.avatarUrl.present ? data.avatarUrl.value : this.avatarUrl,
       followUpStatus: data.followUpStatus.present
           ? data.followUpStatus.value
@@ -1566,7 +1533,6 @@ class ContactsTableData extends DataClass
           ..write('phone: $phone, ')
           ..write('jobTitle: $jobTitle, ')
           ..write('linkedinUrl: $linkedinUrl, ')
-          ..write('notes: $notes, ')
           ..write('avatarUrl: $avatarUrl, ')
           ..write('followUpStatus: $followUpStatus, ')
           ..write('isPriority: $isPriority, ')
@@ -1583,7 +1549,7 @@ class ContactsTableData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hashAll([
+  int get hashCode => Object.hash(
     id,
     userId,
     companyId,
@@ -1593,7 +1559,6 @@ class ContactsTableData extends DataClass
     phone,
     jobTitle,
     linkedinUrl,
-    notes,
     avatarUrl,
     followUpStatus,
     isPriority,
@@ -1605,7 +1570,7 @@ class ContactsTableData extends DataClass
     createdAt,
     updatedAt,
     deletedAt,
-  ]);
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1619,7 +1584,6 @@ class ContactsTableData extends DataClass
           other.phone == this.phone &&
           other.jobTitle == this.jobTitle &&
           other.linkedinUrl == this.linkedinUrl &&
-          other.notes == this.notes &&
           other.avatarUrl == this.avatarUrl &&
           other.followUpStatus == this.followUpStatus &&
           other.isPriority == this.isPriority &&
@@ -1643,7 +1607,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
   final Value<String?> phone;
   final Value<String?> jobTitle;
   final Value<String?> linkedinUrl;
-  final Value<String?> notes;
   final Value<String?> avatarUrl;
   final Value<String> followUpStatus;
   final Value<bool> isPriority;
@@ -1666,7 +1629,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     this.phone = const Value.absent(),
     this.jobTitle = const Value.absent(),
     this.linkedinUrl = const Value.absent(),
-    this.notes = const Value.absent(),
     this.avatarUrl = const Value.absent(),
     this.followUpStatus = const Value.absent(),
     this.isPriority = const Value.absent(),
@@ -1690,7 +1652,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     this.phone = const Value.absent(),
     this.jobTitle = const Value.absent(),
     this.linkedinUrl = const Value.absent(),
-    this.notes = const Value.absent(),
     this.avatarUrl = const Value.absent(),
     this.followUpStatus = const Value.absent(),
     this.isPriority = const Value.absent(),
@@ -1716,7 +1677,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     Expression<String>? phone,
     Expression<String>? jobTitle,
     Expression<String>? linkedinUrl,
-    Expression<String>? notes,
     Expression<String>? avatarUrl,
     Expression<String>? followUpStatus,
     Expression<bool>? isPriority,
@@ -1740,7 +1700,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
       if (phone != null) 'phone': phone,
       if (jobTitle != null) 'job_title': jobTitle,
       if (linkedinUrl != null) 'linkedin_url': linkedinUrl,
-      if (notes != null) 'notes': notes,
       if (avatarUrl != null) 'avatar_url': avatarUrl,
       if (followUpStatus != null) 'follow_up_status': followUpStatus,
       if (isPriority != null) 'is_priority': isPriority,
@@ -1767,7 +1726,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     Value<String?>? phone,
     Value<String?>? jobTitle,
     Value<String?>? linkedinUrl,
-    Value<String?>? notes,
     Value<String?>? avatarUrl,
     Value<String>? followUpStatus,
     Value<bool>? isPriority,
@@ -1791,7 +1749,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
       phone: phone ?? this.phone,
       jobTitle: jobTitle ?? this.jobTitle,
       linkedinUrl: linkedinUrl ?? this.linkedinUrl,
-      notes: notes ?? this.notes,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       followUpStatus: followUpStatus ?? this.followUpStatus,
       isPriority: isPriority ?? this.isPriority,
@@ -1836,9 +1793,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
     }
     if (linkedinUrl.present) {
       map['linkedin_url'] = Variable<String>(linkedinUrl.value);
-    }
-    if (notes.present) {
-      map['notes'] = Variable<String>(notes.value);
     }
     if (avatarUrl.present) {
       map['avatar_url'] = Variable<String>(avatarUrl.value);
@@ -1891,7 +1845,6 @@ class ContactsTableCompanion extends UpdateCompanion<ContactsTableData> {
           ..write('phone: $phone, ')
           ..write('jobTitle: $jobTitle, ')
           ..write('linkedinUrl: $linkedinUrl, ')
-          ..write('notes: $notes, ')
           ..write('avatarUrl: $avatarUrl, ')
           ..write('followUpStatus: $followUpStatus, ')
           ..write('isPriority: $isPriority, ')
@@ -8938,7 +8891,6 @@ typedef $$ContactsTableTableCreateCompanionBuilder =
       Value<String?> phone,
       Value<String?> jobTitle,
       Value<String?> linkedinUrl,
-      Value<String?> notes,
       Value<String?> avatarUrl,
       Value<String> followUpStatus,
       Value<bool> isPriority,
@@ -8963,7 +8915,6 @@ typedef $$ContactsTableTableUpdateCompanionBuilder =
       Value<String?> phone,
       Value<String?> jobTitle,
       Value<String?> linkedinUrl,
-      Value<String?> notes,
       Value<String?> avatarUrl,
       Value<String> followUpStatus,
       Value<bool> isPriority,
@@ -9029,11 +8980,6 @@ class $$ContactsTableTableFilterComposer
 
   ColumnFilters<String> get linkedinUrl => $composableBuilder(
     column: $table.linkedinUrl,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get notes => $composableBuilder(
-    column: $table.notes,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9147,11 +9093,6 @@ class $$ContactsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get notes => $composableBuilder(
-    column: $table.notes,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get avatarUrl => $composableBuilder(
     column: $table.avatarUrl,
     builder: (column) => ColumnOrderings(column),
@@ -9246,9 +9187,6 @@ class $$ContactsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get notes =>
-      $composableBuilder(column: $table.notes, builder: (column) => column);
-
   GeneratedColumn<String> get avatarUrl =>
       $composableBuilder(column: $table.avatarUrl, builder: (column) => column);
 
@@ -9341,7 +9279,6 @@ class $$ContactsTableTableTableManager
                 Value<String?> phone = const Value.absent(),
                 Value<String?> jobTitle = const Value.absent(),
                 Value<String?> linkedinUrl = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
                 Value<String?> avatarUrl = const Value.absent(),
                 Value<String> followUpStatus = const Value.absent(),
                 Value<bool> isPriority = const Value.absent(),
@@ -9364,7 +9301,6 @@ class $$ContactsTableTableTableManager
                 phone: phone,
                 jobTitle: jobTitle,
                 linkedinUrl: linkedinUrl,
-                notes: notes,
                 avatarUrl: avatarUrl,
                 followUpStatus: followUpStatus,
                 isPriority: isPriority,
@@ -9389,7 +9325,6 @@ class $$ContactsTableTableTableManager
                 Value<String?> phone = const Value.absent(),
                 Value<String?> jobTitle = const Value.absent(),
                 Value<String?> linkedinUrl = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
                 Value<String?> avatarUrl = const Value.absent(),
                 Value<String> followUpStatus = const Value.absent(),
                 Value<bool> isPriority = const Value.absent(),
@@ -9412,7 +9347,6 @@ class $$ContactsTableTableTableManager
                 phone: phone,
                 jobTitle: jobTitle,
                 linkedinUrl: linkedinUrl,
-                notes: notes,
                 avatarUrl: avatarUrl,
                 followUpStatus: followUpStatus,
                 isPriority: isPriority,

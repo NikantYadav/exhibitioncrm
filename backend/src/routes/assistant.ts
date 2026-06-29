@@ -138,10 +138,16 @@ router.post('/respond', async (req, res) => {
 
   // (auto-titling is done after the assistant response, see below)
 
+  const respondStart = Date.now();
+  const tag = `[respond conv=${conversation_id.slice(0, 8)} user=${userId.slice(0, 8)}]`;
+  console.log(`${tag} start research=${research_mode === true} attachments=${attachment_ids?.length ?? 0} mentions=${mentions?.length ?? 0}`);
+
   try {
     // 2. Load user profile context
+    const profileStart = Date.now();
     const { data: userProfile } = await supabaseAdmin.from('user_profiles').select('name, designation, profile_type, products_services, value_proposition, additional_context, ai_tone, website, linkedin_url').eq('user_id', userId).maybeSingle();
     const systemPrompt = buildSystemPrompt(userProfile ?? undefined, research_mode === true, attachmentNote !== '');
+    console.log(`${tag} profile+prompt built in ${Date.now() - profileStart}ms`);
 
     // 3. Build conversation history (last 12 messages — enough context for the
     //    short, task-focused turns this CRM assistant handles, and re-sent on
@@ -176,7 +182,9 @@ router.post('/respond', async (req, res) => {
     // 4. Run the agentic loop. It either completes with a text reply or pauses
     //    on the first write tool, awaiting the user's permission.
     const state: LoopState = { history, allToolResults: [], readCandidates: [], iteration: 0, researchMode: research_mode === true };
-    const outcome = await runLoop(state, systemPrompt, userId);
+    const loopStart = Date.now();
+    const outcome = await runLoop(state, systemPrompt, userId, conversation_id);
+    console.log(`${tag} loop done kind=${outcome.kind} iterations=${state.iteration} in ${Date.now() - loopStart}ms`);
 
     if (outcome.kind === 'paused') {
       // Suspend: persist state + the proposed write, return a permission request.
@@ -184,15 +192,17 @@ router.post('/respond', async (req, res) => {
       const pending = await suspendForPermission(
         conversation_id, userId, userMessage?.id ?? null, outcome.call, state,
       );
+      console.log(`${tag} suspended for permission tool=${outcome.call.name} total=${Date.now() - respondStart}ms`);
       return res.json({ user_message: userMessage, ...pending });
     }
 
     // 5. Completed — persist reply, attach cards, title, respond.
+    const finalizeStart = Date.now();
     const { assistantMessage, linkedEntities } = await finalizeTurn(
       supabaseUser, conversation_id, userId, outcome.assistantText, state,
     );
-    await autoTitleConversation(supabaseUser, conversation_id, text);
     const { data: conversation } = await supabaseUser.from('conversations').select('*').eq('id', conversation_id).single();
+    console.log(`${tag} finalized cards=${linkedEntities.length} in ${Date.now() - finalizeStart}ms total=${Date.now() - respondStart}ms`);
 
     res.json({
       user_message: userMessage,
@@ -200,6 +210,16 @@ router.post('/respond', async (req, res) => {
       conversation: conversation,
       linked_entities: linkedEntities,
     });
+
+    // Auto-titling runs AFTER the response is sent (fire-and-forget) so the user
+    // never waits on the extra titling LLM call. It persists the title itself, so
+    // the client picks it up via realtime / the next conversation fetch. It
+    // swallows its own errors; we add timing + a guard so a rejection here can
+    // never crash the process (the response is already flushed).
+    const titleStart = Date.now();
+    void autoTitleConversation(supabaseUser, conversation_id, text)
+      .then(() => console.log(`${tag} titling done in ${Date.now() - titleStart}ms`))
+      .catch((e) => console.warn(`${tag} titling failed: ${e?.message}`));
 
   } catch (err: any) {
     // Roll back the user message so a failed turn leaves nothing persisted —
@@ -210,6 +230,7 @@ router.post('/respond', async (req, res) => {
     if (userMessage?.id && !user_message_id) {
       await supabaseAdmin.from('messages').delete().eq('id', userMessage.id);
     }
+    console.error(`${tag} error after ${Date.now() - respondStart}ms: ${err?.message}`);
     res.status(500).json({ error: err?.message || 'Assistant error' });
   }
 });
@@ -255,15 +276,27 @@ router.post('/resume', async (req, res) => {
     researchMode: loop.researchMode === true,
   };
 
+  const resumeStart = Date.now();
+  const tag = `[resume conv=${conversation_id.slice(0, 8)} user=${userId.slice(0, 8)}]`;
+  console.log(`${tag} decision=${decision} tool=${call.name} pending_id=${pending_action_id.slice(0, 8)}`);
+
   try {
     // Resolve the write -> a tool_result the model sees next.
     let resultPayload: unknown;
     if (decision === 'approve') {
+      const toolStart = Date.now();
       const toolResult = await executeTool(call, userId);
+      const toolMs = Date.now() - toolStart;
       state.allToolResults.push(toolResult);
       resultPayload = toolResult.ok ? toolResult.result : { error: toolResult.error };
+      if (toolResult.ok) {
+        console.log(`${tag} write tool=${call.name} executed in ${toolMs}ms`);
+      } else {
+        console.log(`${tag} write tool=${call.name} FAILED in ${toolMs}ms error="${toolResult.error}"`);
+      }
     } else {
       resultPayload = { error: 'The user declined this action. Do not retry it. Acknowledge briefly and ask how else you can help, or continue with anything that does not require it.' };
+      console.log(`${tag} write tool=${call.name} denied by user`);
     }
 
     // Slot the write's result into the suspended conversation, then advance the
@@ -287,12 +320,15 @@ router.post('/resume', async (req, res) => {
     );
     const systemPrompt = buildSystemPrompt(userProfile ?? undefined, state.researchMode, hadDocuments);
 
-    const outcome = await runLoop(state, systemPrompt, userId);
+    const loopStart = Date.now();
+    const outcome = await runLoop(state, systemPrompt, userId, conversation_id);
+    console.log(`${tag} loop done kind=${outcome.kind} iterations=${state.iteration} in ${Date.now() - loopStart}ms`);
 
     if (outcome.kind === 'paused') {
       const pending = await suspendForPermission(
         conversation_id, userId, pa.user_message_id as string | null, outcome.call, state,
       );
+      console.log(`${tag} suspended again for tool=${outcome.call.name} total=${Date.now() - resumeStart}ms`);
       return res.json(pending);
     }
 
@@ -300,6 +336,7 @@ router.post('/resume', async (req, res) => {
       supabaseUser, conversation_id, userId, outcome.assistantText, state,
     );
     const { data: conversation } = await supabaseUser.from('conversations').select('*').eq('id', conversation_id).single();
+    console.log(`${tag} finalized cards=${linkedEntities.length} total=${Date.now() - resumeStart}ms`);
 
     res.json({
       assistant_message: assistantMessage,
@@ -312,6 +349,7 @@ router.post('/resume', async (req, res) => {
       .from('assistant_pending_actions')
       .update({ status: 'pending' })
       .eq('id', pending_action_id);
+    console.error(`${tag} error after ${Date.now() - resumeStart}ms: ${err?.message}`);
     res.status(500).json({ error: err?.message || 'Assistant error' });
   }
 });

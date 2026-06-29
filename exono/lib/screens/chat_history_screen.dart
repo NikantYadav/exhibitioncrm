@@ -14,7 +14,6 @@ import '../widgets/app_section_label.dart';
 import '../widgets/app_offline_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import 'chat_screen.dart';
-import 'app_shell.dart' show appNavBarHidden;
 import '../utils/screen_logger.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
@@ -45,16 +44,13 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
       MaterialPageRoute(builder: (context) => const ChatScreen()),
     ).whenComplete(() {
       _navigating = false;
-      // Restore the nav bar on return — the chat screen hides it on entry and
-      // its dispose can race the pop, leaving it hidden on this screen.
-      appNavBarHidden.value = false;
     });
   }
 
   void _startNewChat() {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(builder: (context) => const ChatScreen(isNewChat: true)),
-    ).whenComplete(() => appNavBarHidden.value = false);
+    );
   }
 
   Future<void> _deleteConversation(ConversationModel convo) async {

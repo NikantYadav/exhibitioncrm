@@ -1,7 +1,7 @@
 import { litellm, ConversationTurn, ToolCall } from '../services/litellm-service';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { createSupabaseUserClient } from '../config/supabaseClients';
-import { ALL_TOOLS, WRITE_TOOL_NAMES } from './tools/schemas';
+import { toolsForTurn, WRITE_TOOL_NAMES } from './tools/schemas';
 import { executeTool, describeWrite, ToolResult } from './tools/dispatcher';
 import { LINKABLE_CARD_COLUMNS, normaliseRow, readRowToEntity } from './entities';
 
@@ -85,20 +85,33 @@ export async function runLoop(
   state: LoopState,
   systemPrompt: string,
   userId: string,
+  conversationId?: string,
 ): Promise<LoopOutcome> {
   const readCandidates = new Map<string, ReadCandidate>(
     state.readCandidates.map((c) => [c.id, c]),
   );
+  const loopStart = Date.now();
+  const tools = toolsForTurn(state.researchMode);
+  const tag = conversationId ? `[loop conv=${conversationId.slice(0, 8)}]` : '[loop]';
+  console.log(`${tag} start iteration=${state.iteration} history_turns=${state.history.length} research=${state.researchMode}`);
 
   for (; state.iteration < MAX_ITERATIONS; state.iteration++) {
+    const iterStart = Date.now();
+    console.log(`${tag} iter=${state.iteration} calling LLM`);
+
     // Send a copy with older tool-result payloads collapsed (keeps the latest
     // full); state.history itself keeps the real data for resume/finalize.
-    const llmResult = await litellm.generateWithTools(systemPrompt, collapseOldToolResults(state.history), ALL_TOOLS);
+    const llmResult = await litellm.generateWithTools(systemPrompt, collapseOldToolResults(state.history), tools);
+    const llmMs = Date.now() - iterStart;
 
     if (llmResult.type === 'text') {
+      console.log(`${tag} iter=${state.iteration} LLM→text in ${llmMs}ms total_loop=${Date.now() - loopStart}ms`);
       state.readCandidates = Array.from(readCandidates.values());
       return { kind: 'done', assistantText: llmResult.content };
     }
+
+    const toolNames = llmResult.calls.map((c) => c.name).join(', ');
+    console.log(`${tag} iter=${state.iteration} LLM→tools [${toolNames}] in ${llmMs}ms`);
 
     // A write request pauses the whole turn. The model may batch a write with
     // reads in one step; we honour the first write and defer the rest by only
@@ -110,8 +123,18 @@ export async function runLoop(
     const iterResults: Array<{ id: string; name: string; result: unknown }> = [];
 
     for (const call of callsToRun) {
+      const toolStart = Date.now();
       const toolResult = await executeTool(call, userId);
+      const toolMs = Date.now() - toolStart;
       state.allToolResults.push(toolResult);
+
+      if (toolResult.ok) {
+        const rowCount = (toolResult.result as any)?.row_count;
+        const rows = rowCount !== undefined ? ` rows=${rowCount}` : '';
+        console.log(`${tag} tool=${call.name}${rows} ok in ${toolMs}ms`);
+      } else {
+        console.log(`${tag} tool=${call.name} FAILED in ${toolMs}ms error="${toolResult.error}"`);
+      }
 
       if (call.name === 'query_crm' && !toolResult.ok) {
         const msg = toolResult.error ?? '';
@@ -159,6 +182,7 @@ export async function runLoop(
 
     if (writeIdx !== -1) {
       const writeCall = llmResult.calls[writeIdx];
+      console.log(`${tag} iter=${state.iteration} pausing for permission tool=${writeCall.name} total_loop=${Date.now() - loopStart}ms`);
       // Record the model's planned tool_calls turn truncated to what we ran (the
       // pre-write reads + the write itself), plus the read results, so that on
       // resume the conversation is consistent and the write's tool_result slots in.
@@ -177,6 +201,7 @@ export async function runLoop(
   // Loop exhausted without a text reply — ask for a one-line summary. The
   // appended user turn is now the last turn, so every tool_results turn collapses
   // (the summary only needs the gist, not every row).
+  console.log(`${tag} max iterations reached, requesting summary total_loop=${Date.now() - loopStart}ms`);
   state.readCandidates = Array.from(readCandidates.values());
   const summaryResult = await litellm.generateWithTools(systemPrompt, collapseOldToolResults([
     ...state.history,

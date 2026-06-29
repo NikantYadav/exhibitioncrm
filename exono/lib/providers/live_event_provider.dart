@@ -67,7 +67,11 @@ class LiveEventProvider extends ChangeNotifier {
   bool get isLoadingLive => _isLoadingLive;
   bool get initialized => _initialized;
 
-  int get targetsLeft => _targetContacts.where((t) => (t['status'] as String?) != 'met').length;
+  int get targetsLeft {
+    final companiesLeft = _liveTargets.where((t) => !(t['met'] as bool? ?? false)).length;
+    final contactsLeft = _targetContacts.where((t) => (t['status'] as String?) != 'met').length;
+    return companiesLeft + contactsLeft;
+  }
 
   /// Call once after login. Watches the local `events` table to decide when
   /// an event is ongoing; only then does any network/Realtime work happen.

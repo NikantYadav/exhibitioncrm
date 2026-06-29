@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../db/app_database.dart';
@@ -35,7 +37,10 @@ class TargetCompaniesRepository extends SyncedRepository<TargetCompaniesTableDat
       priority: Value(json['priority'] as String? ?? 'medium'),
       boothLocation: Value(json['booth_location'] as String?),
       talkingPoints: Value(json['talking_points'] as String?),
-      notes: Value(json['notes'] as String?),
+      // The API returns notes as a decoded JSON array (jsonb); encode it back
+      // to a JSON string for local SQLite TEXT storage so TargetNote.parseList
+      // can decode it on the Flutter side.
+      notes: Value(json['notes'] == null ? null : jsonEncode(json['notes'])),
       status: Value(json['status'] as String? ?? 'not_contacted'),
       useNotesForBriefing: Value(json['use_notes_for_briefing'] as bool? ?? false),
       createdAt: Value(json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : null),

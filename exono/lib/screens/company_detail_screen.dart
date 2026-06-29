@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -24,9 +23,10 @@ import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/app_sheet_content.dart';
-import '../widgets/briefing_body.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
+import '../models/chat_mention.dart';
+import '../widgets/exo_dock_bar.dart';
 
 class CompanyDetailScreen extends StatefulWidget {
   final String companyId;
@@ -46,13 +46,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
   String? _enrichError;
   bool _autoEnrichTried = false;
 
-  // Talking points (briefing)
-  bool _isGenerating = false;
-  String? _briefingError;
-  List<String> _talkingPointsOverride = const [];
-  final TextEditingController _briefingFocusCtrl = TextEditingController();
-  final FocusNode _briefingFocusNode = FocusNode();
-  final GlobalKey _briefingFieldKey = GlobalKey();
   final ScrollController _bodyScrollCtrl = ScrollController();
 
   late final SyncProvider _sync;
@@ -61,48 +54,10 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
   void initState() {
     super.initState();
     _sync = context.read<SyncProvider>();
-    _briefingFocusNode.addListener(_onBriefingFocusChange);
-  }
-
-  void _onBriefingFocusChange() {
-    if (!_briefingFocusNode.hasFocus) return;
-    // ensureVisible measures against the full viewport (which extends behind the
-    // keyboard), so it under-scrolls. Compute the scroll manually: bring the
-    // bottom of the keyed group above the keyboard with a small gap.
-    // Wait past the keyboard slide-in so MediaQuery.viewInsets is settled.
-    Future.delayed(const Duration(milliseconds: 350), () {
-      if (!mounted || !_briefingFocusNode.hasFocus) return;
-      final ctx = _briefingFieldKey.currentContext;
-      if (ctx == null || !ctx.mounted || !_bodyScrollCtrl.hasClients) return;
-
-      final box = ctx.findRenderObject() as RenderBox?;
-      if (box == null) return;
-      final groupTop = box.localToGlobal(Offset.zero).dy;
-      final groupBottom = groupTop + box.size.height;
-
-      final screenH = MediaQuery.sizeOf(context).height;
-      final keyboardTop = screenH - MediaQuery.of(context).viewInsets.bottom;
-      const gap = 16.0;
-
-      // How far the group bottom sits below the keyboard top (positive = hidden).
-      final overflow = groupBottom - (keyboardTop - gap);
-      if (overflow <= 0) return; // already fully visible
-
-      final target = (_bodyScrollCtrl.offset + overflow)
-          .clamp(0.0, _bodyScrollCtrl.position.maxScrollExtent);
-      _bodyScrollCtrl.animateTo(
-        target,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    });
   }
 
   @override
   void dispose() {
-    _briefingFocusNode.removeListener(_onBriefingFocusChange);
-    _briefingFocusNode.dispose();
-    _briefingFocusCtrl.dispose();
     _bodyScrollCtrl.dispose();
     super.dispose();
   }
@@ -241,28 +196,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
     websiteCtrl.dispose();
   }
 
-  Future<void> _generateBriefing() async {
-    setState(() { _isGenerating = true; _briefingError = null; });
-    try {
-      final focus = _briefingFocusCtrl.text.trim();
-      final points = await ApiService.generateCompanyBriefing(widget.companyId, focus: focus.isNotEmpty ? focus : null);
-      await _sync.companies.catchUp();
-      if (mounted) {
-        setState(() {
-          _talkingPointsOverride = List<String>.from(points);
-          _isGenerating = false;
-        });
-      }
-    } on UnauthorizedException { rethrow; } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isGenerating = false;
-          _briefingError = 'Could not generate talking points. Please try again.';
-        });
-      }
-    }
-  }
-
   Future<void> _launchUrl(String url) async {
     final uri = Uri.tryParse(url.startsWith('http') ? url : 'https://$url');
     if (uri == null) return;
@@ -286,11 +219,28 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
               children: [
                 _buildHeader(company),
                 Expanded(
-                  child: !snapshot.hasData
-                      ? _buildLoadingState()
-                      : company == null
-                          ? _buildNotFoundState()
-                          : _buildBody(company),
+                  child: Stack(
+                    children: [
+                      !snapshot.hasData
+                          ? _buildLoadingState()
+                          : company == null
+                              ? _buildNotFoundState()
+                              : _buildBody(company),
+                      if (company != null)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: ExoDockBar(
+                            entity: ChatMention(
+                              type: 'company',
+                              id: widget.companyId,
+                              displayName: company.name,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -444,15 +394,9 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
     final foundedYear    = co.foundedYear ?? '';
     final linkedinUrl    = co.linkedinUrl ?? '';
     final ticker         = co.tickerSymbol ?? '';
-    final talkingPoints  = _talkingPointsOverride.isNotEmpty
-        ? _talkingPointsOverride
-        : (co.talkingPointsJson != null
-            ? (jsonDecode(co.talkingPointsJson!) as List).cast<String>()
-            : const <String>[]);
-
     return SingleChildScrollView(
       controller: _bodyScrollCtrl,
-      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context) + MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomScrollInset(context, margin: 88) + MediaQuery.of(context).viewInsets.bottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -645,72 +589,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
             },
           ),
 
-          const SizedBox(height: 16),
-
-          // ── AI Research card ───────────────────────────────────────────────
-          AppCard(
-            padding: const EdgeInsets.all(20),
-            radius: 20,
-            borderColor: _c.accent.withValues(alpha: 0.3),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.auto_awesome, size: 16, color: _c.accent),
-                    const SizedBox(width: 8),
-                    Expanded(child: AppSectionLabel('AI Research', color: _c.accent)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Focus prompt + generate button (keyed together so both scroll
-                // above the keyboard when the field is focused).
-                Column(
-                  key: _briefingFieldKey,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Optional focus prompt to steer the AI
-                    AppInput(
-                      controller: _briefingFocusCtrl,
-                      focusNode: _briefingFocusNode,
-                      hint: 'Steer the AI, e.g. their recent funding, hiring plans, pricing',
-                      maxLines: 2,
-                      minLines: 1,
-                      enabled: !_isGenerating,
-                      textCapitalization: TextCapitalization.sentences,
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Generate / regenerate button
-                    AppButton(
-                      label: _isGenerating ? 'GENERATING...' : (talkingPoints.isEmpty ? 'GENERATE AI BRIEFING' : 'REGENERATE'),
-                      onPressed: _isGenerating ? null : _generateBriefing,
-                      variant: ButtonVariant.primary,
-                      fullWidth: true,
-                      isLoading: _isGenerating,
-                    ),
-                  ],
-                ),
-
-                // Error
-                if (_briefingError != null) ...[
-                  const SizedBox(height: 12),
-                  _buildBriefingError(),
-                ],
-
-                // Talking Points section
-                if (talkingPoints.isNotEmpty && !_isGenerating) ...[
-                  const SizedBox(height: 20),
-                  BriefingBody(lines: talkingPoints, accentColor: _c.accent),
-                ] else if (!_isGenerating && talkingPoints.isEmpty) ...[
-                  const SizedBox(height: 14),
-                  Text('Generate an AI briefing to get talking points for your next meeting.',
-                      style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
-                ],
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -743,24 +621,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> with ScreenLo
           Icon(Icons.info_outline, size: 14, color: _c.destructive),
           const SizedBox(width: 8),
           Expanded(child: Text(_enrichError!, maxLines: 3, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(color: _c.destructive, height: 1.4))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBriefingError() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: _c.destructive.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _c.destructive.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, size: 14, color: _c.destructive),
-          const SizedBox(width: 8),
-          Expanded(child: Text(_briefingError!, maxLines: 3, overflow: TextOverflow.ellipsis, style: context.theme.typography.xs.copyWith(color: _c.destructive, height: 1.4))),
         ],
       ),
     );

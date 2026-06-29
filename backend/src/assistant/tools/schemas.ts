@@ -2,14 +2,14 @@
 
 export const SLAYER_QUERY_TOOL = {
   name: 'query_crm',
-  description: `Query CRM data via the semantic layer (handles SQL for you). Use for ANY read: contacts, events, email drafts, captures, companies, interactions, dashboard stats, or searching messages.
+  description: `Query the user's data via the semantic layer (handles SQL for you). Use for ANY read: contacts, events, email drafts, captures, companies, interactions, dashboard stats, or searching messages.
 DATE FILTERING: for any relative window on events (today, live now, upcoming, next N days, this week/month, past) set the "date_window" parameter instead of writing date filters — the backend computes the exact bounds; hand-written relative-date filters are rejected. For absolute dates or non-event models, use "filters" with explicit timestamptz ranges (never bare date equality like start_date = '2026-06-21'). date_window may be combined with other non-date filters.`,
   parameters: {
     type: 'object',
     properties: {
       source_model: {
         type: 'string',
-        description: 'The CRM table/model to query (e.g. contacts, events, notes)',
+        description: 'The table/model to query (e.g. contacts, events, notes)',
       },
       date_window: {
         type: 'string',
@@ -64,7 +64,7 @@ DATE FILTERING: for any relative window on events (today, live now, upcoming, ne
 export const WRITE_TOOLS = [
   {
     name: 'create_contact',
-    description: 'Create a new contact in the CRM',
+    description: 'Create a new contact',
     parameters: {
       type: 'object',
       properties: {
@@ -74,10 +74,9 @@ export const WRITE_TOOLS = [
         phone: { type: 'string' },
         job_title: { type: 'string' },
         linkedin_url: { type: 'string', description: 'LinkedIn profile URL' },
-        notes: { type: 'string' },
         scanned_details: {
           type: 'array',
-          description: 'Extra business-card details with no dedicated parameter (address, fax, alternate phone, website, etc.) — NOT notes. Provide as a list of {key, value} pairs, e.g. [{"key":"address","value":"Doha, Qatar"},{"key":"fax","value":"+974..."}]. Both key and value are strings.',
+          description: 'Extra business-card details with no dedicated parameter (address, fax, alternate phone, website, etc.). Provide as a list of {key, value} pairs, e.g. [{"key":"address","value":"Doha, Qatar"},{"key":"fax","value":"+974..."}]. Both key and value are strings.',
           items: {
             type: 'object',
             properties: {
@@ -110,13 +109,12 @@ export const WRITE_TOOLS = [
         phone: { type: 'string' },
         job_title: { type: 'string' },
         linkedin_url: { type: 'string', description: 'LinkedIn profile URL' },
-        notes: { type: 'string' },
         is_priority: { type: 'boolean', description: 'Mark this contact as a priority follow-up' },
         follow_up_status: { type: 'string', enum: ['not_contacted', 'contacted', 'needs_followup', 'ignore'] },
         last_contacted_at: { type: 'string', description: 'ISO 8601 datetime' },
         scanned_details: {
           type: 'array',
-          description: 'Extra business-card details (address, fax, alternate phone, website, etc.) — NOT notes. Provide as a list of {key, value} pairs, e.g. [{"key":"address","value":"Doha, Qatar"},{"key":"website","value":"x.com"}]. Merged into existing scanned details — only include the keys you are adding or changing; set a key\'s value to "" to remove it. Both key and value are strings.',
+          description: 'Extra business-card details (address, fax, alternate phone, website, etc.). Provide as a list of {key, value} pairs, e.g. [{"key":"address","value":"Doha, Qatar"},{"key":"website","value":"x.com"}]. Merged into existing scanned details — only include the keys you are adding or changing; set a key\'s value to "" to remove it. Both key and value are strings.',
           items: {
             type: 'object',
             properties: {
@@ -328,7 +326,7 @@ export const WRITE_TOOLS = [
   },
   {
     name: 'add_target_note',
-    description: 'Attach prep notes / talking points to a target (contact or company) within an event. The target must already exist for that event (add it first if needed). Replaces the existing note. Provide the event by event_id/event_name.',
+    description: 'Attach a prep note to a target (contact or company) within an event. The target must already exist for that event (add it first if needed). For a company target, appends a new note to the company\'s note list (does NOT replace existing notes). For a contact target, sets the contact\'s prep note. Provide the event by event_id/event_name.',
     parameters: {
       type: 'object',
       properties: {
@@ -354,7 +352,7 @@ export const GET_PRIORITIES_TOOL = {
 
 export const WEB_SEARCH_TOOL = {
   name: 'web_search',
-  description: `Search the live web for current, real-time info — news, company/person background, pricing, or anything not in your training data (e.g. "latest on <company>", "who is <person>", industry news). Do NOT use for CRM data — use query_crm for that.`,
+  description: `Search the live web for current, real-time info — news, company/person background, pricing, or anything not in your training data (e.g. "latest on <company>", "who is <person>", industry news). Do NOT use for the user's own data — use query_crm for that.`,
   parameters: {
     type: 'object',
     properties: {
@@ -399,7 +397,7 @@ export const MODEL_DIRECTORY: Record<string, string> = {
 
 export const DESCRIBE_MODEL_TOOL = {
   name: 'describe_model',
-  description: `Get the exact column names and types for ONE CRM table before you query it.
+  description: `Get the exact column names and types for ONE table before you query it.
 Call this right before query_crm whenever you are not 100% sure of a table's column names.
 This is the ONLY reliable way to know a table's columns — never guess column names.
 Returns the column list (name + type) plus a reminder of the correct filter format.`,
@@ -408,7 +406,7 @@ Returns the column list (name + type) plus a reminder of the correct filter form
     properties: {
       source_model: {
         type: 'string',
-        description: 'The CRM table to describe (e.g. "contacts", "events"). Must be one of the tables in the directory in the system prompt.',
+        description: 'The table to describe (e.g. "contacts", "events"). Must be one of the tables in the directory in the system prompt.',
       },
     },
     required: ['source_model'],
@@ -428,7 +426,16 @@ export const PARSE_DOCUMENT_TOOL = {
   },
 };
 
-export const ALL_TOOLS = [SLAYER_QUERY_TOOL, DESCRIBE_MODEL_TOOL, GET_PRIORITIES_TOOL, PARSE_DOCUMENT_TOOL, ...WRITE_TOOLS, WEB_SEARCH_TOOL];
+// web_search is gated behind research mode — it is only offered to the model when
+// the user explicitly turned research on for the turn, so a normal CRM question
+// can never spend a round-trip on a web lookup. BASE_TOOLS is everything else.
+export const BASE_TOOLS = [SLAYER_QUERY_TOOL, DESCRIBE_MODEL_TOOL, GET_PRIORITIES_TOOL, PARSE_DOCUMENT_TOOL, ...WRITE_TOOLS];
+export const ALL_TOOLS = [...BASE_TOOLS, WEB_SEARCH_TOOL];
+
+/** Tool list for a turn — includes web_search only in research mode. */
+export function toolsForTurn(researchMode: boolean) {
+  return researchMode ? ALL_TOOLS : BASE_TOOLS;
+}
 
 // Tools that MUTATE data — these require explicit user permission before they run.
 // get_event_followups is a read despite living in WRITE_TOOLS, so it is excluded.

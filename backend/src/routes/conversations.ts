@@ -178,7 +178,21 @@ router.get('/:id/messages', async (req, res) => {
 
   const data = await signMessageAttachments((desc ?? []).slice().reverse());
   const next_before = desc && desc.length > 0 ? (desc[desc.length - 1] as any).created_at : null;
-  res.json({ data, next_before });
+
+  // Fold in the latest unresolved pending write so the in-flight poll only needs
+  // one round-trip per cycle (was a separate GET /assistant/pending). Same query
+  // as that route — user-scoped via supabaseAdmin since it bypasses RLS.
+  const { data: pendingAction } = await supabaseAdmin
+    .from('assistant_pending_actions')
+    .select('id, tool_name, tool_args, summary')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', req.user!.id)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  res.json({ data, next_before, pending_action: pendingAction ?? null });
 });
 
 // GET /api/conversations/:id/messages/search?q=...

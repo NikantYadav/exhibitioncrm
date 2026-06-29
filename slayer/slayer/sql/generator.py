@@ -881,12 +881,12 @@ class SQLGenerator:
             }
             for order_item in enriched.order:
                 col = order_item.column
-                col_name = self._resolve_order_column(col=col, enriched=enriched)
+                col_name, is_alias = self._resolve_order_column_ref(col=col, enriched=enriched)
                 direction = "ASC" if order_item.direction == "asc" else "DESC"
                 if col_name in base_cols:
                     order_parts.append(f'_base."{col_name}" {direction}')
                 else:
-                    order_parts.append(f'"{col_name}" {direction}')
+                    order_parts.append(f'{self._quote_order_ident(col_name, is_alias)} {direction}')
             sql += "\nORDER BY " + ", ".join(order_parts)
         if enriched.limit is not None:
             sql += f"\nLIMIT {enriched.limit}"
@@ -902,9 +902,9 @@ class SQLGenerator:
             order_parts = []
             for order_item in enriched.order:
                 col = order_item.column
-                col_name = SQLGenerator._resolve_order_column(col=col, enriched=enriched)
+                col_name, is_alias = SQLGenerator._resolve_order_column_ref(col=col, enriched=enriched)
                 direction = "ASC" if order_item.direction == "asc" else "DESC"
-                order_parts.append(f'"{col_name}" {direction}')
+                order_parts.append(f'{SQLGenerator._quote_order_ident(col_name, is_alias)} {direction}')
             sql += "\nORDER BY " + ", ".join(order_parts)
         if enriched.limit is not None:
             sql += f"\nLIMIT {enriched.limit}"
@@ -1861,8 +1861,19 @@ class SQLGenerator:
         if enriched.order:
             for order_item in enriched.order:
                 col = order_item.column
-                col_name = self._resolve_order_column(col=col, enriched=enriched)
-                order_col = exp.Column(this=exp.to_identifier(col_name, quoted=True))
+                col_name, is_alias = self._resolve_order_column_ref(col=col, enriched=enriched)
+                if is_alias or "." not in col_name:
+                    # Projected alias (may legitimately contain a dot, e.g.
+                    # "orders.revenue_sum") → one quoted identifier.
+                    order_col = exp.Column(this=exp.to_identifier(col_name, quoted=True))
+                else:
+                    # Physical table.column fallback → quote each part so we
+                    # emit "table"."column", not "table.column".
+                    table_part, _, column_part = col_name.rpartition(".")
+                    order_col = exp.Column(
+                        this=exp.to_identifier(column_part, quoted=True),
+                        table=exp.to_identifier(table_part, quoted=True),
+                    )
                 ascending = order_item.direction == "asc"
                 select = select.order_by(exp.Ordered(this=order_col, desc=not ascending))
 
@@ -1889,6 +1900,24 @@ class SQLGenerator:
         refer to it as ``count``.  A fallback check for ``_name`` handles
         this case.
         """
+        return SQLGenerator._resolve_order_column_ref(col=col, enriched=enriched)[0]
+
+    @staticmethod
+    def _resolve_order_column_ref(col, enriched: EnrichedQuery) -> "tuple[str, bool]":
+        """Like :meth:`_resolve_order_column`, but also reports whether the
+        resolved name is a **projected alias** (``True``) or a **physical
+        ``table.column`` fallback** (``False``).
+
+        This distinction is load-bearing for SQL emission. A matched alias such
+        as ``orders.revenue_sum`` is the literal projected output-column name
+        (a single identifier that happens to contain a dot), so it must be
+        quoted as ONE identifier: ``"orders.revenue_sum"``. The fallback
+        ``table.column`` reference (e.g. ordering by a physical column that was
+        not projected) must instead be quoted PER PART —
+        ``"interactions"."interaction_date"`` — otherwise Postgres looks for a
+        column literally named ``interactions.interaction_date`` and raises
+        ``UndefinedColumnError``.
+        """
         user_name = col.name
         model_prefix = col.model or enriched.model_name
 
@@ -1911,22 +1940,34 @@ class SQLGenerator:
 
         # Direct match on the user-provided name
         if user_name in alias_lookup:
-            return alias_lookup[user_name]
+            return alias_lookup[user_name], True
 
         # Qualified match for cross-model measures:
         # col.model="customers", col.name="revenue_sum" → "customers.revenue_sum"
         if col.model:
             qualified = f"{col.model}.{col.name}"
             if qualified in alias_lookup:
-                return alias_lookup[qualified]
+                return alias_lookup[qualified], True
 
         # Fallback for *:count → _count: user says "count", internal is "_count"
         prefixed = f"_{user_name}"
         if prefixed in alias_lookup:
-            return alias_lookup[prefixed]
+            return alias_lookup[prefixed], True
 
-        # Fallback: qualify with model prefix
-        return f"{model_prefix}.{user_name}"
+        # Fallback: qualify with model prefix — a physical table.column ref.
+        return f"{model_prefix}.{user_name}", False
+
+    @staticmethod
+    def _quote_order_ident(name: str, is_alias: bool) -> str:
+        """Quote a resolved order name for string-built SQL.
+
+        ``is_alias`` → quote the whole thing as one identifier (it is the
+        literal projected output-column name). Otherwise it is a physical
+        ``table.column`` reference and each dotted part is quoted separately.
+        """
+        if is_alias or "." not in name:
+            return f'"{name}"'
+        return ".".join(f'"{part}"' for part in name.split("."))
 
     # ------------------------------------------------------------------
     # FROM / JOIN building

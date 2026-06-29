@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { supabase as supabaseAdmin } from '../../../config/supabase';
 import { litellm } from '../../../services/litellm-service';
 import { assertOwnsAttachment } from '../resolvers';
+import { fenceUntrusted } from '../../security';
 import { decodeAndValidateImage } from '../../../utils/imageValidation';
 
 const CARD_BUCKET = 'contact-cards';
@@ -26,7 +27,7 @@ export async function execParseDocument(args: Record<string, unknown>, userId: s
       attachment_id: att.id,
       mode: 'full',
       token_estimate: att.token_estimate,
-      content: att.extracted_text ?? '',
+      content: fenceUntrusted(att.extracted_text ?? '', 'attached document'),
     };
   }
 
@@ -50,7 +51,7 @@ export async function execParseDocument(args: Record<string, unknown>, userId: s
     mode: 'retrieved',
     query,
     match_count: passages.length,
-    content: passages.join('\n\n---\n\n'),
+    content: fenceUntrusted(passages.join('\n\n---\n\n'), 'attached document (retrieved passages)'),
   };
 }
 

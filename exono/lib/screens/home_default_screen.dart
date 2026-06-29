@@ -221,38 +221,8 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Live banner ──
-        _buildLiveBanner(event, location),
-        const SizedBox(height: 12),
-
-        // ── Log interaction (auto-links to the live event in the sheet) ──
-        AppButton(
-          label: 'LOG INTERACTION',
-          prefixIcon: const Icon(Icons.add_circle_outline_rounded, size: 20),
-          variant: ButtonVariant.branded,
-          fullWidth: true,
-          onPressed: () => showLogInteractionSheet(context),
-        ),
-        const SizedBox(height: 12),
-
-        // ── Stat strip ──
-        _buildStatStrip(scanned, targetsLeft, goalsLeft),
-        const SizedBox(height: 20),
-
-        // ── Goals (compact) ──
-        if (lep.liveGoals.isNotEmpty) ...[
-          _buildGoalsCompact(lep),
-          const SizedBox(height: 20),
-        ],
-
-        // ── CTA: go to full live floor ──
-        AppButton(
-          label: 'OPEN LIVE FLOOR',
-          prefixIcon: const Icon(Icons.open_in_full_rounded, size: 16, color: Colors.white),
-          variant: ButtonVariant.primary,
-          fullWidth: true,
-          onPressed: () => context.push('/live-event'),
-        ),
+        // ── Unified live card ──
+        _buildLiveCard(event, location, scanned, targetsLeft, goalsLeft, lep),
 
         // ── Divider between live and traditional ──
         Padding(
@@ -328,83 +298,117 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     );
   }
 
-  // ── Live banner ───────────────────────────────────────────────────────────
+  // ── Unified live card ─────────────────────────────────────────────────────
 
-  Widget _buildLiveBanner(Event event, String location) {
+  Widget _buildLiveCard(Event event, String location, int scanned, int targetsLeft, int goalsLeft, LiveEventProvider lep) {
     return AppCard(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.zero,
       radius: AppTheme.radiusCard,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            _PulsingDot(color: _c.destructive),
-            const SizedBox(width: 8),
-            Text('LIVE NOW', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.6, color: _c.destructive)),
-          ]),
-          const SizedBox(height: 14),
-          Text(event.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.6, color: context.theme.colors.foreground, height: 1.1)),
-          if (location.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Row(children: [
-              Icon(Icons.location_on_outlined, size: 14, color: _c.accent),
-              const SizedBox(width: 6),
-              Expanded(child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
-            ]),
+          // Header: LIVE NOW + event name + meta
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  _PulsingDot(color: _c.destructive),
+                  const SizedBox(width: 8),
+                  Text('LIVE NOW', style: context.theme.typography.xs.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.6, color: _c.destructive)),
+                ]),
+                const SizedBox(height: 12),
+                Text(event.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: context.theme.typography.xl.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.6, color: context.theme.colors.foreground, height: 1.1)),
+                if (location.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    Icon(Icons.location_on_outlined, size: 14, color: _c.accent),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground))),
+                  ]),
+                ],
+                if (event.localStartTime != null) ...[
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Icon(Icons.schedule_outlined, size: 14, color: _c.accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      event.localEndTime != null
+                          ? '${event.localStartTime} – ${event.localEndTime}'
+                          : 'From ${event.localStartTime}',
+                      style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+                    ),
+                  ]),
+                ],
+              ],
+            ),
+          ),
+
+          // Stat strip
+          Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.5)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: LayoutBuilder(builder: (context, constraints) {
+              const labels = ['SCANNED', 'TARGETS LEFT', 'GOALS LEFT'];
+              final cellWidth = (constraints.maxWidth - 2) / 3;
+              final labelStyle = context.theme.typography.xs.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                  color: context.theme.colors.mutedForeground);
+              var fontSize = labelStyle.fontSize ?? 11;
+              for (final label in labels) {
+                while (fontSize > 6 &&
+                    _textWidth(label, labelStyle.copyWith(fontSize: fontSize)) > cellWidth) {
+                  fontSize -= 0.5;
+                }
+              }
+              final scaledStyle = labelStyle.copyWith(fontSize: fontSize);
+              return Row(children: [
+                Expanded(child: _statCol(Icons.qr_code_scanner_rounded, '$scanned', 'SCANNED', scaledStyle)),
+                Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
+                Expanded(child: _statCol(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT', scaledStyle)),
+                Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
+                Expanded(child: _statCol(Icons.flag_outlined, '$goalsLeft', 'GOALS LEFT', scaledStyle)),
+              ]);
+            }),
+          ),
+          Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.5)),
+
+          // Goals compact (if any)
+          if (lep.liveGoals.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: _buildGoalsCompactInline(lep),
+            ),
+            Container(height: 1, color: context.theme.colors.border.withValues(alpha: 0.5)),
           ],
-          if (event.localStartTime != null) ...[
-            const SizedBox(height: 8),
-            Row(children: [
-              Icon(Icons.schedule_outlined, size: 14, color: _c.accent),
-              const SizedBox(width: 6),
-              Text(
-                event.localEndTime != null
-                    ? '${event.localStartTime} – ${event.localEndTime}'
-                    : 'From ${event.localStartTime}',
-                style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground),
+
+          // Action buttons row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Row(children: [
+              Expanded(
+                child: AppButton(
+                  label: 'LOG',
+                  prefixIcon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+                  variant: ButtonVariant.branded,
+                  onPressed: () => showLogInteractionSheet(context),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: AppButton(
+                  label: 'LIVE FLOOR',
+                  prefixIcon: const Icon(Icons.open_in_full_rounded, size: 16, color: Colors.white),
+                  variant: ButtonVariant.primary,
+                  onPressed: () => context.push('/live-event'),
+                ),
               ),
             ]),
-          ],
+          ),
         ],
       ),
-    );
-  }
-
-  // ── Stat strip ────────────────────────────────────────────────────────────
-
-  Widget _buildStatStrip(int scanned, int targetsLeft, int goalsLeft) {
-    return AppCard(
-      elevated: true,
-      padding: const EdgeInsets.all(16),
-      radius: 14,
-      child: LayoutBuilder(builder: (context, constraints) {
-        // One shared font size for all three labels so they render
-        // identically and each fits on a single line. Sized off the
-        // longest label against the per-column width (≈1/3 of the card,
-        // minus the two 1px dividers).
-        const labels = ['SCANNED', 'TARGETS LEFT', 'GOALS LEFT'];
-        final cellWidth = (constraints.maxWidth - 2) / 3;
-        final labelStyle = context.theme.typography.xs.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
-            color: context.theme.colors.mutedForeground);
-        var fontSize = labelStyle.fontSize ?? 11;
-        for (final label in labels) {
-          while (fontSize > 6 &&
-              _textWidth(label, labelStyle.copyWith(fontSize: fontSize)) >
-                  cellWidth) {
-            fontSize -= 0.5;
-          }
-        }
-        final scaledStyle = labelStyle.copyWith(fontSize: fontSize);
-        return Row(children: [
-          Expanded(child: _statCol(Icons.qr_code_scanner_rounded, '$scanned', 'SCANNED', scaledStyle)),
-          Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
-          Expanded(child: _statCol(Icons.people_outline_rounded, '$targetsLeft', 'TARGETS LEFT', scaledStyle)),
-          Container(width: 1, height: 48, color: context.theme.colors.border.withValues(alpha: 0.3)),
-          Expanded(child: _statCol(Icons.flag_outlined, '$goalsLeft', 'GOALS LEFT', scaledStyle)),
-        ]);
-      }),
     );
   }
 
@@ -437,9 +441,9 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
     );
   }
 
-  // ── Goals compact ─────────────────────────────────────────────────────────
+  // ── Goals compact (inline, used inside the unified live card) ────────────
 
-  Widget _buildGoalsCompact(LiveEventProvider lep) {
+  Widget _buildGoalsCompactInline(LiveEventProvider lep) {
     final goals = lep.liveGoals.take(3).toList();
     final done = goals.where((g) {
       final current = g['current'] as int;
@@ -447,24 +451,22 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
       return total == 0 ? current == 1 : current >= total;
     }).length;
 
-    return AppCard(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            AppSectionLabel('Goal Progress'),
-            const Spacer(),
-            Text('$done / ${goals.length}', style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
-          ]),
-          const SizedBox(height: 10),
-          for (final goal in goals) _buildGoalRow(goal),
-          if (lep.liveGoals.length > 3) ...[
-            const SizedBox(height: 6),
-            Text('+${lep.liveGoals.length - 3} more', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          AppSectionLabel('Goal Progress'),
+          const Spacer(),
+          Text('$done / ${goals.length}', style: context.theme.typography.sm.copyWith(fontWeight: FontWeight.w700, color: _c.accent)),
+        ]),
+        const SizedBox(height: 10),
+        for (final goal in goals) _buildGoalRow(goal),
+        if (lep.liveGoals.length > 3) ...[
+          const SizedBox(height: 4),
+          Text('+${lep.liveGoals.length - 3} more', style: context.theme.typography.xs.copyWith(color: context.theme.colors.mutedForeground)),
         ],
-      ),
+        const SizedBox(height: 4),
+      ],
     );
   }
 

@@ -23,6 +23,8 @@ import '../widgets/create_company_sheet.dart';
 import '../widgets/skeleton_loader.dart';
 import 'target_company_prep_screen.dart';
 import '../utils/screen_logger.dart';
+import '../models/chat_mention.dart';
+import '../widgets/exo_dock_bar.dart';
 
 class PreEventPrepScreen extends StatefulWidget {
   final Event event;
@@ -43,12 +45,20 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   late final ContactEventsRepository _contactEventsRepo;
   late final SyncProvider _sync;
 
+  final _boothCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _sync = context.read<SyncProvider>();
     _targetsRepo = _sync.targetCompanies;
     _contactEventsRepo = _sync.contactEvents;
+  }
+
+  @override
+  void dispose() {
+    _boothCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _addGoal() async {
@@ -411,25 +421,41 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               ],
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(16, 24, 16, bottomScrollInset(context)),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1280),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildHeaderSection(),
-                        const SizedBox(height: 32),
-                        _buildGoalsPanel(),
-                        const SizedBox(height: 24),
-                        _buildTargetContactsPanel(),
-                        const SizedBox(height: 24),
-                        _buildTargetListPanel(),
-                      ],
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(16, 24, 16, bottomScrollInset(context, margin: 88)),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1280),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeaderSection(),
+                            const SizedBox(height: 32),
+                            _buildGoalsPanel(),
+                            const SizedBox(height: 24),
+                            _buildTargetContactsPanel(),
+                            const SizedBox(height: 24),
+                            _buildTargetListPanel(),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: ExoDockBar(
+                      entity: ChatMention(
+                        type: 'event',
+                        id: widget.event.id,
+                        displayName: widget.event.name,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -962,7 +988,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   }
 
   Future<void> _showBoothInputDialog(Map<String, dynamic> company) async {
-    final boothCtrl = TextEditingController();
+    _boothCtrl.clear();
 
     await showAppSheet(
       context: context,
@@ -981,7 +1007,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
               Text('Adding to target list', style: context.theme.typography.sm.copyWith(color: context.theme.colors.mutedForeground)),
               const SizedBox(height: 20),
               AppInput(
-                controller: boothCtrl,
+                controller: _boothCtrl,
                 autofocus: true,
                 hintText: 'e.g. A-12, Hall 3 B04',
                 labelText: 'Booth Number (optional)',
@@ -1008,7 +1034,7 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
                       label: 'ADD TO LIST',
                       variant: ButtonVariant.primary,
                       onPressed: () {
-                        final booth = boothCtrl.text.trim();
+                        final booth = _boothCtrl.text.trim();
                         Navigator.of(ctx).pop();
                         _addCompanyAsTarget(company, booth.isEmpty ? null : booth);
                       },
@@ -1021,9 +1047,6 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
         ),
       ),
     );
-    // Defer one frame: the sheet's exit animation is still running, so the field
-    // still depends on this controller (see _addGoal for details).
-    WidgetsBinding.instance.addPostFrameCallback((_) => boothCtrl.dispose());
   }
 
   Future<void> _addCompanyAsTarget(Map<String, dynamic> company, String? booth) async {

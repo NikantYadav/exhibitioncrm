@@ -74,7 +74,13 @@ class _LiveBarState extends State<LiveBar> with TickerProviderStateMixin {
     final event = lep.liveEvent!;
     final targetsLeft = lep.targetsLeft;
     final scanned = lep.scannedContacts.length;
-    final goalsLeft = lep.liveGoals.where((g) => (g['status'] as String?) != 'completed').length;
+    final goalsLeft = lep.liveGoals.where((g) {
+      final current = g['current'] as int? ?? 0;
+      final total = g['total'] as int? ?? 0;
+      final isCheckbox = total == 0;
+      final isComplete = isCheckbox ? current == 1 : (total > 0 && current >= total);
+      return !isComplete;
+    }).length;
 
     final bg = c.isDark ? c.accentStrong : c.accent;
     final divider = Colors.white.withValues(alpha: 0.20);

@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { LiteLLMService } from '../services/litellm-service';
-import { TavilyService } from '../services/tavily-service';
+import { ExaService } from '../services/exa-service';
 import { requireAuth } from '../middleware/requireAuth';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { upsertFollowUp, setEventFollowUpStatus } from '../services/followUps';
@@ -60,7 +61,11 @@ const targetWriteSchema = z.object({
   company_id: uuidSchema,
   priority: z.enum(['high', 'medium', 'low']).optional(),
   booth_location: optText(100),
-  notes: optText(10000),
+  notes: z.array(z.object({
+    id: z.string().min(1),
+    body: z.string().trim().min(1).max(10000),
+    created_at: z.string().min(1),
+  })).max(200).optional(),
   status: z.enum(['not_contacted', 'contacted', 'researched', 'met']).optional(),
   use_notes_for_briefing: z.boolean().optional(),
 });
@@ -1101,13 +1106,13 @@ router.post('/:id/ask', async (req, res, next) => {
       `${t.company?.name} (${t.company?.industry || 'unknown'}, booth: ${t.booth_location || 'TBD'}, status: ${t.status})`
     ).join('\n');
 
-    // Tavily search — include event name, location, schedule and the question
+    // Exa search — include event name, location, schedule and the question
     let webContext = '';
     try {
       const searchQuery = [eventName, eventLocation, eventDates, question].filter(Boolean).join(' ');
-      const results = await TavilyService.search(searchQuery, { maxResults: 4, searchDepth: 'basic' });
-      webContext = TavilyService.formatForPrompt(results);
-    } catch (_) { /* Tavily failure is non-fatal */ }
+      const results = await ExaService.search(searchQuery, { maxResults: 5, searchDepth: 'basic' });
+      webContext = ExaService.formatForPrompt(results);
+    } catch (_) { /* Exa failure is non-fatal */ }
 
     const eventContext = [
       `Event: "${eventName}"`,
@@ -1351,6 +1356,99 @@ router.put('/:id/targets/:targetId', async (req, res, next) => {
   }
 });
 
+// POST /api/events/:id/targets/:targetId/notes — atomically append ONE note to
+// the target company's jsonb notes array. Sending only the new note (not the
+// whole array) means a concurrent add by the AI tool can't be clobbered by a
+// stale full-array replace. The append RPC self-enforces per-user ownership.
+const targetNoteCreateSchema = z.object({
+  body: z.string().trim().min(1).max(10000),
+});
+
+router.post('/:id/targets/:targetId/notes', async (req, res, next) => {
+  try {
+    const parsedTargetId = uuidSchema.safeParse(req.params.targetId);
+    if (!parsedTargetId.success) return res.status(400).json({ error: 'Invalid targetId' });
+    const parsedBody = targetNoteCreateSchema.safeParse(req.body);
+    if (!parsedBody.success) return res.status(400).json({ error: parsedBody.error.flatten() });
+
+    const { data, error } = await req.supabase!.rpc('append_target_company_note', {
+      p_target_id: parsedTargetId.data,
+      p_user_id: req.user!.id,
+      p_note_id: randomUUID(),
+      p_body: parsedBody.data.body,
+      p_created_at: new Date().toISOString(),
+    });
+    // RPC raises 'target not found or not owned' when the row isn't the caller's.
+    if (error) {
+      if (error.message?.includes('not found or not owned')) {
+        return res.status(404).json({ error: 'Target not found' });
+      }
+      throw error;
+    }
+
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/events/:id/targets/:targetId/notes/:noteId — atomically update ONE
+// note's body in the jsonb array. Same ownership-scoped RPC pattern.
+router.patch('/:id/targets/:targetId/notes/:noteId', async (req, res, next) => {
+  try {
+    const parsedTargetId = uuidSchema.safeParse(req.params.targetId);
+    if (!parsedTargetId.success) return res.status(400).json({ error: 'Invalid targetId' });
+    const noteId = z.string().trim().min(1).max(200).safeParse(req.params.noteId);
+    if (!noteId.success) return res.status(400).json({ error: 'Invalid noteId' });
+    const parsed = targetNoteCreateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? 'Invalid body' });
+
+    const { data, error } = await req.supabase!.rpc('update_target_company_note', {
+      p_target_id: parsedTargetId.data,
+      p_user_id: req.user!.id,
+      p_note_id: noteId.data,
+      p_body: parsed.data.body,
+    });
+    if (error) {
+      if (error.message?.includes('not found or not owned')) {
+        return res.status(404).json({ error: 'Target not found' });
+      }
+      throw error;
+    }
+
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/events/:id/targets/:targetId/notes/:noteId — atomically remove ONE
+// note by its id from the jsonb array. Same ownership-scoped RPC pattern.
+router.delete('/:id/targets/:targetId/notes/:noteId', async (req, res, next) => {
+  try {
+    const parsedTargetId = uuidSchema.safeParse(req.params.targetId);
+    if (!parsedTargetId.success) return res.status(400).json({ error: 'Invalid targetId' });
+    const noteId = z.string().trim().min(1).max(200).safeParse(req.params.noteId);
+    if (!noteId.success) return res.status(400).json({ error: 'Invalid noteId' });
+
+    const { data, error } = await req.supabase!.rpc('delete_target_company_note', {
+      p_target_id: parsedTargetId.data,
+      p_user_id: req.user!.id,
+      p_note_id: noteId.data,
+    });
+    if (error) {
+      if (error.message?.includes('not found or not owned')) {
+        return res.status(404).json({ error: 'Target not found' });
+      }
+      throw error;
+    }
+
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // PUT /api/events/:id/targets/:targetId/met
 // Per-user "met" toggle for a company target. Distinct from the shared
 // target_companies.status field and the contact follow-up system: toggling
@@ -1402,17 +1500,21 @@ router.post('/:id/targets/:targetId/briefing', async (req, res, next) => {
     const industry = company?.industry || '';
     const description = company?.description || '';
 
-    // Tavily web search for real-time company grounding
-    console.log(`[briefing] → running Tavily search for company: "${companyName}"`);
+    // Exa web search for real-time company grounding
+    console.log(`[briefing] → running Exa search for company: "${companyName}"`);
     const [newsResults, overviewResults] = await Promise.all([
-      TavilyService.search(`${companyName} latest news`, { maxResults: 3, searchDepth: 'basic' }),
-      TavilyService.search(`${companyName}${industry ? ` ${industry}` : ''} company products services overview`, { maxResults: 3, searchDepth: 'basic' }),
+      ExaService.search(`${companyName} latest news`, { maxResults: 5, searchDepth: 'basic' }),
+      ExaService.search(`${companyName}${industry ? ` ${industry}` : ''} company products services overview`, { maxResults: 5, searchDepth: 'basic' }),
     ]);
-    const webContext = TavilyService.formatForPrompt([...overviewResults, ...newsResults]);
-    console.log(`[briefing] → Tavily returned ${overviewResults.length + newsResults.length} results`);
+    const webContext = ExaService.formatForPrompt([...overviewResults, ...newsResults]);
+    console.log(`[briefing] → Exa returned ${overviewResults.length + newsResults.length} results`);
 
     const companyContext = `${companyName}${industry ? ` (${industry})` : ''}${description ? `. ${description}` : ''}`;
-    const userNotes = (target.use_notes_for_briefing && target.notes?.trim()) ? target.notes.trim() : null;
+    // notes is now a jsonb array of {id, body, created_at} objects; flatten to plain text.
+    const notesText = Array.isArray(target.notes)
+      ? (target.notes as Array<{ body?: string }>).map(n => n?.body ?? '').filter(Boolean).join('\n\n')
+      : '';
+    const userNotes = (target.use_notes_for_briefing && notesText.trim()) ? notesText.trim() : null;
 
     let prompt = `You are preparing a pre-meeting briefing for someone about to have a business networking conversation with ${companyContext}.
 

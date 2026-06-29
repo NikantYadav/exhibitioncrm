@@ -30,6 +30,8 @@ import 'contact_links_files_sheet.dart';
 import 'log_interaction_screen.dart';
 import '../providers/live_event_provider.dart';
 import '../utils/screen_logger.dart';
+import '../models/chat_mention.dart';
+import '../widgets/exo_dock_bar.dart';
 
 class ContactDetailScreen extends StatefulWidget {
   final String contactId;
@@ -436,7 +438,23 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
             return FScaffold(
               header: _buildHeader(contact),
               childPad: false,
-              child: _buildBody(contact),
+              child: Stack(
+                children: [
+                  _buildBody(contact),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: ExoDockBar(
+                      entity: ChatMention(
+                        type: 'contact',
+                        id: widget.contactId,
+                        displayName: contact.listName,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         );
@@ -466,7 +484,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> with ScreenLo
     if (_isLoadingDetails) return _buildSkeleton();
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
-        16, 16, 16, bottomScrollInset(context, margin: 32),
+        16, 16, 16, bottomScrollInset(context, margin: 88),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1269,9 +1287,17 @@ class _EditContactSheetState extends State<_EditContactSheet> {
 
   @override
   void dispose() {
-    _firstNameCtrl.dispose(); _lastNameCtrl.dispose(); _emailCtrl.dispose();
-    _phoneCtrl.dispose(); _jobTitleCtrl.dispose(); _linkedinCtrl.dispose(); _companyCtrl.dispose();
-    for (final e in _extraEntries) { e.keyCtrl.dispose(); e.valueCtrl.dispose(); }
+    // Defer one frame: the sheet exit animation keeps AppInput widgets briefly
+    // mounted after dispose() fires, so synchronous disposal throws
+    // `_dependents.isEmpty is not true`.
+    final ctrls = [
+      _firstNameCtrl, _lastNameCtrl, _emailCtrl,
+      _phoneCtrl, _jobTitleCtrl, _linkedinCtrl, _companyCtrl,
+      ..._extraEntries.expand((e) => [e.keyCtrl, e.valueCtrl]),
+    ];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final c in ctrls) { c.dispose(); }
+    });
     super.dispose();
   }
 

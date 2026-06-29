@@ -12,7 +12,6 @@ class Contact {
   final String? phone;
   final String? jobTitle;
   final String? linkedinUrl;
-  final String? notes;
   final String? avatarUrl;
   final List<Map<String, dynamic>> contactAssets;
   final Map<String, dynamic>? scannedDetails;
@@ -33,7 +32,6 @@ class Contact {
     this.phone,
     this.jobTitle,
     this.linkedinUrl,
-    this.notes,
     this.avatarUrl,
     this.contactAssets = const [],
     this.scannedDetails,
@@ -56,7 +54,6 @@ class Contact {
       phone: json['phone'],
       jobTitle: json['job_title'],
       linkedinUrl: json['linkedin_url'],
-      notes: json['notes'],
       avatarUrl: json['avatar_url'],
       contactAssets: (json['contact_assets'] as List?)
           ?.map((e) => Map<String, dynamic>.from(e as Map))
@@ -86,7 +83,6 @@ class Contact {
       'phone': phone,
       'job_title': jobTitle,
       'linkedin_url': linkedinUrl,
-      'notes': notes,
       'avatar_url': avatarUrl,
       'follow_up_status': followUpStatus,
       'is_priority': isPriority,
@@ -107,7 +103,6 @@ class Contact {
       phone: row.phone,
       jobTitle: row.jobTitle,
       linkedinUrl: row.linkedinUrl,
-      notes: row.notes,
       avatarUrl: row.avatarUrl,
       contactAssets: row.contactAssetsJson != null
           ? (jsonDecode(row.contactAssetsJson!) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()

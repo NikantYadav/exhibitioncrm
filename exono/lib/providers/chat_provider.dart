@@ -159,7 +159,7 @@ class ChatProvider extends ChangeNotifier {
   // Poll the server while a turn is in flight, in case realtime misses the push.
   void _startInFlightPoll() {
     _inFlightPoll?.cancel();
-    _inFlightPoll = Timer.periodic(const Duration(seconds: 3), (_) {
+    _inFlightPoll = Timer.periodic(const Duration(seconds: 6), (_) {
       // Stop once the turn has resolved (reply landed or a permission card showed).
       if (!_isTyping && !_resolvingPending) {
         _stopInFlightPoll();
@@ -185,6 +185,7 @@ class ChatProvider extends ChangeNotifier {
 
     try {
       final result = await ApiService.getMessages(convId, limit: 50);
+      _applyPending(result['pending_action'] as Map<String, dynamic>?);
       final msgs = result['data'] as List<Map<String, dynamic>>;
       for (final m in msgs) {
         final id = m['id'] as String;
@@ -204,7 +205,7 @@ class ChatProvider extends ChangeNotifier {
       // Network hiccup — keep what we have; pending refresh below still tries.
     }
 
-    await _refreshPending();
+    // pending_action already applied above from the same getMessages response.
 
     // Clear a stale typing dot only when the turn has actually resolved: either a
     // pending card is now showing, or the newest message is an assistant reply.
@@ -227,16 +228,22 @@ class ChatProvider extends ChangeNotifier {
   Future<void> _refreshPending() async {
     if (_conversationId == null || _resolvingPending) return;
     try {
-      final pa = await ApiService.assistantPending(_conversationId!);
-      final before = _pendingAction?.id;
-      if (pa != null) {
-        _pendingAction = PendingAction.fromJson(pa);
-      } else if (_pendingAction != null) {
-        // Server says nothing pending (resolved elsewhere) — drop a stale card.
-        _pendingAction = null;
-      }
-      if (_pendingAction?.id != before) notifyListeners();
+      _applyPending(await ApiService.assistantPending(_conversationId!));
     } catch (_) {}
+  }
+
+  // Apply a pending-action payload (from getMessages or assistantPending) to
+  // local state. Notifies only when the pending card identity changes.
+  void _applyPending(Map<String, dynamic>? pa) {
+    if (_resolvingPending) return;
+    final before = _pendingAction?.id;
+    if (pa != null) {
+      _pendingAction = PendingAction.fromJson(pa);
+    } else if (_pendingAction != null) {
+      // Server says nothing pending (resolved elsewhere) — drop a stale card.
+      _pendingAction = null;
+    }
+    if (_pendingAction?.id != before) notifyListeners();
   }
 
   Future<void> _loadHistory({bool force = false}) async {

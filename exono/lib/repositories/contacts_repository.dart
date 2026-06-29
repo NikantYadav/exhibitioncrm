@@ -87,7 +87,6 @@ class ContactsRepository extends SyncedRepository<ContactsTableData, $ContactsTa
       phone: Value(json['phone'] as String?),
       jobTitle: Value(json['job_title'] as String?),
       linkedinUrl: Value(json['linkedin_url'] as String?),
-      notes: Value(json['notes'] as String?),
       avatarUrl: Value(json['avatar_url'] as String?),
       followUpStatus: Value(json['follow_up_status'] as String? ?? 'not_contacted'),
       lastContactedAt: Value(json['last_contacted_at'] != null

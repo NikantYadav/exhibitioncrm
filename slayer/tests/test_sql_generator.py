@@ -231,6 +231,27 @@ class TestBasicQueries:
         assert "ORDER BY" in sql
         assert "DESC" in sql
 
+    async def test_order_by_unprojected_physical_column(
+        self, generator: SQLGenerator, orders_model: SlayerModel
+    ) -> None:
+        """Ordering by a physical column that is not projected must emit a
+        per-part-quoted ``"table"."column"`` reference, not a single
+        ``"table.column"`` identifier (which Postgres reads as one column name
+        and rejects with UndefinedColumnError). Regression for the
+        ``interactions.interaction_date`` failure.
+        """
+        query = SlayerQuery(
+            source_model="orders",
+            filters=["status = 'paid'"],
+            order=[OrderItem(column=ColumnRef(name="created_at"), direction="desc")],
+        )
+        sql = await _generate(generator, query, orders_model)
+        assert "ORDER BY" in sql
+        # Correct: two quoted identifiers joined by a dot.
+        assert '"orders"."created_at"' in sql
+        # Buggy form: the whole dotted path quoted as one identifier.
+        assert '"orders.created_at"' not in sql
+
 
 class TestTimeDimensions:
     async def test_time_dimension_with_granularity(self, generator: SQLGenerator, orders_model: SlayerModel) -> None:

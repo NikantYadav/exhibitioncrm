@@ -28,6 +28,9 @@ The wrappers already exist in `exono/lib/widgets/`. They wrap forui correctly an
 | Confirm dialog | `showAppConfirmDialog(...)` (`lib/widgets/app_feedback.dart`) | `showDialog` + `AlertDialog` |
 | Divider | `FDivider()` | `Divider()`, 1px line `Container` (only when it's a separator) |
 | Spinner | `FCircularProgress()` | `CircularProgressIndicator()` |
+| Shared chat body | `ExoChatView(config: ExoChatViewConfig(...))` (`lib/widgets/exo_chat_view.dart`) | reusable chat canvas + pill composer used by `ChatScreen` and `ExoChatSheet`; pass `lockedMention:` to lock an entity chip, `reserveBottomBarInset: false` inside sheets |
+| Exo AI sheet | `showExoSheet(context, entity: ChatMention(...))` (`lib/widgets/exo_chat_sheet.dart`) | entity-scoped Exo chat as a draggable bottom sheet (0.55→0.92, not full-screen); fresh conversation per open; own local providers — deliberately uses raw `showModalBottomSheet` (needs draggable handle + local provider scope, not `showAppSheet`) |
+| Exo dock bar | `ExoDockBar(entity: ChatMention(...))` (`lib/widgets/exo_dock_bar.dart`) | collapsed "Ask Exo about X" bar pinned at bottom of detail screens; place as `Positioned(left:0, right:0, bottom:0)` inside a `Stack`; tap or drag-up opens the sheet; bump body scroll `margin:` to 88 to clear the bar |
 
 ### Standing rule: grow the wrappers, don't work around them
 

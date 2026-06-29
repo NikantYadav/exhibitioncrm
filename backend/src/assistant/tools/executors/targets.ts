@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { supabase as supabaseAdmin } from '../../../config/supabase';
 import { resolveContactId, resolveEventId, resolveCompanyId, assertOwnsEvent, assertOwnsContact } from '../resolvers';
@@ -217,13 +218,34 @@ export async function execAddTargetNote(args: Record<string, unknown>, userId: s
     if (!co) throw new Error(`No company named "${a.company_name}" found.`);
     companyId = co.id;
   }
-  const { data, error } = await supabaseAdmin
+
+  // Resolve the owning target row id (scoped to this user) so we can append
+  // atomically. supabaseAdmin bypasses RLS, so .eq('user_id', userId) here is
+  // the ownership boundary.
+  const { data: existingRow, error: readErr } = await supabaseAdmin
     .from('target_companies')
-    .update({ notes: a.note, updated_at: new Date().toISOString() })
+    .select('id')
     .eq('event_id', eventId).eq('company_id', companyId)
     .eq('user_id', userId).is('deleted_at', null)
-    .select('id, company_id, event_id, notes');
-  if (error) throw new Error(error.message);
-  if (!data || data.length === 0) throw new Error('That company is not a target for this event — add it as a target first.');
-  return { success: true, target_type: 'company', company_id: companyId, event_id: eventId, note: a.note, message: 'Prep note saved for the target company.' };
+    .maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  if (!existingRow) throw new Error('That company is not a target for this event — add it as a target first.');
+
+  // Append via the atomic RPC (read-modify-write in a single UPDATE) so a
+  // concurrent add from the prep screen can't be clobbered by a stale replace.
+  // The RPC re-checks ownership via p_user_id and raises if the row isn't ours.
+  const { error } = await supabaseAdmin.rpc('append_target_company_note', {
+    p_target_id: existingRow.id,
+    p_user_id: userId,
+    p_note_id: randomUUID(),
+    p_body: a.note,
+    p_created_at: new Date().toISOString(),
+  });
+  if (error) {
+    if (error.message?.includes('not found or not owned')) {
+      throw new Error('That company is not a target for this event — add it as a target first.');
+    }
+    throw new Error(error.message);
+  }
+  return { success: true, target_type: 'company', company_id: companyId, event_id: eventId, note: a.note, message: 'Prep note added for the target company.' };
 }

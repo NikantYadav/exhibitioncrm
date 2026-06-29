@@ -15,8 +15,12 @@
 import { litellm } from './litellm-service';
 import { sniffImage } from '../utils/imageValidation';
 
+// pdf-parse v2 exports a `PDFParse` class (no default callable). The v1
+// `require('pdf-parse')(buf)` form throws "pdfParse is not a function".
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfParse = require('pdf-parse') as (b: Buffer, o?: any) => Promise<{ text: string; numpages: number }>;
+const { PDFParse } = require('pdf-parse') as {
+  PDFParse: new (src: { data: Buffer }) => { getText: (o?: any) => Promise<{ text: string }> };
+};
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const mammoth = require('mammoth') as { extractRawText: (i: { buffer: Buffer }) => Promise<{ value: string }> };
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -121,7 +125,8 @@ export async function extractDocument(buf: Buffer, claimedMime?: string): Promis
 
   try {
     if (sniff.kind === 'pdf') {
-      const parsed = await pdfParse(buf, { max: MAX_PDF_PAGES });
+      const parser = new PDFParse({ data: buf });
+      const parsed = await parser.getText({ first: MAX_PDF_PAGES });
       const text = clamp(parsed.text || '');
       // An image-only (scanned) PDF yields little/no selectable text. Fall back
       // to the vision model on the whole file rendered as an image is out of

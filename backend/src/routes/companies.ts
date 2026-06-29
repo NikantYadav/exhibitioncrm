@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabaseAdmin as supabase } from '../config/supabase';
 import { LiteLLMService } from '../services/litellm-service';
-import { TavilyService } from '../services/tavily-service';
+import { ExaService } from '../services/exa-service';
 import { requireAuth } from '../middleware/requireAuth';
 import { checkScopedRateLimit } from '../utils/rateLimit';
 
@@ -30,11 +30,6 @@ const companyPatchSchema = z.object({
 const ENRICH_SCOPE = 'company_enrich';
 const ENRICH_MAX = 10;
 const ENRICH_WINDOW_MS = 60 * 60 * 1000;
-
-// Briefing: 20 per user per hour
-const BRIEFING_SCOPE = 'company_briefing';
-const BRIEFING_MAX = 20;
-const BRIEFING_WINDOW_MS = 60 * 60 * 1000;
 
 const router = Router();
 
@@ -119,7 +114,7 @@ router.post('/:id/enrich', async (req, res, next) => {
     const industry = company.industry || '';
     const location = company.location || '';
     const website = company.website || '';
-    console.log(`[enrich] "${companyName}" — running Tavily + AI enrichment`);
+    console.log(`[enrich] "${companyName}" — running Exa + AI enrichment`);
 
     // Build disambiguated search queries using any known context
     const disambig = [industry, location].filter(Boolean).join(' ');
@@ -128,10 +123,10 @@ router.post('/:id/enrich', async (req, res, next) => {
       try { websiteClue = ` site:${new URL(website).hostname}`; } catch { /* invalid URL, skip */ }
     }
     const [overviewResults, detailResults] = await Promise.all([
-      TavilyService.search(`${companyName}${disambig ? ` ${disambig}` : ''} company overview headquarters employees founded${websiteClue}`, { maxResults: 4, searchDepth: 'advanced' }),
-      TavilyService.search(`${companyName}${disambig ? ` ${disambig}` : ''} company size LinkedIn stock ticker`, { maxResults: 3, searchDepth: 'basic' }),
+      ExaService.search(`${companyName}${disambig ? ` ${disambig}` : ''} company overview headquarters employees founded${websiteClue}`, { maxResults: 5, searchDepth: 'advanced', category: 'company' }),
+      ExaService.search(`${companyName}${disambig ? ` ${disambig}` : ''} company size LinkedIn stock ticker`, { maxResults: 5, searchDepth: 'basic', category: 'company' }),
     ]);
-    const webContext = TavilyService.formatForPrompt([...overviewResults, ...detailResults]);
+    const webContext = ExaService.formatForPrompt([...overviewResults, ...detailResults]);
 
     const knownContext = [
       industry && `Industry: ${industry}`,
@@ -198,92 +193,6 @@ Return only valid JSON, no markdown.`;
     // Mark as failed so next open retries
     await supabase.from('companies').update({ enrichment_failed: true }).eq('id', req.params.id);
     res.status(500).json({ error: 'Failed to enrich company profile. Will retry on next visit.' });
-  }
-});
-
-// POST /api/companies/:id/briefing
-// Generates AI talking points, saves to DB, returns them.
-router.post('/:id/briefing', async (req, res, next) => {
-  try {
-    const parsedId = uuidSchema.safeParse(req.params.id);
-    if (!parsedId.success) return res.status(400).json({ error: 'Invalid company id' });
-
-    const { id } = req.params;
-    const bodyParsed = z.object({
-      notes: z.string().trim().max(5000).optional(),
-      focus: z.string().trim().max(500).optional(),
-    }).safeParse(req.body);
-    if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.flatten() });
-    const { notes, focus } = bodyParsed.data;
-
-    const rl = await checkScopedRateLimit(req.user!.id, BRIEFING_SCOPE, BRIEFING_MAX, BRIEFING_WINDOW_MS);
-    if (!rl.ok) return res.status(429).json({ error: `Too many briefing requests. Try again in ${rl.retryAfterSeconds}s.` });
-
-    const { data: company, error } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error || !company) return res.status(404).json({ error: 'Company not found' });
-
-    const companyName = company.name || 'Unknown Company';
-    const industry = company.industry || '';
-    const description = company.description || '';
-    const headquarters = company.headquarters || '';
-    const employeeCount = company.employee_count || '';
-
-    const hasFocus = !!(focus && focus.trim().length > 0);
-    console.log(`[briefing] → running Tavily search for company: "${companyName}"${hasFocus ? ` (focus: "${focus!.trim()}")` : ''}`);
-    const [newsResults, overviewResults] = await Promise.all([
-      TavilyService.search(`${companyName} latest news 2025`, { maxResults: 3, searchDepth: 'basic' }),
-      TavilyService.search(
-        hasFocus
-          ? `${companyName}${industry ? ` ${industry}` : ''} ${focus!.trim()}`
-          : `${companyName}${industry ? ` ${industry}` : ''} company products services strategy`,
-        { maxResults: 3, searchDepth: 'basic' },
-      ),
-    ]);
-    const webContext = TavilyService.formatForPrompt([...overviewResults, ...newsResults]);
-
-    let companyContext = `${companyName}${industry ? ` (${industry})` : ''}`;
-    if (description) companyContext += `. ${description}`;
-    if (headquarters) companyContext += `. HQ: ${headquarters}`;
-    if (employeeCount) companyContext += `. Size: ${employeeCount} employees`;
-
-    let prompt = `You are preparing a pre-meeting briefing for someone about to have a business networking conversation with ${companyContext}.
-
-Write it in whatever structure best fits what you actually know about this company — there is no required format. Don't force headings or a fixed number of sections; let the content decide the shape. Keep it concise and skimmable.
-
-Format the entire response as proper GitHub-flavored Markdown, following these rules exactly:
-- Section headings MUST be on their own line, starting with "## " (e.g. "## Strategic Priorities"). NEVER put a heading inline in the middle of a paragraph, and never use bold (**...**) as a substitute for a heading.
-- Separate every block (heading, paragraph, list, table) with one blank line.
-- Use bold (**...**) ONLY for emphasis on a word or phrase inside a sentence — never for section titles.
-- When presenting structured comparisons, use a proper Markdown table with a header row and a separator row, with a blank line before and after the table.
-- Use "- " for bullet lists when listing items.`;
-
-    if (hasFocus) {
-      prompt += `\n\nThe user has asked you to focus on: "${focus!.trim()}". Build the briefing around this angle.`;
-    }
-
-    if (webContext) {
-      prompt += `\n\nUse the following real-time web research to make the briefing current and specific:\n\n${webContext}`;
-    }
-    if (notes && notes.trim().length > 0) {
-      prompt += `\n\nAlso factor in these personal notes from the user:\n\n${notes.trim()}`;
-    }
-    prompt += `\n\nPlain text only — no bullet points, no numbered lists. Separate paragraphs with a blank line.`;
-
-    const llm = new LiteLLMService();
-    const talkingPointsText = await llm.generateCompletion([{ role: 'user', content: prompt }]);
-    const talkingPoints = talkingPointsText.split('\n').filter(s => s.trim().length > 0).map(s => s.trim());
-
-    // Save talking points to DB
-    await supabase.from('companies').update({ talking_points: talkingPoints }).eq('id', id);
-
-    res.json({ data: { talking_points: talkingPoints } });
-  } catch (error) {
-    next(error);
   }
 });
 

@@ -370,6 +370,7 @@ class ApiService {
       return {
         'data': (data['data'] as List).cast<Map<String, dynamic>>(),
         'next_before': data['next_before'],
+        'pending_action': data['pending_action'] as Map<String, dynamic>?,
       };
     }
     throw Exception('Failed to load messages');
@@ -964,23 +965,6 @@ class ApiService {
     throw Exception(json.decode(response.body)['error'] ?? 'Failed to enrich company');
   }
 
-  static Future<List<String>> generateCompanyBriefing(String id, {String? notes, String? focus}) async {
-    final body = <String, dynamic>{};
-    if (notes != null && notes.trim().isNotEmpty) body['notes'] = notes.trim();
-    if (focus != null && focus.trim().isNotEmpty) body['focus'] = focus.trim();
-    final response = await _send(() async => http.post(
-      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.companies}/$id/briefing'),
-      headers: await _headers(),
-      body: body.isNotEmpty ? json.encode(body) : null,
-    ));
-    checkUnauthorized(response);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body)['data'];
-      return (data['talking_points'] as List).cast<String>();
-    }
-    throw Exception('Failed to generate company AI briefing');
-  }
-
   static Future<List<Map<String, dynamic>>> getCompanyContacts(String companyId) async {
     final response = await _send(() async => http.get(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}?company_id=${Uri.encodeComponent(companyId)}'),
@@ -1142,6 +1126,40 @@ class ApiService {
     ));
     checkUnauthorized(response);
     if (response.statusCode != 200) throw Exception('Failed to update target');
+  }
+
+  // Atomically append ONE note to a target company's notes array. Sends only
+  // the new note's body so a concurrent add (e.g. by the AI agent) can't be
+  // clobbered by a stale full-array replace.
+  static Future<void> addTargetNote(String eventId, String targetId, String body) async {
+    final response = await _send(() async => http.post(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId/notes'),
+      headers: await _headers(),
+      body: json.encode({'body': body}),
+    ));
+    checkUnauthorized(response);
+    if (response.statusCode != 200) throw Exception('Failed to add note');
+  }
+
+  // Atomically edit ONE note's body (by its id) in a target company's notes array.
+  static Future<void> updateTargetNote(String eventId, String targetId, String noteId, String body) async {
+    final response = await _send(() async => http.patch(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId/notes/${Uri.encodeComponent(noteId)}'),
+      headers: await _headers(),
+      body: json.encode({'body': body}),
+    ));
+    checkUnauthorized(response);
+    if (response.statusCode != 200) throw Exception('Failed to update note');
+  }
+
+  // Atomically remove ONE note (by its id) from a target company's notes array.
+  static Future<void> deleteTargetNote(String eventId, String targetId, String noteId) async {
+    final response = await _send(() async => http.delete(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.events}/$eventId/targets/$targetId/notes/${Uri.encodeComponent(noteId)}'),
+      headers: await _headers(),
+    ));
+    checkUnauthorized(response);
+    if (response.statusCode != 200) throw Exception('Failed to delete note');
   }
 
   static Future<List<Map<String, dynamic>>> getTargetContacts(String eventId, String targetId) async {

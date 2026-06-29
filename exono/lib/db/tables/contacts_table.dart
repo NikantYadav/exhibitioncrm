@@ -13,7 +13,6 @@ class ContactsTable extends Table {
   TextColumn get phone => text().nullable()();
   TextColumn get jobTitle => text().nullable()();
   TextColumn get linkedinUrl => text().nullable()();
-  TextColumn get notes => text().nullable()();
   TextColumn get avatarUrl => text().nullable()();
   TextColumn get followUpStatus => text().withDefault(const Constant('not_contacted'))();
   BoolColumn get isPriority => boolean().withDefault(const Constant(false))();
