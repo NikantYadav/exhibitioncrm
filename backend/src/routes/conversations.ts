@@ -1,12 +1,26 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { autoTitleConversation } from '../services/ai/titling';
+import { autoTitleConversation, stripMentionDirectives } from '../services/ai/titling';
 
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { requireAuth } from '../middleware/requireAuth';
 import { createSupabaseUserClient } from '../config/supabaseClients';
 import { supabase as supabaseAdmin } from '../config/supabase';
+import { litellm } from '../services/litellm-service';
+import {
+  extractDocument,
+  estimateTokens,
+  chunkText,
+  INLINE_TOKEN_BUDGET,
+  DocumentExtractionError,
+} from '../services/document-extraction';
+import {
+  checkScopedRateLimit,
+  DOC_UPLOAD_SCOPE,
+  DOC_UPLOAD_MAX,
+  DOC_UPLOAD_WINDOW_MS,
+} from '../utils/rateLimit';
 
 const router = Router();
 
@@ -16,6 +30,42 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
 });
+
+// Attachments live in the PRIVATE chat-attachments bucket, so a stored `path`
+// is not directly fetchable by the client. For each message's attachments we
+// mint a short-lived signed URL (images render inline; files offer a download)
+// and tag a coarse `kind` (image | file) the Flutter client uses to pick a
+// renderer. Best-effort: a failed sign leaves `signed_url` null and the client
+// falls back to a file chip.
+async function signMessageAttachments(
+  messages: Array<Record<string, any>>,
+): Promise<Array<Record<string, any>>> {
+  const all = messages.flatMap((m) =>
+    Array.isArray(m.attachments) ? (m.attachments as Array<Record<string, any>>) : [],
+  );
+  const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic']);
+  await Promise.all(
+    all.map(async (att) => {
+      const mime = typeof att.mime_type === 'string' ? att.mime_type : '';
+      const path = typeof att.path === 'string' ? att.path : '';
+      const ext = path.includes('.') ? path.split('.').pop()!.toLowerCase() : '';
+      // mime_type is often a generic "application/octet-stream" (the client does
+      // not always set a content type on upload), so fall back to the file
+      // extension kept in the storage path to classify images.
+      att.kind = mime.startsWith('image/') || IMAGE_EXTS.has(ext) ? 'image' : 'file';
+      att.name = path ? path.split('/').pop() : 'file';
+      if (typeof att.bucket === 'string' && path) {
+        const { data: signed } = await supabaseAdmin.storage
+          .from(att.bucket)
+          .createSignedUrl(att.path, 60 * 60);
+        att.signed_url = signed?.signedUrl ?? null;
+      } else {
+        att.signed_url = null;
+      }
+    }),
+  );
+  return messages;
+}
 
 const createConversationSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
@@ -61,7 +111,8 @@ router.get('/', async (req, res) => {
       .order('created_at', { ascending: true });
     for (const m of msgs ?? []) {
       if (!firstMsgByConv.has(m.conversation_id)) {
-        firstMsgByConv.set(m.conversation_id, m.content);
+        // Strip @-mention directives so the fallback preview reads naturally.
+        firstMsgByConv.set(m.conversation_id, stripMentionDirectives(m.content));
       }
     }
   }
@@ -125,7 +176,7 @@ router.get('/:id/messages', async (req, res) => {
 
   if (error) return res.status(400).json({ error: error.message });
 
-  const data = (desc ?? []).slice().reverse();
+  const data = await signMessageAttachments((desc ?? []).slice().reverse());
   const next_before = desc && desc.length > 0 ? (desc[desc.length - 1] as any).created_at : null;
   res.json({ data, next_before });
 });
@@ -148,7 +199,7 @@ router.get('/:id/messages/search', async (req, res) => {
     .limit(limit);
 
   if (error) return res.status(400).json({ error: error.message });
-  res.json({ data });
+  res.json({ data: await signMessageAttachments(data ?? []) });
 });
 
 // POST /api/conversations/:id/attachments
@@ -198,6 +249,13 @@ router.post('/:id/attachments/upload', upload.single('file'), async (req, res) =
   const supabaseUser = createSupabaseUserClient(req.accessToken!);
   const userId = req.user!.id;
 
+  // Rate-limit uploads: each can trigger vision/embedding calls.
+  const rate = await checkScopedRateLimit(userId, DOC_UPLOAD_SCOPE, DOC_UPLOAD_MAX, DOC_UPLOAD_WINDOW_MS);
+  if (!rate.ok) {
+    res.setHeader('Retry-After', String(rate.retryAfterSeconds));
+    return res.status(429).json({ error: 'Too many uploads. Please retry shortly.' });
+  }
+
   // Ensure the message belongs to this conversation
   const { data: message, error: msgErr } = await supabaseUser
     .from('messages')
@@ -245,7 +303,56 @@ router.post('/:id/attachments/upload', upload.single('file'), async (req, res) =
   const { data: signed, error: signedErr } = await supabaseAdmin.storage.from(bucket).createSignedUrl(path, 60 * 60);
   if (signedErr) return res.status(500).json({ error: signedErr.message });
 
-  res.json({ data: attachment, signed_url: signed.signedUrl });
+  // Extract text from the document so the assistant's parse_document tool can
+  // read it. Small docs are stored inline (extracted_text); oversized docs are
+  // chunked + embedded into document_chunks for retrieval. Best-effort: an
+  // extraction failure must not fail the upload — the attachment still exists
+  // and extraction_status records the outcome.
+  let extraction_status = 'skipped';
+  let token_estimate: number | null = null;
+  try {
+    const { text } = await extractDocument(req.file.buffer, req.file.mimetype);
+    token_estimate = estimateTokens(text);
+    if (token_estimate <= INLINE_TOKEN_BUDGET) {
+      extraction_status = 'inline';
+      await supabaseAdmin
+        .from('message_attachments')
+        .update({ extracted_text: text, extraction_status, token_estimate })
+        .eq('id', attachment.id);
+    } else {
+      // Oversized: chunk + embed for the RAG fallback. user_id is stamped from
+      // the verified caller (never client input) so chunks are owner-scoped.
+      const chunks = chunkText(text);
+      const embeddings = await litellm.embed(chunks);
+      const rows = chunks.map((content, i) => ({
+        attachment_id: attachment.id,
+        user_id: userId,
+        chunk_index: i,
+        content,
+        embedding: embeddings[i] ?? null,
+      }));
+      const { error: chunkErr } = await supabaseAdmin.from('document_chunks').insert(rows);
+      if (chunkErr) throw new Error(chunkErr.message);
+      extraction_status = 'chunked';
+      await supabaseAdmin
+        .from('message_attachments')
+        .update({ extraction_status, token_estimate })
+        .eq('id', attachment.id);
+    }
+  } catch (e: any) {
+    extraction_status = 'failed';
+    const reason = e instanceof DocumentExtractionError ? e.message : 'extraction error';
+    await supabaseAdmin
+      .from('message_attachments')
+      .update({ extraction_status, extracted_text: null })
+      .eq('id', attachment.id);
+    console.warn(`[attachments] extraction failed for ${attachment.id}: ${reason}`);
+  }
+
+  res.json({
+    data: { ...attachment, extraction_status, token_estimate },
+    signed_url: signed.signedUrl,
+  });
 });
 
 // POST /api/conversations/:id/messages

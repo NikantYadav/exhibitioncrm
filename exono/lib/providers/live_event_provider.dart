@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../db/app_database.dart';
 import '../models/event.dart';
 import '../services/api_service.dart';
@@ -31,7 +30,6 @@ class LiveEventProvider extends ChangeNotifier {
   bool _initialized = false;
 
   // Idle gate: a drift watch on `events` decides whether anything is ongoing.
-  String? _userId;
   AppDatabase? _db;
   StreamSubscription<List<EventsTableData>>? _ongoingWatch;
   bool _hasOngoing = false;
@@ -44,16 +42,9 @@ class LiveEventProvider extends ChangeNotifier {
   List<EventsTableData> _eventsSnapshot = const [];
   Timer? _ongoingTicker;
 
-  // Live mode: Realtime subscriptions + a debounce + a slow safety-net poll.
-  // Tables whose changes affect the live aggregate returned by /live-session.
-  static const _liveTables = [
-    'captures',
-    'event_goals',
-    'target_companies',
-    'contact_events',
-    'contacts',
-  ];
-  final List<RealtimeChannel> _liveChannels = [];
+  // Live mode: debounce + a slow safety-net poll.
+  // Realtime wake-up is now driven by SyncProvider's single broadcast channel
+  // via [onSyncPoke] — no per-table postgres_changes channels needed here.
   Timer? _debounce;
   Timer? _safetyTimer;
 
@@ -81,7 +72,6 @@ class LiveEventProvider extends ChangeNotifier {
   /// Call once after login. Watches the local `events` table to decide when
   /// an event is ongoing; only then does any network/Realtime work happen.
   Future<void> init(AppDatabase db, String userId) async {
-    _userId = userId;
     _db = db;
     _ongoingWatch?.cancel();
     _ongoingWatch = _watchEvents(db).listen((events) {
@@ -181,13 +171,12 @@ class LiveEventProvider extends ChangeNotifier {
 
   void _enterLiveMode() {
     _refresh();
-    _subscribeLiveRealtime();
-    // Safety net in case a Realtime socket is dropped in the background.
+    // Safety net in case the socket is dropped in the background.
+    // Realtime wake-up comes via SyncProvider.onSyncPoke (see main.dart wiring).
     _safetyTimer ??= Timer.periodic(const Duration(seconds: 60), (_) => _refresh());
   }
 
   void _leaveLiveMode() {
-    _teardownLiveRealtime();
     _safetyTimer?.cancel();
     _safetyTimer = null;
     _debounce?.cancel();
@@ -196,34 +185,11 @@ class LiveEventProvider extends ChangeNotifier {
     _refresh();
   }
 
-  void _subscribeLiveRealtime() {
-    final userId = _userId;
-    if (userId == null || _liveChannels.isNotEmpty) return;
-    final client = Supabase.instance.client;
-    for (final table in _liveTables) {
-      final channel = client
-          .channel('live:$table:user=$userId')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: table,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'user_id',
-              value: userId,
-            ),
-            callback: (_) => _scheduleRefresh(),
-          )
-          .subscribe();
-      _liveChannels.add(channel);
-    }
-  }
-
-  void _teardownLiveRealtime() {
-    for (final channel in _liveChannels) {
-      channel.unsubscribe();
-    }
-    _liveChannels.clear();
+  /// Called by SyncProvider on every debounced sync poke (after catchUpAll).
+  /// Only triggers a live refresh when an event is actually ongoing so idle
+  /// accounts do not fire /live-session on every unrelated table write.
+  void onSyncPoke() {
+    if (_hasOngoing) { _scheduleRefresh(); }
   }
 
   /// Coalesces a burst of Realtime row events (e.g. several captures landing
@@ -568,7 +534,6 @@ class LiveEventProvider extends ChangeNotifier {
     _ongoingTicker?.cancel();
     _safetyTimer?.cancel();
     _debounce?.cancel();
-    _teardownLiveRealtime();
     super.dispose();
   }
 }

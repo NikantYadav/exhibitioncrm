@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, FunctionCallingMode } from '@google/generative-ai';
+import { GoogleGenAI, FunctionCallingConfigMode } from '@google/genai';
 import OpenAI from 'openai';
 
 export interface LiteLLMMessage {
@@ -191,28 +191,23 @@ export class LiteLLMService {
         jsonMode?: boolean
     ): Promise<string> {
         return this.withGemini(async (apiKey) => {
-            const genAI = new GoogleGenerativeAI(apiKey);
-
-            const model = genAI.getGenerativeModel({
-                model: this.config.model!,
-                generationConfig: {
-                    temperature,
-                    maxOutputTokens: maxTokens,
-                    ...(jsonMode && { responseMimeType: 'application/json' })
-                },
-            });
+            const ai = new GoogleGenAI({ apiKey });
 
             const systemMessage = messages.find(m => m.role === 'system');
             const userMessages = messages.filter(m => m.role !== 'system');
-
             const prompt = userMessages.map(m => m.content).join('\n\n');
-            const fullPrompt = systemMessage
-                ? `${systemMessage.content}\n\n${prompt}`
-                : prompt;
 
-            const result = await model.generateContent(fullPrompt);
-            const response = await result.response;
-            return response.text();
+            const result = await ai.models.generateContent({
+                model: this.config.model!,
+                contents: prompt,
+                config: {
+                    ...(systemMessage && { systemInstruction: systemMessage.content }),
+                    temperature,
+                    maxOutputTokens: maxTokens,
+                    ...(jsonMode && { responseMimeType: 'application/json' }),
+                },
+            });
+            return result.text ?? '';
         });
     }
 
@@ -269,7 +264,7 @@ export class LiteLLMService {
         history: ConversationTurn[],
         tools: ToolSchema[]
     ): Promise<ToolCallingResult> {
-        const genAI = new GoogleGenerativeAI(apiKey);
+        const ai = new GoogleGenAI({ apiKey });
 
         // Convert our ToolSchema[] to Gemini function declarations.
         // Gemini's function-declaration schema is a restricted subset of JSON
@@ -288,18 +283,6 @@ export class LiteLLMService {
         // "Function calling config is set without function_declarations". Only attach
         // tools/toolConfig when there is at least one declaration.
         const hasTools = functionDeclarations.length > 0;
-
-        const model = genAI.getGenerativeModel({
-            model: this.config.model!,
-            systemInstruction: systemPrompt,
-            ...(hasTools && {
-                tools: [{ functionDeclarations }],
-                toolConfig: {
-                    functionCallingConfig: { mode: FunctionCallingMode.AUTO },
-                },
-            }),
-            generationConfig: { temperature: 0.2 },
-        });
 
         // Build Gemini contents array from our history
         const contents: any[] = [];
@@ -329,11 +312,23 @@ export class LiteLLMService {
             }
         }
 
-        const result = await model.generateContent({ contents });
-        const response = result.response;
+        const response = await ai.models.generateContent({
+            model: this.config.model!,
+            contents,
+            config: {
+                systemInstruction: systemPrompt,
+                temperature: 0.2,
+                ...(hasTools && {
+                    tools: [{ functionDeclarations }],
+                    toolConfig: {
+                        functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO },
+                    },
+                }),
+            },
+        });
 
-        // Check for function calls in the response
-        const calls = response.functionCalls();
+        // Check for function calls in the response (now a property, not a method).
+        const calls = response.functionCalls;
         if (calls && calls.length > 0) {
             // Preserve the raw response parts (which include thought_signature)
             // so they can be replayed verbatim in subsequent turns.
@@ -342,14 +337,14 @@ export class LiteLLMService {
                 type: 'tool_calls',
                 calls: calls.map((c, i) => ({
                     id: `gemini-${i}-${c.name}`,
-                    name: c.name,
+                    name: c.name ?? 'unknown',
                     args: (c.args ?? {}) as Record<string, unknown>,
                 })),
                 _geminiParts: rawParts,
             };
         }
 
-        return { type: 'text', content: response.text() };
+        return { type: 'text', content: response.text ?? '' };
     }
 
     private async _openaiToolCall(
@@ -427,31 +422,27 @@ export class LiteLLMService {
     async transcribeAudio(base64Audio: string): Promise<string> {
         if (this.config.provider === 'gemini') {
             return this.withGemini(async (apiKey) => {
-                const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({
-                    model: 'gemini-3.1-flash-lite',
-                    generationConfig: { temperature: 0 },
-                });
+                const ai = new GoogleGenAI({ apiKey });
 
                 const base64Data = base64Audio.split(',')[1] || base64Audio;
                 const mimeType = base64Audio.match(/^data:([^;]+);base64,/)?.[1] || 'audio/webm';
 
-                const result = await model.generateContent([
-                    "You are a speech-to-text transcriber. Transcribe ONLY the words actually spoken in this audio recording.\n" +
-                    "Do NOT invent, guess, summarize, or add any content that is not clearly spoken.\n" +
-                    "If the audio contains no discernible speech (silence, background noise, music, or unintelligible sounds), " +
-                    "respond with exactly the token NO_SPEECH and nothing else.\n" +
-                    "Return ONLY the transcript text (or NO_SPEECH).",
-                    {
-                        inlineData: {
-                            data: base64Data,
-                            mimeType
-                        }
-                    }
-                ]);
+                const result = await ai.models.generateContent({
+                    model: 'gemini-3.1-flash-lite',
+                    contents: [
+                        { text:
+                            "You are a speech-to-text transcriber. Transcribe ONLY the words actually spoken in this audio recording.\n" +
+                            "Do NOT invent, guess, summarize, or add any content that is not clearly spoken.\n" +
+                            "If the audio contains no discernible speech (silence, background noise, music, or unintelligible sounds), " +
+                            "respond with exactly the token NO_SPEECH and nothing else.\n" +
+                            "Return ONLY the transcript text (or NO_SPEECH).",
+                        },
+                        { inlineData: { data: base64Data, mimeType } },
+                    ],
+                    config: { temperature: 0 },
+                });
 
-                const response = await result.response;
-                const text = response.text().trim();
+                const text = (result.text ?? '').trim();
 
                 // The model returns NO_SPEECH when no speech is detected. Treat that
                 // (and any near-empty / sentinel-only response) as an empty transcript
@@ -479,27 +470,21 @@ export class LiteLLMService {
         }
 
         const text = await this.withGemini(async (apiKey) => {
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({
-                model: this.config.model!,
-                generationConfig: { responseMimeType: 'application/json' },
-            });
+            const ai = new GoogleGenAI({ apiKey });
 
             const base64Data = base64Image.split(',')[1] || base64Image;
             const mimeType = base64Image.split(';')[0].split(':')[1] || 'image/jpeg';
 
-            const result = await model.generateContent([
-                prompt + (schema ? `\n\nReturn EXACTLY a JSON object matching this schema: ${schema}` : ''),
-                {
-                    inlineData: {
-                        data: base64Data,
-                        mimeType
-                    }
-                }
-            ]);
+            const result = await ai.models.generateContent({
+                model: this.config.model!,
+                contents: [
+                    { text: prompt + (schema ? `\n\nReturn EXACTLY a JSON object matching this schema: ${schema}` : '') },
+                    { inlineData: { data: base64Data, mimeType } },
+                ],
+                config: { responseMimeType: 'application/json' },
+            });
 
-            const response = await result.response;
-            return response.text();
+            return result.text ?? '';
         });
 
         try {
@@ -508,6 +493,37 @@ export class LiteLLMService {
             console.error('Failed to parse AI image analysis response:', text);
             throw new Error('AI returned invalid JSON');
         }
+    }
+
+    /**
+     * Embed one or more texts with Gemini gemini-embedding-001, pinned to 768
+     * output dimensions to match the document_chunks.embedding vector(768) column.
+     * (The older text-embedding-004 id 404s on the @google/genai API path, and
+     * gemini-embedding-001 defaults to 3072 dims, so outputDimensionality is
+     * required to keep the stored vectors compatible.) Used for the
+     * oversized-document RAG fallback: chunks embedded at upload, query at read.
+     * Rotates API keys via withGemini like the other Gemini calls.
+     */
+    async embed(texts: string[]): Promise<number[][]> {
+        if (texts.length === 0) return [];
+        if (this.config.provider !== 'gemini') {
+            throw new Error('Embeddings are currently only implemented for Gemini');
+        }
+        return this.withGemini(async (apiKey) => {
+            const ai = new GoogleGenAI({ apiKey });
+            const out: number[][] = [];
+            // embedContent caps at 100 inputs per call; chunk to stay safe.
+            for (let i = 0; i < texts.length; i += 100) {
+                const batch = texts.slice(i, i + 100);
+                const result = await ai.models.embedContent({
+                    model: 'gemini-embedding-001',
+                    contents: batch,
+                    config: { outputDimensionality: 768 },
+                });
+                for (const e of result.embeddings ?? []) out.push(e.values ?? []);
+            }
+            return out;
+        });
     }
 
     cleanAndParseJSON<T>(text: string): T {

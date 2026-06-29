@@ -301,23 +301,35 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
   }
 
   Widget _buildContactList(List<(String, List<ContactProfileData>)> groups, FThemeData theme) {
-    final items = <Widget>[];
-
+    // Flatten groups into an index-addressable list of "slots" (a section
+    // header or a contact row) WITHOUT building any widgets up front. The
+    // ListView.builder then builds only the slots currently on screen, so a
+    // list of several thousand contacts costs the same as a list of ten.
+    final slots = <_ContactSlot>[];
     for (final group in groups) {
-      final letter = group.$1;
-      final contacts = group.$2;
-      items.add(_buildSectionHeader(letter, theme));
-      for (final contact in contacts) {
-        items.add(_buildContactRow(contact, theme));
+      slots.add(_ContactSlot.header(group.$1));
+      for (final contact in group.$2) {
+        slots.add(_ContactSlot.row(contact));
       }
     }
 
-    items.add(SizedBox(height: bottomScrollInset(context)));
+    final bottomInset = bottomScrollInset(context);
 
-    return ListView(
+    return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.only(right: 20),
-      children: items,
+      // +1 for the trailing safe-area spacer.
+      itemCount: slots.length + 1,
+      itemBuilder: (context, index) {
+        if (index == slots.length) {
+          return SizedBox(height: bottomInset);
+        }
+        final slot = slots[index];
+        if (slot.contact == null) {
+          return _buildSectionHeader(slot.letter!, theme);
+        }
+        return _buildContactRow(slot.contact!, theme);
+      },
     );
   }
 
@@ -462,6 +474,18 @@ class _ContactsScreenState extends State<ContactsScreen> with ScreenLogger {
     );
   }
 
+}
+
+/// One row in the flattened, lazily-built contacts list: either an alphabet
+/// section header (`letter` set, `contact` null) or a contact card (`contact`
+/// set). Lets `ListView.builder` address items by index without materialising
+/// every widget up front.
+class _ContactSlot {
+  const _ContactSlot.header(this.letter) : contact = null;
+  const _ContactSlot.row(this.contact) : letter = null;
+
+  final String? letter;
+  final ContactProfileData? contact;
 }
 
 // ─── Add Contact Sheet ────────────────────────────────────────────────────────

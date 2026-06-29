@@ -156,11 +156,18 @@ class _ExonoRouterState extends State<_ExonoRouter> {
     auth.addListener(() {
       if (auth.isAuthenticated) {
         final userId = auth.user!['id'] as String;
-        context.read<LiveEventProvider>().init(sync.db, userId);
+        final live = context.read<LiveEventProvider>();
+        live.init(sync.db, userId);
         WriteGateway().init(sync.db, userId);
+        sync.onSyncPoke = live.onSyncPoke;
         sync.start(userId);
         DiagnosticsService.instance.setUser(userId);
+        // Keep the realtime socket JWT fresh on token rotation.
+        if (auth.accessToken != null) {
+          Supabase.instance.client.realtime.setAuth(auth.accessToken!);
+        }
       } else if (wasAuthenticated) {
+        sync.onSyncPoke = null;
         sync.stop();
         DiagnosticsService.instance.setUser(null);
       }
@@ -168,7 +175,9 @@ class _ExonoRouterState extends State<_ExonoRouter> {
     });
     if (auth.isAuthenticated) {
       final userId = auth.user!['id'] as String;
-      context.read<LiveEventProvider>().init(sync.db, userId);
+      final live = context.read<LiveEventProvider>();
+      live.init(sync.db, userId);
+      sync.onSyncPoke = live.onSyncPoke;
       sync.start(userId);
       DiagnosticsService.instance.setUser(userId);
     }

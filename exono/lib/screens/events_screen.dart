@@ -805,7 +805,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   }
 
   Future<void> _openFollowUpQueue(Event event) async {
-    await Navigator.of(context).push(
+    await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
         builder: (context) => EventFollowUpsScreen(
           onNavigateTab: widget.onNavigateTab,
@@ -820,7 +820,7 @@ class _EventsScreenState extends State<EventsScreen> with ScreenLogger {
   }
 
   void _openPrepScreen(Event event) {
-    Navigator.of(context).push(
+    Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
         builder: (context) => PreEventPrepScreen(
           event: event,

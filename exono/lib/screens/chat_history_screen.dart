@@ -131,27 +131,28 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
         await _deleteConversation(convo);
         return false;
       },
-      background: Container(
-        decoration: BoxDecoration(
-          color: _c.destructive.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _c.destructive.withValues(alpha: 0.28)),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Icon(Icons.delete_outline_rounded, color: _c.destructive, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'DELETE',
-              style: context.theme.typography.xs.copyWith(
-                color: _c.destructive,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-              ),
+      background: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ColoredBox(
+          color: _c.destructive,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Icon(Icons.delete_rounded, color: Colors.white, size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  'DELETE',
+                  style: context.theme.typography.sm.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
       child: GestureDetector(
@@ -194,15 +195,6 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> with ScreenLogger
                       ),
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => _deleteConversation(convo),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(Icons.delete_outline_rounded,
-                      color: _c.destructive.withValues(alpha: 0.5), size: 18),
                 ),
               ),
             ],

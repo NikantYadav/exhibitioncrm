@@ -357,7 +357,7 @@ class _LiveTargetPersonScreenState extends State<LiveTargetPersonScreen> with Sc
             onPressed: () {
               final targetId = _target['id'] as String? ?? '';
               if (targetId.isEmpty) return;
-              Navigator.of(context).push(MaterialPageRoute(
+              Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
                 builder: (_) => TargetCompanyPrepScreen(event: widget.event, targetId: targetId),
               ));
             },

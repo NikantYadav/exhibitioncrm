@@ -109,15 +109,17 @@ So the LLM is like a smart assistant who can only fill out request forms. The
 backend is the clerk who actually opens the filing cabinet. The clerk can refuse,
 double-check, or ask you for permission first.
 
-The menu of tools in Exono (defined in
-[`backend/src/routes/assistant.ts`](backend/src/routes/assistant.ts)):
+The menu of tools in Exono (tool definitions live in
+[`backend/src/assistant/tools/schemas.ts`](backend/src/assistant/tools/schemas.ts);
+executors are in `backend/src/assistant/tools/executors/`):
 
 | Tool name | Type | What it does |
 |-----------|------|--------------|
 | `query_crm` | **read** | Look up anything: contacts, events, emails, stats. Goes through Slayer. |
 | `describe_model` | **read (schema)** | Get one table's exact column names + types, on demand, before querying it (lazy schema — section 10.5). |
-| `get_event_followups` | **read** | List contacts attached to one event (a convenience read). |
+| `get_event_followups` | **read** | List contacts attached to one event, optionally filtered by follow-up status. |
 | `get_priorities` | **read** | How many follow-ups are currently due (the home "Today's Priorities" count). |
+| `parse_document` | **read** | Read the contents of a file the user attached to the chat (PDF, image, spreadsheet, Word/PowerPoint, floor plan). |
 | `web_search` | external | Search the live internet (via a service called Tavily). |
 | `create_contact` | **write** | Add a new contact. |
 | `update_contact` | **write** | Change an existing contact. |
@@ -127,6 +129,12 @@ The menu of tools in Exono (defined in
 | `log_interaction` | **write** | Record a call/meeting/note with a contact (also re-opens their follow-up to pending). |
 | `set_follow_up_status` | **write** | Set a contact's follow-up status (new/pending/done/skipped), per-event or across all. |
 | `set_follow_up_priority` | **write** | Flag/unflag a contact as a priority follow-up, per-event or global. |
+| `add_target_contact_to_event` | **write** | Link an existing contact to an event as a target (someone to meet there). |
+| `add_target_company_to_event` | **write** | Link a company to an event as a target, with optional booth/hall location. |
+| `remove_target_contact_from_event` | **write** | Remove a contact from an event's target list (does not delete the contact). |
+| `remove_target_company_from_event` | **write** | Remove a company from an event's target list. |
+| `set_event_goal` | **write** | Create or update a goal/objective for an event (e.g. "scan 50 leads"). |
+| `add_target_note` | **write** | Attach prep notes / talking points to a target contact or company for a specific event. |
 
 Reads run instantly. **Writes always pause and ask you "Approve / Deny" first**
 (explained in section 8).
@@ -137,7 +145,7 @@ Reads run instantly. **Writes always pause and ask you "Approve / Deny" first**
 
 Let's follow the exact path of one message through the backend. The entry point
 is the function that handles `POST /api/assistant/respond` in
-[`assistant.ts`](backend/src/routes/assistant.ts) (around line 1265). Don't
+[`backend/src/routes/assistant.ts`](backend/src/routes/assistant.ts). Don't
 worry about the code — here's what happens in order:
 
 **Step 1 — Validate the request.**
@@ -298,11 +306,15 @@ the backend, using the **service-role** connection (a privileged connection),
 which is exactly why every write is wrapped in a gauntlet of checks: the
 connection itself is powerful, so the *code* must be the thing that restricts it.
 
-Each write tool has a matching "executor" function in
-[`assistant.ts`](backend/src/routes/assistant.ts): `execCreateContact`,
-`execUpdateContact`, `execCreateEvent`, `execUpdateEvent`, `execDraftEmail`.
-All of them are dispatched from one place, `executeTool()`, which routes a tool
-name to its executor.
+Each write tool has a matching "executor" function inside
+`backend/src/assistant/tools/executors/` (grouped by domain): `execCreateContact`,
+`execUpdateContact`, `execCreateEvent`, `execUpdateEvent`, `execDraftEmail`,
+`execLogInteraction`, `execSetFollowUpStatus`, `execSetFollowUpPriority`,
+`execGetPriorities`, `execAddTargetContactToEvent`, `execAddTargetCompanyToEvent`,
+`execRemoveTargetContactFromEvent`, `execRemoveTargetCompanyFromEvent`,
+`execSetEventGoal`, `execAddTargetNote`, `execParseDocument`.
+All of them are dispatched from one place, `executeTool()` in
+`src/assistant/tools/dispatcher.ts`, which routes a tool name to its executor.
 
 ### 6.1 The seven layers a write passes through
 
@@ -490,6 +502,91 @@ section 8. Here we pick up *after* you tapped Approve.)
   `user_id`. **It only ever creates a draft — it never sends anything.**
 - **System:** Returns the draft.
 - **LLM:** *"Drafted a follow-up to Sasha."* (plus a draft card you can open).
+
+---
+
+#### `log_interaction` → `execLogInteraction`  ("Log that I called Sasha and she wants a quote")
+
+- **LLM:** Requests `log_interaction` with `{ contact_name: "Sasha", interaction_type: "call", summary: "She wants a quote" }`.
+- **System:** Pauses for permission. You approve.
+- **System:** Zod-validates the args. Resolves the contact name (or uses `contact_id`). Optionally resolves an event by name/id.
+- **System:** Inserts a row in `interactions` (type, summary, date, user_id). If no `interaction_date` is given, it defaults to now.
+- **System (side effect):** Calls `upsertFollowUp` to promote that contact's follow-up to `pending` (re-opening a done/skipped follow-up). This is best-effort — a failure here does not roll back the interaction log.
+- **LLM:** *"Logged your call with Sasha."*
+
+---
+
+#### `set_follow_up_status` → `execSetFollowUpStatus`  ("Mark Sasha as done for GITEX")
+
+- **LLM:** Requests `set_follow_up_status` with `{ contact_name: "Sasha", event_name: "GITEX", status: "done" }`.
+- **System:** Pauses for permission. You approve.
+- **System:** Resolves the contact (and event if supplied). Updates all matching `follow_ups` rows for that contact (scoped to the event if given, otherwise ALL of the contact's follow-up records).
+- **System:** If re-opening to `pending`, removes any "follow-up completion" interaction log markers from `interactions`.
+- **System:** Calls `syncContactStatus` to keep the legacy `contacts.follow_up_status` column in step.
+- **LLM:** *"Sasha's follow-up marked as done for GITEX."*
+
+---
+
+#### `set_follow_up_priority` → `execSetFollowUpPriority`  ("Flag Sasha as priority for GITEX")
+
+- **LLM:** Requests `set_follow_up_priority` with `{ contact_name: "Sasha", event_name: "GITEX", is_priority: true }`.
+- **System:** Pauses for permission. You approve.
+- **System:** Resolves the contact. If an event is given, flips `follow_ups.is_priority` for that (contact, event) pair. Without an event, flips `contacts.is_priority` (the global flag the home screen uses).
+- **LLM:** *"Sasha flagged as a priority follow-up for GITEX."*
+
+---
+
+#### `add_target_contact_to_event` → `execAddTargetContactToEvent`  ("Add Sasha as a target for GITEX")
+
+- **LLM:** Requests `add_target_contact_to_event` with `{ contact_name: "Sasha", event_name: "GITEX" }`.
+- **System:** Pauses for permission. You approve.
+- **System:** Resolves both the contact and the event. If a raw UUID was supplied for either, explicitly verifies ownership (names are already user-scoped by the resolver, but a bare UUID is trusted — the guard closes that gap).
+- **System:** Checks for a soft-deleted link (same contact + event, `deleted_at` set). If found, restores it (sets `deleted_at = null`) instead of inserting a duplicate. Otherwise inserts a new `contact_events` row. A unique-violation (`23505`) on an already-active link returns the existing row (idempotent).
+- **LLM:** *"Sasha added to GITEX's target list."*
+
+---
+
+#### `add_target_company_to_event` → `execAddTargetCompanyToEvent`  ("Add Acme as a target at booth H3 for GITEX")
+
+- **LLM:** Requests `add_target_company_to_event` with `{ company_name: "Acme", event_name: "GITEX", booth_location: "H3", priority: "high" }`.
+- **System:** Pauses for permission. You approve.
+- **System:** Resolves (or creates) the company via `resolveCompanyId`. Resolves the event. Checks and restores any soft-deleted target row; otherwise inserts into `target_companies`. Idempotent on unique-violation. Note: companies are a shared global resource with no `user_id` — no per-user ownership check is needed for the company itself; the owning event link has `user_id`.
+- **LLM:** *"Added Acme (booth H3, high priority) to GITEX's targets."*
+
+---
+
+#### `remove_target_contact_from_event` → `execRemoveTargetContactFromEvent`  ("Remove Sasha from GITEX targets")
+
+- **LLM:** Requests `remove_target_contact_from_event` with `{ contact_name: "Sasha", event_name: "GITEX" }`.
+- **System:** Pauses for permission. You approve.
+- **System:** Resolves both. Soft-deletes the `contact_events` row (`deleted_at = now`) with the ownership filter. If nothing matched, errors: "That contact is not a target for this event." **Does not delete the contact itself.**
+- **LLM:** *"Sasha removed from GITEX's target list."*
+
+---
+
+#### `remove_target_company_from_event` → `execRemoveTargetCompanyFromEvent`  ("Remove Acme from GITEX targets")
+
+- Same pattern as removing a contact target, but operates on `target_companies`. Resolves the company by id or name (never creates one — only removes an existing target). Soft-deletes the row with the event+company+user filter.
+
+---
+
+#### `set_event_goal` → `execSetEventGoal`  ("Set a goal to scan 50 leads at GITEX")
+
+- **LLM:** Requests `set_event_goal` with `{ event_name: "GITEX", label: "Scan 50 leads", total: 50 }`.
+- **System:** Pauses for permission. You approve.
+- **System:** Resolves the event (verifies ownership if a UUID was supplied directly). Looks for an existing `event_goals` row on that event with the same label (case-insensitive). If found, updates it (`total`, `current`); if not, inserts a new one. `total = 0` means a binary checkbox goal; `total >= 1` is a counted goal.
+- **LLM:** *"Goal 'Scan 50 leads' set for GITEX."*
+
+---
+
+#### `add_target_note` → `execAddTargetNote`  ("Add talking points for Sasha at GITEX")
+
+- **LLM:** Requests `add_target_note` with `{ target_type: "contact", contact_name: "Sasha", event_name: "GITEX", note: "Interested in our Pro plan, follow up on pricing." }`.
+- **System:** Pauses for permission. You approve.
+- **System:** Resolves the event and (for a contact target) the contact. Updates `contact_events.notes` (or `target_companies.notes` for a company target) with the new note. The target must already be linked to the event — if not, it errors: "add them as a target first." This **replaces** any existing note (not appended).
+- **LLM:** *"Prep note saved for Sasha at GITEX."*
+
+---
 
 ### 6.3 After the write: linking and finishing
 
@@ -689,7 +786,7 @@ intended.
 
 ## 7. The agentic loop, step by step
 
-This is `runLoop()` in [`assistant.ts`](backend/src/routes/assistant.ts). It's
+This is `runLoop()` in [`backend/src/assistant/loop.ts`](backend/src/assistant/loop.ts). It's
 a loop that runs up to 6 times (`MAX_ITERATIONS`). Each pass:
 
 1. **Ask the LLM.** Send it the system prompt + the conversation so far + the
@@ -701,10 +798,11 @@ a loop that runs up to 6 times (`MAX_ITERATIONS`). Each pass:
      loop and return it.
    - **One or more tool requests** → the AI wants to do something. Continue.
 
-3. **Check for writes.** If any requested tool is a write
-   (`create_*`, `update_*`, `draft_email`), the loop **stops and pauses for
-   permission** (section 8). Any *reads* the AI batched before the write still
-   run; the write itself waits.
+3. **Check for writes.** If any requested tool is a write (any name in
+   `WRITE_TOOL_NAMES` — `create_*`, `update_*`, `draft_email`, `log_interaction`,
+   `set_follow_up_*`, `add_target_*`, `remove_target_*`, `set_event_goal`,
+   `add_target_note`), the loop **stops and pauses for permission** (section 8).
+   Any *reads* the AI batched before the write still run; the write itself waits.
 
 4. **Run the reads/searches.** Each tool is executed by `executeTool()`. Read
    results are collected.
@@ -933,12 +1031,32 @@ enforces.
 
 ## 12. Where everything lives (file map)
 
+The assistant was split out of the old monolithic `assistant.ts` into a dedicated
+`src/assistant/` module. The route file is now thin — just Express handlers. When
+looking for something, use this map:
+
 | File | What's in it |
 |------|--------------|
-| [`backend/src/routes/assistant.ts`](backend/src/routes/assistant.ts) | **The heart.** Tool definitions, the system prompt, the agentic loop (`runLoop`), all write executors, the permission pause/resume, and the `/respond`, `/resume`, `/pending` endpoints. |
+| [`backend/src/routes/assistant.ts`](backend/src/routes/assistant.ts) | **Thin Express router.** Only the `/respond`, `/resume`, `/pending`, and `/health` handlers. Re-exports `IMMUTABLE_FIELDS` + `WRITE_TOOLS` so the CI drift script keeps its stable import path. |
+| [`backend/src/assistant/tools/schemas.ts`](backend/src/assistant/tools/schemas.ts) | **All tool definitions.** Every tool's JSON schema, `ALL_TOOLS`, `WRITE_TOOL_NAMES`, `MODEL_DIRECTORY`, `WRITE_TOOLS`. |
+| [`backend/src/assistant/tools/dispatcher.ts`](backend/src/assistant/tools/dispatcher.ts) | **`executeTool`** — routes a tool name to its executor. Also `describeWrite` (permission-card summary). |
+| [`backend/src/assistant/tools/validation.ts`](backend/src/assistant/tools/validation.ts) | `IMMUTABLE_FIELDS`, `stripImmutable`, `scannedDetailsSchema`, `timeOfDay`, `toIso`, `assertTimeRange`, `mergeScannedDetails`. |
+| [`backend/src/assistant/tools/resolvers.ts`](backend/src/assistant/tools/resolvers.ts) | `resolveContactId`, `resolveEventId`, `resolveCompanyId`, and `assertOwns*` ownership guards. |
+| `backend/src/assistant/tools/executors/contacts.ts` | `execCreateContact`, `execUpdateContact`. |
+| `backend/src/assistant/tools/executors/events.ts` | `execCreateEvent`, `execUpdateEvent`, `execGetEventFollowups`, `execSetEventGoal`. |
+| `backend/src/assistant/tools/executors/followups.ts` | `execLogInteraction`, `execSetFollowUpStatus`, `execSetFollowUpPriority`, `execGetPriorities`. |
+| `backend/src/assistant/tools/executors/targets.ts` | `execAddTargetContactToEvent`, `execAddTargetCompanyToEvent`, `execRemoveTargetContactFromEvent`, `execRemoveTargetCompanyFromEvent`, `execAddTargetNote`. |
+| `backend/src/assistant/tools/executors/email.ts` | `execDraftEmail`. |
+| `backend/src/assistant/tools/executors/documents.ts` | `execParseDocument`. |
+| [`backend/src/assistant/prompt.ts`](backend/src/assistant/prompt.ts) | `buildSystemPrompt` — the English instruction sheet handed to the LLM each turn. |
+| [`backend/src/assistant/loop.ts`](backend/src/assistant/loop.ts) | `runLoop`, `LoopState`, `finalizeTurn`, `suspendForPermission` — the agentic loop. |
+| [`backend/src/assistant/security.ts`](backend/src/assistant/security.ts) | `checkRateLimit`, `sanitiseUserInput`. |
+| [`backend/src/assistant/dateWindows.ts`](backend/src/assistant/dateWindows.ts) | `expandDateWindow` — translates relative window names into exact timestamps. |
+| [`backend/src/assistant/entities.ts`](backend/src/assistant/entities.ts) | Linked-entity (card) helpers — what gets shown as tappable cards under a reply. |
 | [`backend/src/services/slayer-client.ts`](backend/src/services/slayer-client.ts) | Talks to Slayer for reads. Ownership injection, the user_id/deleted_at table sets, and the boot-time schema auto-derive. |
 | [`backend/src/services/litellm-service.ts`](backend/src/services/litellm-service.ts) | Wraps the actual calls to the Gemini/OpenAI LLM (including tool-calling). Also sanitizes tool schemas for Gemini's restricted subset (section 6.6). |
 | [`backend/src/services/schema-introspection.ts`](backend/src/services/schema-introspection.ts) | Reads the live DB column layout for the auto-derive. |
+| [`backend/src/services/document-extraction.ts`](backend/src/services/document-extraction.ts) | Extracts text from uploaded files (PDF, images via vision, Office formats, CSV). |
 | [`backend/scripts/check-schema-drift.ts`](backend/scripts/check-schema-drift.ts) | The CI check that prevents schema/AI drift. |
 | `slayer/slayer_data/models/exono/*.yaml` | Auto-generated descriptions of each table that Slayer uses. |
 | [`backend/CLAUDE.md`](backend/CLAUDE.md) | The authoritative rules for keeping the AI and DB schema in sync. |
@@ -947,11 +1065,11 @@ enforces.
 
 ### A good way to learn it hands-on
 
-1. Open `assistant.ts` and find `runLoop()` — read it alongside section 7 here.
-2. Then read `buildSystemPrompt()` — that's literally the English instructions the
-   AI follows. It's the most readable file in the whole system.
-3. Then read `applyOwnership()` in `slayer-client.ts` — small, and it's the core
-   of read security.
+1. Open `src/assistant/loop.ts` and find `runLoop()` — read it alongside section 7 here.
+2. Then read `buildSystemPrompt()` in `src/assistant/prompt.ts` — that's literally
+   the English instructions the AI follows. It's the most readable file in the whole system.
+3. Then read `applyOwnership()` in `src/services/slayer-client.ts` — small, and it's
+   the core of read security.
 
 Those three functions are 80% of the system. Everything else is plumbing and
 safety around them.

@@ -82,9 +82,8 @@ class _FilterPill extends StatelessWidget {
       return _outlinePill(context, c);
     }
 
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
@@ -107,12 +106,10 @@ class _FilterPill extends StatelessWidget {
     );
   }
 
-  /// Outline-style pill rendered as an [InkWell] + [AnimatedContainer] so we
-  /// keep the exact Exono look (border-only active state, no fill).
+  /// Outline-style pill rendered as a [GestureDetector] + [AnimatedContainer].
   Widget _outlinePill(BuildContext context, ExonoColors c) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

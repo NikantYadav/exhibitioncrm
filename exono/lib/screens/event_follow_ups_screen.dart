@@ -24,7 +24,6 @@ import '../widgets/app_header.dart';
 import '../widgets/app_section_label.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
-import 'app_shell.dart' show navBarHide, navBarShow;
 
 // ---------------------------------------------------------------------------
 // Public screen
@@ -82,10 +81,6 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
   @override
   void initState() {
     super.initState();
-    // Pushed full-screen into the shell's nested navigator, so the shell's
-    // bottom nav + live bar would otherwise stay mounted underneath. Hide them
-    // while this screen is open (restored in dispose).
-    navBarHide();
     _subjectCtrl = TextEditingController();
     _bodyCtrl = TextEditingController();
     _sync = context.read<SyncProvider>();
@@ -94,7 +89,6 @@ class _EventFollowUpsScreenState extends State<EventFollowUpsScreen>
 
   @override
   void dispose() {
-    navBarShow();
     _subjectCtrl.dispose();
     _bodyCtrl.dispose();
     super.dispose();

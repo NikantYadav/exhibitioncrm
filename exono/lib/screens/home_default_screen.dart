@@ -81,11 +81,11 @@ class _HomeDefaultScreenState extends State<HomeDefaultScreen> with ScreenLogger
       context.read<LiveEventProvider>().refresh();
       context.go('/live-event');
     } else if (event.status == 'completed') {
-      Navigator.of(context).push(
+      Navigator.of(context, rootNavigator: true).push(
         MaterialPageRoute(builder: (_) => EventFollowUpsScreen(event: event)),
       );
     } else {
-      Navigator.of(context).push(
+      Navigator.of(context, rootNavigator: true).push(
         MaterialPageRoute(builder: (_) => PreEventPrepScreen(event: event)),
       );
     }

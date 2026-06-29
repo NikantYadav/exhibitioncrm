@@ -1,19 +1,27 @@
 import { litellm } from '../litellm-service';
 import { SupabaseClient } from '@supabase/supabase-js';
 
+// Replace each @-mention directive (`@[type:uuid:Display Name]`) with just its
+// display name, so titles/previews read naturally instead of showing raw UUIDs.
+const MENTION_DIRECTIVE = /@\[(?:contact|event|company):[0-9a-fA-F-]{36}:([^\]]+)\]/g;
+export function stripMentionDirectives(text: string): string {
+    return text.replace(MENTION_DIRECTIVE, (_m, name) => String(name).trim()).trim();
+}
+
 export async function autoTitleConversation(
     supabase: SupabaseClient,
     conversationId: string,
-    firstMessageContent: string
+    firstMessageContentRaw: string
 ) {
+    const firstMessageContent = stripMentionDirectives(firstMessageContentRaw);
     try {
         const { data: conv } = await supabase
             .from('conversations')
-            .select('id, title, kind')
+            .select('id, title')
             .eq('id', conversationId)
             .single();
 
-        if (conv && !conv.title && (conv.kind === 'global' || conv.kind === 'contact')) {
+        if (conv && !conv.title) {
             const titleText = await litellm.generateCompletion([
                 {
                     role: 'system',

@@ -23,7 +23,6 @@ import '../widgets/create_company_sheet.dart';
 import '../widgets/skeleton_loader.dart';
 import 'target_company_prep_screen.dart';
 import '../utils/screen_logger.dart';
-import 'app_shell.dart' show navBarHide, navBarShow;
 
 class PreEventPrepScreen extends StatefulWidget {
   final Event event;
@@ -47,19 +46,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   @override
   void initState() {
     super.initState();
-    // Pushed full-screen into the shell's nested navigator, so the shell's
-    // bottom nav + live bar would otherwise stay mounted underneath. Hide them
-    // while this screen is open (restored in dispose).
-    navBarHide();
     _sync = context.read<SyncProvider>();
     _targetsRepo = _sync.targetCompanies;
     _contactEventsRepo = _sync.contactEvents;
-  }
-
-  @override
-  void dispose() {
-    navBarShow();
-    super.dispose();
   }
 
   Future<void> _addGoal() async {
@@ -246,7 +235,9 @@ class _PreEventPrepScreenState extends State<PreEventPrepScreen> with ScreenLogg
   }
 
   Future<void> _openTargetDetail(TargetCompanyRow target) async {
-    await Navigator.of(context).push(
+    // Push onto the ROOT navigator so this full-screen detail renders above the
+    // AppShell — no bottom nav bar / live bar leaks through. See router.dart.
+    await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
         builder: (context) => TargetCompanyPrepScreen(event: widget.event, targetId: target.id),
       ),

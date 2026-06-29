@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/chat_attachment.dart';
 import '../models/linked_entity.dart';
 import '../services/api_service.dart';
 
@@ -12,6 +13,7 @@ class ChatMessage {
   final DateTime timestamp;
   final List<LinkedEntity> linkedEntities;
   final bool researchMode;
+  final List<ChatAttachment> attachments;
 
   ChatMessage({
     required this.id,
@@ -20,10 +22,21 @@ class ChatMessage {
     required this.timestamp,
     this.linkedEntities = const [],
     this.researchMode = false,
+    this.attachments = const [],
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json,
-      {List<LinkedEntity> linkedEntities = const []}) {
+      {List<LinkedEntity> linkedEntities = const [],
+      List<ChatAttachment> attachments = const []}) {
+    // Server rows carry attachments under `attachments` (signed by the backend);
+    // an explicit [attachments] arg (optimistic bytes) takes precedence.
+    var atts = attachments;
+    if (atts.isEmpty && json['attachments'] is List) {
+      atts = (json['attachments'] as List)
+          .whereType<Map>()
+          .map((m) => ChatAttachment.fromJson(m.cast<String, dynamic>()))
+          .toList();
+    }
     return ChatMessage(
       id: json['id'] as String,
       text: (json['content'] ?? '') as String,
@@ -32,6 +45,7 @@ class ChatMessage {
           (DateTime.tryParse((json['created_at'] ?? '') as String) ?? DateTime.now()).toLocal(),
       linkedEntities: linkedEntities,
       researchMode: json['research_mode'] == true,
+      attachments: atts,
     );
   }
 }
@@ -324,38 +338,71 @@ class ChatProvider extends ChangeNotifier {
         .subscribe();
   }
 
-  Future<Map<String, dynamic>?> sendMessage(String text, {bool researchMode = false}) async {
-    if (_conversationId == null || text.trim().isEmpty) return null;
-
-    // --- Optimistic user message ---
+  // Insert the optimistic user bubble (with any attachments) immediately, before
+  // the message is uploaded/sent. Returns its id so the caller can hand it back
+  // to [sendMessage] to reuse — this avoids a flash where the bare server-echoed
+  // text message appears (and the image lingers in the composer) during upload.
+  String beginOptimisticSend(
+    String text, {
+    bool researchMode = false,
+    List<ChatAttachment> attachments = const [],
+  }) {
     final optimisticId = 'optimistic_${DateTime.now().millisecondsSinceEpoch}';
-    final optimisticMsg = ChatMessage(
+    _messageIds.add(optimisticId);
+    _insertOrdered(ChatMessage(
       id: optimisticId,
       text: text.trim(),
       isUser: true,
       timestamp: DateTime.now(),
       researchMode: researchMode,
-    );
-    _messageIds.add(optimisticId);
-    _insertOrdered(optimisticMsg);
+      attachments: attachments,
+    ));
     _isTyping = true;
     _error = null;
     _failedMessageId = null;
     _startInFlightPoll();
     notifyListeners();
+    return optimisticId;
+  }
+
+  Future<Map<String, dynamic>?> sendMessage(
+    String text, {
+    bool researchMode = false,
+    String? userMessageId,
+    List<String>? attachmentIds,
+    List<Map<String, dynamic>> mentions = const [],
+    List<ChatAttachment> optimisticAttachments = const [],
+    String? optimisticId,
+  }) async {
+    if (_conversationId == null || text.trim().isEmpty) return null;
+
+    // Reuse a pre-inserted optimistic bubble if the caller already showed one
+    // (attachment sends), otherwise insert it now (plain text sends).
+    optimisticId ??= beginOptimisticSend(
+      text,
+      researchMode: researchMode,
+      attachments: optimisticAttachments,
+    );
 
     try {
       final resp = await ApiService.assistantRespond(
         conversationId: _conversationId!,
         text: text.trim(),
         researchMode: researchMode,
+        userMessageId: userMessageId,
+        attachmentIds: attachmentIds,
+        mentions: mentions,
       );
 
       // Remove the optimistic message and replace with the real one from server
       _messages.removeWhere((m) => m.id == optimisticId);
       _messageIds.remove(optimisticId);
 
-      _upsertMessage(resp['user_message'] as Map<String, dynamic>?);
+      // Carry the optimistic attachments (which hold local bytes) onto the
+      // persisted user message so previews render instantly; a later history
+      // reload swaps them for server-signed URLs.
+      _upsertMessage(resp['user_message'] as Map<String, dynamic>?,
+          attachments: optimisticAttachments);
 
       return _handleTurnResponse(resp);
     } catch (_) {
@@ -387,11 +434,13 @@ class ChatProvider extends ChangeNotifier {
   // Upsert a message row — if already added by realtime, replace to attach
   // linkedEntities; otherwise insert in timestamp order.
   void _upsertMessage(Map<String, dynamic>? msg,
-      {List<LinkedEntity> linkedEntities = const []}) {
+      {List<LinkedEntity> linkedEntities = const [],
+      List<ChatAttachment> attachments = const []}) {
     if (msg == null) return;
     final id = msg['id'] as String?;
     if (id == null) return;
-    final newMsg = ChatMessage.fromJson(msg, linkedEntities: linkedEntities);
+    final newMsg = ChatMessage.fromJson(msg,
+        linkedEntities: linkedEntities, attachments: attachments);
     final idx = _messages.indexWhere((m) => m.id == id);
     if (idx != -1) {
       _messages[idx] = newMsg;

@@ -23,13 +23,21 @@ import 'screens/onboarding_screen.dart';
 import 'screens/account_settings_screen.dart';
 import 'screens/voice_contact_capture_screen.dart';
 
-/// Navigator key for the app shell's nested navigator. Lets the bottom nav
-/// pop any imperatively-pushed routes (PreEventPrepScreen, EventFollowUpsScreen)
-/// that were pushed onto the shell navigator before switching tabs.
+/// Root navigator key. Full-screen routes (company/contact/event detail,
+/// capture, live event, chat) declare `parentNavigatorKey: rootNavigatorKey`
+/// so they render on the root navigator — structurally ABOVE/OUTSIDE the
+/// AppShell — and never inherit the bottom nav bar or live bar.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
+/// Navigator key for the app shell's nested navigator. Full-screen detail
+/// screens push onto [rootNavigatorKey] instead, so they render above the
+/// shell with no bottom nav / live bar; this key is kept for the defensive
+/// pop-to-root on tab switch in AppShell.
 final shellNavigatorKey = GlobalKey<NavigatorState>();
 
 GoRouter buildRouter(AuthProvider auth, {List<NavigatorObserver>? observers}) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: kIsWeb ? '/' : '/splash',
     refreshListenable: auth,
     observers: observers ?? [],
@@ -53,15 +61,16 @@ GoRouter buildRouter(AuthProvider auth, {List<NavigatorObserver>? observers}) {
       GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
 
       // ── Capture — full-screen modal, no nav shell ─────────────────────────
-      GoRoute(path: '/capture', builder: (_, _) => const CaptureScreen()),
-      GoRoute(path: '/voice-capture', builder: (_, _) => const VoiceContactCaptureScreen()),
+      GoRoute(path: '/capture', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const CaptureScreen()),
+      GoRoute(path: '/voice-capture', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const VoiceContactCaptureScreen()),
 
       // ── Live event floor — full-screen (no nav shell) ──────────────────────
-      GoRoute(path: '/live-event', builder: (_, _) => const LiveHomeScreen()),
+      GoRoute(path: '/live-event', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const LiveHomeScreen()),
 
       // ── Company detail — full-screen (no nav shell needed) ────────────────
       GoRoute(
         path: '/companies/:id',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final companyId = state.pathParameters['id']!;
           return CompanyDetailScreen(companyId: companyId);
@@ -71,6 +80,7 @@ GoRouter buildRouter(AuthProvider auth, {List<NavigatorObserver>? observers}) {
       // ── Event detail — routes to prep/follow-up/live based on status ────────
       GoRoute(
         path: '/events/:id',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final eventId = state.pathParameters['id']!;
           final event = state.extra is Event ? state.extra as Event : null;
@@ -81,6 +91,7 @@ GoRouter buildRouter(AuthProvider auth, {List<NavigatorObserver>? observers}) {
       // ── Contact detail — full-screen (no nav shell needed) ────────────────
       GoRoute(
         path: '/contacts/:id',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final contactId = state.pathParameters['id']!;
           return ContactDetailScreen(contactId: contactId);
@@ -125,6 +136,7 @@ GoRouter buildRouter(AuthProvider auth, {List<NavigatorObserver>? observers}) {
       // ── Chat — full-screen (no nav shell / live bar) ─────────────────────
       GoRoute(
         path: '/chat',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final msg = state.uri.queryParameters['msg'];
           return ChatScreen(initialMessage: msg, isNewChat: msg != null);

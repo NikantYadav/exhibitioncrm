@@ -1491,7 +1491,7 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> with ScreenLogger {
               onPressed: () {
                 final targetId = target['id'] as String? ?? '';
                 if (targetId.isEmpty) return;
-                Navigator.of(context).push(MaterialPageRoute(
+                Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
                     builder: (_) => TargetCompanyPrepScreen(event: event, targetId: targetId)));
               },
             ),

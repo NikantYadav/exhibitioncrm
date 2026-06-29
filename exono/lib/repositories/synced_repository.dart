@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../db/app_database.dart';
 import '../services/api_service.dart';
@@ -26,8 +25,6 @@ abstract class SyncedRepository<T extends Object, Tbl extends Table> {
   /// Builds a drift companion (for insertOnConflictUpdate) from one row of
   /// the `/sync` JSON payload or a Realtime payload's `newRecord`.
   Insertable<T> companionFromJson(Map<String, dynamic> json);
-
-  RealtimeChannel? _channel;
 
   Stream<List<T>> watchAll() {
     final query = db.select(table)
@@ -78,12 +75,23 @@ abstract class SyncedRepository<T extends Object, Tbl extends Table> {
   /// path is [SyncProvider.catchUpAll], which fetches every table in one
   /// request and feeds each delta to [applyTableDelta].
   Future<void> catchUp() async {
-    final since = await lastSyncedAt();
-    final response = await ApiService.getSyncDelta(since: since, tables: tableName);
-    final serverTime = response['server_time'] as String;
-    final tableDelta = (response['data'] as Map<String, dynamic>)[tableName] as Map<String, dynamic>?;
-    await applyTableDelta(tableDelta);
-    await storeLastSyncedAt(serverTime);
+    String? since = await lastSyncedAt();
+    // Keyset-paginated drain (mirrors SyncProvider.catchUpAll): the backend caps
+    // each response and reports `has_more` + `next_since`. Commit the durable
+    // `server_time` watermark only on the final page; advance `since` by the
+    // cursor between pages. Steady-state deltas finish in one pass.
+    const safetyCap = 1000;
+    for (var page = 0; page < safetyCap; page++) {
+      final response = await ApiService.getSyncDelta(since: since, tables: tableName);
+      final hasMore = response['has_more'] == true;
+      final tableDelta = (response['data'] as Map<String, dynamic>)[tableName] as Map<String, dynamic>?;
+      await applyTableDelta(tableDelta);
+      if (!hasMore) {
+        await storeLastSyncedAt(response['server_time'] as String);
+        break;
+      }
+      since = response['next_since'] as String;
+    }
   }
 
   /// Applies one table's delta map (`{upserts, deleted_ids}`) from a `/sync`
@@ -128,37 +136,5 @@ abstract class SyncedRepository<T extends Object, Tbl extends Table> {
     await db.into(table).insertOnConflictUpdate(companionFromJson(json));
   }
 
-  /// Opens a Realtime channel filtered to this user's rows on this table.
-  /// INSERT/UPDATE with a non-null deleted_at deletes the row locally instead
-  /// of upserting it (the row was soft-deleted after the channel last saw it).
-  void subscribeRealtime(String userId) {
-    _channel?.unsubscribe();
-    _channel = Supabase.instance.client
-        .channel('public:$tableName:user=$userId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: tableName,
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'user_id',
-            value: userId,
-          ),
-          callback: (payload) async {
-            final row = payload.newRecord;
-            if (row.isEmpty) return; // DELETE payloads carry no newRecord
-            if (row['deleted_at'] != null) {
-              await (db.delete(table)..where((tbl) => _idEquals(tbl, row['id'] as String))).go();
-            } else {
-              await _upsertOne(row);
-            }
-          },
-        )
-        .subscribe();
-  }
-
-  Future<void> dispose() async {
-    await _channel?.unsubscribe();
-    _channel = null;
-  }
+  Future<void> dispose() async {}
 }

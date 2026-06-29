@@ -77,8 +77,9 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
       });
       return;
     }
-    // Pop any imperatively-pushed routes (e.g. PreEventPrepScreen, EventFollowUpsScreen)
-    // off the shell's nested navigator before go_router navigates.
+    // Defensive: pop any imperatively-pushed routes off the shell's nested
+    // navigator before go_router navigates. (Full-screen detail screens now
+    // push onto the root navigator, so this is normally a no-op.)
     final shellNav = shellNavigatorKey.currentState;
     if (shellNav != null) {
       shellNav.popUntil((route) => route.isFirst);

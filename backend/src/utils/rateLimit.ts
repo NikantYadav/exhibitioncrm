@@ -13,6 +13,13 @@ export const IMAGE_UPLOAD_SCOPE = 'image_upload';
 export const IMAGE_UPLOAD_MAX = 40;
 export const IMAGE_UPLOAD_WINDOW_MS = 60_000;
 
+// Chat document-upload / extraction budget. Each upload can trigger a vision
+// call and/or embeddings, so a tighter per-user bucket blocks abuse of those
+// quotas while staying generous for real "attach a few files" use.
+export const DOC_UPLOAD_SCOPE = 'doc_upload';
+export const DOC_UPLOAD_MAX = 20;
+export const DOC_UPLOAD_WINDOW_MS = 60_000;
+
 export async function checkScopedRateLimit(
   userId: string,
   scope: string,

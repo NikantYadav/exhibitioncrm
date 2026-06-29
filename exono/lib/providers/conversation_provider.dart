@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../models/chat_mention.dart';
 
 class ConversationModel {
   final String id;
@@ -32,8 +33,14 @@ class ConversationModel {
     if (title != null && title!.isNotEmpty) return title!;
     final snippet = firstMessageSnippet ?? firstMessagePreview;
     if (snippet != null && snippet.isNotEmpty) {
-      final clean = snippet.replaceAll(RegExp(r'\s+'), ' ').trim();
-      return clean.length > 40 ? '${clean.substring(0, 40)}…' : clean;
+      // Strip @-mention directives so the fallback title shows the display name,
+      // not the raw "@[contact:uuid:Name]" directive.
+      final clean = ChatMention.stripDirectives(snippet)
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      if (clean.isNotEmpty) {
+        return clean.length > 40 ? '${clean.substring(0, 40)}…' : clean;
+      }
     }
     return 'New Chat';
   }

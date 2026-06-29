@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/contact.dart';
@@ -141,9 +142,12 @@ class ApiService {
     return h;
   }
 
-  static Future<List<Contact>> getContacts() async {
+  static Future<List<Contact>> getContacts({String? query}) async {
+    final url = query != null && query.isNotEmpty
+        ? '${ApiConfig.baseUrl}${ApiConfig.contacts}?q=${Uri.encodeComponent(query)}'
+        : '${ApiConfig.baseUrl}${ApiConfig.contacts}';
     final response = await _send(() async => http.get(
-      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contacts}'),
+      Uri.parse(url),
       headers: await _headers(),
     ));
 
@@ -419,10 +423,83 @@ class ApiService {
     throw Exception('Failed to create conversation');
   }
 
+  /// Create a user message up front (so files can be attached to it before the
+  /// assistant turn runs). Returns the created message map (with its id).
+  static Future<Map<String, dynamic>> createUserMessage({
+    required String conversationId,
+    required String content,
+  }) async {
+    final response = await _send(() async => http.post(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.conversations}/$conversationId/messages'),
+      headers: await _headers(),
+      body: json.encode({'content': content}),
+    ));
+    checkUnauthorized(response);
+    if (response.statusCode == 200) {
+      return (json.decode(response.body)['data']) as Map<String, dynamic>;
+    }
+    final body = json.decode(response.body);
+    throw Exception(body is Map && body['error'] != null ? body['error'] : 'Failed to create message');
+  }
+
+  /// Upload a document/photo to a chat message. Server stores it, extracts text,
+  /// and (for large docs) chunks+embeds it. Returns the attachment map including
+  /// `id`, `extraction_status`, and `token_estimate`.
+  static Future<Map<String, dynamic>> uploadChatAttachment({
+    required String conversationId,
+    required String messageId,
+    required Uint8List fileBytes,
+    required String fileName,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.conversations}/$conversationId/attachments/upload');
+    final request = http.MultipartRequest('POST', uri);
+    final hdrs = await _headers();
+    if (hdrs.containsKey('Authorization')) {
+      request.headers['Authorization'] = hdrs['Authorization']!;
+    }
+    request.fields['message_id'] = messageId;
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      fileBytes,
+      filename: fileName,
+      contentType: _contentTypeFor(fileName),
+    ));
+    final streamed = await request.send();
+    final body = await streamed.stream.bytesToString();
+    if (streamed.statusCode == 200) {
+      return (json.decode(body)['data']) as Map<String, dynamic>;
+    }
+    final decoded = json.decode(body);
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Upload failed');
+  }
+
+  // Best-effort content type from a filename extension, so uploads are stored
+  // with a real mime (not application/octet-stream) and render as images.
+  static MediaType? _contentTypeFor(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot == -1) return null;
+    const map = {
+      'jpg': ['image', 'jpeg'], 'jpeg': ['image', 'jpeg'], 'png': ['image', 'png'],
+      'webp': ['image', 'webp'], 'gif': ['image', 'gif'], 'heic': ['image', 'heic'],
+      'pdf': ['application', 'pdf'], 'csv': ['text', 'csv'],
+      'doc': ['application', 'msword'],
+      'docx': ['application', 'vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      'xls': ['application', 'vnd.ms-excel'],
+      'xlsx': ['application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+      'ppt': ['application', 'vnd.ms-powerpoint'],
+      'pptx': ['application', 'vnd.openxmlformats-officedocument.presentationml.presentation'],
+    };
+    final type = map[fileName.substring(dot + 1).toLowerCase()];
+    return type == null ? null : MediaType(type[0], type[1]);
+  }
+
   static Future<Map<String, dynamic>> assistantRespond({
     required String conversationId,
     required String text,
     bool researchMode = false,
+    String? userMessageId,
+    List<String>? attachmentIds,
+    List<Map<String, dynamic>> mentions = const [],
   }) async {
     final response = await _send(() async => http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.assistant}/respond'),
@@ -431,6 +508,9 @@ class ApiService {
         'conversation_id': conversationId,
         'text': text,
         if (researchMode) 'research_mode': true,
+        'user_message_id': ?userMessageId,
+        if (attachmentIds != null && attachmentIds.isNotEmpty) 'attachment_ids': attachmentIds,
+        if (mentions.isNotEmpty) 'mentions': mentions,
       }),
     ));
 

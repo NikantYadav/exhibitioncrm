@@ -81,7 +81,7 @@ function normalizePhone(phone: string): string {
 router.get('/', async (req, res, next) => {
   try {
     const supabase = req.supabase!;
-    const { company_id } = req.query;
+    const { company_id, q } = req.query;
 
     let query = supabase
       .from('contacts')
@@ -93,7 +93,22 @@ router.get('/', async (req, res, next) => {
       query = query.eq('company_id', company_id);
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    // Optional server-side search (used by the @-mention picker so it never
+    // loads the full contact list at once). Matches name and job title.
+    const search = typeof q === 'string' ? q.trim() : '';
+    if (search) {
+      const safe = search.replace(/[%,()]/g, ' ');
+      query = query.or(
+        `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,job_title.ilike.%${safe}%`,
+      );
+    }
+
+    let dataQuery = query.order('created_at', { ascending: false });
+    // Cap search responses so a broad query can't pull the whole table.
+    if (search) {
+      dataQuery = dataQuery.limit(30);
+    }
+    const { data, error } = await dataQuery;
 
     if (error) {
       console.error('Supabase error:', error);
