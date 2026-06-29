@@ -86,6 +86,14 @@ class ChatProvider extends ChangeNotifier {
   // optimistic bubble was cleared (e.g. failure during first-send convo creation).
   String? _failedText;
   bool _failedResearch = false;
+  // Attachment context of the last failed send, so a retry re-sends the SAME
+  // already-uploaded file instead of silently dropping it. These survive a failed
+  // turn: the backend only rolls back the user message it inserted itself, so a
+  // client-created message (one with a user_message_id) and its linked attachment
+  // rows stay in the DB and can be replayed by id.
+  String? _failedUserMessageId;
+  List<String>? _failedAttachmentIds;
+  List<ChatAttachment> _failedOptimisticAttachments = const [];
   RealtimeChannel? _channel;
   // The assistant has paused awaiting permission for a write. The UI renders an
   // inline confirmation card while this is non-null.
@@ -367,6 +375,10 @@ class ChatProvider extends ChangeNotifier {
     _isTyping = true;
     _error = null;
     _failedMessageId = null;
+    _failedText = null;
+    _failedUserMessageId = null;
+    _failedAttachmentIds = null;
+    _failedOptimisticAttachments = const [];
     _startInFlightPoll();
     notifyListeners();
     return optimisticId;
@@ -416,6 +428,12 @@ class ChatProvider extends ChangeNotifier {
       _error = 'Failed to send message. Please try again.';
       _failedText = text.trim();
       _failedResearch = researchMode;
+      // Preserve the attachment context so retry re-sends the SAME uploaded file
+      // (these rows survive a failed turn — see the field docs). Without this the
+      // retry would re-send text only and the model would see no document.
+      _failedUserMessageId = userMessageId;
+      _failedAttachmentIds = attachmentIds;
+      _failedOptimisticAttachments = optimisticAttachments;
       // The optimistic bubble is kept (realtime echo is ignored while in flight,
       // and the backend rolls the user message back on failure), so the failure
       // marker reliably points to it and the inline retry shows on the bubble.
@@ -570,10 +588,25 @@ class ChatProvider extends ChangeNotifier {
     }
     if (text == null || text.trim().isEmpty) return null;
 
+    // Capture attachment context before clearing failed-state, so the retry
+    // re-sends the same already-uploaded file (same message + attachment ids).
+    final retryUserMessageId = _failedUserMessageId;
+    final retryAttachmentIds = _failedAttachmentIds;
+    final retryOptimisticAttachments = _failedOptimisticAttachments;
+
     _failedMessageId = null;
     _failedText = null;
+    _failedUserMessageId = null;
+    _failedAttachmentIds = null;
+    _failedOptimisticAttachments = const [];
     _error = null;
     notifyListeners();
-    return sendMessage(text, researchMode: research);
+    return sendMessage(
+      text,
+      researchMode: research,
+      userMessageId: retryUserMessageId,
+      attachmentIds: retryAttachmentIds,
+      optimisticAttachments: retryOptimisticAttachments,
+    );
   }
 }

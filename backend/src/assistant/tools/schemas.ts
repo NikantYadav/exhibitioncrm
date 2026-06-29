@@ -325,6 +325,97 @@ export const WRITE_TOOLS = [
     },
   },
   {
+    name: 'bulk_import_contacts',
+    description: 'Import many contacts in a single call — prefer this over repeated create_contact when adding 2+ contacts (e.g. from an exhibitor list or a batch of business cards). Each contact is de-duplicated independently: existing contacts are reported but not duplicated. Optionally link all contacts to one event by providing event_id or event_name. Up to 100 contacts per call; split larger lists across calls.',
+    parameters: {
+      type: 'object',
+      properties: {
+        event_id: { type: 'string', description: 'Link all imported contacts to this event UUID (optional).' },
+        event_name: { type: 'string', description: 'Name of the event to link all contacts to — use instead of event_id (optional).' },
+        contacts: {
+          type: 'array',
+          description: 'List of contacts to import.',
+          items: {
+            type: 'object',
+            properties: {
+              first_name: { type: 'string' },
+              last_name: { type: 'string' },
+              email: { type: 'string' },
+              phone: { type: 'string' },
+              job_title: { type: 'string' },
+              linkedin_url: { type: 'string', description: 'LinkedIn profile URL' },
+              company_name: { type: 'string', description: 'Company name — will be created if not found' },
+              company_id: { type: 'string', description: 'Existing company UUID (use instead of company_name if known)' },
+              is_priority: { type: 'boolean', description: 'Mark this contact as a priority follow-up' },
+              scanned_details: {
+                type: 'array',
+                description: 'Extra business-card details with no dedicated parameter (address, fax, alternate phone, website, etc.). Provide as a list of {key, value} pairs.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    key: { type: 'string' },
+                    value: { type: 'string' },
+                  },
+                  required: ['key', 'value'],
+                },
+              },
+            },
+            required: ['first_name'],
+          },
+        },
+      },
+      required: ['contacts'],
+    },
+  },
+  {
+    name: 'bulk_add_target_companies_to_event',
+    description: 'Add many companies as targets for one event in a single call — prefer this over repeated add_target_company_to_event when adding 2+ companies (e.g. from an exhibitor list). Each company is de-duplicated independently. Up to 100 companies per call; split larger lists across calls.',
+    parameters: {
+      type: 'object',
+      properties: {
+        event_id: { type: 'string', description: 'UUID of the event.' },
+        event_name: { type: 'string', description: 'Name of the event — use instead of event_id.' },
+        companies: {
+          type: 'array',
+          description: 'List of companies to add as targets.',
+          items: {
+            type: 'object',
+            properties: {
+              company_id: { type: 'string', description: 'Existing company UUID (use instead of company_name if known).' },
+              company_name: { type: 'string', description: 'Company name — created if not found.' },
+              booth_location: { type: 'string', description: 'Hall / booth / stand number for this company at the event (optional).' },
+              priority: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Target priority (defaults to medium).' },
+            },
+          },
+        },
+      },
+      required: ['companies'],
+    },
+  },
+  {
+    name: 'bulk_add_target_contacts_to_event',
+    description: 'Link many EXISTING contacts to one event as targets in a single call — prefer this over repeated add_target_contact_to_event when adding 2+ contacts. Each contact is de-duplicated independently. Up to 100 contacts per call; split larger lists across calls.',
+    parameters: {
+      type: 'object',
+      properties: {
+        event_id: { type: 'string', description: 'UUID of the event.' },
+        event_name: { type: 'string', description: 'Name of the event — use instead of event_id.' },
+        contacts: {
+          type: 'array',
+          description: 'List of contacts to add as targets.',
+          items: {
+            type: 'object',
+            properties: {
+              contact_id: { type: 'string', description: 'UUID of the contact.' },
+              contact_name: { type: 'string', description: 'Full or partial name of the contact — use if you do not have the contact_id.' },
+            },
+          },
+        },
+      },
+      required: ['contacts'],
+    },
+  },
+  {
     name: 'add_target_note',
     description: 'Attach a prep note to a target (contact or company) within an event. The target must already exist for that event (add it first if needed). For a company target, appends a new note to the company\'s note list (does NOT replace existing notes). For a contact target, sets the contact\'s prep note. Provide the event by event_id/event_name.',
     parameters: {
@@ -445,6 +536,7 @@ export const WRITE_TOOL_NAMES = new Set([
   'add_target_contact_to_event', 'add_target_company_to_event',
   'remove_target_contact_from_event', 'remove_target_company_from_event',
   'set_event_goal', 'add_target_note',
+  'bulk_import_contacts', 'bulk_add_target_companies_to_event', 'bulk_add_target_contacts_to_event',
 ]);
 
 // Build a short, human-readable description of a proposed write for the

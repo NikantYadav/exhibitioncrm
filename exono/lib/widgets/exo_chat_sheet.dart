@@ -105,12 +105,12 @@ class _ExoSheetScaffoldState extends State<_ExoSheetScaffold> {
   @override
   void initState() {
     super.initState();
-    navBarHide();
+    navBarHide(this);
   }
 
   @override
   void dispose() {
-    navBarShow();
+    navBarShow(this);
     // Providers belong to the cached session; do NOT dispose them here.
     _sheetCtrl.dispose();
     super.dispose();

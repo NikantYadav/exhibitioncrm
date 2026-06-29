@@ -3,23 +3,18 @@ import { z } from 'zod';
 import { supabase as supabaseAdmin } from '../../../config/supabase';
 import { resolveContactId, resolveEventId, resolveCompanyId, assertOwnsEvent, assertOwnsContact } from '../resolvers';
 
-export async function execAddTargetContactToEvent(args: Record<string, unknown>, userId: string) {
-  const a = z.object({
-    contact_id: z.string().uuid().optional(),
-    contact_name: z.string().trim().optional(),
-    event_id: z.string().uuid().optional(),
-    event_name: z.string().trim().optional(),
-  }).refine((v) => !!(v.contact_id || v.contact_name), {
-    message: 'Either contact_id or contact_name is required.',
-  }).refine((v) => !!(v.event_id || v.event_name), {
-    message: 'Either event_id or event_name is required.',
-  }).parse(args);
+// ─── Per-item helpers — reused by both single-item and bulk executors ─────────
 
-  const contactId = await resolveContactId(a, userId);
-  const eventId = await resolveEventId(a, userId);
-  // resolve*Id trusts a directly-supplied UUID; verify ownership before linking.
-  if (a.contact_id) await assertOwnsContact(contactId, userId);
-  if (a.event_id) await assertOwnsEvent(eventId, userId);
+async function addOneTargetContact(
+  item: { contact_id?: string; contact_name?: string },
+  eventId: string,
+  userId: string,
+): Promise<Record<string, unknown>> {
+  if (!item.contact_id && !item.contact_name) {
+    throw new Error('Either contact_id or contact_name is required.');
+  }
+  const contactId = await resolveContactId(item, userId);
+  if (item.contact_id) await assertOwnsContact(contactId, userId);
 
   // Restore a soft-deleted link rather than inserting a duplicate.
   const { data: softDeleted } = await supabaseAdmin
@@ -41,7 +36,6 @@ export async function execAddTargetContactToEvent(args: Record<string, unknown>,
     .select('*').single();
   if (error) {
     if ((error as any).code === '23505') {
-      // Active link already exists — return it (idempotent).
       const { data: existing } = await supabaseAdmin
         .from('contact_events').select('*')
         .eq('contact_id', contactId).eq('event_id', eventId).is('deleted_at', null).maybeSingle();
@@ -50,6 +44,78 @@ export async function execAddTargetContactToEvent(args: Record<string, unknown>,
     throw new Error(error.message);
   }
   return { success: true, ...data, message: 'Contact added to the event\'s target list.' };
+}
+
+async function addOneTargetCompany(
+  item: { company_id?: string; company_name?: string; booth_location?: string; priority?: 'high' | 'medium' | 'low' },
+  eventId: string,
+  userId: string,
+): Promise<Record<string, unknown>> {
+  if (!item.company_id && !item.company_name) {
+    throw new Error('Either company_id or company_name is required.');
+  }
+  const companyId = await resolveCompanyId(item);
+
+  const { data: softDeleted } = await supabaseAdmin
+    .from('target_companies').select('id')
+    .eq('event_id', eventId).eq('company_id', companyId)
+    .not('deleted_at', 'is', null).maybeSingle();
+  if (softDeleted) {
+    const { data, error } = await supabaseAdmin
+      .from('target_companies')
+      .update({
+        deleted_at: null,
+        priority: item.priority ?? 'medium',
+        booth_location: item.booth_location ?? null,
+        status: 'not_contacted',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', softDeleted.id).select('*, company:companies(id, name)').single();
+    if (error) throw new Error(error.message);
+    return { success: true, restored: true, ...data, message: 'Company added to the event\'s target list.' };
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('target_companies')
+    .insert({
+      event_id: eventId,
+      company_id: companyId,
+      priority: item.priority ?? 'medium',
+      status: 'not_contacted',
+      booth_location: item.booth_location ?? null,
+      user_id: userId,
+    })
+    .select('*, company:companies(id, name)').single();
+  if (error) {
+    if ((error as any).code === '23505') {
+      const { data: existing } = await supabaseAdmin
+        .from('target_companies').select('*, company:companies(id, name)')
+        .eq('event_id', eventId).eq('company_id', companyId).is('deleted_at', null).maybeSingle();
+      return { success: true, already_targeted: true, ...(existing ?? { event_id: eventId, company_id: companyId }), message: 'Company was already a target for this event.' };
+    }
+    throw new Error(error.message);
+  }
+  return { success: true, ...data, message: 'Company added to the event\'s target list.' };
+}
+
+// ─── Single-item executors (thin wrappers) ────────────────────────────────────
+
+export async function execAddTargetContactToEvent(args: Record<string, unknown>, userId: string) {
+  const a = z.object({
+    contact_id: z.string().uuid().optional(),
+    contact_name: z.string().trim().optional(),
+    event_id: z.string().uuid().optional(),
+    event_name: z.string().trim().optional(),
+  }).refine((v) => !!(v.contact_id || v.contact_name), {
+    message: 'Either contact_id or contact_name is required.',
+  }).refine((v) => !!(v.event_id || v.event_name), {
+    message: 'Either event_id or event_name is required.',
+  }).parse(args);
+
+  const eventId = await resolveEventId(a, userId);
+  if (a.event_id) await assertOwnsEvent(eventId, userId);
+
+  return addOneTargetContact({ contact_id: a.contact_id, contact_name: a.contact_name }, eventId, userId);
 }
 
 // Mirrors POST /api/events/:id/targets — link an existing/new company as a
@@ -71,48 +137,96 @@ export async function execAddTargetCompanyToEvent(args: Record<string, unknown>,
 
   const eventId = await resolveEventId(a, userId);
   if (a.event_id) await assertOwnsEvent(eventId, userId);
-  const companyId = await resolveCompanyId(a);
 
-  const { data: softDeleted } = await supabaseAdmin
-    .from('target_companies').select('id')
-    .eq('event_id', eventId).eq('company_id', companyId)
-    .not('deleted_at', 'is', null).maybeSingle();
-  if (softDeleted) {
-    const { data, error } = await supabaseAdmin
-      .from('target_companies')
-      .update({
-        deleted_at: null,
-        priority: a.priority ?? 'medium',
-        booth_location: a.booth_location ?? null,
-        status: 'not_contacted',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', softDeleted.id).select('*, company:companies(id, name)').single();
-    if (error) throw new Error(error.message);
-    return { success: true, restored: true, ...data, message: 'Company added to the event\'s target list.' };
-  }
+  return addOneTargetCompany(
+    { company_id: a.company_id, company_name: a.company_name, booth_location: a.booth_location, priority: a.priority },
+    eventId,
+    userId,
+  );
+}
 
-  const { data, error } = await supabaseAdmin
-    .from('target_companies')
-    .insert({
-      event_id: eventId,
-      company_id: companyId,
-      priority: a.priority ?? 'medium',
-      status: 'not_contacted',
-      booth_location: a.booth_location ?? null,
-      user_id: userId,
-    })
-    .select('*, company:companies(id, name)').single();
-  if (error) {
-    if ((error as any).code === '23505') {
-      const { data: existing } = await supabaseAdmin
-        .from('target_companies').select('*, company:companies(id, name)')
-        .eq('event_id', eventId).eq('company_id', companyId).is('deleted_at', null).maybeSingle();
-      return { success: true, already_targeted: true, ...(existing ?? { event_id: eventId, company_id: companyId }), message: 'Company was already a target for this event.' };
+// ─── Bulk executors ───────────────────────────────────────────────────────────
+
+export async function execBulkAddTargetCompaniesToEvent(args: Record<string, unknown>, userId: string) {
+  const a = z.object({
+    event_id: z.string().uuid().optional(),
+    event_name: z.string().trim().optional(),
+    companies: z.array(z.object({
+      company_id: z.string().uuid().optional(),
+      company_name: z.string().trim().optional(),
+      booth_location: z.string().trim().max(100).optional(),
+      priority: z.enum(['high', 'medium', 'low']).optional(),
+    })).min(1).max(100),
+  }).refine((v) => !!(v.event_id || v.event_name), {
+    message: 'Either event_id or event_name is required.',
+  }).parse(args);
+
+  const eventId = await resolveEventId(a, userId);
+  if (a.event_id) await assertOwnsEvent(eventId, userId);
+
+  const added: Record<string, unknown>[] = [];
+  const skipped: { item: unknown; reason: string }[] = [];
+  const failed: { item: unknown; error: string }[] = [];
+
+  for (const item of a.companies) {
+    try {
+      const result = await addOneTargetCompany(item, eventId, userId);
+      if ((result as any).already_targeted) {
+        skipped.push({ item: { company_id: item.company_id, company_name: item.company_name }, reason: 'Company was already a target for this event.' });
+      } else {
+        added.push(result);
+      }
+    } catch (e: any) {
+      failed.push({ item: { company_id: item.company_id, company_name: item.company_name }, error: e?.message ?? 'Unknown error' });
     }
-    throw new Error(error.message);
   }
-  return { success: true, ...data, message: 'Company added to the event\'s target list.' };
+
+  const summary =
+    `Added ${added.length} target compan${added.length !== 1 ? 'ies' : 'y'} to the event.` +
+    (skipped.length > 0 ? ` ${skipped.length} already targeted (skipped).` : '') +
+    (failed.length > 0 ? ` ${failed.length} failed.` : '');
+
+  return { success: true, added, skipped, failed, summary };
+}
+
+export async function execBulkAddTargetContactsToEvent(args: Record<string, unknown>, userId: string) {
+  const a = z.object({
+    event_id: z.string().uuid().optional(),
+    event_name: z.string().trim().optional(),
+    contacts: z.array(z.object({
+      contact_id: z.string().uuid().optional(),
+      contact_name: z.string().trim().optional(),
+    })).min(1).max(100),
+  }).refine((v) => !!(v.event_id || v.event_name), {
+    message: 'Either event_id or event_name is required.',
+  }).parse(args);
+
+  const eventId = await resolveEventId(a, userId);
+  if (a.event_id) await assertOwnsEvent(eventId, userId);
+
+  const added: Record<string, unknown>[] = [];
+  const skipped: { item: unknown; reason: string }[] = [];
+  const failed: { item: unknown; error: string }[] = [];
+
+  for (const item of a.contacts) {
+    try {
+      const result = await addOneTargetContact(item, eventId, userId);
+      if ((result as any).already_linked) {
+        skipped.push({ item: { contact_id: item.contact_id, contact_name: item.contact_name }, reason: 'Contact was already a target for this event.' });
+      } else {
+        added.push(result);
+      }
+    } catch (e: any) {
+      failed.push({ item: { contact_id: item.contact_id, contact_name: item.contact_name }, error: e?.message ?? 'Unknown error' });
+    }
+  }
+
+  const summary =
+    `Added ${added.length} target contact${added.length !== 1 ? 's' : ''} to the event.` +
+    (skipped.length > 0 ? ` ${skipped.length} already linked (skipped).` : '') +
+    (failed.length > 0 ? ` ${failed.length} failed.` : '');
+
+  return { success: true, added, skipped, failed, summary };
 }
 
 // Soft-delete a contact's target link to an event (contact_events).

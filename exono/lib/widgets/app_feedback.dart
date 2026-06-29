@@ -36,7 +36,8 @@ Future<T?> showAppSheet<T>({
   // both Android and iOS. The cap is a ratio, so it is adaptive across phone
   // sizes. `isScrollControlled: false` keeps the original half-height cap.
   final double maxRatio = isScrollControlled ? 0.92 : 9 / 16;
-  navBarHide();
+  final navToken = Object();
+  navBarHide(navToken);
   // Read the system bottom inset from the raw FlutterView. This value is never
   // consumed by an ancestor SafeArea/Scaffold, so it is reliable on Android
   // edge-to-edge (where `MediaQuery.padding.bottom` can already be 0) as well as
@@ -87,7 +88,7 @@ Future<T?> showAppSheet<T>({
         ),
       );
     },
-  ).whenComplete(navBarShow);
+  ).whenComplete(() => navBarShow(navToken));
 }
 
 /// Toast / snackbar. Replaces `ScaffoldMessenger.of(context).showSnackBar(...)`.
@@ -132,7 +133,8 @@ Future<bool?> showAppConfirmDialog({
   String cancelLabel = 'Cancel',
   bool destructive = false,
 }) {
-  navBarHide();
+  final navToken = Object();
+  navBarHide(navToken);
   return showFDialog<bool>(
     context: context,
     builder: (ctx, style, _) => FDialog(
@@ -181,7 +183,7 @@ Future<bool?> showAppConfirmDialog({
           ),
       ],
     ),
-  ).whenComplete(navBarShow);
+  ).whenComplete(() => navBarShow(navToken));
 }
 
 /// Dialog wrapper that hides the live bar while open. Use this instead of
@@ -191,10 +193,11 @@ Future<T?> showAppDialog<T>({
   required Widget Function(BuildContext, FDialogStyle, Animation<double>) builder,
   bool barrierDismissible = true,
 }) {
-  navBarHide();
+  final navToken = Object();
+  navBarHide(navToken);
   return showFDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
     builder: builder,
-  ).whenComplete(navBarShow);
+  ).whenComplete(() => navBarShow(navToken));
 }

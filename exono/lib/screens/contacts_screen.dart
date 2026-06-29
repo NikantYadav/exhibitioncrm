@@ -500,13 +500,14 @@ class _AddContactSheet extends StatelessWidget {
   // Takes a NavigatorState (captured before the add-contact sheet is dismissed)
   // so it stays valid after the sheet's own BuildContext is gone.
   Future<void> _openManualEntry(NavigatorState navigator) async {
-    navBarHide();
+    final navToken = Object();
+    navBarHide(navToken);
     final result = await navigator.push<ManualEntryResult>(
       MaterialPageRoute(
         builder: (_) => const ManualEntryScreen(),
       ),
     );
-    navBarShow();
+    navBarShow(navToken);
     if (result != null) { onContactAdded(); }
   }
 
@@ -724,10 +725,11 @@ class _AddContactSheet extends StatelessWidget {
               variant: ButtonVariant.outline,
               fullWidth: true,
               onPressed: () async {
-                navBarHide();
+                final navToken = Object();
+                navBarHide(navToken);
                 context.pop();
                 await _showBulkImportSheet(context);
-                navBarShow();
+                navBarShow(navToken);
               },
             ),
           ],

@@ -498,7 +498,12 @@ class _ExoChatViewState extends State<ExoChatView> {
       }
       if (docs.isNotEmpty) _addPickedDocs(docs);
     } catch (e) {
-      if (mounted) showAppToast(context, 'Could not pick files');
+      if (mounted) {
+        final msg = e.toString().contains('unknown_path')
+            ? 'File not accessible — try downloading it first'
+            : 'Could not pick files';
+        showAppToast(context, msg);
+      }
     }
   }
 
@@ -1188,6 +1193,23 @@ class _ExoChatViewState extends State<ExoChatView> {
     );
   }
 
+  Widget _buildTypingLabel() {
+    // 'Uploading…' is a real signal (an attachment is in flight to the server,
+    // which also extracts it before responding). Otherwise show the in-flight
+    // dots. No timed/approximated phases.
+    if (_isAttaching) {
+      return Text(
+        'Uploading…',
+        style: context.theme.typography.sm
+            .copyWith(color: context.theme.colors.mutedForeground),
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) => _TypingDot(delay: i * 200)),
+    );
+  }
+
   Widget _buildTypingIndicator() {
     return Align(
       alignment: Alignment.centerLeft,
@@ -1234,10 +1256,7 @@ class _ExoChatViewState extends State<ExoChatView> {
                 ),
                 border: Border.all(color: context.theme.colors.border),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(3, (i) => _TypingDot(delay: i * 200)),
-              ),
+              child: _buildTypingLabel(),
             ),
           ],
         ),
@@ -1425,6 +1444,9 @@ class _ExoChatViewState extends State<ExoChatView> {
     'add_target_note',
     'set_follow_up_status',
     'set_follow_up_priority',
+    'bulk_import_contacts',
+    'bulk_add_target_companies_to_event',
+    'bulk_add_target_contacts_to_event',
   };
 
   List<(String, String)> _permissionFields(PendingAction action) {
@@ -1490,6 +1512,34 @@ class _ExoChatViewState extends State<ExoChatView> {
   }
 
   Widget _buildTrayItem(_PickedDoc doc, int index) {
+    return _withUploadOverlay(_buildTrayItemInner(doc, index));
+  }
+
+  // Dim the tray item and show a spinner while the attachment is uploading, so
+  // the user sees the file is still being sent and that send is gated on it.
+  Widget _withUploadOverlay(Widget child) {
+    if (!_isAttaching) return child;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Opacity(opacity: 0.5, child: child),
+        Positioned.fill(
+          child: Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(_c.accent),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrayItemInner(_PickedDoc doc, int index) {
     final isImage = ChatAttachment.kindFor(name: doc.name) == 'image';
     final remove = GestureDetector(
       onTap:
@@ -1667,6 +1717,7 @@ class _ExoChatViewState extends State<ExoChatView> {
                 builder: (context, chat, _) {
                   final isBusy = chat.isTyping ||
                       _isSending ||
+                      _isAttaching ||
                       chat.pendingAction != null ||
                       chat.resolvingPending;
                   final canSend = _isComposing && !isBusy;
@@ -1683,13 +1734,24 @@ class _ExoChatViewState extends State<ExoChatView> {
                         height: 38,
                         decoration: BoxDecoration(
                             color: sendBg, shape: BoxShape.circle),
-                        child: Icon(
-                          isBusy
-                              ? Icons.block_rounded
-                              : Icons.arrow_forward_rounded,
-                          size: 20,
-                          color: sendFg,
-                        ),
+                        // While the attachment is uploading, show a spinner so the
+                        // user sees the file must finish before the message sends.
+                        child: _isAttaching
+                            ? const Padding(
+                                padding: EdgeInsets.all(9),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(sendFg),
+                                ),
+                              )
+                            : Icon(
+                                isBusy
+                                    ? Icons.block_rounded
+                                    : Icons.arrow_forward_rounded,
+                                size: 20,
+                                color: sendFg,
+                              ),
                       ),
                     ),
                   );

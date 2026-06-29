@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -35,21 +36,70 @@ const _navBarPaths = {'/', '/events', '/contacts', '/profile', '/chat-history', 
 // Paths where bottom nav + live bar should be hidden
 bool _isNoNavPath(String location) => location == '/chat' || location.startsWith('/chat?') || location.startsWith('/chat/');
 
-/// Counts open sheets/overlays — nav bar is hidden whenever count > 0.
-/// Using a counter instead of a bool prevents sequential sheets from
-/// accidentally resetting to visible between open/close transitions.
-int _navHideCount = 0;
+/// Tracks which overlays/screens currently want the nav bar hidden. The nav bar
+/// is hidden whenever the set is non-empty.
+///
+/// We key on an identity token per requester (one per open sheet or pushed
+/// full-screen route) instead of a bare counter. A counter desyncs when a
+/// requester hides via a `postFrameCallback` but shows synchronously in
+/// `dispose()` (or vice versa): if `dispose()` runs before the scheduled hide
+/// fires, the show decrements first and the late hide then leaves the counter
+/// stuck at 1 with no owner left to balance it — the nav bar stays hidden until
+/// a hot reload resets the global. A token set is order-independent and
+/// idempotent: a late `navBarHide(token)` followed by no further calls is
+/// impossible because the same token's `navBarShow` always removes it, and a
+/// duplicate hide/show with the same token is a no-op. So hide/show can fire in
+/// any order across frames and the set always converges correctly.
+final Set<Object> _navHideTokens = <Object>{};
 final ValueNotifier<bool> appNavBarHidden = ValueNotifier<bool>(false);
 
-void navBarHide() {
-  _navHideCount++;
-  appNavBarHidden.value = true;
+/// Hide the nav bar on behalf of [token]. Pass a stable per-requester object
+/// (e.g. the State instance, or a fresh `Object()` for a sheet) and pass the
+/// SAME token to [navBarShow]. Calling twice with one token is harmless.
+void navBarHide([Object? token]) {
+  _navHideTokens.add(token ?? _legacyToken);
+  _applyNavHidden();
 }
 
-void navBarShow() {
-  _navHideCount = (_navHideCount - 1).clamp(0, 99);
-  if (_navHideCount == 0) appNavBarHidden.value = false;
+/// Show the nav bar on behalf of [token] (removes that token's hide request).
+/// The bar reappears only once every requester has shown.
+void navBarShow([Object? token]) {
+  _navHideTokens.remove(token ?? _legacyToken);
+  _applyNavHidden();
 }
+
+/// Pushes the current hidden state to [appNavBarHidden].
+///
+/// `navBarShow` is frequently called from a `State.dispose()`, which Flutter
+/// runs inside `finalizeTree()` while the widget tree is LOCKED. Writing
+/// `appNavBarHidden.value` there synchronously notifies the
+/// `ValueListenableBuilder` in the shell, which calls `markNeedsBuild()` — and
+/// that throws "setState()/markNeedsBuild() called when widget tree was locked".
+/// The throw aborts the notifier's value change, so the nav bar gets stranded in
+/// whatever (hidden) state it was in until a hot reload — exactly the reported
+/// bug. To avoid this we detect a locked/in-frame phase and defer the value
+/// write to a post-frame callback (where building is allowed again); outside a
+/// frame we apply it immediately so there is no flicker.
+void _applyNavHidden() {
+  final target = _navHideTokens.isNotEmpty;
+  final phase = SchedulerBinding.instance.schedulerPhase;
+  final treeLocked = phase == SchedulerPhase.persistentCallbacks ||
+      phase == SchedulerPhase.midFrameMicrotasks;
+  if (treeLocked) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      // Re-read the live set: more hide/show calls may have landed before this
+      // fires, so always push the latest converged state.
+      appNavBarHidden.value = _navHideTokens.isNotEmpty;
+    });
+  } else {
+    appNavBarHidden.value = target;
+  }
+}
+
+/// Shared token for legacy callers that hide/show without passing one. They are
+/// strictly nested (sheets: hide then whenComplete-show), so a single shared
+/// token is safe — the last show clears it.
+final Object _legacyToken = Object();
 
 /// Incremented each time the capture screen is popped — listeners can refresh.
 final ValueNotifier<int> captureReturnSignal = ValueNotifier<int>(0);

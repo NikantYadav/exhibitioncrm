@@ -4,12 +4,13 @@ import { ExaService } from '../../services/exa-service';
 import { fenceUntrusted } from '../security';
 import { expandDateWindow } from '../dateWindows';
 import { LINKABLE_CARD_COLUMNS, normaliseRow, readRowToEntity, unprefix } from '../entities';
-import { execCreateContact, execUpdateContact } from './executors/contacts';
+import { execCreateContact, execUpdateContact, execBulkImportContacts } from './executors/contacts';
 import { execCreateEvent, execUpdateEvent, execGetEventFollowups, execSetEventGoal } from './executors/events';
 import { execLogInteraction, execSetFollowUpStatus, execSetFollowUpPriority, execGetPriorities } from './executors/followups';
 import {
   execAddTargetContactToEvent, execAddTargetCompanyToEvent,
   execRemoveTargetContactFromEvent, execRemoveTargetCompanyFromEvent, execAddTargetNote,
+  execBulkAddTargetCompaniesToEvent, execBulkAddTargetContactsToEvent,
 } from './executors/targets';
 import { execDraftEmail } from './executors/email';
 import { execParseDocument } from './executors/documents';
@@ -44,6 +45,21 @@ export function describeWrite(call: ToolCall): string {
       return `Set event goal${name(a.label) ? `: "${name(a.label)}"` : ''}${name(a.event_name) ? ` for ${name(a.event_name)}` : ''}`;
     case 'add_target_note':
       return `Add a prep note for ${name(a.contact_name) ?? name(a.company_name) ?? 'a target'}${name(a.event_name) ? ` at ${name(a.event_name)}` : ''}`;
+    case 'bulk_import_contacts': {
+      const count = Array.isArray(a.contacts) ? a.contacts.length : 0;
+      const evLabel = name(a.event_name) ? ` into ${name(a.event_name)}` : '';
+      return `Import ${count} contact${count !== 1 ? 's' : ''}${evLabel}`;
+    }
+    case 'bulk_add_target_companies_to_event': {
+      const count = Array.isArray(a.companies) ? a.companies.length : 0;
+      const evLabel = name(a.event_name) ?? 'the event';
+      return `Add ${count} target compan${count !== 1 ? 'ies' : 'y'} to ${evLabel}`;
+    }
+    case 'bulk_add_target_contacts_to_event': {
+      const count = Array.isArray(a.contacts) ? a.contacts.length : 0;
+      const evLabel = name(a.event_name) ?? 'the event';
+      return `Add ${count} target contact${count !== 1 ? 's' : ''} to ${evLabel}`;
+    }
     default:
       return `Perform ${call.name.replace(/_/g, ' ')}`;
   }
@@ -200,6 +216,9 @@ export async function executeTool(
         case 'remove_target_company_from_event': result = await execRemoveTargetCompanyFromEvent(call.args, userId); break;
         case 'set_event_goal': result = await execSetEventGoal(call.args, userId); break;
         case 'add_target_note': result = await execAddTargetNote(call.args, userId); break;
+        case 'bulk_import_contacts': result = await execBulkImportContacts(call.args, userId); break;
+        case 'bulk_add_target_companies_to_event': result = await execBulkAddTargetCompaniesToEvent(call.args, userId); break;
+        case 'bulk_add_target_contacts_to_event': result = await execBulkAddTargetContactsToEvent(call.args, userId); break;
         default:
           throw new Error(`Unknown tool: ${call.name}`);
       }

@@ -35,7 +35,14 @@ class _ChatScreenState extends State<ChatScreen>
   @override
   void initState() {
     super.initState();
-    navBarHide();
+    // Hide the shell nav bar while this screen is open. Defer one frame so we
+    // don't mutate the ValueNotifier during build. Guard on `mounted` so that if
+    // the screen is disposed before this fires (fast push/pop), we never add a
+    // hide token that nothing is left to clear — which would strand the nav bar
+    // hidden until a hot reload.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) navBarHide(this);
+    });
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initConversation());
   }
@@ -49,7 +56,7 @@ class _ChatScreenState extends State<ChatScreen>
 
   @override
   void dispose() {
-    navBarShow();
+    navBarShow(this);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

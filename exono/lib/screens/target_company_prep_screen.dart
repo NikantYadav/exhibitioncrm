@@ -63,8 +63,12 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
     super.initState();
     // Pushed full-screen into the shell's nested navigator, so the shell's
     // bottom nav + live bar would otherwise stay mounted underneath. Hide them
-    // while this screen is open (restored in dispose).
-    navBarHide();
+    // while this screen is open (restored in dispose). Defer one frame to avoid
+    // mutating the notifier during build, and guard on `mounted` so a fast
+    // push/pop can't strand a hide token after dispose has already shown.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) navBarHide(this);
+    });
     _boothCtrl = TextEditingController();
     _sync = context.read<SyncProvider>();
     _targetsRepo = _sync.targetCompanies;
@@ -72,7 +76,7 @@ class _TargetCompanyPrepScreenState extends State<TargetCompanyPrepScreen> with 
 
   @override
   void dispose() {
-    navBarShow();
+    navBarShow(this);
     // Defer one frame: the screen pop animation keeps AppInput briefly mounted
     // after dispose() fires; synchronous disposal throws
     // `_dependents.isEmpty is not true`.

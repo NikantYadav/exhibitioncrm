@@ -39,7 +39,7 @@ const ALLOWED_MODELS = new Set([
 // Tables the assistant WRITES to, and the write tools that cover each. Every
 // column on these tables must be classified (LLM-writable OR immutable).
 const WRITABLE_TABLES: Record<string, string[]> = {
-  contacts: ['create_contact', 'update_contact'],
+  contacts: ['create_contact', 'update_contact', 'bulk_import_contacts'],
   events: ['create_event', 'update_event'],
   email_drafts: ['draft_email'],
 };
