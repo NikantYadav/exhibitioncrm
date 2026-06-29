@@ -15,21 +15,12 @@
 import { litellm } from './litellm-service';
 import { sniffImage } from '../utils/imageValidation';
 
-// pdf-parse v2 exports a `PDFParse` class (no default callable). The v1
-// `require('pdf-parse')(buf)` form throws "pdfParse is not a function".
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { PDFParse } = require('pdf-parse') as {
-  PDFParse: new (src: { data: Buffer }) => { getText: (o?: any) => Promise<{ text: string }> };
-};
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const mammoth = require('mammoth') as { extractRawText: (i: { buffer: Buffer }) => Promise<{ value: string }> };
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const officeparser = require('officeparser') as {
-  parseOffice: (input: Buffer, cb: (err: any, data: string) => void) => void;
-};
-// xlsx is already a dependency (used by routes/events.ts target import).
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const XLSX = require('xlsx');
+// All document-parsing libraries are loaded lazily (inside the functions that
+// use them) so that module-load crashes in restricted environments (e.g. Vercel
+// serverless where DOMMatrix is undefined) don't kill the whole server.
+type PDFParseLib = { PDFParse: new (src: { data: Buffer }) => { getText: (o?: any) => Promise<{ text: string }> } };
+type MammothLib = { extractRawText: (i: { buffer: Buffer }) => Promise<{ value: string }> };
+type OfficeparserLib = { parseOffice: (input: Buffer, cb: (err: any, data: string) => void) => void };
 
 export const MAX_DOC_BYTES = 15 * 1024 * 1024;   // 15 MB hard cap before parsing
 export const MAX_EXTRACTED_CHARS = 2_000_000;    // ~500k tokens — cap stored text
@@ -79,12 +70,16 @@ function ooxmlKind(buf: Buffer): DocKind | null {
 }
 
 function parseOfficeAsync(buf: Buffer): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { parseOffice } = require('officeparser') as OfficeparserLib;
   return new Promise((resolve, reject) => {
-    officeparser.parseOffice(buf, (err, data) => (err ? reject(err) : resolve(data || '')));
+    parseOffice(buf, (err, data) => (err ? reject(err) : resolve(data || '')));
   });
 }
 
 function extractSpreadsheet(buf: Buffer): string {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const XLSX = require('xlsx');
   const wb = XLSX.read(buf, { type: 'buffer' });
   const parts: string[] = [];
   for (const name of wb.SheetNames) {
@@ -125,6 +120,8 @@ export async function extractDocument(buf: Buffer, claimedMime?: string): Promis
 
   try {
     if (sniff.kind === 'pdf') {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { PDFParse } = require('pdf-parse') as PDFParseLib;
       const parser = new PDFParse({ data: buf });
       const parsed = await parser.getText({ first: MAX_PDF_PAGES });
       const text = clamp(parsed.text || '');
@@ -151,6 +148,8 @@ export async function extractDocument(buf: Buffer, claimedMime?: string): Promis
       const kind = ooxmlKind(buf);
       if (kind === 'spreadsheet') return { text: clamp(extractSpreadsheet(buf)), kind: 'spreadsheet' };
       if (kind === 'docx') {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const mammoth = require('mammoth') as MammothLib;
         const { value } = await mammoth.extractRawText({ buffer: buf });
         return { text: clamp(value || ''), kind: 'docx' };
       }
