@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/api_config.dart';
 import '../models/contact.dart';
 import '../models/event.dart';
@@ -31,6 +31,14 @@ class EventValidationException implements Exception {
   final String message;
   const EventValidationException(this.message);
 }
+
+/// Secure storage for auth tokens. MUST match the configuration used by
+/// AuthProvider (Android: EncryptedSharedPreferences) so both read/write the
+/// same backing store — otherwise ApiService reads an empty token and every
+/// request 401s, logging the user straight back out after login.
+const _secureStorage = FlutterSecureStorage(
+  aOptions: AndroidOptions(encryptedSharedPreferences: true),
+);
 
 class ApiService {
   /// Called when the session can no longer be recovered (refresh failed).
@@ -83,8 +91,7 @@ class ApiService {
   }
 
   static Future<bool> _doRefresh() async {
-    final prefs = await SharedPreferences.getInstance();
-    final refreshToken = prefs.getString('refresh_token');
+    final refreshToken = await _secureStorage.read(key: 'refresh_token');
     if (refreshToken == null || refreshToken.isEmpty) return false;
 
     final result = await AuthService.refresh(refreshToken);
@@ -95,9 +102,9 @@ class ApiService {
     final newRefresh = session?['refresh_token'] as String?;
     if (newAccess == null || newAccess.isEmpty) return false;
 
-    await prefs.setString('access_token', newAccess);
+    await _secureStorage.write(key: 'access_token', value: newAccess);
     if (newRefresh != null && newRefresh.isNotEmpty) {
-      await prefs.setString('refresh_token', newRefresh);
+      await _secureStorage.write(key: 'refresh_token', value: newRefresh);
     }
     onTokenRefreshed?.call(newAccess);
     return true;
@@ -126,8 +133,7 @@ class ApiService {
     };
 
     if (withAuth) {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
+      final token = await _secureStorage.read(key: 'access_token');
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
       }

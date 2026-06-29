@@ -8,8 +8,6 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../config/app_theme.dart';
-import '../services/device_integrity_service.dart';
-import '../widgets/app_feedback.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -56,24 +54,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     final minSplash = Future<void>.delayed(const Duration(milliseconds: 800));
     await _waitForAuthInit(auth);
     await minSplash;
-
-    if (!mounted) return;
-
-    // Soft device-integrity warning — fires at most once per launch.
-    // Never blocks navigation; the user dismisses and continues normally.
-    if (await DeviceIntegrityService.isCompromised()) {
-      if (mounted) {
-        await showAppConfirmDialog(
-          context: context,
-          title: 'Security notice',
-          message:
-              'This device appears to be rooted or jailbroken. '
-              'For your security, avoid storing sensitive data on compromised devices.',
-          confirmLabel: 'OK',
-          destructive: false,
-        );
-      }
-    }
 
     if (!mounted) return;
     if (auth.isAuthenticated) {

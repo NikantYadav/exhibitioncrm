@@ -4,7 +4,6 @@ import '../services/api_service.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -82,12 +81,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         if (!mounted) return;
         setState(() => _isLoading = false);
         if (result['success'] == true) {
-          final session = result['session'] as Map<String, dynamic>?;
-          if (session != null) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('access_token', session['access_token'] as String? ?? '');
-            await prefs.setString('refresh_token', session['refresh_token'] as String? ?? '');
-          }
+          // Tokens are already persisted to secure storage by signup().
           if (!mounted) return;
           context.go('/onboarding');
         } else {

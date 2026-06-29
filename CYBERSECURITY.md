@@ -88,7 +88,7 @@ The author asks "does my change do what I intended?" The attacker asks "what doe
 | **C1** | Auth tokens in plaintext `SharedPreferences` | 🔴 | ✅ Fixed | `flutter_secure_storage`; plaintext-key sweep empty; analyze clean |
 | **C2** | Offline Drift DB unencrypted | 🔴 | ✅ Fixed (device build pending) | SQLCipher + secure-storage key; analyze clean |
 | **C7** | Import upload client-side caps | 🟡 | ✅ Fixed | Picker allowlist + 10 MB cap; analyze clean |
-| **C8** | No binary hardening / tamper detection | 🟡 (info) | ✅ Fixed | Obfuscation in CI + soft root/jailbreak warning |
+| **C8** | No binary hardening / tamper detection | 🟡 (info) | ✅ Fixed | Obfuscation in CI (root/jailbreak warning later removed per owner) |
 | **C9** | Offline identity cache at-rest | 🟠 | ✅ Fixed | Identity cache moved to secure storage (with C1) |
 | — | Standing sweeps (backdoor policy, no-FORCE) | — | ✅ Empty | Re-run post-fix; both clean |
 
@@ -477,10 +477,10 @@ The import path posts raw bytes; the **server** now caps size and sniffs type (B
    ```
 This is UX + defense-in-depth only — the server (B10) remains the real boundary; a client that bypasses the app still hits the server caps/sniffing.
 
-### C8. No binary hardening / tamper detection — M7 — ✅ **FIXED 2026-06-30 (obfuscation + soft root/jailbreak warning)**
+### C8. No binary hardening / tamper detection — M7 — ✅ **FIXED 2026-06-30 (obfuscation; root/jailbreak detection later removed)**
 
-> **Step 1 (obfuscation) applied.** The release iOS build in [codemagic.yaml](codemagic.yaml) now runs `flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/debug-symbols ...` (the only release build in the file). YAML re-validated.
-> **Step 2 (root/jailbreak detection) applied.** Added `flutter_jailbreak_detection: ^1.10.0`. New `DeviceIntegrityService.isCompromised()` ([device_integrity_service.dart](exono/lib/services/device_integrity_service.dart)) checks `FlutterJailbreakDetection.jailbroken` (+ `.developerMode` on Android), returns false on web/any error (never crashes). Wired in [splash_screen.dart](exono/lib/screens/splash_screen.dart) `_navigate()` (line ~64): on a compromised device it shows a single-OK `showAppConfirmDialog` warning, then **proceeds to navigation regardless** — soft signal, non-blocking, once per launch (no hard gate → no false-positive lockouts, per the finding's guidance). `flutter analyze`: clean.
+> **Step 1 (obfuscation) applied.** The release iOS build in [codemagic.yaml](codemagic.yaml) now runs `flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/debug-symbols ...` (the only release build in the file). YAML re-validated. **This is the active mitigation.**
+> **Step 2 (root/jailbreak detection) — applied then REMOVED 2026-06-30.** A soft `DeviceIntegrityService.isCompromised()` (`flutter_jailbreak_detection`) warning was wired into [splash_screen.dart](exono/lib/screens/splash_screen.dart), then **removed at the owner's request**: the `flutter_jailbreak_detection` dependency, `device_integrity_service.dart`, and the splash-screen warning dialog are all gone (`grep -rn "jailb\|DeviceIntegrity" lib/` → none; dep dropped from [pubspec.yaml](exono/pubspec.yaml); `flutter analyze` clean). It was always a soft, defeatable signal that fixed no specific vulnerability (the real at-rest protection is C1/C2/C9 — tokens + offline DB + identity cache in secure storage, all still in place). Binary hardening for C8 now rests solely on Step 1 (obfuscation).
 
 Original finding (for reference):
 No obfuscation / root-jailbreak detection. Lower priority than C1/C2 (fix those first — they protect the actual at-rest data). Verified 2026-06-30: the CI release build ([codemagic.yaml:38](codemagic.yaml#L38)) runs `flutter build ios --release` **without** `--obfuscate --split-debug-info`.
