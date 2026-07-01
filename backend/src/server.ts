@@ -8,8 +8,10 @@ import routes from './routes';
 import { AI_PROVIDER } from './config/ai';
 import { supabase } from './config/supabase';
 import { initSchemaFlags } from './services/slayer-client';
+import { initSentry } from './config/sentry';
 
 dotenv.config();
+initSentry();
 
 // Auto-derive the assistant's ownership / soft-delete table flags from the live
 // DB schema. Fire-and-forget at module load so it runs in both the long-lived

@@ -20,6 +20,8 @@
  *   fail fast since another key would not help.
  */
 
+import * as Sentry from '@sentry/node';
+
 export interface ExaResult {
   title: string;
   url: string;
@@ -37,6 +39,11 @@ interface ExaApiResult {
 
 interface ExaApiResponse {
   results?: ExaApiResult[];
+  // Verified live against the production Exa account (see INFRASTRUCTURE_COSTS.md
+  // §2.3): `total` reflects $0.007 flat for ≤10 results (+$0.001/result above
+  // 10), broken down per search-type key (`neural`/`keyword`). No `contents`
+  // surcharge has been observed for `highlights`/`text` in this account.
+  costDollars?: { total?: number; search?: Record<string, number> };
 }
 
 /** Thrown internally so the retry loop can inspect the HTTP status. */
@@ -162,6 +169,20 @@ export class ExaService {
         }
 
         const data = (await response.json()) as ExaApiResponse;
+
+        // Cost-instrumentation: actual per-search Exa cost for
+        // INFRASTRUCTURE_ANALYSIS.md's Exa formula. costDollars.total is read
+        // straight from Exa's response (no assumed surcharge math) — see the
+        // verified pricing table in INFRASTRUCTURE_COSTS.md §2.3.
+        Sentry.logger.info('exa_search_cost', {
+          query_chars: query.length,
+          type: options.searchDepth === 'advanced' ? 'auto' : 'fast',
+          num_results_requested: options.maxResults ?? 5,
+          num_results_returned: (data.results ?? []).length,
+          category: options.category ?? 'none',
+          cost_total_usd: data.costDollars?.total ?? 0,
+        });
+
         return (data.results ?? []).map((r) => ({
           title: r.title ?? '',
           url: r.url ?? '',

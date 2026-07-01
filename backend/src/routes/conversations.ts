@@ -15,6 +15,8 @@ import {
   INLINE_TOKEN_BUDGET,
   DocumentExtractionError,
 } from '../services/document-extraction';
+import { sniffImage } from '../utils/imageValidation';
+import { compressImage } from '../utils/imageCompression';
 import {
   checkScopedRateLimit,
   DOC_UPLOAD_SCOPE,
@@ -283,18 +285,38 @@ router.post('/:id/attachments/upload', upload.single('file'), async (req, res) =
   }
 
   const bucket = 'chat-attachments';
-  const original = req.file.originalname || 'file';
-  const ext = (() => {
+
+  // Re-encode image attachments to a capped-dimension WebP before storing —
+  // same rationale as card images (see utils/imageCompression.ts). Type is
+  // SNIFFED from magic bytes, never the client-claimed mimetype/extension.
+  // Non-image documents (PDF/xlsx/docx/etc.) are already compressed formats
+  // and pass through untouched. Best-effort: a compression failure falls
+  // back to storing the original buffer rather than failing the upload.
+  let uploadBuffer = req.file.buffer;
+  let uploadMimeType = req.file.mimetype;
+  let ext = (() => {
+    const original = req.file!.originalname || 'file';
     const idx = original.lastIndexOf('.');
     if (idx === -1) return '';
     const e = original.slice(idx).toLowerCase();
     return /^[.][a-z0-9]{1,10}$/.test(e) ? e : '';
   })();
 
+  if (sniffImage(req.file.buffer)) {
+    try {
+      const compressed = await compressImage(req.file.buffer);
+      uploadBuffer = compressed.buffer;
+      uploadMimeType = compressed.type.mime;
+      ext = `.${compressed.type.ext}`;
+    } catch (err) {
+      console.error('Attachment image compression failed, storing original:', err);
+    }
+  }
+
   const path = `${userId}/${conversationId}/${randomUUID()}${ext}`;
 
-  const { error: uploadErr } = await supabaseAdmin.storage.from(bucket).upload(path, req.file.buffer, {
-    contentType: req.file.mimetype,
+  const { error: uploadErr } = await supabaseAdmin.storage.from(bucket).upload(path, uploadBuffer, {
+    contentType: uploadMimeType,
     upsert: false,
   });
 
@@ -306,8 +328,8 @@ router.post('/:id/attachments/upload', upload.single('file'), async (req, res) =
       message_id: parsed.data.message_id,
       bucket,
       path,
-      mime_type: req.file.mimetype,
-      size_bytes: req.file.size,
+      mime_type: uploadMimeType,
+      size_bytes: uploadBuffer.length,
     })
     .select('*')
     .single();
@@ -325,7 +347,7 @@ router.post('/:id/attachments/upload', upload.single('file'), async (req, res) =
   let extraction_status = 'skipped';
   let token_estimate: number | null = null;
   try {
-    const { text } = await extractDocument(req.file.buffer, req.file.mimetype);
+    const { text } = await extractDocument(uploadBuffer, uploadMimeType);
     token_estimate = estimateTokens(text);
     if (token_estimate <= INLINE_TOKEN_BUDGET) {
       extraction_status = 'inline';
@@ -425,7 +447,16 @@ router.patch('/:id', async (req, res) => {
 // DELETE /api/conversations/:id
 router.delete('/:id', async (req, res) => {
   const conversationId = req.params.id;
+  const userId = req.user!.id;
   const supabase = createSupabaseUserClient(req.accessToken!);
+
+  const prefix = `${userId}/${conversationId}`;
+  const { data: files } = await supabaseAdmin.storage.from('chat-attachments').list(prefix);
+  if (files?.length) {
+    await supabaseAdmin.storage
+      .from('chat-attachments')
+      .remove(files.map((f) => `${prefix}/${f.name}`));
+  }
 
   const { error } = await supabase
     .from('conversations')

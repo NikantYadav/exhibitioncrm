@@ -88,6 +88,9 @@ Future<void> main() async {
         options.dsn = SentryConfig.dsn;
         options.environment = SentryConfig.environment;
         options.tracesSampleRate = 0.0;
+        // Structured logs (Sentry.logger.*) for cost-instrumentation metrics
+        // (sync payload sizes, etc.) — see INFRASTRUCTURE_ANALYSIS.md.
+        options.enableLogs = true;
         options.attachScreenshot = true;
         options.sendDefaultPii = false;
         // Session Replay: record every session + every error during testing.

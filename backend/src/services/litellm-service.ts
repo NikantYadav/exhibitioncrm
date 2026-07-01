@@ -1,5 +1,24 @@
-import { GoogleGenAI, FunctionCallingConfigMode } from '@google/genai';
+import { GoogleGenAI, FunctionCallingConfigMode, type GenerateContentResponse } from '@google/genai';
 import OpenAI from 'openai';
+import * as Sentry from '@sentry/node';
+
+// Cost-instrumentation: logs Gemini input/output token counts for
+// INFRASTRUCTURE_ANALYSIS.md's Gemini cost formula
+// `(input_tokens/1e6 * cost) + (output_tokens/1e6 * cost)`. `callSite` tags
+// which code path made the call (completion / tool-calling / transcribe /
+// vision) so per-path token cost can be broken out in Sentry. Best-effort —
+// usageMetadata is optional on the SDK type, so a missing field just logs 0
+// rather than throwing.
+function logGeminiUsage(callSite: string, response: GenerateContentResponse): void {
+    const usage = response.usageMetadata;
+    Sentry.logger.info('gemini_token_usage', {
+        call_site: callSite,
+        model: 'gemini-3.1-flash-lite',
+        input_tokens: usage?.promptTokenCount ?? 0,
+        output_tokens: usage?.candidatesTokenCount ?? 0,
+        total_tokens: usage?.totalTokenCount ?? 0,
+    });
+}
 
 export interface LiteLLMMessage {
     role: 'system' | 'user' | 'assistant';
@@ -207,6 +226,7 @@ export class LiteLLMService {
                     ...(jsonMode && { responseMimeType: 'application/json' }),
                 },
             });
+            logGeminiUsage('generateCompletion', result);
             return result.text ?? '';
         });
     }
@@ -326,6 +346,7 @@ export class LiteLLMService {
                 }),
             },
         });
+        logGeminiUsage('toolCalling', response);
 
         // Check for function calls in the response (now a property, not a method).
         const calls = response.functionCalls;
@@ -441,6 +462,7 @@ export class LiteLLMService {
                     ],
                     config: { temperature: 0 },
                 });
+                logGeminiUsage('transcribeAudio', result);
 
                 const text = (result.text ?? '').trim();
 
@@ -483,6 +505,7 @@ export class LiteLLMService {
                 ],
                 config: { responseMimeType: 'application/json' },
             });
+            logGeminiUsage('analyzeImage', result);
 
             return result.text ?? '';
         });

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import '../config/api_config.dart';
 import '../models/contact.dart';
 import '../models/event.dart';
@@ -1413,7 +1414,21 @@ class ApiService {
     final response = await _send(() async => http.get(uri, headers: await _headers()));
     checkUnauthorized(response);
     if (response.statusCode == 200) {
-      return json.decode(response.body) as Map<String, dynamic>;
+      final decoded = json.decode(response.body) as Map<String, dynamic>;
+      // Cost-instrumentation: wire payload size for a sync page, for
+      // INFRASTRUCTURE_ANALYSIS.md's `initial_sync_payload` / egress-per-user
+      // measurement. `since == null` marks a fresh/full pull (worst case,
+      // pulls every row from epoch 0); non-null is a steady-state delta page.
+      Sentry.logger.info(
+        'sync_delta_payload',
+        attributes: {
+          'bytes': SentryAttribute.int(response.bodyBytes.length),
+          'is_full_sync': SentryAttribute.bool(since == null),
+          'has_more': SentryAttribute.bool(decoded['has_more'] == true),
+          'tables': SentryAttribute.string(tables ?? 'all'),
+        },
+      );
+      return decoded;
     }
     throw Exception('Failed to fetch sync delta');
   }

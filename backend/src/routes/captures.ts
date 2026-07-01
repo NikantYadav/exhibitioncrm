@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import * as Sentry from '@sentry/node';
 import { litellm } from '../services/litellm-service';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { decodeAndValidateImage, ImageValidationError } from '../utils/imageValidation';
+import { compressImage } from '../utils/imageCompression';
 import { upsertFollowUp } from '../services/followUps';
 import {
   checkScopedRateLimit,
@@ -31,13 +33,41 @@ async function uploadCardImage(
   // Already-stored references are passed through untouched by the caller.
   if (image.startsWith('http')) return null;
 
-  const { buffer, type } = decodeAndValidateImage(image);
+  const decoded = decodeAndValidateImage(image);
+
+  // Re-encode to a capped-dimension WebP before storing — cuts Storage bytes
+  // ~60-80% vs. the raw camera/gallery output with no visible quality loss.
+  // Best-effort: if re-encoding fails for any reason, fall back to the
+  // original validated buffer/type rather than failing the upload.
+  let buffer = decoded.buffer;
+  let type = decoded.type;
+  try {
+    const compressed = await compressImage(decoded.buffer);
+    buffer = compressed.buffer;
+    type = compressed.type;
+  } catch (err) {
+    console.error('Card image compression failed, storing original:', err);
+  }
+
   const path = `${userId}/${captureId}.${type.ext}`;
+
+  // Cost-instrumentation: avg_card_MB for INFRASTRUCTURE_ANALYSIS.md's
+  // GB_files driver. Logs BOTH the raw client-supplied size (what the camera/
+  // gallery actually produced, pre-compression) and the stored size (post
+  // compressImage()) so the Sentry data answers "what do we receive" and
+  // "what do we actually bill for" separately.
+  Sentry.logger.info('card_image_size', {
+    raw_bytes: decoded.buffer.length,
+    stored_bytes: buffer.length,
+    raw_mime: decoded.type.mime,
+    stored_mime: type.mime,
+    compressed: buffer !== decoded.buffer,
+  });
 
   const { error } = await supabaseAdmin.storage
     .from(CARD_BUCKET)
     .upload(path, buffer, {
-      contentType: type.mime, // sniffed type, never client-claimed
+      contentType: type.mime,
       upsert: true,
     });
 

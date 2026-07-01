@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../db/app_database.dart';
@@ -171,7 +173,21 @@ class SyncProvider extends ChangeNotifier with WidgetsBindingObserver {
         )
         .onBroadcast(
           event: 'sync',
-          callback: (_) => _scheduleBroadcastCatchUp(),
+          callback: (payload) {
+            // Cost-instrumentation: the realtime channel only ever carries this
+            // small wake-up poke — the actual delta is fetched separately via
+            // HTTP in catchUpAll (logged in ApiService.getSyncDelta). Logging
+            // this confirms (rather than assumes) the poke itself is
+            // negligible egress, per INFRASTRUCTURE_ANALYSIS.md's
+            // `realtime_deltas` term.
+            Sentry.logger.info(
+              'realtime_sync_poke',
+              attributes: {
+                'bytes': SentryAttribute.int(utf8.encode(jsonEncode(payload)).length),
+              },
+            );
+            _scheduleBroadcastCatchUp();
+          },
         )
         .subscribe();
   }
