@@ -48,7 +48,7 @@ type AllowedModel = typeof ALLOWED_MODELS[number];
 export const USER_ID_TABLES = new Set<string>([
   'contacts', 'events', 'user_profiles', 'captures', 'conversations', 'messages',
   'email_drafts', 'interactions', 'target_companies', 'event_goals',
-  'contact_events', 'follow_ups', 'target_company_met',
+  'contact_events', 'follow_ups', 'target_company_met', 'contact_documents',
 ]);
 
 // Tables with a deleted_at column — `deleted_at IS NULL` is always injected so the

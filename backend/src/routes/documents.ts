@@ -1,8 +1,20 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { AIService } from '../config/ai';
+import multer from 'multer';
+import { randomUUID } from 'crypto';
+import { supabase as supabaseAdmin } from '../config/supabase';
+import {
+  checkScopedRateLimit, DOC_UPLOAD_SCOPE, DOC_UPLOAD_MAX, DOC_UPLOAD_WINDOW_MS,
+} from '../utils/rateLimit';
 
 const router = Router();
+
+// Passive file vault for documents a contact shared. NO AI: files are stored
+// as-is in the private `contact-documents` bucket; no extraction/embeddings/
+// summaries. Uploads go through the backend (multipart -> service-role storage
+// write -> RLS-checked row insert), mirroring chat-attachments/contact-cards.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const DOC_BUCKET = 'contact-documents';
 
 async function ownsContact(db: SupabaseClient, userId: string, contactId: string): Promise<boolean> {
   const { data } = await db
@@ -15,70 +27,84 @@ async function ownsContact(db: SupabaseClient, userId: string, contactId: string
   return data !== null;
 }
 
-router.post('/', async (req, res, next) => {
+// POST /api/documents  (multipart/form-data: file + contact_id + optional description)
+router.post('/', upload.single('file'), async (req, res) => {
   try {
-    const supabase = req.supabase!;
-    const { contact_id, name, file_url, description } = req.body;
+    const supabase = req.supabase!;          // user client (RLS) for the DB row
+    const userId = req.user!.id;
+    const { contact_id, description } = req.body;
 
-    if (contact_id && !(await ownsContact(supabase, req.user!.id, contact_id))) {
+    if (!contact_id) return res.status(400).json({ error: 'contact_id required' });
+    if (!req.file) return res.status(400).json({ error: 'Missing file' });
+
+    // Ownership (defense-in-depth; RLS also enforces on the insert below).
+    if (!(await ownsContact(supabase, userId, contact_id))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Save document record
-    const { data: doc, error } = await supabase
-      .from('contact_documents')
-      .insert({
-        contact_id,
-        name,
-        file_url,
-        description,
-        file_type: 'pdf'
-      })
-      .select()
-      .single();
+    // Rate limit — each upload is a storage write.
+    const rate = await checkScopedRateLimit(userId, DOC_UPLOAD_SCOPE, DOC_UPLOAD_MAX, DOC_UPLOAD_WINDOW_MS);
+    if (!rate.ok) {
+      res.setHeader('Retry-After', String(rate.retryAfterSeconds));
+      return res.status(429).json({ error: 'Too many uploads. Please retry shortly.' });
+    }
+
+    // Server-generated path (NEVER client-controlled). Only a safe extension is
+    // carried over from the client filename; the rest is a random UUID.
+    const original = req.file.originalname || 'file';
+    const ext = (() => {
+      const idx = original.lastIndexOf('.');
+      if (idx === -1) return '';
+      const e = original.slice(idx).toLowerCase();
+      return /^[.][a-z0-9]{1,10}$/.test(e) ? e : '';
+    })();
+    const storage_path = `${userId}/${contact_id}/${randomUUID()}${ext}`;
+
+    // Store via service role (private bucket).
+    const { error: upErr } = await supabaseAdmin.storage.from(DOC_BUCKET)
+      .upload(storage_path, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
+    if (upErr) return res.status(500).json({ error: upErr.message });
+
+    // Signed URL for immediate display (1h; re-signed on every list).
+    const { data: signed } = await supabaseAdmin.storage.from(DOC_BUCKET).createSignedUrl(storage_path, 60 * 60);
+
+    // Insert row via user client (RLS-checked). user_id stamped server-side only.
+    const { data: doc, error } = await supabase.from('contact_documents').insert({
+      contact_id,
+      user_id: userId,
+      name: original,
+      description: description ?? null,
+      file_url: signed?.signedUrl ?? '',
+      file_type: ext.replace('.', ''),
+      file_size: req.file.size,
+      bucket: DOC_BUCKET,
+      storage_path,
+    }).select('*').single();
 
     if (error) {
+      // Best-effort rollback of the stored object so we don't orphan it.
+      await supabaseAdmin.storage.from(DOC_BUCKET).remove([storage_path]);
       console.error('Doc save error:', error);
       return res.status(500).json({ error: 'Failed to save document' });
     }
 
-    // Generate summary (simplified)
-    const summary = `Document: ${name}`;
+    // No interaction logging: a passive file vault upload is not a contact
+    // interaction (the old stub logged one; that behavior is intentionally gone).
 
-    // Update doc with summary
-    await supabase
-      .from('contact_documents')
-      .update({ summary })
-      .eq('id', doc.id);
-
-    // Log interaction
-    await supabase.from('interactions').insert({
-      contact_id,
-      interaction_type: 'document_upload',
-      summary: `Shared Document: ${name}`,
-      details: {
-        document_id: doc.id,
-        file_url
-      },
-      user_id: req.user!.id,
-    });
-
-    res.json({ success: true, document: { ...doc, summary } });
+    res.json({ success: true, document: doc });
   } catch (error) {
-    console.error('Documents API error:', error);
+    console.error('Documents upload error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/', async (req, res, next) => {
+// GET /api/documents?contact_id=...  — list + re-sign each row's storage URL.
+router.get('/', async (req, res) => {
   try {
     const supabase = req.supabase!;
     const { contact_id } = req.query;
 
-    if (!contact_id) {
-      return res.status(400).json({ error: 'Contact ID required' });
-    }
-
+    if (!contact_id) return res.status(400).json({ error: 'Contact ID required' });
     if (!(await ownsContact(supabase, req.user!.id, contact_id as string))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
@@ -89,61 +115,50 @@ router.get('/', async (req, res, next) => {
       .eq('contact_id', contact_id)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      return res.status(500).json({ error: 'Failed to fetch' });
-    }
+    if (error) return res.status(500).json({ error: 'Failed to fetch' });
 
-    res.json({ documents });
+    // Signed URLs expire (1h), so re-sign from the durable storage pointer.
+    const withUrls = await Promise.all((documents ?? []).map(async (d) => {
+      if (!d.storage_path || !d.bucket) return d;  // defensive; post-migration all have it
+      const { data: s } = await supabaseAdmin.storage.from(d.bucket).createSignedUrl(d.storage_path, 60 * 60);
+      return { ...d, file_url: s?.signedUrl ?? d.file_url };
+    }));
+
+    res.json({ documents: withUrls });
   } catch (error) {
+    console.error('Documents list error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /api/documents/summarize
-router.post('/summarize', async (req, res, next) => {
+// DELETE /api/documents/:id — remove the row + its stored object.
+router.delete('/:id', async (req, res) => {
   try {
     const supabase = req.supabase!;
-    const { document_id, content } = req.body;
 
-    if (!content) {
-      return res.status(400).json({ error: 'Content required' });
+    const { data: doc } = await supabase
+      .from('contact_documents')
+      .select('id, contact_id, bucket, storage_path')
+      .eq('id', req.params.id)
+      .maybeSingle();
+
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+    if (!(await ownsContact(supabase, req.user!.id, doc.contact_id))) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Verify ownership when a document_id is provided.
-    if (document_id) {
-      const { data: doc } = await supabase
-        .from('contact_documents')
-        .select('contact_id')
-        .eq('id', document_id)
-        .maybeSingle();
-
-      if (!doc) {
-        return res.status(404).json({ error: 'Document not found' });
-      }
-
-      if (doc.contact_id && !(await ownsContact(supabase, req.user!.id, doc.contact_id))) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
+    if (doc.storage_path && doc.bucket) {
+      await supabaseAdmin.storage.from(doc.bucket).remove([doc.storage_path]); // best-effort
     }
 
-    const prompt = `Summarize this document in 2-3 sentences:\n\n${content}`;
+    // RLS-scoped delete; also already ownership-checked above (doubly safe).
+    const { error } = await supabase.from('contact_documents').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: 'Failed to delete' });
 
-    const summary = await AIService.generateCompletion([
-      { role: 'system', content: 'You are a document summarization assistant.' },
-      { role: 'user', content: prompt }
-    ]);
-
-    if (document_id) {
-      await supabase
-        .from('contact_documents')
-        .update({ summary })
-        .eq('id', document_id);
-    }
-
-    res.json({ success: true, summary });
+    res.json({ success: true });
   } catch (error) {
-    console.error('Summarize error:', error);
-    res.status(500).json({ error: 'Failed to summarize document' });
+    console.error('Documents delete error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
