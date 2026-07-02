@@ -1,1913 +1,2530 @@
-import 'dart:async';
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../utils/screen_logger.dart';
 
-// ─── Glass Cockpit palette (DESIGN.md, true-black dark) ───────────────────────
-const _bg    = Color(0xFF000000);   // true-black canvas (instrument panel at night)
-const _card  = Color(0xFF0B1422);   // panel surface
-const _card2 = Color(0xFF0F1B2E);   // surface alt / raised
-const _bdr   = Color(0xFF1C2F4A);   // hairline border
-const _bdrSt = Color(0xFF283F62);   // hairline border strong
-const _text  = Color(0xFFF0F6FF);   // readout ink
-const _sub   = Color(0xFFB5C6E4);   // readout secondary
-const _muted = Color(0xFF7A90B5);   // readout muted (WCAG AA on dark surfaces)
-const _blue  = Color(0xFF2B8BFF);   // Trust Blue (dark)
-const _blueSt = Color(0xFF0672EF);  // Trust Blue strong
-const _blueT = Color(0x262B8BFF);   // Trust Blue 15 % tint
-const _blueDp = Color(0xFF071C3A);  // accent glow dark (featured surface)
+// ═════════════════════════════════════════════════════════════════════════════
+// Fora landing page replica — rebuilt in Flutter from the Framer export.
+// Design tokens (colors, fonts, copy, layout) extracted from the published
+// HTML: Inter + Fragment Mono, true-black canvas, and the signature hero
+// radial gradient  #1b2228 → #353f44 → #d39794.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─── Palette (Framer tokens) ─────────────────────────────────────────────────
+const _black = Color(0xFF000000); // page canvas
 const _white = Color(0xFFFFFFFF);
-const _amber = Color(0xFFF59E0B);   // functional: testimonial stars only
-const _green = Color(0xFF5DC89A);   // functional: live / success only
+const _w80 = Color(0xCCFFFFFF); //  #fffc      — primary body text
+const _w65 = Color(0xA6FFFFFF); //  #ffffffa6  — secondary text
+const _w40 = Color(0x66FFFFFF); //              — muted text
+const _w25 = Color(0x40FFFFFF); //  #ffffff40  — faint text / strokes
+const _w10 = Color(0x1AFFFFFF); //  #ffffff1a  — hairline borders
+const _w06 = Color(0x0FFFFFFF); //              — faint borders
+const _w05 = Color(0x0DFFFFFF); //  rgba(255,255,255,.05) — card surfaces
+const _ink = Color(0xFF1B2228); //  hero gradient start
+const _slate = Color(0xFF353F44); // hero gradient mid
+const _salmon = Color(0xFFD39794); // hero gradient end / accent
+const _teal = Color(0xFF177275); //  brand accent
+const _cream = Color(0xFFFFF3F0); // warm light accent
+const _panel = Color(0xFF0F0F0F); // app-mockup surface
 
-// ─── Typography: single Inter family, weight-size hierarchy (DESIGN.md §3) ───
-TextStyle _d(double sz, {FontWeight w = FontWeight.w700, Color c = _text}) =>
-    GoogleFonts.inter(fontSize: sz, fontWeight: w, color: c,
-        letterSpacing: -(sz * 0.022), height: 1.08);
+// ─── Typography ──────────────────────────────────────────────────────────────
+TextStyle _t(double size,
+        {FontWeight w = FontWeight.w400, Color c = _white, double? h, double? ls}) =>
+    GoogleFonts.inter(
+        fontSize: size, fontWeight: w, color: c, height: h, letterSpacing: ls);
 
-TextStyle _b(double sz, {Color c = _sub, FontWeight w = FontWeight.w400}) =>
-    GoogleFonts.inter(fontSize: sz, fontWeight: w, color: c, height: 1.6);
+TextStyle _mono(double size, {Color c = _cream, double ls = 1.6}) =>
+    GoogleFonts.fragmentMono(fontSize: size, color: c, letterSpacing: ls);
 
-// Label role: bold small-caps, 0.8px tracking, the one "loud at small size" move.
-TextStyle _mono(double sz, {Color c = _muted}) =>
-    GoogleFonts.inter(fontSize: sz, fontWeight: FontWeight.w800, color: c,
-        letterSpacing: 0.8);
+TextStyle _display(double size, {Color c = _white}) =>
+    _t(size, w: FontWeight.w600, c: c, h: 1.08, ls: size * -0.03);
 
-// Honor prefers-reduced-motion (Section 6.B, mandatory above MOTION_INTENSITY 3).
-bool _reduceMotion(BuildContext context) =>
-    MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+const double _kMaxW = 1200;
 
-// ─── Max-width wrapper ────────────────────────────────────────────────────────
-class _W extends StatelessWidget {
+bool _mob(BuildContext context) => MediaQuery.sizeOf(context).width < 760;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Shared primitives
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Centers content at the page max-width with horizontal gutters.
+class _Section extends StatelessWidget {
+  const _Section({required this.child, this.maxWidth = _kMaxW});
   final Widget child;
-  final double max;
-  const _W({required this.child, this.max = 1100});
+  final double maxWidth;
+
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 900;
     return Center(
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: max),
-        child: Padding(padding: EdgeInsets.symmetric(horizontal: wide ? 48 : 20), child: child),
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: _mob(context) ? 20 : 32),
+          child: child,
+        ),
       ),
     );
   }
 }
 
-// ─── Scroll-reveal (fade + directional slide) ─────────────────────────────────
+/// Hover-state builder (web/desktop) — powers the Framer-like hover polish.
+class _Hover extends StatefulWidget {
+  const _Hover({required this.builder});
+  final Widget Function(BuildContext context, bool hovered) builder;
+
+  @override
+  State<_Hover> createState() => _HoverState();
+}
+
+class _HoverState extends State<_Hover> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: widget.builder(context, _hovered),
+    );
+  }
+}
+
+/// Scroll-triggered entrance: fade + rise, once, like Framer's appear effects.
 class _Reveal extends StatefulWidget {
-  final Widget child;
+  const _Reveal({required this.sc, required this.child, this.delayMs = 0});
   final ScrollController sc;
-  final Duration delay;
-  final double dy;
-  final double dx;
-  const _Reveal({required this.child, required this.sc,
-      this.delay = Duration.zero, this.dy = 0.06, this.dx = 0});
+  final Widget child;
+  final int delayMs;
+
   @override
   State<_Reveal> createState() => _RevealState();
 }
 
 class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-  late final Animation<double> _op;
-  late final Animation<Offset> _sl;
-  bool _done = false;
+  late final AnimationController _ac = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 750));
+  late final Animation<double> _anim =
+      CurvedAnimation(parent: _ac, curve: Curves.easeOutCubic);
+  bool _shown = false;
 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 650));
-    _op = CurvedAnimation(parent: _c, curve: Curves.easeOut);
-    _sl = Tween(begin: Offset(widget.dx, widget.dy), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
     widget.sc.addListener(_check);
     WidgetsBinding.instance.addPostFrameCallback((_) => _check());
   }
 
   void _check() {
-    if (_done || !mounted) return;
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached) return;
-    if (box.localToGlobal(Offset.zero).dy < MediaQuery.of(context).size.height * 0.94) {
-      _done = true;
-      if (_reduceMotion(context)) { _c.value = 1.0; return; }
-      Future.delayed(widget.delay, () { if (mounted) _c.forward(); });
+    if (_shown || !mounted) {
+      return;
+    }
+    final ro = context.findRenderObject();
+    if (ro is! RenderBox || !ro.attached || !ro.hasSize) {
+      return;
+    }
+    final top = ro.localToGlobal(Offset.zero).dy;
+    final vh = MediaQuery.sizeOf(context).height;
+    if (top < vh * 0.92) {
+      _shown = true;
+      widget.sc.removeListener(_check);
+      Future.delayed(Duration(milliseconds: widget.delayMs), () {
+        if (mounted) {
+          _ac.forward();
+        }
+      });
     }
   }
 
   @override
-  void dispose() { widget.sc.removeListener(_check); _c.dispose(); super.dispose(); }
+  void dispose() {
+    widget.sc.removeListener(_check);
+    _ac.dispose();
+    super.dispose();
+  }
 
   @override
-  Widget build(BuildContext context) =>
-      FadeTransition(opacity: _op, child: SlideTransition(position: _sl, child: widget.child));
-}
-
-// ─── Hover-lift card ──────────────────────────────────────────────────────────
-class _Hover extends StatefulWidget {
-  final Widget child;
-  const _Hover({required this.child});
-  @override
-  State<_Hover> createState() => _HoverState();
-}
-
-class _HoverState extends State<_Hover> with ScreenLogger {
-  bool _h = false;
-  @override
-  Widget build(BuildContext context) => MouseRegion(
-    onEnter: (_) => setState(() => _h = true),
-    onExit: (_) => setState(() => _h = false),
-    child: TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: _h ? -4.0 : 0),
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOutCubic,
-      builder: (_, v, child) => Transform.translate(offset: Offset(0, v), child: child),
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, child) {
+        final v = _anim.value;
+        return Opacity(
+          opacity: v,
+          child: Transform.translate(offset: Offset(0, 28 * (1 - v)), child: child),
+        );
+      },
       child: widget.child,
-    ),
-  );
-}
-
-// ─── Shared button components ─────────────────────────────────────────────────
-class _Btn extends StatefulWidget {
-  final String label;
-  final VoidCallback onTap;
-  final bool primary;
-  final bool small;
-  const _Btn(this.label, this.onTap, {this.primary = true, this.small = false});
-  @override
-  State<_Btn> createState() => _BtnState();
-}
-
-class _BtnState extends State<_Btn> {
-  bool _h = false;
-  @override
-  Widget build(BuildContext context) => MouseRegion(
-    cursor: SystemMouseCursors.click,
-    onEnter: (_) => setState(() => _h = true),
-    onExit: (_) => setState(() => _h = false),
-    child: GestureDetector(
-      onTap: widget.onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: EdgeInsets.symmetric(
-            horizontal: widget.small ? 18 : 26, vertical: widget.small ? 10 : 14),
-        decoration: BoxDecoration(
-          color: widget.primary
-              ? (_h ? _blueSt : _blue)
-              : (_h ? _card2 : Colors.transparent),
-          borderRadius: BorderRadius.circular(999),
-          border: widget.primary ? null : Border.all(color: _bdrSt),
-        ),
-        child: Text(widget.label,
-            style: GoogleFonts.inter(
-                fontSize: widget.small ? 13 : 15,
-                fontWeight: FontWeight.w600,
-                color: widget.primary ? _white : _blue,
-                letterSpacing: -0.1)),
-      ),
-    ),
-  );
-}
-
-// ─── Logo mark ────────────────────────────────────────────────────────────────
-class _Logo extends StatelessWidget {
-  final double size;
-  const _Logo({this.size = 28});
-  @override
-  Widget build(BuildContext context) {
-    final sq = size * 0.52;
-    final dot = size * 0.18;
-    return SizedBox(width: size, height: size,
-      child: Stack(alignment: Alignment.center, children: [
-        Transform.rotate(angle: 0.785398,
-          child: Container(width: sq, height: sq,
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(sq * 0.1),
-              border: Border.all(color: _blue.withValues(alpha: 0.30), width: 1.5)))),
-        Transform.rotate(angle: -0.785398,
-          child: Container(width: sq, height: sq,
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(sq * 0.1),
-              border: Border.all(color: _blue.withValues(alpha: 0.75), width: 1.5)))),
-        Container(width: dot, height: dot,
-          decoration: BoxDecoration(color: _blue, shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: _blue.withValues(alpha: 0.50), blurRadius: 10)])),
-      ]),
     );
   }
 }
 
-// ─── Chip label: squared 4px, bold small-caps (DESIGN.md AppChip) ────────────
-class _Chip extends StatelessWidget {
+enum _BtnKind { filled, outline, ghost }
+
+/// Rounded-pill button (radius 100px in the source).
+class _PillButton extends StatelessWidget {
+  const _PillButton({
+    required this.label,
+    required this.onTap,
+    this.kind = _BtnKind.filled,
+    this.big = false,
+  });
+  final String label;
+  final VoidCallback onTap;
+  final _BtnKind kind;
+  final bool big;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Hover(
+      builder: (context, hovered) {
+        Color bg;
+        Color fg;
+        Border? border;
+        switch (kind) {
+          case _BtnKind.filled:
+            bg = hovered ? _cream : _white;
+            fg = _black;
+            border = null;
+          case _BtnKind.outline:
+            bg = hovered ? _w10 : _w05;
+            fg = _white;
+            border = Border.all(color: _w10);
+          case _BtnKind.ghost:
+            bg = hovered ? _w05 : const Color(0x00000000);
+            fg = hovered ? _white : _w80;
+            border = null;
+        }
+        return GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.symmetric(
+                horizontal: big ? 28 : 18, vertical: big ? 15 : 10),
+            decoration: BoxDecoration(
+              color: bg,
+              border: border,
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(label,
+                style: _t(big ? 16 : 14, w: FontWeight.w600, c: fg, ls: -0.2)),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Small mono uppercase section tag chip (Fragment Mono).
+class _Tag extends StatelessWidget {
+  const _Tag(this.text);
   final String text;
-  const _Chip(this.text);
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color: _blueT,
-      borderRadius: BorderRadius.circular(4),
-      border: Border.all(color: _blue.withValues(alpha: 0.30)),
-    ),
-    child: Text(text.toUpperCase(), style: _mono(10, c: _blue.withValues(alpha: 0.90))),
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// NAV
-// ═══════════════════════════════════════════════════════════════════════════════
-class _Nav extends StatelessWidget {
-  final VoidCallback onLogin;
-  final VoidCallback onCta;
-  final VoidCallback onFeatures;
-  final VoidCallback onHowItWorks;
-  final VoidCallback onPricing;
-  const _Nav({required this.onLogin, required this.onCta,
-      required this.onFeatures, required this.onHowItWorks, required this.onPricing});
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 768;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 68,
-          decoration: BoxDecoration(
-            color: _bg.withValues(alpha: 0.85),
-            border: Border(bottom: BorderSide(color: _bdr)),
-          ),
-          child: _W(child: Row(children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              const _Logo(size: 24),
-              const SizedBox(width: 9),
-              Text('Exono', style: GoogleFonts.inter(
-                  fontSize: 19, fontWeight: FontWeight.w800, color: _text, letterSpacing: -0.4)),
-            ]),
-            if (wide) ...[
-              const SizedBox(width: 40),
-              _NL('Features', onFeatures),
-              const SizedBox(width: 28),
-              _NL('How it works', onHowItWorks),
-              const SizedBox(width: 28),
-              _NL('Pricing', onPricing),
-            ],
-            const Spacer(),
-            if (wide) ...[
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(onTap: onLogin,
-                    child: Text('Log in', style: _b(14, c: _sub, w: FontWeight.w500))),
-              ),
-              const SizedBox(width: 12),
-            ],
-            _Btn('Get started', onCta, small: true),
-          ])),
-        ),
-      ),
-    );
-  }
-}
-
-class _NL extends StatefulWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _NL(this.label, this.onTap);
-  @override
-  State<_NL> createState() => _NLState();
-}
-
-class _NLState extends State<_NL> {
-  bool _h = false;
-  @override
-  Widget build(BuildContext context) => MouseRegion(
-    cursor: SystemMouseCursors.click,
-    onEnter: (_) => setState(() => _h = true),
-    onExit: (_) => setState(() => _h = false),
-    child: GestureDetector(onTap: widget.onTap,
-        child: AnimatedDefaultTextStyle(
-          duration: const Duration(milliseconds: 120),
-          style: _b(14, c: _h ? _white : _sub, w: FontWeight.w500),
-          child: Text(widget.label))),
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// HERO
-// ═══════════════════════════════════════════════════════════════════════════════
-class _Hero extends StatefulWidget {
-  final VoidCallback onCta;
-  final VoidCallback onDemo;
-  final ScrollController sc;
-  const _Hero({required this.onCta, required this.onDemo, required this.sc});
-  @override
-  State<_Hero> createState() => _HeroState();
-}
-
-class _HeroState extends State<_Hero> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-  late final List<Animation<double>> _fades;
-  late final List<Animation<Offset>> _slides;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
-    _fades = List.generate(5, (i) => CurvedAnimation(parent: _c,
-        curve: Interval(i * 0.12, (i * 0.12 + 0.50).clamp(0.0, 1.0), curve: Curves.easeOut)));
-    _slides = List.generate(5, (i) =>
-        Tween(begin: const Offset(0, 0.05), end: Offset.zero).animate(CurvedAnimation(
-            parent: _c, curve: Interval(i * 0.12, (i * 0.12 + 0.55).clamp(0.0, 1.0), curve: Curves.easeOutCubic))));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_reduceMotion(context)) { _c.value = 1.0; } else { _c.forward(); }
-    });
-  }
-
-  @override
-  void dispose() { _c.dispose(); super.dispose(); }
-
-  Widget _a(int i, Widget child) => FadeTransition(opacity: _fades[i],
-      child: SlideTransition(position: _slides[i], child: child));
-
-  @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 768;
-    final h1 = wide ? 72.0 : 48.0;
     return Container(
-      color: _bg,
-      padding: EdgeInsets.only(top: wide ? 100 : 72, bottom: wide ? 72 : 56),
-      child: _W(max: 860,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          _a(0, const _Chip('Exhibition CRM · Capture · Follow up')),
-          SizedBox(height: wide ? 28 : 20),
-          _a(1, Text('Never forget\nwho you met.',
-              textAlign: TextAlign.center,
-              style: _d(h1, w: FontWeight.w900))),
-          const SizedBox(height: 20),
-          _a(2, ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Text(
-              'Scan any badge in seconds, add a voice memo, and let Exono follow up for you before the flight home.',
-              textAlign: TextAlign.center,
-              style: _b(17, c: _sub),
-            ),
-          )),
-          const SizedBox(height: 36),
-          _a(3, Wrap(spacing: 12, runSpacing: 12, alignment: WrapAlignment.center, children: [
-            _Btn('Get started free', widget.onCta),
-            _Btn('See how it works', widget.onDemo, primary: false),
-          ])),
-          SizedBox(height: wide ? 64 : 48),
-          _a(4, _AppWindow()),
-        ]),
-      ),
-    );
-  }
-}
-
-// ─── App window mockup ────────────────────────────────────────────────────────
-class _AppWindow extends StatefulWidget {
-  const _AppWindow();
-  @override
-  State<_AppWindow> createState() => _AppWindowState();
-}
-
-class _AppWindowState extends State<_AppWindow> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-  int _activeNav = 1; // 0=Home, 1=Leads, 2=Contacts...
-
-  static const _navItems = [
-    (Icons.home_outlined, 'Home', null),
-    (Icons.person_search_outlined, 'Leads', '14'),
-    (Icons.people_outline, 'Contacts', null),
-    (Icons.event_outlined, 'Events', null),
-    (Icons.send_outlined, 'Follow-ups', '3'),
-    (Icons.bar_chart_rounded, 'Analytics', null),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_reduceMotion(context)) _pulse.repeat();
-    });
-  }
-
-  @override
-  void dispose() { _pulse.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 700;
-    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: _card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _bdr),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 80, offset: const Offset(0, 32)),
-          BoxShadow(color: _blue.withValues(alpha: 0.06), blurRadius: 60, offset: const Offset(0, 20)),
-        ],
+        color: _w05,
+        border: Border.all(color: _w10),
+        borderRadius: BorderRadius.circular(100),
       ),
-      child: Column(children: [
-        // ── Browser chrome ─────────────────────────────────────────────────
-        Container(
-          height: 42,
-          decoration: BoxDecoration(
-            color: _bg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            border: Border(bottom: BorderSide(color: _bdr)),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(children: [
-            for (final c in [const Color(0xFFFF5F57), const Color(0xFFFFBD2E), const Color(0xFF28CA41)])
-              Container(width: 10, height: 10, margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(color: c.withValues(alpha: 0.8), shape: BoxShape.circle)),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: _bdr)),
-              child: Text('app.exono.ai', style: _mono(10, c: _muted)),
-            ),
-            const Spacer(),
-          ]),
-        ),
-        // ── App shell ──────────────────────────────────────────────────────
-        SizedBox(
-          height: wide ? 380 : 420,
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            if (wide) _Sidebar(_navItems, _activeNav, (i) => setState(() => _activeNav = i)),
-            Expanded(child: _MainPane(_pulse, _activeNav)),
-          ]),
-        ),
-      ]),
+      child: Text(text.toUpperCase(), style: _mono(11, c: _salmon)),
     );
   }
 }
 
-class _Sidebar extends StatelessWidget {
-  final List<(IconData, String, String?)> items;
-  final int active;
-  final ValueChanged<int> onTap;
-  const _Sidebar(this.items, this.active, this.onTap);
+/// Continuously drifting linear gradient — mirrors the "animated gradient"
+/// community hero banner in the product mockups.
+class _AnimatedGradient extends StatefulWidget {
+  const _AnimatedGradient({this.height, this.radius = 14});
+  final double? height;
+  final double radius;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: 172,
-    decoration: BoxDecoration(
-      color: _bg,
-      border: Border(right: BorderSide(color: _bdr)),
-      borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(16)),
-    ),
-    padding: const EdgeInsets.symmetric(vertical: 16),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(children: [
-          const _Logo(size: 18),
-          const SizedBox(width: 7),
-          Text('Exono', style: GoogleFonts.inter(
-              fontSize: 14, fontWeight: FontWeight.w800, color: _text, letterSpacing: -0.3)),
-        ]),
-      ),
-      const SizedBox(height: 8),
-      ...List.generate(items.length, (i) {
-        final (icon, label, badge) = items[i];
-        final sel = i == active;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: () => onTap(i),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: sel ? _blueT : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(children: [
-                Icon(icon, size: 15, color: sel ? _blue : _muted),
-                const SizedBox(width: 8),
-                Expanded(child: Text(label,
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500,
-                        color: sel ? _blue : _sub))),
-                if (badge != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(4)),
-                    child: Text(badge, style: _mono(9, c: _white)),
-                  ),
-              ]),
+  State<_AnimatedGradient> createState() => _AnimatedGradientState();
+}
+
+class _AnimatedGradientState extends State<_AnimatedGradient>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ac = AnimationController(
+      vsync: this, duration: const Duration(seconds: 5))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ac.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ac,
+      builder: (context, _) {
+        final t = Curves.easeInOut.transform(_ac.value);
+        return Container(
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.radius),
+            gradient: LinearGradient(
+              begin: Alignment.lerp(
+                  const Alignment(-1.4, -1.0), const Alignment(-0.3, -1.0), t)!,
+              end: Alignment.lerp(
+                  const Alignment(1.0, 1.4), const Alignment(0.3, 1.0), t)!,
+              colors: const [_teal, _slate, _salmon],
             ),
           ),
         );
-      }),
-    ]),
-  );
-}
-
-class _MainPane extends StatelessWidget {
-  final AnimationController pulse;
-  final int activeNav;
-  const _MainPane(this.pulse, this.activeNav);
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Header row
-      Row(children: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('DevWorld 2025 · Hall B',
-              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
-          Text('Day 2 of 3 · Stand 214',
-              style: _b(12, c: _muted)),
-        ]),
-        const Spacer(),
-        AnimatedBuilder(
-          animation: pulse,
-          builder: (_, _) => SizedBox(
-            width: 14, height: 14,
-            child: Stack(alignment: Alignment.center, children: [
-              Transform.scale(
-                scale: 1 + pulse.value * 1.8,
-                child: Container(
-                  width: 8, height: 8,
-                  decoration: BoxDecoration(
-                      color: _green.withValues(alpha: (1 - pulse.value) * 0.5),
-                      shape: BoxShape.circle),
-                ),
-              ),
-              Container(width: 6, height: 6,
-                  decoration: const BoxDecoration(color: _green, shape: BoxShape.circle)),
-            ]),
-          ),
-        ),
-        const SizedBox(width: 5),
-        Text('LIVE', style: _mono(9, c: _green.withValues(alpha: 0.7))),
-      ]),
-      const SizedBox(height: 14),
-      // Quick stats
-      Row(children: [
-        _MiniStat('14', 'leads today'),
-        const SizedBox(width: 8),
-        _MiniStat('3', 'follow-ups due'),
-        const SizedBox(width: 8),
-        _MiniStat('92%', 'capture rate'),
-      ]),
-      const SizedBox(height: 14),
-      // Lead entries
-      Expanded(
-        child: Column(children: [
-          _WinLead('SM', 'Sarah Mitchell', 'Head of Engineering · Stripe',
-              '2m ago', 'Hot', const Color(0xFF16A34A), const Color(0xFF166534)),
-          const SizedBox(height: 8),
-          _WinLead('MW', 'Marcus Webb', 'VP Sales · Notion',
-              '18m ago', 'Warm', const Color(0xFFD97706), const Color(0xFF92400E)),
-          const SizedBox(height: 8),
-          _WinLead('PA', 'Priya Agarwal', 'CTO · Figma',
-              '1h ago', 'Warm', _blue, _blueDp),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      // Scan button
-      Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(8)),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.qr_code_scanner_rounded, color: _white, size: 14),
-          const SizedBox(width: 7),
-          Text('Scan new lead', style: GoogleFonts.inter(
-              fontSize: 13, fontWeight: FontWeight.w600, color: _white)),
-        ]),
-      ),
-    ]),
-  );
-}
-
-class _MiniStat extends StatelessWidget {
-  final String value;
-  final String label;
-  const _MiniStat(this.value, this.label);
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(color: _card2, borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: _bdr)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(value, style: GoogleFonts.inter(
-          fontSize: 15, fontWeight: FontWeight.w800, color: _blue, height: 1)),
-      Text(label, style: _mono(9, c: _muted)),
-    ]),
-  );
-}
-
-class _WinLead extends StatelessWidget {
-  final String initials;
-  final String name;
-  final String role;
-  final String time;
-  final String tag;
-  final Color tagFg;
-  final Color tagBg;
-  const _WinLead(this.initials, this.name, this.role, this.time, this.tag, this.tagFg, this.tagBg);
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(color: _card2, borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _bdr)),
-    child: Row(children: [
-      Container(
-        width: 30, height: 30,
-        decoration: BoxDecoration(color: tagBg, borderRadius: BorderRadius.circular(7)),
-        alignment: Alignment.center,
-        child: Text(initials, style: GoogleFonts.inter(
-            fontSize: 10, fontWeight: FontWeight.w700, color: tagFg.withValues(alpha: 0.90))),
-      ),
-      const SizedBox(width: 10),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(name, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
-        Text(role, style: _b(11, c: _muted), overflow: TextOverflow.ellipsis),
-      ])),
-      const SizedBox(width: 8),
-      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text(time, style: _mono(9, c: _muted)),
-        const SizedBox(height: 3),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-          decoration: BoxDecoration(
-              color: tagFg.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-          child: Text(tag, style: _mono(9, c: tagFg.withValues(alpha: 0.85))),
-        ),
-      ]),
-    ]),
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EVENT TICKER MARQUEE
-// ═══════════════════════════════════════════════════════════════════════════════
-class _Marquee extends StatefulWidget {
-  const _Marquee();
-  @override
-  State<_Marquee> createState() => _MarqueeState();
-}
-
-class _MarqueeState extends State<_Marquee> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-
-  static const _events = [
-    'SaaStr Annual · San Francisco',
-    'DevWorld 2025 · Berlin',
-    'Money20/20 · Amsterdam',
-    'Web Summit · Lisbon',
-    'TechExpo APAC · Singapore',
-    'CES 2026 · Las Vegas',
-    'Dreamforce · San Francisco',
-    'Slush · Helsinki',
-    'TNW Conference · Amsterdam',
-    'GITEX Global · Dubai',
-  ];
-
-  static const _itemW = 248.0;
-  static const _totalW = 2480.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 55000));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_reduceMotion(context)) _c.repeat();
-    });
-  }
-
-  @override
-  void dispose() { _c.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) => Container(
-    color: _card,
-    child: Column(children: [
-      Container(height: 1, color: _bdr),
-      const SizedBox(height: 16),
-      ClipRect(
-        child: AnimatedBuilder(
-          animation: _c,
-          builder: (_, _) => Transform.translate(
-            offset: Offset(-_c.value * _totalW, 0),
-            child: Row(children: [
-              ..._events.map((e) => _TickerChip(e)),
-              ..._events.map((e) => _TickerChip(e)),
-            ]),
-          ),
-        ),
-      ),
-      const SizedBox(height: 16),
-      Container(height: 1, color: _bdr),
-    ]),
-  );
-}
-
-class _TickerChip extends StatelessWidget {
-  final String text;
-  const _TickerChip(this.text);
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: _MarqueeState._itemW,
-    child: Row(children: [
-      Container(width: 4, height: 4,
-          decoration: BoxDecoration(color: _blue.withValues(alpha: 0.4), shape: BoxShape.circle)),
-      const SizedBox(width: 10),
-      Expanded(child: Text(text, style: _b(13, c: _muted, w: FontWeight.w500),
-          overflow: TextOverflow.ellipsis)),
-      const SizedBox(width: 12),
-    ]),
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PHILOSOPHY / INTRO
-// ═══════════════════════════════════════════════════════════════════════════════
-class _Philosophy extends StatelessWidget {
-  final ScrollController sc;
-  const _Philosophy({required this.sc});
-  @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 768;
-    return Container(
-      color: _bg,
-      padding: EdgeInsets.symmetric(vertical: wide ? 96 : 72),
-      child: _W(max: 760,
-        child: _Reveal(sc: sc,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Text(
-              '"Every deal starts with a conversation on the exhibition floor. Most of them die on the plane home, buried under 80 business cards, half-remembered names, and follow-up emails that never get sent."',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                  fontSize: wide ? 24 : 19, fontWeight: FontWeight.w500,
-                  color: _text, height: 1.55, letterSpacing: -0.5),
-            ),
-            const SizedBox(height: 36),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                  color: _card, borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _bdr)),
-              child: Text(
-                'Exono exists to close that gap. One tool, built for the field.',
-                textAlign: TextAlign.center,
-                style: _b(15, c: _sub, w: FontWeight.w500),
-              ),
-            ),
-          ]),
-        ),
-      ),
+      },
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// FEATURES: tab switcher
-// ═══════════════════════════════════════════════════════════════════════════════
-class _Features extends StatefulWidget {
-  final GlobalKey sectionKey;
-  final ScrollController sc;
-  const _Features({required this.sectionKey, required this.sc});
-  @override
-  State<_Features> createState() => _FeaturesState();
-}
+// ═════════════════════════════════════════════════════════════════════════════
+// App mockup — the "Strong By Ava" community preview used in hero + final CTA
+// ═════════════════════════════════════════════════════════════════════════════
 
-class _FeaturesState extends State<_Features> {
-  int _active = 0;
-  Timer? _timer;
+class _AppMockup extends StatelessWidget {
+  const _AppMockup();
 
-  static const _tabs = [
-    _FTab('01', 'Instant capture',
-        'Point at any badge, QR code, or business card. Read in under three seconds. Works offline on the exhibition floor.',
-        Icons.document_scanner_outlined),
-    _FTab('02', 'Voice memory',
-        'Speak your notes right after meeting someone. "Interested in our enterprise tier, follow up Q1, mention the Amsterdam event." Exono transcribes and structures it.',
-        Icons.mic_none_rounded),
-    _FTab('03', 'Auto-enrichment',
-        'Exono pulls company news, role history, and funding context automatically. You arrive at the follow-up already briefed.',
-        Icons.auto_awesome_outlined),
-    _FTab('04', 'Smart follow-ups',
-        'At exactly the right moment, Exono surfaces the lead with a suggested message written from your notes. One tap to personalise, one tap to send.',
-        Icons.send_rounded),
+  static const _navItems = <(IconData, String)>[
+    (Icons.grid_view_rounded, 'Overview'),
+    (Icons.chat_bubble_outline_rounded, 'Chat'),
+    (Icons.bar_chart_rounded, 'Analytics'),
+    (Icons.menu_book_rounded, 'Courses'),
+    (Icons.calendar_today_rounded, 'Events'),
+    (Icons.people_alt_outlined, 'Members'),
+    (Icons.emoji_events_outlined, 'Leaderboard'),
   ];
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _reduceMotion(context)) return;
-      _timer = Timer.periodic(const Duration(seconds: 4),
-          (_) { if (mounted) setState(() => _active = (_active + 1) % _tabs.length); });
-    });
-  }
-
-  @override
-  void dispose() { _timer?.cancel(); super.dispose(); }
-
-  @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 900;
+    final mobile = _mob(context);
     return Container(
-      key: widget.sectionKey,
-      color: _card,
-      padding: EdgeInsets.symmetric(vertical: wide ? 96 : 72),
-      child: _W(
-        child: Column(children: [
-          _Reveal(sc: widget.sc,
-            child: Column(children: [
-              const _Chip('Core features'),
-              const SizedBox(height: 20),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
-                child: Text('One platform to run your\nentire exhibition pipeline.',
-                    textAlign: TextAlign.center, style: _d(wide ? 42 : 34, w: FontWeight.w800)),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Everything you need to capture, enrich, and follow up, without switching tools.',
-                textAlign: TextAlign.center, style: _b(16, c: _sub),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 52),
-          _Reveal(sc: widget.sc,
-            child: wide
-                ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    SizedBox(
-                      width: 240,
-                      child: Column(children: List.generate(_tabs.length, (i) =>
-                          _FTabItem(_tabs[i], i, _active, () {
-                            setState(() => _active = i);
-                            _timer?.cancel();
-                          }))),
-                    ),
-                    const SizedBox(width: 40),
-                    Expanded(child: _FTabPanel(_tabs[_active], _active)),
-                  ])
-                : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    ...List.generate(_tabs.length, (i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _FMobileCard(_tabs[i]),
-                    )),
-                  ]),
-          ),
-        ]),
-      ),
-    );
-  }
-}
-
-class _FTab {
-  final String num;
-  final String title;
-  final String body;
-  final IconData icon;
-  const _FTab(this.num, this.title, this.body, this.icon);
-}
-
-class _FTabItem extends StatefulWidget {
-  final _FTab tab;
-  final int index;
-  final int active;
-  final VoidCallback onTap;
-  const _FTabItem(this.tab, this.index, this.active, this.onTap);
-  @override
-  State<_FTabItem> createState() => _FTabItemState();
-}
-
-class _FTabItemState extends State<_FTabItem> {
-  bool _h = false;
-  @override
-  Widget build(BuildContext context) {
-    final sel = widget.index == widget.active;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _h = true),
-      onExit: (_) => setState(() => _h = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          margin: const EdgeInsets.only(bottom: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: sel ? _blueT : (_h ? _card2 : Colors.transparent),
-            borderRadius: BorderRadius.circular(16),
-            border: sel ? Border.all(color: _blue.withValues(alpha: 0.30)) : null,
-          ),
-          child: Row(children: [
-            Text(widget.tab.num, style: _mono(10, c: sel ? _blue.withValues(alpha: 0.60) : _muted)),
-            const SizedBox(width: 10),
-            Text(widget.tab.title,
-                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600,
-                    color: sel ? _blue : _sub)),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _FTabPanel extends StatelessWidget {
-  final _FTab tab;
-  final int idx;
-  const _FTabPanel(this.tab, this.idx);
-  @override
-  Widget build(BuildContext context) => AnimatedSwitcher(
-    duration: const Duration(milliseconds: 350),
-    switchInCurve: Curves.easeOutCubic,
-    transitionBuilder: (child, anim) => FadeTransition(opacity: anim,
-        child: SlideTransition(
-            position: Tween(begin: const Offset(0.03, 0), end: Offset.zero).animate(anim),
-            child: child)),
-    child: Container(
-      key: ValueKey(idx),
-      padding: const EdgeInsets.all(36),
       decoration: BoxDecoration(
-        color: _card2,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _bdr),
+        color: _panel,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _w10),
+        boxShadow: const [
+          BoxShadow(color: Color(0x66000000), blurRadius: 60, offset: Offset(0, 30)),
+        ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 52, height: 52,
-          decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _blue.withValues(alpha: 0.20))),
-          child: Icon(tab.icon, color: _blue, size: 26),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!mobile) _sidebar(),
+            Expanded(child: _content(context, mobile)),
+          ],
         ),
-        const SizedBox(height: 22),
-        Text(tab.title, style: _d(26, w: FontWeight.w800)),
-        const SizedBox(height: 12),
-        Text(tab.body, style: _b(16, c: _sub)),
-      ]),
-    ),
-  );
-}
+      ),
+    );
+  }
 
-class _FMobileCard extends StatelessWidget {
-  final _FTab tab;
-  const _FMobileCard(this.tab);
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(color: _card2, borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _bdr)),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(width: 36, height: 36,
-        decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(12)),
-        child: Icon(tab.icon, color: _blue, size: 18)),
-      const SizedBox(width: 14),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Text(tab.num, style: _mono(10, c: _muted)),
-          const SizedBox(width: 8),
-          Text(tab.title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: _text)),
-        ]),
-        const SizedBox(height: 6),
-        Text(tab.body, style: _b(13, c: _sub)),
-      ])),
-    ]),
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// FEATURE STRIPS: alternating capability sections
-// ═══════════════════════════════════════════════════════════════════════════════
-class _Strips extends StatelessWidget {
-  final ScrollController sc;
-  const _Strips({required this.sc});
-
-  @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 900;
+  Widget _sidebar() {
     return Container(
-      color: _bg,
-      child: Column(children: [
-        _Strip(
-          sc: sc, wide: wide, reverse: false,
-          chip: 'Your front door',
-          title: 'A capture flow built\nfor the exhibition floor.',
-          body: 'No fumbling with apps mid-conversation. Open Exono, point your camera, tap once. The contact profile appears in seconds, with company, role, and email already filled in.',
-          points: const ['Works on printed cards and digital badges', 'Offline-first, no exhibition WiFi required', 'Duplicate detection across your whole team'],
-          visual: const _ScanVisual(),
-        ),
-        Container(height: 1, color: _bdr),
-        _Strip(
-          sc: sc, wide: wide, reverse: true,
-          chip: 'Capture context',
-          title: 'Your voice, structured\nautomatically.',
-          body: 'Walk away from the stand, hit record. Talk for 30 seconds. Exono transcribes your words, tags topics, and links the memo to the contact, so nothing gets lost between the show floor and your desk.',
-          points: const ['Instant transcription in 30+ languages', 'Auto-tagged: budget, timeline, interest, follow-up', 'Attached to the contact within seconds'],
-          visual: const _VoiceVisual(),
-        ),
-        Container(height: 1, color: _bdr),
-        _Strip(
-          sc: sc, wide: wide, reverse: false, stacked: true,
-          chip: 'Close the loop',
-          title: 'The follow-up writes itself.',
-          body: 'At the right moment, a day, a week, a quarter later, Exono surfaces the lead with a suggested message drawn from your own notes. It sounds like you, because it is your words.',
-          points: const ['Timing based on what you said in the memo', 'Draft uses your exact language and context', 'One tap to edit and send from your email client'],
-          visual: const _FollowUpVisual(),
-        ),
-      ]),
-    );
-  }
-}
-
-class _Strip extends StatelessWidget {
-  final ScrollController sc;
-  final bool wide;
-  final bool reverse;
-  final String chip;
-  final String title;
-  final String body;
-  final List<String> points;
-  final Widget visual;
-  final bool stacked;
-  const _Strip({required this.sc, required this.wide, required this.reverse,
-      required this.chip, required this.title, required this.body,
-      required this.points, required this.visual, this.stacked = false});
-
-  @override
-  Widget build(BuildContext context) {
-    if (stacked) return _buildStacked(context);
-    final textSide = _Reveal(
-      sc: sc, dx: reverse ? 0.05 : -0.05, dy: 0,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(chip, style: _b(14, c: _blue, w: FontWeight.w700)),
-        const SizedBox(height: 12),
-        Text(title, style: _d(30, w: FontWeight.w800)),
-        const SizedBox(height: 14),
-        Text(body, style: _b(16, c: _sub)),
-        const SizedBox(height: 20),
-        ...points.map((p) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(width: 18, height: 18, margin: const EdgeInsets.only(top: 2),
-              decoration: const BoxDecoration(color: _blueT, shape: BoxShape.circle),
-              child: Icon(Icons.check, color: _blue, size: 11)),
-            const SizedBox(width: 10),
-            Expanded(child: Text(p, style: _b(14, c: _sub))),
-          ]),
-        )),
-      ]),
-    );
-    final vizSide = _Reveal(
-      sc: sc, dx: reverse ? -0.05 : 0.05, dy: 0,
-      delay: const Duration(milliseconds: 80),
-      child: visual,
-    );
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: wide ? 80 : 60),
-      child: _W(
-        child: wide
-            ? Row(crossAxisAlignment: CrossAxisAlignment.center, children: reverse
-                ? [Expanded(child: vizSide), const SizedBox(width: 72), Expanded(child: textSide)]
-                : [Expanded(child: textSide), const SizedBox(width: 72), Expanded(child: vizSide)])
-            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                textSide,
-                const SizedBox(height: 40),
-                vizSide,
-              ]),
+      width: 190,
+      decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: _w06)),
       ),
-    );
-  }
-
-  // Full-width centered layout: breaks the image+text zigzag (Section 4.7 cap).
-  Widget _buildStacked(BuildContext context) => Container(
-    padding: EdgeInsets.symmetric(vertical: wide ? 88 : 64),
-    child: _W(max: 720,
-      child: _Reveal(
-        sc: sc, dy: 0.06,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Text(chip, textAlign: TextAlign.center, style: _b(14, c: _blue, w: FontWeight.w700)),
-          const SizedBox(height: 12),
-          Text(title, textAlign: TextAlign.center, style: _d(wide ? 36 : 30, w: FontWeight.w800)),
-          const SizedBox(height: 14),
-          Text(body, textAlign: TextAlign.center, style: _b(16, c: _sub)),
-          const SizedBox(height: 28),
-          Wrap(spacing: 10, runSpacing: 10, alignment: WrapAlignment.center,
-            children: points.map((p) => Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 18, height: 18, margin: const EdgeInsets.only(right: 8),
-                decoration: const BoxDecoration(color: _blueT, shape: BoxShape.circle),
-                child: Icon(Icons.check, color: _blue, size: 11)),
-              Text(p, style: _b(13, c: _sub)),
-            ])).toList()),
-          const SizedBox(height: 36),
-          visual,
-        ]),
-      ),
-    ),
-  );
-}
-
-// ─── Strip visuals ────────────────────────────────────────────────────────────
-class _ScanVisual extends StatelessWidget {
-  const _ScanVisual();
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _bdr)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(width: 32, height: 32,
-          decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(8)),
-          child: const Icon(Icons.document_scanner_outlined, color: _blue, size: 16)),
-        const SizedBox(width: 10),
-        Text('Scanning card...', style: _mono(11, c: _blue)),
-        const Spacer(),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          decoration: BoxDecoration(color: _green.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-          child: Text('LIVE', style: _mono(9, c: _green))),
-      ]),
-      const SizedBox(height: 16),
-      Container(height: 80, decoration: BoxDecoration(
-        color: _card2, borderRadius: BorderRadius.circular(10), border: Border.all(color: _bdr))),
-      const SizedBox(height: 16),
-      _ExtractRow('Name', 'Sarah Mitchell'),
-      _ExtractRow('Role', 'Head of Engineering'),
-      _ExtractRow('Company', 'Stripe'),
-      _ExtractRow('Email', 'sarah@stripe.com'),
-      const SizedBox(height: 14),
-      Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(8)),
-        alignment: Alignment.center,
-        child: Text('Save contact', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _white)),
-      ),
-    ]),
-  );
-}
-
-class _ExtractRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _ExtractRow(this.label, this.value);
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: Row(children: [
-      SizedBox(width: 70, child: Text(label, style: _mono(10, c: _muted))),
-      Expanded(child: Text(value, style: _b(13, c: _text, w: FontWeight.w500))),
-    ]),
-  );
-}
-
-class _VoiceVisual extends StatefulWidget {
-  const _VoiceVisual();
-  @override
-  State<_VoiceVisual> createState() => _VoiceVisualState();
-}
-
-class _VoiceVisualState extends State<_VoiceVisual> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_reduceMotion(context)) _c.repeat(reverse: true);
-    });
-  }
-  @override
-  void dispose() { _c.dispose(); super.dispose(); }
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _bdr)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        AnimatedBuilder(
-          animation: _c,
-          builder: (_, _) => Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(
-                color: _blue.withValues(alpha: 0.1 + _c.value * 0.2),
-                shape: BoxShape.circle,
-                border: Border.all(color: _blue.withValues(alpha: 0.3 + _c.value * 0.2))),
-            child: const Icon(Icons.mic, color: _blue, size: 16)),
-        ),
-        const SizedBox(width: 10),
-        Text('Recording memo...', style: _mono(11, c: _blue)),
-        const Spacer(),
-        Text('0:23', style: _mono(11, c: _muted)),
-      ]),
-      const SizedBox(height: 16),
-      // Waveform
-      AnimatedBuilder(
-        animation: _c,
-        builder: (_, _) => Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(20, (i) {
-            final h = 8 + (i % 5 + 1) * 6.0 * (0.6 + _c.value * 0.4);
-            return Container(width: 4, height: h.clamp(8, 40),
-                decoration: BoxDecoration(
-                    color: _blue.withValues(alpha: 0.5 + (i % 3) * 0.17),
-                    borderRadius: BorderRadius.circular(2)));
-          }),
-        ),
-      ),
-      const SizedBox(height: 16),
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: _card2, borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _bdr)),
-        child: Text(
-          '"...interested in our enterprise tier, budget approved for Q1, said to ping her EA to schedule, mention the Amsterdam summit..."',
-          style: _b(12, c: _sub),
-        ),
-      ),
-      const SizedBox(height: 12),
-      Row(children: [
-        _TagChip('Enterprise', _blue),
-        const SizedBox(width: 6),
-        _TagChip('Q1', _blue),
-        const SizedBox(width: 6),
-        _TagChip('Follow-up', _blue),
-      ]),
-    ]),
-  );
-}
-
-class _TagChip extends StatelessWidget {
-  final String label;
-  final Color c;
-  const _TagChip(this.label, this.c);
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
-    child: Text(label, style: _mono(9, c: c.withValues(alpha: 0.80))),
-  );
-}
-
-class _FollowUpVisual extends StatelessWidget {
-  const _FollowUpVisual();
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _bdr)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(width: 30, height: 30,
-          decoration: BoxDecoration(color: _blueT, shape: BoxShape.circle),
-          child: const Icon(Icons.auto_awesome, color: _blue, size: 14)),
-        const SizedBox(width: 10),
-        Text('Suggested follow-up', style: _mono(11, c: _blue)),
-        const Spacer(),
-        _TagChip('3 days later', _muted.withValues(alpha: 0.4)),
-      ]),
-      const SizedBox(height: 16),
-      Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: _card2, borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _bdr)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('To: Sarah Mitchell · sarah@stripe.com', style: _mono(10, c: _muted)),
-          const SizedBox(height: 8),
-          Container(height: 1, color: _bdr),
-          const SizedBox(height: 8),
-          Text(
-            'Hi Sarah,\n\nGreat meeting you at DevWorld. Following up on our chat about the enterprise tier. Q1 fits our timeline well.\n\nWould a 30-minute intro call work this week?',
-            style: _b(12, c: _sub),
-          ),
-        ]),
-      ),
-      const SizedBox(height: 14),
-      Row(children: [
-        Expanded(child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(8)),
-          alignment: Alignment.center,
-          child: Text('Send', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _white)),
-        )),
-        const SizedBox(width: 8),
-        Expanded(child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          decoration: BoxDecoration(color: Colors.transparent, borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _bdr)),
-          alignment: Alignment.center,
-          child: Text('Edit', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: _sub)),
-        )),
-      ]),
-    ]),
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// STATS STRIP: animated countup
-// ═══════════════════════════════════════════════════════════════════════════════
-class _SI {
-  final int end;
-  final String suffix;
-  final String label;
-  const _SI(this.end, this.suffix, this.label);
-}
-
-class _Stats extends StatelessWidget {
-  final ScrollController sc;
-  const _Stats({required this.sc});
-
-  static const _items = [
-    _SI(3, 's', 'To scan a badge\nor business card'),
-    _SI(30, '+', 'Languages for\nvoice transcription'),
-    _SI(100, '%', 'Capture works\noffline on the floor'),
-    _SI(1, '-tap', 'From suggested draft\nto sent follow-up'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 768;
-    return Container(
-      color: _card,
-      padding: EdgeInsets.symmetric(vertical: wide ? 72 : 56),
-      child: _W(
-        child: wide
-            ? Row(children: List.generate(_items.length, (i) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: _CountStat(item: _items[i], index: i, sc: sc),
-                ))))
-            : GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 1.6,
-                children: List.generate(_items.length, (i) => Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: _CountStat(item: _items[i], index: i, sc: sc),
-                )),
-              ),
-      ),
-    );
-  }
-}
-
-class _CountStat extends StatefulWidget {
-  final _SI item;
-  final int index;
-  final ScrollController sc;
-  const _CountStat({required this.item, required this.index, required this.sc});
-  @override
-  State<_CountStat> createState() => _CountStatState();
-}
-
-class _CountStatState extends State<_CountStat> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-  late final Animation<int> _count;
-  bool _done = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
-    _count = IntTween(begin: 0, end: widget.item.end)
-        .animate(CurvedAnimation(parent: _c, curve: Curves.easeOut));
-    widget.sc.addListener(_check);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
-  }
-
-  void _check() {
-    if (_done || !mounted) return;
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached) return;
-    if (box.localToGlobal(Offset.zero).dy < MediaQuery.of(context).size.height * 0.92) {
-      _done = true;
-      if (_reduceMotion(context)) { _c.value = 1.0; return; }
-      final delay = Duration(milliseconds: widget.index * 120);
-      Future.delayed(delay, () { if (mounted) _c.forward(); });
-    }
-  }
-
-  @override
-  void dispose() { widget.sc.removeListener(_check); _c.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) {
-    final left = widget.index > 0;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: left
-          ? BoxDecoration(border: Border(left: BorderSide(color: _bdr, width: 1)))
-          : null,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        AnimatedBuilder(
-          animation: _count,
-          builder: (_, _) {
-            final n = _count.value;
-            final display = '$n${widget.item.suffix}';
-            return Text(display, style: _d(44, w: FontWeight.w900, c: _blue));
-          },
-        ),
-        const SizedBox(height: 6),
-        Text(widget.item.label, style: _b(13, c: _sub)),
-      ]),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TESTIMONIALS
-// ═══════════════════════════════════════════════════════════════════════════════
-class _Testimonials extends StatefulWidget {
-  final GlobalKey sectionKey;
-  final ScrollController sc;
-  const _Testimonials({required this.sectionKey, required this.sc});
-  @override
-  State<_Testimonials> createState() => _TestimonialsState();
-}
-
-class _TestimonialsState extends State<_Testimonials> {
-  int _i = 0;
-
-  static const _quotes = [
-    _Quote(
-      '"I used to come back from exhibitions with 80 cards and follow up on maybe five. With Exono I actually remembered every conversation, and closed three deals the following month."',
-      'James Thornton', 'Head of Sales · Meridian Software',
-    ),
-    _Quote(
-      '"The voice memo feature is the thing. Record your thoughts right after a meeting, and by the next morning you have a full profile with suggested follow-up copy. It just works."',
-      'Priya Rajan', 'Founder · Stackwise',
-    ),
-    _Quote(
-      '"We went from a 12% follow-up rate post-event to over 70% in one quarter. The AI-suggested messages actually sound like me, not a template."',
-      'Carlos Mendes', 'Partnerships · Arc Systems',
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 768;
-    return Container(
-      key: widget.sectionKey,
-      color: _bg,
-      padding: EdgeInsets.symmetric(vertical: wide ? 96 : 72),
-      child: _W(max: 860,
-        child: _Reveal(sc: widget.sc,
-          child: Column(children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 400),
-              child: Container(
-                key: ValueKey(_i),
-                padding: EdgeInsets.all(wide ? 44 : 28),
-                decoration: BoxDecoration(
-                  color: _card,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _bdr),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 10, bottom: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: _cream,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text('S',
+                      style: _t(12, w: FontWeight.w700, c: _ink)),
                 ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: List.generate(5, (_) =>
-                      Icon(Icons.star_rounded, color: _amber, size: 16))),
-                  const SizedBox(height: 20),
-                  Text(_quotes[_i].quote,
-                      style: GoogleFonts.inter(
-                          fontSize: wide ? 21 : 17, fontWeight: FontWeight.w500,
-                          color: _text, height: 1.55, letterSpacing: -0.3)),
-                  const SizedBox(height: 28),
-                  Row(children: [
-                    Container(
-                      width: 40, height: 40,
-                      decoration: BoxDecoration(color: _blueT, borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _blue.withValues(alpha: 0.20))),
-                      alignment: Alignment.center,
-                      child: Text(
-                        _quotes[_i].name.split(' ').map((w) => w[0]).take(2).join(),
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: _blue),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(_quotes[_i].name,
-                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: _text)),
-                      Text(_quotes[_i].role, style: _b(12, c: _muted)),
-                    ]),
-                  ]),
-                ]),
-              ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text('Strong By Ava',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _t(12.5, w: FontWeight.w600, c: _w80)),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              ...List.generate(_quotes.length, (i) => GestureDetector(
-                onTap: () => setState(() => _i = i),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: i == _i ? 24 : 8, height: 8,
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
+          ),
+          for (var i = 0; i < _navItems.length; i++) _navItem(i),
+        ],
+      ),
+    );
+  }
+
+  Widget _navItem(int i) {
+    final active = i == 0;
+    final (icon, label) = _navItems[i];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: active ? _w10 : const Color(0x00000000),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: active ? _white : _w40),
+          const SizedBox(width: 9),
+          Text(label,
+              style: _t(12.5,
+                  w: active ? FontWeight.w600 : FontWeight.w400,
+                  c: active ? _white : _w65)),
+        ],
+      ),
+    );
+  }
+
+  Widget _content(BuildContext context, bool mobile) {
+    return Padding(
+      padding: EdgeInsets.all(mobile ? 14 : 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Banner with the overlapping community avatar.
+          SizedBox(
+            height: mobile ? 150 : 190,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  bottom: 34,
+                  child: _AnimatedGradient(radius: mobile ? 12 : 16),
+                ),
+                Positioned(
+                  left: mobile ? 14 : 22,
+                  bottom: 0,
+                  child: Container(
+                    width: 62,
+                    height: 62,
                     decoration: BoxDecoration(
-                      color: i == _i ? _blue : _bdr,
-                      borderRadius: BorderRadius.circular(4),
+                      color: _cream,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _panel, width: 3),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text('S', style: _t(26, w: FontWeight.w700, c: _ink)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Strong By Ava',
+                        style: _t(mobile ? 17 : 20, w: FontWeight.w700, ls: -0.3)),
+                    const SizedBox(height: 3),
+                    Text('847 members', style: _t(13, c: _w65)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const _PillButtonStub(label: 'Join now'),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Ava Torres is a certified strength coach with 80k+ followers on '
+            'Instagram. → 12-week progressive training programs with video '
+            'lessons → Weekly live Q&As and form-check threads → A supportive '
+            'community of women training for strength',
+            style: _t(13, c: _w65, h: 1.65),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Non-interactive white pill used inside the mockup (decorative only).
+class _PillButtonStub extends StatelessWidget {
+  const _PillButtonStub({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      decoration: BoxDecoration(
+        color: _white,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Text(label, style: _t(13, w: FontWeight.w600, c: _black)),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Navigation bar
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _Nav extends StatefulWidget {
+  const _Nav({
+    required this.onAbout,
+    required this.onFeatures,
+    required this.onPricing,
+    required this.onBlog,
+    required this.onContact,
+    required this.onLogin,
+    required this.onCta,
+  });
+  final VoidCallback onAbout, onFeatures, onPricing, onBlog, onContact;
+  final VoidCallback onLogin, onCta;
+
+  @override
+  State<_Nav> createState() => _NavState();
+}
+
+class _NavState extends State<_Nav> {
+  bool _open = false;
+
+  List<(String, VoidCallback)> get _links => [
+        ('About', widget.onAbout),
+        ('Features', widget.onFeatures),
+        ('Pricing', widget.onPricing),
+        ('Blog', widget.onBlog),
+        ('Contact', widget.onContact),
+      ];
+
+  void _tapLink(VoidCallback cb) {
+    setState(() => _open = false);
+    cb();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < 900;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xB3000000),
+            border: Border(bottom: BorderSide(color: _w06)),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: 64,
+                  child: _Section(
+                    child: Row(
+                      children: [
+                        const _Logo(),
+                        const Spacer(),
+                        if (!narrow) ...[
+                          for (final (label, cb) in _links)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: _NavLink(label: label, onTap: cb),
+                            ),
+                          const Spacer(),
+                          _PillButton(
+                              label: 'Login',
+                              onTap: widget.onLogin,
+                              kind: _BtnKind.ghost),
+                          const SizedBox(width: 8),
+                          _PillButton(label: 'Get started', onTap: widget.onCta),
+                        ] else
+                          _Hover(
+                            builder: (context, hovered) => GestureDetector(
+                              onTap: () => setState(() => _open = !_open),
+                              child: Container(
+                                padding: const EdgeInsets.all(9),
+                                decoration: BoxDecoration(
+                                  color: hovered || _open ? _w10 : _w05,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: _w10),
+                                ),
+                                child: Icon(
+                                    _open ? Icons.close_rounded : Icons.menu_rounded,
+                                    size: 18,
+                                    color: _white),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-              )),
-            ]),
-          ]),
+                // Mobile dropdown menu.
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                  child: (narrow && _open)
+                      ? _Section(
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 18),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (final (label, cb) in _links)
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () => _tapLink(cb),
+                                    child: Padding(
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 11),
+                                      child: Text(label,
+                                          style: _t(16, w: FontWeight.w500)),
+                                    ),
+                                  ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Center(
+                                        child: _PillButton(
+                                            label: 'Login',
+                                            onTap: () => _tapLink(widget.onLogin),
+                                            kind: _BtnKind.outline),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Center(
+                                        child: _PillButton(
+                                            label: 'Get started',
+                                            onTap: () => _tapLink(widget.onCta)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : const SizedBox(width: double.infinity),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _Quote {
-  final String quote;
-  final String name;
-  final String role;
-  const _Quote(this.quote, this.name, this.role);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PRICING
-// ═══════════════════════════════════════════════════════════════════════════════
-class _Pricing extends StatelessWidget {
-  final GlobalKey sectionKey;
-  final VoidCallback onCta;
-  final ScrollController sc;
-  const _Pricing({required this.sectionKey, required this.onCta, required this.sc});
-
-  static const _plans = [
-    _Plan('Starter', 'Free forever', 'For individuals and small teams just getting started.',
-        ['Up to 3 exhibitions per year', '200 contacts', 'Card & badge scanning', 'Voice memos', 'Basic follow-up reminders'],
-        false),
-    _Plan('Growth', '\$49 / month', 'For sales teams who go to exhibitions regularly.',
-        ['Unlimited exhibitions', '2,000 contacts', 'Everything in Starter', 'AI auto-enrichment', 'Smart follow-up drafts', 'Team collaboration'],
-        true),
-    _Plan('Teams', '\$149 / month', 'For larger orgs that need control and reporting.',
-        ['Unlimited everything', 'Everything in Growth', 'Admin dashboard', 'CRM integrations', 'Priority support', 'Onboarding call'],
-        false),
-  ];
+class _Logo extends StatelessWidget {
+  const _Logo();
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 900;
-    return Container(
-      key: sectionKey,
-      color: _card,
-      padding: EdgeInsets.symmetric(vertical: wide ? 96 : 72),
-      child: _W(
-        child: Column(children: [
-          _Reveal(sc: sc,
-            child: Column(children: [
-              const _Chip('Pricing'),
-              const SizedBox(height: 20),
-              Text('Clear pricing that scales with you.',
-                  textAlign: TextAlign.center, style: _d(wide ? 40 : 32, w: FontWeight.w800)),
-            ]),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_teal, _salmon],
+            ),
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(height: 48),
-          _Reveal(sc: sc,
-            child: wide
-                ? Row(crossAxisAlignment: CrossAxisAlignment.start, children:
-                    List.generate(_plans.length, (i) => Expanded(child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: i == 1 ? 0 : 8),
-                      child: _Hover(child: _PlanCard(_plans[i], onCta,
-                          margin: i == 1 ? const EdgeInsets.symmetric(vertical: 0) : const EdgeInsets.only(top: 16))),
-                    ))))
-                : Column(children: List.generate(_plans.length, (i) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _PlanCard(_plans[i], onCta)))),
+          alignment: Alignment.center,
+          child: Text('F', style: _t(13, w: FontWeight.w800, c: _white)),
+        ),
+        const SizedBox(width: 9),
+        Text('Fora', style: _t(18, w: FontWeight.w700, ls: -0.4)),
+      ],
+    );
+  }
+}
+
+class _NavLink extends StatelessWidget {
+  const _NavLink({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Hover(
+      builder: (context, hovered) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          color: const Color(0x00000000),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 150),
+            style: _t(14, w: FontWeight.w500, c: hovered ? _white : _w65),
+            child: Text(label),
           ),
-        ]),
+        ),
       ),
     );
   }
 }
 
-class _Plan {
-  final String name;
-  final String price;
-  final String desc;
-  final List<String> features;
-  final bool featured;
-  const _Plan(this.name, this.price, this.desc, this.features, this.featured);
+// ═════════════════════════════════════════════════════════════════════════════
+// Hero
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _Hero extends StatelessWidget {
+  const _Hero({required this.sc, required this.onCta});
+  final ScrollController sc;
+  final VoidCallback onCta;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = _mob(context);
+    return ClipRect(
+      child: Stack(
+        children: [
+          // radial-gradient(200% 83% at 50% 0, #1b2228 0%, #353f44 42%, #d39794 100%)
+          Positioned.fill(
+            child: Transform.scale(
+              scaleX: 2.2,
+              alignment: Alignment.topCenter,
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.topCenter,
+                    radius: 1.15,
+                    colors: [_ink, _slate, _salmon],
+                    stops: [0.0, 0.42, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Fade to the black page canvas at the bottom edge.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 260,
+            child: const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x00000000), _black],
+                ),
+              ),
+            ),
+          ),
+          _Section(
+            child: Padding(
+              padding: EdgeInsets.only(top: mobile ? 120 : 160, bottom: 24),
+              child: Column(
+                children: [
+                  _Reveal(
+                    sc: sc,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0x26000000),
+                        border: Border.all(color: _w10),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text('Community platform for creators',
+                          style: _t(13, w: FontWeight.w500, c: _w80)),
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  _Reveal(
+                    sc: sc,
+                    delayMs: 80,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 820),
+                      child: Text(
+                        'Your community deserves its own home.',
+                        textAlign: TextAlign.center,
+                        style: _display(mobile ? 38 : 56),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  _Reveal(
+                    sc: sc,
+                    delayMs: 160,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: Text(
+                        'Fora gives creators, educators, and coaches a fully '
+                        'branded space with courses, events, discussions, and '
+                        'members.',
+                        textAlign: TextAlign.center,
+                        style: _t(mobile ? 16 : 18, c: _w80, h: 1.55),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  _Reveal(
+                    sc: sc,
+                    delayMs: 240,
+                    child: _PillButton(
+                        label: 'Get started free', onTap: onCta, big: true),
+                  ),
+                  SizedBox(height: mobile ? 48 : 72),
+                  _Reveal(
+                    sc: sc,
+                    delayMs: 320,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1040),
+                      child: const _AppMockup(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Intro
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _Intro extends StatelessWidget {
+  const _Intro({required this.sc});
+  final ScrollController sc;
+
+  static const _paragraphs = <String>[
+    'Fora is a community platform built for creators, educators, and coaches. '
+        'Courses, events, discussions, and a member directory, all in one '
+        'place, under one login, with one URL.',
+    "That URL is yours. Every community on Fora runs on its own subdomain or "
+        "a custom domain you own. Members sign up and sign in inside your "
+        "branded space. They never see Fora's name, and they never should.",
+    'You set it up in minutes. Fora handles the routing, the auth, and the '
+        'infrastructure in the background. What your members experience is '
+        'entirely yours.',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = _mob(context);
+    return _Section(
+      maxWidth: 900,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: mobile ? 70 : 120),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Reveal(sc: sc, child: const _Tag('Intro')),
+            const SizedBox(height: 30),
+            for (var i = 0; i < _paragraphs.length; i++)
+              _Reveal(
+                sc: sc,
+                delayMs: i * 100,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 26),
+                  child: Text(
+                    _paragraphs[i],
+                    style: _t(mobile ? 18 : 24,
+                        w: FontWeight.w500, c: _w80, h: 1.45, ls: -0.3),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Core features — tabbed product preview
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _CoreFeatures extends StatefulWidget {
+  const _CoreFeatures({required this.sc});
+  final ScrollController sc;
+
+  @override
+  State<_CoreFeatures> createState() => _CoreFeaturesState();
+}
+
+class _CoreFeaturesState extends State<_CoreFeatures> {
+  int _tab = 0;
+
+  static const _tabs = ['Community', 'Courses', 'Events', 'Members'];
+  static const _captions = [
+    'Post, discuss, react — the feed your members live in.',
+    'Chapters and lessons your members learn from, right inside your space.',
+    'Live sessions and meetups your members actually show up to.',
+    'Every member, one directory — profiles your community can browse.',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = _mob(context);
+    final sc = widget.sc;
+    return _Section(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: mobile ? 60 : 100),
+        child: Column(
+          children: [
+            _Reveal(sc: sc, child: const _Tag('Core Features')),
+            const SizedBox(height: 24),
+            _Reveal(
+              sc: sc,
+              delayMs: 80,
+              child: Text(
+                'One platform to run right\nyour entire community.',
+                textAlign: TextAlign.center,
+                style: _display(mobile ? 30 : 44),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _Reveal(
+              sc: sc,
+              delayMs: 160,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Text(
+                  'Fora brings your courses, events, discussions, and members '
+                  'into one space, so you stop switching between tools and '
+                  'start spending time with your community.',
+                  textAlign: TextAlign.center,
+                  style: _t(mobile ? 15 : 17, c: _w65, h: 1.6),
+                ),
+              ),
+            ),
+            const SizedBox(height: 38),
+            _Reveal(
+              sc: sc,
+              delayMs: 220,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  for (var i = 0; i < _tabs.length; i++) _tabChip(i),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: Text(
+                _captions[_tab],
+                key: ValueKey(_tab),
+                textAlign: TextAlign.center,
+                style: _t(14, c: _w40),
+              ),
+            ),
+            const SizedBox(height: 32),
+            _Reveal(
+              sc: sc,
+              delayMs: 280,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 980),
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(mobile ? 16 : 28),
+                  decoration: BoxDecoration(
+                    color: _panel,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: _w10),
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 320),
+                    switchInCurve: Curves.easeOut,
+                    child: KeyedSubtree(
+                      key: ValueKey(_tab),
+                      child: switch (_tab) {
+                        0 => const _FeedPreview(),
+                        1 => const _CoursesPreview(),
+                        2 => const _EventsPreview(),
+                        _ => const _MembersPreview(),
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tabChip(int i) {
+    final active = _tab == i;
+    return _Hover(
+      builder: (context, hovered) => GestureDetector(
+        onTap: () => setState(() => _tab = i),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+          decoration: BoxDecoration(
+            color: active
+                ? _white
+                : hovered
+                    ? _w10
+                    : _w05,
+            border: Border.all(color: active ? _white : _w10),
+            borderRadius: BorderRadius.circular(100),
+          ),
+          child: Text(
+            _tabs[i],
+            style: _t(14,
+                w: FontWeight.w600, c: active ? _black : _w80, ls: -0.2),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Mini skeleton pieces shared by the previews ─────────────────────────────
+
+Widget _skelBar(double w, {double h = 8, Color c = _w10}) => Container(
+      width: w,
+      height: h,
+      decoration:
+          BoxDecoration(color: c, borderRadius: BorderRadius.circular(100)),
+    );
+
+Widget _miniAvatar(String letter, Color bg, {double size = 34}) => Container(
+      width: size,
+      height: size,
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      alignment: Alignment.center,
+      child: Text(letter,
+          style: _t(size * 0.42, w: FontWeight.w700, c: _black)),
+    );
+
+class _FeedPreview extends StatelessWidget {
+  const _FeedPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _post('A', _salmon, 'Ava Torres', '2h',
+            'New 12-week program drops Monday. Form-check thread opens tonight.',
+            reactions: '24'),
+        const SizedBox(height: 12),
+        _post('M', _cream, 'Maya K.', '5h',
+            'Hit a 100kg deadlift PR today — thank you all for the cues!',
+            reactions: '61'),
+        const SizedBox(height: 12),
+        _post('J', Color(0xFFB9D2D3), 'Jess P.', '1d',
+            'Weekly Q&A replay is up in Courses, chapter 4.',
+            reactions: '18'),
+      ],
+    );
+  }
+
+  Widget _post(String letter, Color color, String name, String time,
+      String body,
+      {required String reactions}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _w05,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _w06),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _miniAvatar(letter, color, size: 30),
+              const SizedBox(width: 10),
+              Text(name, style: _t(13.5, w: FontWeight.w600)),
+              const SizedBox(width: 8),
+              Text(time, style: _t(12, c: _w40)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(body, style: _t(13.5, c: _w65, h: 1.5)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _reaction(Icons.favorite_border_rounded, reactions),
+              const SizedBox(width: 8),
+              _reaction(Icons.chat_bubble_outline_rounded, 'Reply'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _reaction(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: _w05,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: _w06),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: _w65),
+          const SizedBox(width: 5),
+          Text(label, style: _t(11.5, c: _w65)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoursesPreview extends StatelessWidget {
+  const _CoursesPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _chapter('01', 'Foundations of strength', '6 lessons', 1.0),
+        const SizedBox(height: 12),
+        _chapter('02', 'Progressive overload, week by week', '8 lessons', 0.55),
+        const SizedBox(height: 12),
+        _chapter('03', 'Form clinics and video reviews', '5 lessons', 0.0),
+      ],
+    );
+  }
+
+  Widget _chapter(String num, String title, String meta, double progress) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _w05,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _w06),
+      ),
+      child: Row(
+        children: [
+          Text(num, style: _mono(13, c: _salmon)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: _t(14, w: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text(meta, style: _t(12, c: _w40)),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(100),
+                  child: SizedBox(
+                    height: 4,
+                    child: Stack(
+                      children: [
+                        Container(color: _w10),
+                        FractionallySizedBox(
+                          widthFactor: progress == 0 ? 0.001 : progress,
+                          child: Container(color: _salmon),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Icon(
+              progress >= 1
+                  ? Icons.check_circle_rounded
+                  : Icons.play_circle_outline_rounded,
+              size: 20,
+              color: progress >= 1 ? _salmon : _w40),
+        ],
+      ),
+    );
+  }
+}
+
+class _EventsPreview extends StatelessWidget {
+  const _EventsPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _event('JUN', '12', 'Live Q&A — training through plateaus', '7:00 PM',
+            live: true),
+        const SizedBox(height: 12),
+        _event('JUN', '19', 'Form-check workshop: squat day', '6:30 PM'),
+        const SizedBox(height: 12),
+        _event('JUN', '26', 'Monthly community challenge kickoff', '5:00 PM'),
+      ],
+    );
+  }
+
+  Widget _event(String month, String day, String title, String time,
+      {bool live = false}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _w05,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _w06),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: _w05,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _w10),
+            ),
+            child: Column(
+              children: [
+                Text(month, style: _mono(10, c: _salmon)),
+                const SizedBox(height: 2),
+                Text(day, style: _t(17, w: FontWeight.w700)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: _t(14, w: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text(time, style: _t(12, c: _w40)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (live)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0x33D39794),
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Text('LIVE', style: _mono(10, c: _salmon)),
+            )
+          else
+            Text('RSVP', style: _t(12.5, w: FontWeight.w600, c: _w65)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MembersPreview extends StatelessWidget {
+  const _MembersPreview();
+
+  static const _members = <(String, String, String, Color)>[
+    ('A', 'Ava Torres', 'Coach', _salmon),
+    ('M', 'Maya K.', 'Member', _cream),
+    ('J', 'Jess P.', 'Member', Color(0xFFB9D2D3)),
+    ('R', 'Rosa D.', 'Moderator', Color(0xFFE8C9B8)),
+    ('L', 'Lena W.', 'Member', Color(0xFFCBD5C0)),
+    ('T', 'Tara S.', 'Member', Color(0xFFD9C4E3)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final cols = box.maxWidth > 620 ? 3 : (box.maxWidth > 380 ? 2 : 1);
+        final w = (box.maxWidth - (cols - 1) * 12) / cols;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final (letter, name, role, color) in _members)
+              SizedBox(
+                width: w,
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _w05,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _w06),
+                  ),
+                  child: Row(
+                    children: [
+                      _miniAvatar(letter, color, size: 32),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _t(13, w: FontWeight.w600)),
+                            const SizedBox(height: 2),
+                            Text(role, style: _t(11.5, c: _w40)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// What you get — three feature cards
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _WhatYouGet extends StatelessWidget {
+  const _WhatYouGet({required this.sc});
+  final ScrollController sc;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = _mob(context);
+    final wide = MediaQuery.sizeOf(context).width >= 980;
+    return _Section(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: mobile ? 60 : 100),
+        child: Column(
+          children: [
+            _Reveal(sc: sc, child: const _Tag('What you get')),
+            const SizedBox(height: 24),
+            _Reveal(
+              sc: sc,
+              delayMs: 80,
+              child: Text(
+                'Set up once.\nRun it the way you want.',
+                textAlign: TextAlign.center,
+                style: _display(mobile ? 30 : 44),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _Reveal(
+              sc: sc,
+              delayMs: 160,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 620),
+                child: Text(
+                  'Fora is built so you spend time with your community, not '
+                  'configuring it. From your first setting to your hundredth '
+                  'member, the platform stays out of your way.',
+                  textAlign: TextAlign.center,
+                  style: _t(mobile ? 15 : 17, c: _w65, h: 1.6),
+                ),
+              ),
+            ),
+            const SizedBox(height: 48),
+            _Reveal(
+              sc: sc,
+              delayMs: 200,
+              child: _FeatureCard(
+                horizontal: wide,
+                kicker: 'Your front door',
+                title: 'A community overview page that sells itself.',
+                body:
+                    'Customize your hero with a static color or animated '
+                    'gradient. Add a headline, a description and member '
+                    'avatars. Your overview page is the first thing a visitor '
+                    'sees — make it yours.',
+                tagline: 'First impressions that convert.',
+                visual: const _OverviewVisual(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (wide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _Reveal(
+                      sc: sc,
+                      delayMs: 100,
+                      child: const _FeatureCard(
+                        kicker: 'Friendly competition',
+                        title: 'A leaderboard your members actually check.',
+                        body:
+                            'Rankings based on posts, completions, and '
+                            'activity — surfaced automatically. Gives your '
+                            'most engaged members a reason to stay and your '
+                            'quieter ones a reason to show up.',
+                        tagline: 'Engagement that compounds over time.',
+                        visual: _LeaderboardVisual(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: _Reveal(
+                      sc: sc,
+                      delayMs: 200,
+                      child: const _FeatureCard(
+                        kicker: 'Courses',
+                        title: 'Build your course the way you teach.',
+                        body:
+                            'Structure your content into chapters and '
+                            'lessons, in any order you want. Add your '
+                            'material, hit publish, and your members can '
+                            'start learning — right inside the community they '
+                            'already live in.',
+                        tagline: 'Courses that feel like yours, not a template.',
+                        visual: _CourseVisual(),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else ...[
+              _Reveal(
+                sc: sc,
+                delayMs: 100,
+                child: const _FeatureCard(
+                  kicker: 'Friendly competition',
+                  title: 'A leaderboard your members actually check.',
+                  body:
+                      'Rankings based on posts, completions, and activity — '
+                      'surfaced automatically. Gives your most engaged members '
+                      'a reason to stay and your quieter ones a reason to show '
+                      'up.',
+                  tagline: 'Engagement that compounds over time.',
+                  visual: _LeaderboardVisual(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _Reveal(
+                sc: sc,
+                delayMs: 100,
+                child: const _FeatureCard(
+                  kicker: 'Courses',
+                  title: 'Build your course the way you teach.',
+                  body:
+                      'Structure your content into chapters and lessons, in '
+                      'any order you want. Add your material, hit publish, and '
+                      'your members can start learning — right inside the '
+                      'community they already live in.',
+                  tagline: 'Courses that feel like yours, not a template.',
+                  visual: _CourseVisual(),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureCard extends StatelessWidget {
+  const _FeatureCard({
+    required this.kicker,
+    required this.title,
+    required this.body,
+    required this.tagline,
+    required this.visual,
+    this.horizontal = false,
+  });
+  final String kicker, title, body, tagline;
+  final Widget visual;
+  final bool horizontal;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(kicker.toUpperCase(), style: _mono(11, c: _salmon)),
+        const SizedBox(height: 14),
+        Text(title, style: _display(24)),
+        const SizedBox(height: 12),
+        Text(body, style: _t(14.5, c: _w65, h: 1.6)),
+        const SizedBox(height: 18),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 5,
+              height: 5,
+              decoration: const BoxDecoration(
+                  color: _salmon, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(tagline,
+                  style: _t(13.5, w: FontWeight.w500, c: _w80)),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    return _Hover(
+      builder: (context, hovered) => AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: _w05,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: hovered ? _w25 : _w10),
+        ),
+        child: horizontal
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: text),
+                  const SizedBox(width: 32),
+                  Expanded(child: visual),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  visual,
+                  const SizedBox(height: 24),
+                  text,
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+/// Mini "overview page" visual: animated-gradient hero + avatar + copy bars.
+class _OverviewVisual extends StatelessWidget {
+  const _OverviewVisual();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _panel,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _w06),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _AnimatedGradient(height: 90, radius: 10),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _miniAvatar('S', _cream, size: 30),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _skelBar(110, h: 9, c: _w25),
+                  const SizedBox(height: 6),
+                  _skelBar(70, h: 7),
+                ],
+              ),
+              const Spacer(),
+              const _PillButtonStub(label: 'Join'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _skelBar(double.infinity, h: 7),
+          const SizedBox(height: 6),
+          _skelBar(200, h: 7),
+        ],
+      ),
+    );
+  }
+}
+
+/// Mini leaderboard visual.
+class _LeaderboardVisual extends StatelessWidget {
+  const _LeaderboardVisual();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _panel,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _w06),
+      ),
+      child: Column(
+        children: [
+          _row('1', 'M', _cream, 'Maya K.', '1,240 pts', top: true),
+          const SizedBox(height: 8),
+          _row('2', 'J', const Color(0xFFB9D2D3), 'Jess P.', '1,105 pts'),
+          const SizedBox(height: 8),
+          _row('3', 'R', const Color(0xFFE8C9B8), 'Rosa D.', '980 pts'),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String rank, String letter, Color color, String name,
+      String pts,
+      {bool top = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: top ? const Color(0x1AD39794) : _w05,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: top ? const Color(0x40D39794) : _w06),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+              width: 18, child: Text(rank, style: _mono(12, c: _salmon))),
+          const SizedBox(width: 8),
+          _miniAvatar(letter, color, size: 26),
+          const SizedBox(width: 10),
+          Expanded(child: Text(name, style: _t(13, w: FontWeight.w600))),
+          Text(pts, style: _t(12, c: _w40)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Mini course-builder visual.
+class _CourseVisual extends StatelessWidget {
+  const _CourseVisual();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _panel,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _w06),
+      ),
+      child: Column(
+        children: [
+          _lesson('Chapter 1 · Welcome', true),
+          const SizedBox(height: 8),
+          _lesson('Chapter 2 · The program', true),
+          const SizedBox(height: 8),
+          _lesson('Chapter 3 · Going further', false),
+        ],
+      ),
+    );
+  }
+
+  Widget _lesson(String label, bool published) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: _w05,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _w06),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.drag_indicator_rounded, size: 15, color: _w25),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: _t(13, w: FontWeight.w500))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: published ? const Color(0x1AD39794) : _w05,
+              borderRadius: BorderRadius.circular(100),
+              border:
+                  Border.all(color: published ? const Color(0x40D39794) : _w10),
+            ),
+            child: Text(published ? 'LIVE' : 'DRAFT',
+                style: _mono(9, c: published ? _salmon : _w40)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Pricing
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _Pricing extends StatelessWidget {
+  const _Pricing({required this.sc, required this.onCta});
+  final ScrollController sc;
+  final VoidCallback onCta;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = _mob(context);
+    final wide = MediaQuery.sizeOf(context).width >= 980;
+
+    final cards = <Widget>[
+      _PlanCard(
+        plan: 'Starter',
+        price: '\$0',
+        period: '/month',
+        blurb: 'Everything you need to launch your community.',
+        cta: 'Get Started',
+        onTap: onCta,
+        features: const [
+          'Up to 200 members',
+          'Fora subdomain',
+          'Community feed & chat',
+          'Courses & events',
+          'Member profiles',
+          'Analytics',
+        ],
+      ),
+      _PlanCard(
+        plan: 'Pro',
+        price: '\$0',
+        period: '/month',
+        blurb: 'For creators serious about their brand.',
+        cta: 'Get Started',
+        onTap: onCta,
+        featured: true,
+        features: const [
+          'Up to 5000 members',
+          'Custom domain',
+          'Community feed & chat',
+          'Courses & events',
+          'Member profiles',
+          'Analytics',
+        ],
+      ),
+      _PlanCard(
+        plan: 'Enterprise',
+        price: 'Custom price',
+        period: null,
+        blurb: 'For teams that need more control.',
+        cta: 'Contact us',
+        onTap: onCta,
+        features: const [
+          'Unlimited members',
+          'Everything in Pro',
+          'Priority support',
+          'Dedicated onboarding',
+          'SLA & uptime guarantee',
+          'Custom contract',
+        ],
+      ),
+    ];
+
+    return _Section(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: mobile ? 60 : 100),
+        child: Column(
+          children: [
+            _Reveal(sc: sc, child: const _Tag('Pricing')),
+            const SizedBox(height: 24),
+            _Reveal(
+              sc: sc,
+              delayMs: 80,
+              child: Text(
+                'Clear pricing plans\nthat scale with you',
+                textAlign: TextAlign.center,
+                style: _display(mobile ? 30 : 44),
+              ),
+            ),
+            const SizedBox(height: 48),
+            if (wide)
+              _Reveal(
+                sc: sc,
+                delayMs: 160,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: cards[0]),
+                    const SizedBox(width: 20),
+                    Expanded(child: cards[1]),
+                    const SizedBox(width: 20),
+                    Expanded(child: cards[2]),
+                  ],
+                ),
+              )
+            else
+              for (var i = 0; i < cards.length; i++)
+                _Reveal(
+                  sc: sc,
+                  delayMs: 80,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: i < 2 ? 20 : 0),
+                    child: cards[i],
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PlanCard extends StatelessWidget {
-  final _Plan plan;
-  final VoidCallback onCta;
-  final EdgeInsets margin;
-  const _PlanCard(this.plan, this.onCta, {this.margin = EdgeInsets.zero});
+  const _PlanCard({
+    required this.plan,
+    required this.price,
+    required this.period,
+    required this.blurb,
+    required this.cta,
+    required this.onTap,
+    required this.features,
+    this.featured = false,
+  });
+  final String plan, price, blurb, cta;
+  final String? period;
+  final VoidCallback onTap;
+  final List<String> features;
+  final bool featured;
+
   @override
-  Widget build(BuildContext context) => Container(
-    margin: margin,
-    padding: const EdgeInsets.all(28),
-    decoration: BoxDecoration(
-      color: plan.featured ? _blueDp : _card2,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: plan.featured ? _blue.withValues(alpha: 0.40) : _bdr, width: plan.featured ? 1.5 : 1),
-      boxShadow: plan.featured ? [BoxShadow(color: _blue.withValues(alpha: 0.15), blurRadius: 40)] : null,
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (plan.featured)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(4)),
-            child: Text('Most popular'.toUpperCase(), style: _mono(9, c: _white)),
+  Widget build(BuildContext context) {
+    return _Hover(
+      builder: (context, hovered) => AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: featured ? const Color(0x14D39794) : _w05,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: featured
+                ? (hovered ? _salmon : const Color(0x80D39794))
+                : (hovered ? _w25 : _w10),
           ),
         ),
-      Text(plan.name, style: _d(18, w: FontWeight.w800)),
-      const SizedBox(height: 4),
-      Text(plan.price, style: GoogleFonts.inter(
-          fontSize: 28, fontWeight: FontWeight.w900, color: plan.featured ? _white : _blue, letterSpacing: -1)),
-      const SizedBox(height: 8),
-      Text(plan.desc, style: _b(13, c: _sub)),
-      const SizedBox(height: 20),
-      Container(height: 1, color: _bdr),
-      const SizedBox(height: 16),
-      ...plan.features.map((f) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 16, height: 16, margin: const EdgeInsets.only(top: 1),
-            decoration: const BoxDecoration(color: _blueT, shape: BoxShape.circle),
-            child: Icon(Icons.check, color: _blue, size: 10)),
-          const SizedBox(width: 10),
-          Expanded(child: Text(f, style: _b(13, c: _sub))),
-        ]),
-      )),
-      const SizedBox(height: 20),
-      GestureDetector(
-        onTap: onCta,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          decoration: BoxDecoration(
-            color: plan.featured ? _blue : Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
-            border: plan.featured ? null : Border.all(color: _bdrSt),
-          ),
-          alignment: Alignment.center,
-          child: Text(plan.featured ? 'Get started' : 'Get started free',
-              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600,
-                  color: plan.featured ? _white : _blue)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(plan.toUpperCase(),
+                style: _mono(11, c: featured ? _salmon : _w65)),
+            const SizedBox(height: 18),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: Text(price,
+                      style: _display(period == null ? 28 : 40)),
+                ),
+                if (period != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 6),
+                    child: Text(period!, style: _t(14, c: _w40)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(blurb, style: _t(14, c: _w65, h: 1.5)),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: Center(
+                child: _PillButton(
+                  label: cta,
+                  onTap: onTap,
+                  big: true,
+                  kind: featured ? _BtnKind.filled : _BtnKind.outline,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            for (final f in features)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 11),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_rounded, size: 15, color: _salmon),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(f, style: _t(13.5, c: _w80))),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
-    ]),
-  );
+    );
+  }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // FAQ
-// ═══════════════════════════════════════════════════════════════════════════════
-class _FAQ extends StatefulWidget {
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _Faq extends StatefulWidget {
+  const _Faq({required this.sc, required this.onContact});
   final ScrollController sc;
-  const _FAQ({required this.sc});
+  final VoidCallback onContact;
+
   @override
-  State<_FAQ> createState() => _FAQState();
+  State<_Faq> createState() => _FaqState();
 }
 
-class _FAQState extends State<_FAQ> {
-  int? _open;
+class _FaqState extends State<_Faq> {
+  int _category = 0;
+  int _openIndex = 0;
 
-  static const _items = [
-    _FQ('Does it work offline at exhibitions?',
-        'Yes. Card scanning and voice memo recording work fully offline. Everything syncs automatically when you reconnect, usually before you leave the hall.'),
-    _FQ('How does the AI enrichment work?',
-        'After you capture a contact, Exono searches public sources (LinkedIn, company websites, news) and adds role history, company context, and recent news to the profile. It takes about 30 to 60 seconds after capture.'),
-    _FQ('Can my whole team use it at the same event?',
-        'Yes. On Growth and Teams plans, everyone on your team can capture leads at the same exhibition, and duplicates are automatically detected and merged.'),
-    _FQ('Does it integrate with our CRM?',
-        'Exono syncs with Salesforce, HubSpot, and Pipedrive on the Teams plan. You can also export contacts at any time in CSV or vCard format.'),
-    _FQ('What happens to my data?',
-        'Your contacts and notes are private to your account. Exono never uses your data for training AI models. You can export or delete everything at any time.'),
-    _FQ('Is there a limit on how many events I can attend?',
-        'Starter accounts get up to 3 exhibitions per year. Growth and Teams plans are unlimited, so use it at every trade show, conference, and networking event you attend.'),
+  static const _categories = [
+    'General',
+    'Community & Features',
+    'Privacy & Access',
+  ];
+
+  static const _items = <(String, String)>[
+    (
+      'What is Fora?',
+      'Fora is a white-label community platform for creators, educators, and '
+          'coaches. You get a fully branded space with courses, events, '
+          'discussions, and members — all running on your own subdomain or '
+          'custom domain.'
+    ),
+    (
+      'How long does it take to set up?',
+      'Most communities are live in under 20 minutes. You pick a subdomain, '
+          'customize your overview page, and invite your first members. No '
+          'code, no infrastructure.'
+    ),
+    (
+      'Do I need technical knowledge?',
+      'Not at all. Everything happens through a clean dashboard. The only '
+          'technical step is adding a DNS record if you want a fully custom '
+          'domain — and we walk you through it.'
+    ),
+    (
+      'Is Fora really free right now?',
+      'Yes. Fora is in beta and completely free. No credit card, no trial '
+          'period — just sign up and go. When paid plans launch, beta members '
+          'get a permanent discount locked in.'
+    ),
+    (
+      'What happens when the beta ends?',
+      "You'll get early notice before anything changes. Beta members are "
+          'first to know, first to get access to paid plans, and first to '
+          'lock in their discount.'
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 768;
-    return Container(
-      color: _bg,
-      padding: EdgeInsets.symmetric(vertical: wide ? 96 : 72),
-      child: _W(max: 760,
-        child: Column(children: [
-          _Reveal(sc: widget.sc,
-            child: Column(children: [
-              Text('Answers to the questions\nthat come up most.',
-                  textAlign: TextAlign.center, style: _d(wide ? 38 : 30, w: FontWeight.w800)),
-            ]),
+    final mobile = _mob(context);
+    final wide = MediaQuery.sizeOf(context).width >= 980;
+    final sc = widget.sc;
+
+    final left = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Reveal(sc: sc, child: const _Tag('FAQ')),
+        const SizedBox(height: 24),
+        _Reveal(
+          sc: sc,
+          delayMs: 80,
+          child: Text('Answers to the questions that come up most.',
+              style: _display(mobile ? 28 : 36)),
+        ),
+        const SizedBox(height: 18),
+        _Reveal(
+          sc: sc,
+          delayMs: 160,
+          child: Text(
+            "Learn how Fora works, what's included in the beta, what your "
+            'members experience, and what to expect as the platform grows.',
+            style: _t(15, c: _w65, h: 1.6),
           ),
-          const SizedBox(height: 48),
-          _Reveal(sc: widget.sc,
+        ),
+        const SizedBox(height: 28),
+        _Reveal(
+          sc: sc,
+          delayMs: 220,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < _categories.length; i++) _catChip(i),
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
+        _Reveal(
+          sc: sc,
+          delayMs: 260,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: _w05,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _w10),
+            ),
             child: Column(
-              children: List.generate(_items.length, (i) => _FAQItem(
-                _items[i], i, _open == i,
-                () => setState(() => _open = _open == i ? null : i),
-              )),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Got Questions?', style: _t(17, w: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Text(
+                  "Can't find what you're looking for? Reach out — we're fast.",
+                  style: _t(14, c: _w65, h: 1.55),
+                ),
+                const SizedBox(height: 16),
+                _Hover(
+                  builder: (context, hovered) => GestureDetector(
+                    onTap: widget.onContact,
+                    child: Text(
+                      'Contact us →',
+                      style: _t(14,
+                          w: FontWeight.w600,
+                          c: hovered ? _salmon : _white),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ]),
-      ),
+        ),
+      ],
     );
-  }
-}
 
-class _FQ {
-  final String q;
-  final String a;
-  const _FQ(this.q, this.a);
-}
+    final right = Column(
+      children: [
+        for (var i = 0; i < _items.length; i++)
+          _Reveal(
+            sc: sc,
+            delayMs: 60 * i,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _faqTile(i),
+            ),
+          ),
+      ],
+    );
 
-class _FAQItem extends StatelessWidget {
-  final _FQ item;
-  final int index;
-  final bool open;
-  final VoidCallback onTap;
-  const _FAQItem(this.item, this.index, this.open, this.onTap);
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    decoration: BoxDecoration(
-      color: open ? _card : Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: open ? _blue.withValues(alpha: 0.25) : _bdr),
-    ),
-    child: MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(children: [
-              Expanded(child: Text(item.q,
-                  style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: _text))),
-              const SizedBox(width: 16),
-              AnimatedRotation(
-                turns: open ? 0.25 : 0,
-                duration: const Duration(milliseconds: 200),
-                child: Icon(Icons.add, color: open ? _blue : _muted, size: 20),
+    return _Section(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: mobile ? 60 : 100),
+        child: wide
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 5, child: left),
+                  const SizedBox(width: 56),
+                  Expanded(flex: 6, child: right),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [left, const SizedBox(height: 40), right],
               ),
-            ]),
-          ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: Text(item.a, style: _b(14, c: _sub)),
-            ),
-            crossFadeState: open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 250),
-          ),
-        ]),
       ),
-    ),
-  );
-}
+    );
+  }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CTA BANNER
-// ═══════════════════════════════════════════════════════════════════════════════
-class _CtaBanner extends StatelessWidget {
-  final VoidCallback onCta;
-  final ScrollController sc;
-  const _CtaBanner({required this.onCta, required this.sc});
-  @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 768;
-    return Container(
-      color: _card,
-      padding: EdgeInsets.symmetric(vertical: wide ? 96 : 72),
-      child: _W(max: 680,
-        child: _Reveal(sc: sc,
-          child: Column(children: [
-            const _Chip('Get started today'),
-            const SizedBox(height: 24),
-            Text('Ready to remember\neveryone you meet?',
-                textAlign: TextAlign.center,
-                style: _d(wide ? 52 : 40, w: FontWeight.w900)),
-            const SizedBox(height: 16),
-            Text(
-              'Close more by following up on every lead from every exhibition, while the conversation is still fresh.',
-              textAlign: TextAlign.center, style: _b(17, c: _sub),
-            ),
-            const SizedBox(height: 36),
-            _Btn('Get started free in 2 minutes', onCta),
-          ]),
+  Widget _catChip(int i) {
+    final active = _category == i;
+    return _Hover(
+      builder: (context, hovered) => GestureDetector(
+        onTap: () => setState(() {
+          _category = i;
+          _openIndex = 0;
+        }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: active
+                ? _white
+                : hovered
+                    ? _w10
+                    : _w05,
+            border: Border.all(color: active ? _white : _w10),
+            borderRadius: BorderRadius.circular(100),
+          ),
+          child: Text(
+            _categories[i],
+            style: _t(13.5,
+                w: FontWeight.w600, c: active ? _black : _w80),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _faqTile(int i) {
+    final (q, a) = _items[i];
+    final open = _openIndex == i;
+    return _Hover(
+      builder: (context, hovered) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _openIndex = open ? -1 : i),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+          decoration: BoxDecoration(
+            color: open || hovered ? _w05 : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: open ? _w25 : _w10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                      child: Text(q, style: _t(15.5, w: FontWeight.w600))),
+                  const SizedBox(width: 12),
+                  AnimatedRotation(
+                    turns: open ? 0.125 : 0,
+                    duration: const Duration(milliseconds: 220),
+                    child: const Icon(Icons.add_rounded,
+                        size: 20, color: _w65),
+                  ),
+                ],
+              ),
+              AnimatedCrossFade(
+                firstChild: const SizedBox(width: double.infinity),
+                secondChild: Padding(
+                  padding: const EdgeInsets.only(top: 12, right: 24),
+                  child: Text(a, style: _t(14, c: _w65, h: 1.65)),
+                ),
+                crossFadeState: open
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 220),
+                sizeCurve: Curves.easeInOut,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// FOOTER
-// ═══════════════════════════════════════════════════════════════════════════════
-class _Footer extends StatelessWidget {
+// ═════════════════════════════════════════════════════════════════════════════
+// Blog
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _Blog extends StatelessWidget {
+  const _Blog({required this.sc});
+  final ScrollController sc;
+
+  static const _posts = <(String, String, String)>[
+    (
+      'Fora vs Mighty Networks: Full Comparison for Creators & Educators '
+          '(2026)',
+      'Comparisons',
+      'Jun 3, 2026'
+    ),
+    (
+      'How to Launch an Online Community in 2026: A Step-by-Step Guide',
+      'Guides',
+      'Jun 3, 2026'
+    ),
+    (
+      'Best White-Label Community Platform for Coaches & Educators',
+      'Community Building',
+      'Jun 3, 2026'
+    ),
+  ];
+
+  static const _thumbs = <List<Color>>[
+    [_teal, _slate, _salmon],
+    [_slate, _salmon, _cream],
+    [_salmon, _teal, _ink],
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 768;
-    return Container(
-      color: _bg,
-      child: Column(children: [
-        Container(height: 1, color: _bdr),
-        Padding(
-          padding: EdgeInsets.symmetric(vertical: 36, horizontal: wide ? 48 : 20),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
-              child: wide
-                  ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      _FooterBrand(),
-                      const Spacer(),
-                      _FooterCol('Product', ['Features', 'How it works', 'Pricing', 'Changelog']),
-                      const SizedBox(width: 48),
-                      _FooterCol('Company', ['About', 'Blog', 'Careers', 'Contact']),
-                      const SizedBox(width: 48),
-                      _FooterCol('Legal', ['Privacy', 'Terms', 'Security']),
-                    ])
-                  : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      _FooterBrand(),
-                      const SizedBox(height: 32),
-                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Expanded(child: _FooterCol('Product', ['Features', 'Pricing'])),
-                        Expanded(child: _FooterCol('Company', ['About', 'Blog'])),
-                        Expanded(child: _FooterCol('Legal', ['Privacy', 'Terms'])),
-                      ]),
-                    ]),
+    final mobile = _mob(context);
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    return _Section(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: mobile ? 60 : 100),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Reveal(
+              sc: sc,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _Tag('Blog'),
+                        const SizedBox(height: 20),
+                        Text('Ideas, updates, and practical AI workflows',
+                            style: _display(mobile ? 26 : 34)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  _Hover(
+                    builder: (context, hovered) => Text(
+                      'Visit blog →',
+                      style: _t(14,
+                          w: FontWeight.w600,
+                          c: hovered ? _salmon : _w80),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
+            if (wide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < _posts.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 20),
+                    Expanded(
+                      child: _Reveal(
+                          sc: sc, delayMs: 80 * i, child: _postCard(i)),
+                    ),
+                  ],
+                ],
+              )
+            else
+              for (var i = 0; i < _posts.length; i++)
+                _Reveal(
+                  sc: sc,
+                  delayMs: 60,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: i < 2 ? 20 : 0),
+                    child: _postCard(i),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _postCard(int i) {
+    final (title, category, date) = _posts[i];
+    return _Hover(
+      builder: (context, hovered) => AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: _w05,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: hovered ? _w25 : _w10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedScale(
+              scale: hovered ? 1.03 : 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: _thumbs[i],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: _t(16, w: FontWeight.w600, h: 1.35, ls: -0.2)),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _w05,
+                          borderRadius: BorderRadius.circular(100),
+                          border: Border.all(color: _w10),
+                        ),
+                        child: Text(category, style: _t(11.5, c: _w80)),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(date,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _t(12, c: _w40)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Final CTA
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _FinalCta extends StatelessWidget {
+  const _FinalCta({required this.sc, required this.onCta});
+  final ScrollController sc;
+  final VoidCallback onCta;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = _mob(context);
+    return ClipRect(
+      child: Stack(
+        children: [
+          // Soft salmon glow rising from the bottom, echoing the hero.
+          Positioned.fill(
+            child: Transform.scale(
+              scaleX: 2.2,
+              alignment: Alignment.bottomCenter,
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.bottomCenter,
+                    radius: 1.1,
+                    colors: [Color(0x59D39794), Color(0x2E353F44), Color(0x00000000)],
+                    stops: [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-        Container(height: 1, color: _bdr),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 20),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
-              child: Text('© 2025 Exono. All rights reserved.', style: _b(13, c: _muted)),
+          _Section(
+            child: Padding(
+              padding: EdgeInsets.only(top: mobile ? 70 : 120, bottom: 40),
+              child: Column(
+                children: [
+                  _Reveal(
+                    sc: sc,
+                    child: Text(
+                      'Your community is one sec away.',
+                      textAlign: TextAlign.center,
+                      style: _display(mobile ? 30 : 44),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _Reveal(
+                    sc: sc,
+                    delayMs: 80,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 620),
+                      child: Text(
+                        'Fora is in beta and free to join. Set up your space, '
+                        'invite your first members, and see what it feels like '
+                        'when everything lives in one place — under your name.',
+                        textAlign: TextAlign.center,
+                        style: _t(mobile ? 15 : 17, c: _w80, h: 1.6),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  _Reveal(
+                    sc: sc,
+                    delayMs: 160,
+                    child: _PillButton(
+                        label: 'Start for free', onTap: onCta, big: true),
+                  ),
+                  SizedBox(height: mobile ? 44 : 64),
+                  _Reveal(
+                    sc: sc,
+                    delayMs: 240,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1040),
+                      child: const _AppMockup(),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Footer
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _Footer extends StatelessWidget {
+  const _Footer({
+    required this.onAbout,
+    required this.onPricing,
+    required this.onBlog,
+  });
+  final VoidCallback onAbout, onPricing, onBlog;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = _mob(context);
+    final wide = MediaQuery.sizeOf(context).width >= 820;
+
+    final columns = <Widget>[
+      _col('Product', [
+        ('About', onAbout),
+        ('Pricing', onPricing),
+        ('Blog', onBlog),
+        ('Contact', null),
+        ('Changelog', null),
       ]),
+      _col('Legal', [
+        ('Terms of use', null),
+        ('Privacy policy', null),
+        ('Cookie Policy', null),
+      ]),
+      _col('Compare', [
+        ('Skool', null),
+        ('Circle', null),
+        ('Mighty Networks', null),
+      ]),
+    ];
+
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: _w06)),
+      ),
+      child: _Section(
+        child: Padding(
+          padding: EdgeInsets.only(top: mobile ? 48 : 72, bottom: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (wide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Expanded(flex: 2, child: _FooterBrand()),
+                    for (final c in columns) Expanded(child: c),
+                  ],
+                )
+              else ...[
+                const _FooterBrand(),
+                const SizedBox(height: 36),
+                Wrap(
+                  spacing: 48,
+                  runSpacing: 32,
+                  children: columns,
+                ),
+              ],
+              SizedBox(height: mobile ? 40 : 64),
+              const Divider(color: _w06, height: 1),
+              const SizedBox(height: 22),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                runSpacing: 8,
+                children: [
+                  Text('© Fora. 2026. All rights reserved',
+                      style: _t(12.5, c: _w40)),
+                  Text('contact@fora.so', style: _t(12.5, c: _w40)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _col(String title, List<(String, VoidCallback?)> links) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: _mono(10.5, c: _w40)),
+        const SizedBox(height: 16),
+        for (final (label, cb) in links)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 11),
+            child: _Hover(
+              builder: (context, hovered) => GestureDetector(
+                onTap: cb,
+                child: Text(label,
+                    style: _t(13.5, c: hovered ? _white : _w65)),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
 
 class _FooterBrand extends StatelessWidget {
+  const _FooterBrand();
+
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Row(mainAxisSize: MainAxisSize.min, children: [
-      const _Logo(size: 20),
-      const SizedBox(width: 8),
-      Text('Exono', style: GoogleFonts.inter(
-          fontSize: 16, fontWeight: FontWeight.w800, color: _text, letterSpacing: -0.3)),
-    ]),
-    const SizedBox(height: 6),
-    Text('Intelligent CRM for the exhibition floor.', style: _b(13, c: _muted)),
-  ]);
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _Logo(),
+        const SizedBox(height: 14),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 260),
+          child: Text(
+            'White-label community platform for creators, educators, and '
+            'coaches.',
+            style: _t(13, c: _w40, h: 1.55),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _FooterCol extends StatelessWidget {
-  final String heading;
-  final List<String> links;
-  const _FooterCol(this.heading, this.links);
-  @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(heading, style: _mono(12, c: _sub.withValues(alpha: 0.7))),
-    const SizedBox(height: 14),
-    ...links.map((l) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: MouseRegion(cursor: SystemMouseCursors.click,
-          child: Text(l, style: _b(13, c: _muted, w: FontWeight.w500))),
-    )),
-  ]);
-}
+// ═════════════════════════════════════════════════════════════════════════════
+// Screen
+// ═════════════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// LANDING SCREEN
-// ═══════════════════════════════════════════════════════════════════════════════
 class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
+
   @override
   State<LandingScreen> createState() => _LandingScreenState();
 }
 
-class _LandingScreenState extends State<LandingScreen> {
+class _LandingScreenState extends State<LandingScreen> with ScreenLogger {
   final _sc = ScrollController();
+  final _aboutKey = GlobalKey();
   final _featuresKey = GlobalKey();
-  final _howKey = GlobalKey();
   final _pricingKey = GlobalKey();
-  final _testimonialsKey = GlobalKey();
+  final _blogKey = GlobalKey();
+  final _contactKey = GlobalKey();
 
   void _goAuth() => context.go('/auth');
 
   void _scrollTo(GlobalKey k) {
     final ctx = k.currentContext;
-    if (ctx == null) return;
+    if (ctx == null) {
+      return;
+    }
     Scrollable.ensureVisible(ctx,
         duration: const Duration(milliseconds: 550),
         curve: Curves.easeInOutCubic,
@@ -1915,42 +2532,60 @@ class _LandingScreenState extends State<LandingScreen> {
   }
 
   @override
-  void dispose() { _sc.dispose(); super.dispose(); }
+  void dispose() {
+    _sc.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return SelectionArea(
       child: Scaffold(
-        backgroundColor: _bg,
-        body: Stack(children: [
-          SingleChildScrollView(
-            controller: _sc,
-            child: Column(children: [
-              const SizedBox(height: 68),
-              _Hero(onCta: _goAuth, onDemo: () => _scrollTo(_howKey), sc: _sc),
-              const _Marquee(),
-              _Philosophy(sc: _sc),
-              _Features(sectionKey: _featuresKey, sc: _sc),
-              KeyedSubtree(key: _howKey, child: _Strips(sc: _sc)),
-              _Stats(sc: _sc),
-              _Testimonials(sectionKey: _testimonialsKey, sc: _sc),
-              _Pricing(sectionKey: _pricingKey, onCta: _goAuth, sc: _sc),
-              _FAQ(sc: _sc),
-              _CtaBanner(onCta: _goAuth, sc: _sc),
-              _Footer(),
-            ]),
-          ),
-          Positioned(
-            top: 0, left: 0, right: 0,
-            child: _Nav(
-              onLogin: _goAuth,
-              onCta: _goAuth,
-              onFeatures: () => _scrollTo(_featuresKey),
-              onHowItWorks: () => _scrollTo(_howKey),
-              onPricing: () => _scrollTo(_pricingKey),
+        backgroundColor: _black,
+        body: Stack(
+          children: [
+            SingleChildScrollView(
+              controller: _sc,
+              child: Column(
+                children: [
+                  _Hero(sc: _sc, onCta: _goAuth),
+                  KeyedSubtree(key: _aboutKey, child: _Intro(sc: _sc)),
+                  KeyedSubtree(
+                      key: _featuresKey, child: _CoreFeatures(sc: _sc)),
+                  _WhatYouGet(sc: _sc),
+                  KeyedSubtree(
+                      key: _pricingKey,
+                      child: _Pricing(sc: _sc, onCta: _goAuth)),
+                  _Faq(sc: _sc, onContact: () => _scrollTo(_contactKey)),
+                  KeyedSubtree(key: _blogKey, child: _Blog(sc: _sc)),
+                  _FinalCta(sc: _sc, onCta: _goAuth),
+                  KeyedSubtree(
+                    key: _contactKey,
+                    child: _Footer(
+                      onAbout: () => _scrollTo(_aboutKey),
+                      onPricing: () => _scrollTo(_pricingKey),
+                      onBlog: () => _scrollTo(_blogKey),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ]),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _Nav(
+                onAbout: () => _scrollTo(_aboutKey),
+                onFeatures: () => _scrollTo(_featuresKey),
+                onPricing: () => _scrollTo(_pricingKey),
+                onBlog: () => _scrollTo(_blogKey),
+                onContact: () => _scrollTo(_contactKey),
+                onLogin: _goAuth,
+                onCta: _goAuth,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
