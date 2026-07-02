@@ -174,6 +174,41 @@ template; see the module map at the top for where each piece lives):
 The Flutter permission card (`chat_screen._permissionFields`) renders args
 generically, so it needs no change per new tool.
 
+## Account deletion — keeping the delete API in sync with the schema (MANDATORY)
+
+`DELETE /api/support/account` ([src/routes/support.ts](src/routes/support.ts))
+permanently deletes a user and ALL their data. Its correctness depends on two
+hand-maintained table lists that do **NOT** auto-derive from the DB — when the
+schema changes, they MUST be updated in the same change, or a deleted account
+leaves orphaned rows or the auth-user delete fails on an FK violation:
+
+1. **`CONTENT_TABLES_WITH_SOFT_DELETE`** — every table with BOTH a `user_id` and a
+   `deleted_at` column. These are soft-deleted (`deleted_at` set) first so a
+   mid-flight failure still hides the data.
+2. **`USER_OWNED_TABLES_HARD_DELETE`** — every table with a `user_id` column,
+   ordered **children before parents** so hard-deletes don't violate FK
+   constraints. This includes tables whose `user_id` FK is `ON DELETE NO ACTION`
+   (these WOULD block `auth.admin.deleteUser` if left populated) AND the `CASCADE`
+   ones (deleting them explicitly is harmless and keeps the list a complete,
+   auditable inventory).
+
+**When you add/alter a table the user owns:**
+- New table with `user_id`? Add it to `USER_OWNED_TABLES_HARD_DELETE` (in the
+  right FK order), and to `CONTENT_TABLES_WITH_SOFT_DELETE` too if it has
+  `deleted_at`. Verify its `user_id` FK delete rule and any child FK (`contact_id`,
+  `event_id`, …) delete rules against `information_schema.referential_constraints`
+  via the Supabase MCP — a NO ACTION child must be listed BEFORE its parent.
+- Changed a FK's `ON DELETE` rule? Re-check the ordering; a table that flips to
+  NO ACTION must be cleared before whatever it references.
+- The delete flow uses `supabaseAdmin` (service_role, bypasses RLS), so ownership
+  is enforced in code — every statement is scoped `.eq('user_id', userId)`. The
+  final `auth.admin.deleteUser` runs on the dedicated `supabaseAuthAdmin` client
+  (service_role, admin-auth only — see `config/SUPABASE_CLIENTS.md`).
+
+There is currently no CI drift-check for these lists (unlike the assistant write
+tables), so this is purely human-owned — treat it as part of any tenant-table
+schema change.
+
 ## Document parsing (parse_document) + attachments
 
 The assistant can read user-attached documents (exhibitor lists, floor plans,

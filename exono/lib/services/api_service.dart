@@ -327,6 +327,39 @@ class ApiService {
     }
   }
 
+  static Future<void> sendSupportRequest({
+    required String subject,
+    required String message,
+  }) async {
+    final response = await _send(() async => http.post(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.support}/contact'),
+      headers: await _headers(),
+      body: json.encode({'subject': subject, 'message': message}),
+    ));
+
+    checkUnauthorized(response);
+    checkRateLimit(response);
+    if (response.statusCode != 200) {
+      final msg = _stringError(response);
+      throw Exception(msg ?? "Couldn't send your message. Please try again.");
+    }
+  }
+
+  /// Permanently deletes the current user's account and all their data.
+  /// The session is invalid after this returns; the caller must log out.
+  static Future<void> deleteAccount() async {
+    final response = await _send(() async => http.delete(
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.support}/account'),
+      headers: await _headers(),
+    ));
+
+    checkRateLimit(response);
+    if (response.statusCode != 200) {
+      final msg = _stringError(response);
+      throw Exception(msg ?? "Couldn't delete your account. Please try again.");
+    }
+  }
+
   static Future<Map<String, dynamic>> getAllFollowUps() async {
     final response = await _send(() async => http.get(
       Uri.parse('${ApiConfig.baseUrl}/follow-ups'),

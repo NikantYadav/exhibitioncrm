@@ -4,18 +4,19 @@ This project uses **two separate Supabase client instances**. Using the wrong on
 will silently break data queries. Read this before touching anything that talks to
 Supabase.
 
-## The two clients (`supabaseClients.ts`)
+## The three clients (`supabaseClients.ts`)
 
-| Client          | Key            | Use it for                                              |
-| --------------- | -------------- | ------------------------------------------------------- |
-| `supabaseAdmin` | service_role   | **All data queries** — `.from(...).select/insert/update/delete`. Re-exported as `supabase` from `config/supabase.ts`. |
-| `supabaseAuth`  | anon           | **All auth operations** — `.auth.signInWithPassword`, `.auth.signUp`, `.auth.getUser`, `.auth.refreshSession`, `.auth.signOut`. |
+| Client             | Key            | Use it for                                              |
+| ------------------ | -------------- | ------------------------------------------------------- |
+| `supabaseAdmin`    | service_role   | **All data queries** — `.from(...).select/insert/update/delete`. Re-exported as `supabase` from `config/supabase.ts`. |
+| `supabaseAuth`     | anon           | **Session auth operations** — `.auth.signInWithPassword`, `.auth.signUp`, `.auth.getUser`, `.auth.refreshSession`, `.auth.signOut`. |
+| `supabaseAuthAdmin`| service_role   | **Auth ADMIN operations only** — `.auth.admin.*` (e.g. `deleteUser`). Requires the service_role key (the anon `supabaseAuth` cannot perform these). These calls are STATELESS (no session stored), so they do not poison queries — but keep them off `supabaseAdmin` so the data client is never touched by `.auth.*`. Never run `.from(...)` here. |
 
 ## THE RULE
 
-> **Never call `.auth.*` on `supabaseAdmin` / `supabase`. Only ever call `.auth.*` on `supabaseAuth`.**
+> **Never call `.auth.*` on `supabaseAdmin` / `supabase`. Only call `.auth.*` on `supabaseAuth` (session auth) or `supabaseAuthAdmin` (admin auth, `.auth.admin.*` only).**
 >
-> **Never run `.from(...)` data queries on `supabaseAuth`. Only ever run them on `supabaseAdmin` / `supabase`.**
+> **Never run `.from(...)` data queries on `supabaseAuth` / `supabaseAuthAdmin`. Only ever run them on `supabaseAdmin` / `supabase`.**
 
 ## Why this matters (the bug it prevents)
 
@@ -48,5 +49,5 @@ always queries as `service_role` and bypasses RLS as intended.
 
 ```bash
 # Should return NOTHING. Any hit is a bug waiting to happen:
-grep -rn "\.auth\." backend/src --include="*.ts" | grep -v "supabaseAuth\.auth\."
+grep -rn "\.auth\." backend/src --include="*.ts" | grep -Ev "supabaseAuth\.auth\.|supabaseAuthAdmin\.auth\."
 ```

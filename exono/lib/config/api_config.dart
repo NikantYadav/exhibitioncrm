@@ -28,6 +28,7 @@ class ApiConfig {
   static const String followUps = '/follow-ups';
   static const String ai = '/ai';
   static const String sync = '/sync';
+  static const String support = '/support';
 
   // Chat
   static const String conversations = '/conversations';

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
@@ -42,15 +43,11 @@ class EntryFlowScaffold extends StatelessWidget {
 }
 
 class EntryFlowTopBar extends StatelessWidget {
-  final IconData leadingIcon;
-  final String title;
-  final String badgeLabel;
+  final VoidCallback? onSwitchAccount;
 
   const EntryFlowTopBar({
     super.key,
-    required this.leadingIcon,
-    required this.title,
-    required this.badgeLabel,
+    this.onSwitchAccount,
   });
 
   @override
@@ -61,58 +58,43 @@ class EntryFlowTopBar extends StatelessWidget {
       height: 56,
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: colors.surface.withValues(alpha: colors.isDark ? 0.94 : 0.98),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: colors.border),
-              boxShadow: AppTheme.softShadow(context),
-            ),
-            child: Icon(leadingIcon, color: colors.accentStrong, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1.2,
-                color: colors.textPrimary,
-                height: 1,
-              ),
-            ),
+          SvgPicture.asset(
+            colors.isDark ? 'assets/images/logo-white.svg' : 'assets/images/logo-black.svg',
+            width: 32,
+            height: 32,
+            fit: BoxFit.contain,
           ),
           const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: colors.surface.withValues(alpha: colors.isDark ? 0.90 : 0.96),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.auto_awesome_rounded, size: 16, color: colors.accent),
-                const SizedBox(width: 8),
-                Text(
-                  badgeLabel,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    color: colors.textSecondary,
-                  ),
+          if (onSwitchAccount != null) ...[
+            GestureDetector(
+              onTap: onSwitchAccount,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: colors.surface.withValues(alpha: colors.isDark ? 0.90 : 0.96),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: colors.border),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.swap_horiz_rounded, size: 16, color: colors.accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Switch account',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 10),
+          ],
           const EntryThemeToggleButton(),
         ],
       ),

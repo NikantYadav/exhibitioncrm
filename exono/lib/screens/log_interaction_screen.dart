@@ -376,6 +376,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
         _contacts = await context.read<SyncProvider>().contacts.watchAllWithCompany().first;
       } catch (_) {
         _contacts = [];
+        if (mounted) showAppToast(context, 'Could not load contacts. Please try again.');
       }
       if (mounted) setState(() => _loadingContacts = false);
     }
@@ -405,6 +406,7 @@ class _LogInteractionSheetState extends State<_LogInteractionSheet>
         _events = await ApiService.getEvents();
       } catch (_) {
         _events = [];
+        if (mounted) showAppToast(context, 'Could not load events. Please try again.');
       }
       if (mounted) setState(() => _loadingEvents = false);
     }

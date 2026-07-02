@@ -93,7 +93,10 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
         _loading = false;
       });
     } on UnauthorizedException { rethrow; } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+        showAppToast(context, 'Could not load follow-ups. Please try again.');
+      }
     }
   }
 
@@ -648,8 +651,14 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
     final cardChild = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top row: avatar + info
-            Row(
+            // Top row: avatar + info. Opaque tap on the whole header toggles
+            // expansion (not just the chevron); the star / person / chevron
+            // children keep their own handlers since child hit-tests win.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() =>
+                  _expandedContactId = isExpanded ? null : contactId),
+              child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 AppAvatar(initials: _initials(contact), done: isDone, onAccent: isPriority),
@@ -733,6 +742,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> with ScreenLogger {
                   ),
                 ),
               ],
+              ),
             ),
 
             // Expand into per-event record rows. Each row acts on ONE record.

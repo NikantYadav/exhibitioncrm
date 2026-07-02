@@ -197,6 +197,36 @@ if [[ "$WAYDROID" == "1" ]]; then
   set -- -d "${WD_IP}:5555" "$@"
 fi
 
+# Wireless-debugging / plugged-in physical Android devices: localhost inside
+# the device is the device itself, not this machine, so a local backend
+# (API_BASE_URL=http://localhost:PORT/...) is unreachable unless we tunnel it
+# over adb. Waydroid already does this above; mirror it here for any other
+# connected device so the same .env works for both without edits.
+if [[ "$WAYDROID" != "1" && ( "$API_BASE_URL" == http://localhost:* || "$API_BASE_URL" == http://127.0.0.1:* ) ]]; then
+  LOCAL_PORT="$(sed -E 's#^http://[^:/]+:([0-9]+).*#\1#' <<<"$API_BASE_URL")"
+  if [[ "$LOCAL_PORT" =~ ^[0-9]+$ ]]; then
+    # Respect an explicit -d <device> if given; otherwise reverse on every
+    # currently-connected/authorized adb device (harmless if there's just one).
+    TARGET_DEVICE=""
+    for ((i = 0; i < ${#REMAINING_ARGS[@]}; i++)); do
+      if [[ "${REMAINING_ARGS[$i]}" == "-d" ]]; then
+        TARGET_DEVICE="${REMAINING_ARGS[$((i + 1))]:-}"
+        break
+      fi
+    done
+    if [[ -n "$TARGET_DEVICE" ]]; then
+      echo "→ adb -s $TARGET_DEVICE reverse tcp:${LOCAL_PORT} → host localhost:${LOCAL_PORT}"
+      adb -s "$TARGET_DEVICE" reverse "tcp:${LOCAL_PORT}" "tcp:${LOCAL_PORT}" || true
+    else
+      while IFS=$'\t' read -r device state; do
+        [[ "$state" == "device" ]] || continue
+        echo "→ adb -s $device reverse tcp:${LOCAL_PORT} → host localhost:${LOCAL_PORT}"
+        adb -s "$device" reverse "tcp:${LOCAL_PORT}" "tcp:${LOCAL_PORT}" || true
+      done < <(adb devices | tail -n +2)
+    fi
+  fi
+fi
+
 # Use a native (non-Flatpak) Chromium/Chrome for web. A Flatpak-sandboxed
 # browser brokers the file dialog through the XDG portal, which never returns
 # the selection to the page, so the image-upload picker silently does nothing.

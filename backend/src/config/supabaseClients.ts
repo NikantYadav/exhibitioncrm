@@ -1,5 +1,6 @@
-// IMPORTANT: Two separate clients on purpose. Never call .auth.* on supabaseAdmin,
-// and never run .from() queries on supabaseAuth. See ./SUPABASE_CLIENTS.md for why.
+// IMPORTANT: Separate clients on purpose. Never call .auth.* on supabaseAdmin,
+// and never run .from() queries on supabaseAuth / supabaseAuthAdmin.
+// See ./SUPABASE_CLIENTS.md for why.
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
@@ -41,6 +42,22 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
 // separate instance ensures supabaseAdmin always queries as service_role. Uses the anon
 // key since auth operations don't need (and shouldn't carry) the service-role key.
 export const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+});
+
+// Dedicated client for service_role-only auth ADMIN operations
+// (`.auth.admin.deleteUser`, etc.). These require the service_role key (the anon
+// `supabaseAuth` client cannot perform them), but unlike sign-in/getUser they are
+// STATELESS — they do not store a user session on the instance — so they cannot
+// poison `.from()` queries the way the two-client rule warns about. We still keep
+// it on its OWN instance (never run `.from()` here, never do session auth here) so
+// the boundary stays crisp: data => supabaseAdmin, session auth => supabaseAuth,
+// admin auth => supabaseAuthAdmin.
+export const supabaseAuthAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,

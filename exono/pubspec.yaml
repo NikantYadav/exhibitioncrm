@@ -35,7 +35,18 @@ dependencies:
   cupertino_icons: ^1.0.8
   google_fonts: ^8.1.0
   forui: ^0.22.3
+  flutter_animate: ^4.5.0
+  visibility_detector: ^0.4.0+2
   flutter_svg: ^2.0.10+1
+
+  # Native (OS-level) splash. Its create-time codegen writes the Android/iOS
+  # launch-screen resources so the OS splash matches our Dart SplashScreen
+  # (logo on the theme background), and its runtime preserve()/remove() API
+  # (used in main.dart + splash_screen.dart) holds that native splash until the
+  # Dart splash is ready to take over seamlessly. Regenerate resources after
+  # editing flutter_native_splash.yaml with:
+  #   dart run flutter_native_splash:create --path=flutter_native_splash.yaml
+  flutter_native_splash: ^2.4.1
   
   # State Management
   provider: ^6.1.1

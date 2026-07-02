@@ -1,0 +1,39 @@
+# Native (OS-level) launch splash configuration.
+#
+# Purpose: make the Android/iOS OS splash — shown for the brief window between
+# process start and Flutter's first frame — visually identical to frame 0 of
+# our Dart SplashScreen (logo centered on the theme background). This removes
+# the default Android 12 "launcher-icon-in-a-circle" flash so the launch reads
+# as one continuous screen.
+#
+# Backgrounds match the Flutter ExonoColors theme (NOT android/colors.xml):
+#   light  background = #EBF3FF   (app_theme.dart lightColors)
+#   dark   background = #000000   (app_theme.dart darkColors)
+#
+# The logo PNGs are rendered from assets/images/logo-{black,white}.svg.
+# Regenerate resources after editing this file:
+#   dart run flutter_native_splash:create --path=flutter_native_splash.yaml
+
+flutter_native_splash:
+  color: "#EBF3FF"
+  image: assets/images/splash_logo_light.png
+
+  color_dark: "#000000"
+  image_dark: assets/images/splash_logo_dark.png
+
+  # Android 12+ forces the splash icon into a circular mask, which mangles our
+  # full-bleed square logo tile (it clips the corners into a weird shape). So
+  # on Android 12+ we show ONLY the flat background color and no icon; the Dart
+  # SplashScreen (which appears almost immediately) shows the square tile
+  # correctly. Omitting `image`/`image_dark` here leaves the icon transparent.
+  android_12:
+    color: "#EBF3FF"
+    color_dark: "#000000"
+
+  android: true
+  ios: true
+  web: false
+
+  # Cover the full window (edge-to-edge) so the background color fills behind
+  # the system bars, matching the Dart splash Scaffold.
+  fullscreen: true

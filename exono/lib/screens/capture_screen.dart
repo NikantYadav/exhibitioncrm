@@ -576,7 +576,9 @@ class _CaptureScreenState extends State<CaptureScreen>
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
-                    16, 20, 16, bottomScrollInset(context, margin: 100),
+                    16, 20, 16,
+                    bottomScrollInset(context, margin: 100) +
+                        MediaQuery.of(context).viewInsets.bottom,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1529,6 +1531,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
+      showAppToast(context, 'Could not save contact. Please try again.');
     }
   }
 
@@ -1599,6 +1602,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     } catch (_) {
       if (!mounted) return;
       setState(() { _isSaving = false; _saved = false; });
+      showAppToast(context, 'Could not save contact. Please try again.');
     }
   }
 
@@ -1639,7 +1643,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         eventId: _eventId,
         type: 'meeting',
         summary: summary,
-        interactionDate: DateTime.now().toIso8601String(),
+        interactionDate: DateTime.now().toUtc().toIso8601String(),
       );
 
       // Explicitly link the contact to the event so it shows in Events tab
@@ -1676,6 +1680,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     } on UnauthorizedException { rethrow; } catch (_) {
       if (!mounted) return;
       setState(() { _isSaving = false; _saved = false; });
+      showAppToast(context, 'Could not save contact. Please try again.');
     }
   }
 

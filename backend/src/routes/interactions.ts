@@ -11,13 +11,13 @@ const interactionCreateSchema = z.object({
   event_id: uuidSchema.optional(),
   interaction_type: z.enum(['manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note', 'voice_note', 'document_upload']).optional(),
   summary: z.string().trim().max(5000).optional(),
-  interaction_date: z.string().datetime().optional(),
+  interaction_date: z.string().datetime({ offset: true, local: true }).optional(),
   details: z.record(z.unknown()).optional(),
 });
 
 const interactionPatchSchema = z.object({
   summary: z.string().trim().max(5000).optional(),
-  interaction_date: z.string().datetime().optional(),
+  interaction_date: z.string().datetime({ offset: true, local: true }).optional(),
   details: z.record(z.unknown()).optional(),
   interaction_type: z.enum(['manual', 'email', 'call', 'meeting', 'capture', 'event_link', 'note', 'voice_note', 'document_upload']).optional(),
 });

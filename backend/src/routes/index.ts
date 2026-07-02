@@ -17,6 +17,7 @@ import conversationsRouter from './conversations';
 import assistantRouter from './assistant';
 import interactionsRouter from './interactions';
 import syncRouter from './sync';
+import supportRouter from './support';
 
 const router = Router();
 
@@ -47,5 +48,6 @@ router.use('/conversations', conversationsRouter);
 router.use('/assistant', assistantRouter);
 router.use('/interactions', interactionsRouter);
 router.use('/sync', syncRouter);
+router.use('/support', supportRouter);
 
 export default router;

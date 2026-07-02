@@ -20,7 +20,7 @@
  *   fail fast since another key would not help.
  */
 
-import * as Sentry from '@sentry/node';
+import { sentryLog } from '../config/sentry';
 
 export interface ExaResult {
   title: string;
@@ -174,7 +174,7 @@ export class ExaService {
         // INFRASTRUCTURE_ANALYSIS.md's Exa formula. costDollars.total is read
         // straight from Exa's response (no assumed surcharge math) — see the
         // verified pricing table in INFRASTRUCTURE_COSTS.md §2.3.
-        Sentry.logger.info('exa_search_cost', {
+        void sentryLog('exa_search_cost', {
           query_chars: query.length,
           type: options.searchDepth === 'advanced' ? 'auto' : 'fast',
           num_results_requested: options.maxResults ?? 5,

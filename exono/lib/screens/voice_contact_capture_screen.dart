@@ -759,7 +759,10 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     final bottomInset = bottomScrollInset(context, margin: 0);
 
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 20, 16, bottomInset + 16),
+      padding: EdgeInsets.fromLTRB(
+        16, 20, 16,
+        bottomInset + 16 + MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1479,6 +1482,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
+      showAppToast(context, 'Could not save contact. Please try again.');
     }
   }
 
@@ -1521,6 +1525,7 @@ class _VoiceContactCaptureScreenState extends State<VoiceContactCaptureScreen>
         _isSaving = false;
         _saved = false;
       });
+      showAppToast(context, 'Could not save contact. Please try again.');
     }
   }
 

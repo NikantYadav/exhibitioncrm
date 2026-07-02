@@ -1,6 +1,6 @@
 import { GoogleGenAI, FunctionCallingConfigMode, type GenerateContentResponse } from '@google/genai';
 import OpenAI from 'openai';
-import * as Sentry from '@sentry/node';
+import { sentryLog } from '../config/sentry';
 
 // Cost-instrumentation: logs Gemini input/output token counts for
 // INFRASTRUCTURE_ANALYSIS.md's Gemini cost formula
@@ -11,12 +11,22 @@ import * as Sentry from '@sentry/node';
 // rather than throwing.
 function logGeminiUsage(callSite: string, response: GenerateContentResponse): void {
     const usage = response.usageMetadata;
-    Sentry.logger.info('gemini_token_usage', {
+    // IMPORTANT: attribute keys must NOT contain the substring "token".
+    // Sentry's default server-side data scrubbing removes any field whose key
+    // matches sensitive words (password, secret, auth, TOKEN, ...) — intended
+    // for auth/CSRF tokens. It matched our input_tokens/*_token_count keys and
+    // silently stripped the values AFTER ingest (the raw log envelope contained
+    // the integers, but the dashboard showed nothing). We use "tok" instead of
+    // "token" in the key so the scrubber's substring match never fires.
+    // See: https://docs.sentry.io/security-legal-pii/scrubbing/server-side-scrubbing/
+    // Fire-and-forget: cost logging must not block or fail the model response.
+    // input = prompt tokens, output = candidate tokens, total = input + output.
+    void sentryLog('gemini_token_usage', {
         call_site: callSite,
         model: 'gemini-3.1-flash-lite',
-        input_tokens: usage?.promptTokenCount ?? 0,
-        output_tokens: usage?.candidatesTokenCount ?? 0,
-        total_tokens: usage?.totalTokenCount ?? 0,
+        input_tok: usage?.promptTokenCount ?? 0,
+        output_tok: usage?.candidatesTokenCount ?? 0,
+        total_tok: usage?.totalTokenCount ?? 0,
     });
 }
 

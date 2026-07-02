@@ -37,6 +37,24 @@ class AppButton extends StatelessWidget {
 
   bool get _isLoading => loading || isLoading;
 
+  // Label text that never overflows: kept to a single line and scaled down to
+  // fit the available width when the button is narrow (small screens, long
+  // labels like "FOLLOWED UP" in a cramped Row). FittedBox with scaleDown only
+  // shrinks — it never enlarges past the intrinsic size — so buttons with room
+  // are unaffected. Applied centrally here so every screen benefits.
+  Widget _label(String text, {TextStyle? style}) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        text,
+        style: style,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.visible,
+      ),
+    );
+  }
+
   FButtonVariant get _variant {
     switch (variant) {
       case ButtonVariant.primary:
@@ -99,13 +117,13 @@ class AppButton extends StatelessWidget {
           children: [
             IconTheme(data: IconThemeData(color: fg, size: 16), child: prefixIcon!),
             const SizedBox(width: 6),
-            Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg)),
+            Flexible(child: _label(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg))),
           ],
         );
       } else if (child != null) {
         content = child!;
       } else {
-        content = Text(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg));
+        content = _label(label!, style: t.typography.sm.copyWith(fontWeight: FontWeight.w600, color: fg));
       }
 
       return GestureDetector(
@@ -139,11 +157,11 @@ class AppButton extends StatelessWidget {
             children: [
               IconTheme(data: IconThemeData(color: fg, size: 16), child: prefixIcon!),
               const SizedBox(width: 6),
-              Text(label!, style: t.typography.sm.copyWith(color: fg, fontWeight: FontWeight.w500)),
+              Flexible(child: _label(label!, style: t.typography.sm.copyWith(color: fg, fontWeight: FontWeight.w500))),
             ],
           );
         } else {
-          ghostContent = Text(label!, style: t.typography.sm.copyWith(color: fg, fontWeight: FontWeight.w500));
+          ghostContent = _label(label!, style: t.typography.sm.copyWith(color: fg, fontWeight: FontWeight.w500));
         }
         final btn = GestureDetector(
           onTap: _isLoading ? null : onPressed,
@@ -165,12 +183,19 @@ class AppButton extends StatelessWidget {
     } else if (_isLoading) {
       content = const SizedBox(width: 16, height: 16, child: FCircularProgress());
     } else if (prefixIcon != null) {
+      // Inside the Row, the label is Flexible so it scales down via FittedBox on
+      // narrow buttons. The Row itself is NOT wrapped in Flexible: FButton takes
+      // this widget as its direct child, which has no Flex parent, so a bare
+      // Flexible there throws a ParentData/semantics assertion.
       content = Row(
         mainAxisSize: MainAxisSize.min,
-        children: [prefixIcon!, const SizedBox(width: 6), Text(label!)],
+        children: [prefixIcon!, const SizedBox(width: 6), Flexible(child: _label(label!))],
       );
     } else {
-      content = Text(label!);
+      // _label's FittedBox(scaleDown) already prevents overflow. Do NOT wrap in
+      // Flexible here: this is FButton's direct child (no Flex parent), and a
+      // bare Flexible triggers the '!semantics.parentDataDirty' assertion.
+      content = _label(label!);
     }
 
     Widget btn = FButton(

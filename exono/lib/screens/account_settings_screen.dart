@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import '../utils/safe_area_insets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/api_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
@@ -15,8 +18,12 @@ import '../widgets/app_feedback.dart';
 import '../widgets/app_header.dart';
 import '../widgets/app_input.dart';
 import '../widgets/app_section_label.dart';
+import '../widgets/app_select.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/screen_logger.dart';
+
+const String _privacyPolicyUrl = 'https://exono.ai/privacy';
+const String _termsOfServiceUrl = 'https://exono.ai/terms';
 
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen({super.key});
@@ -39,6 +46,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
   String _aiTone = 'professional';
   bool _isSavingProfile = false;
   bool _isLoggingOut = false;
+  bool _isDeletingAccount = false;
+  String? _appVersion;
 
   static const _toneOptions = ['professional', 'casual', 'formal', 'friendly'];
 
@@ -52,6 +61,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     _productsCtrl = TextEditingController();
     _contextCtrl = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() => _appVersion = '${info.version} (${info.buildNumber})');
   }
 
   @override
@@ -217,9 +233,19 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                     const SizedBox(height: 10),
                     _buildAppearancePanel(),
                     const SizedBox(height: 24),
+                    AppSectionLabel('Support'),
+                    const SizedBox(height: 10),
+                    _buildSupportPanel(),
+                    const SizedBox(height: 24),
                     AppSectionLabel('Session'),
                     const SizedBox(height: 10),
                     _buildSessionPanel(),
+                    const SizedBox(height: 24),
+                    AppSectionLabel('Account'),
+                    const SizedBox(height: 10),
+                    _buildDangerPanel(),
+                    const SizedBox(height: 20),
+                    _buildVersionFooter(),
                   ],
                 ),
               ),
@@ -578,6 +604,116 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
     );
   }
 
+  // ── Support panel ───────────────────────────────────────────────────────────
+
+  Widget _buildSupportPanel() {
+    return AppCard(
+      radius: 20,
+      child: Column(
+        children: [
+          _actionRow(
+            icon: Icons.mail_outline_rounded,
+            label: 'Contact Support',
+            sublabel: 'Report a problem or send us feedback.',
+            onTap: _openSupportSheet,
+          ),
+          _rowSeparator(),
+          _actionRow(
+            icon: Icons.privacy_tip_outlined,
+            label: 'Privacy Policy',
+            sublabel: 'How we handle your data.',
+            onTap: () => _openExternal(_privacyPolicyUrl),
+          ),
+          _rowSeparator(),
+          _actionRow(
+            icon: Icons.description_outlined,
+            label: 'Terms of Service',
+            sublabel: 'The terms you agree to.',
+            onTap: () => _openExternal(_termsOfServiceUrl),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Danger panel (delete account) ───────────────────────────────────────────
+
+  Widget _buildDangerPanel() {
+    return AppCard(
+      radius: 20,
+      child: _actionRow(
+        icon: Icons.delete_forever_rounded,
+        label: 'Delete Account',
+        sublabel: 'Permanently delete your account and data.',
+        destructive: true,
+        loading: _isDeletingAccount,
+        onTap: _confirmDeleteAccount,
+      ),
+    );
+  }
+
+  Widget _buildVersionFooter() {
+    if (_appVersion == null) return const SizedBox.shrink();
+    return Center(
+      child: Text(
+        'Exono $_appVersion',
+        style: context.theme.typography.xs.copyWith(
+          color: context.theme.colors.mutedForeground,
+        ),
+      ),
+    );
+  }
+
+  // ── Support / legal / delete handlers ───────────────────────────────────────
+
+  Future<void> _openExternal(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) { showAppToast(context, "Couldn't open the link."); }
+    }
+  }
+
+  Future<void> _openSupportSheet() async {
+    await showAppSheet(
+      context: context,
+      builder: (ctx) => const _SupportSheet(),
+    );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    if (_isDeletingAccount) return;
+    final confirmed = await showAppConfirmDialog(
+      context: context,
+      title: 'Delete account?',
+      message: 'This permanently deletes your account and all your data. '
+          'This cannot be undone.',
+      confirmLabel: 'DELETE',
+      destructive: true,
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeletingAccount = true);
+    try {
+      await context.read<AuthProvider>().deleteAccount();
+      if (!mounted) return;
+      context.go('/auth');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isDeletingAccount = false);
+        showAppToast(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+  }
+
+  // Thin inset separator between rows in a multi-row card. Geometry (1px line),
+  // aligned to start past the leading icon so it reads as a list divider.
+  Widget _rowSeparator() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 66, right: 16),
+      child: Container(height: 1, color: context.theme.colors.border),
+    );
+  }
+
   // ── Row components ──────────────────────────────────────────────────────────
 
   Widget _switchRow({
@@ -695,7 +831,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, size: 18, color: _c.accent),
+            Icon(Icons.chevron_right_rounded, size: 18, color: context.theme.colors.mutedForeground),
           ],
         ),
       ),
@@ -834,6 +970,140 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> with Scre
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Contact Support sheet ─────────────────────────────────────────────────────
+
+class _SupportSheet extends StatefulWidget {
+  const _SupportSheet();
+
+  @override
+  State<_SupportSheet> createState() => _SupportSheetState();
+}
+
+class _SupportSheetState extends State<_SupportSheet> {
+  final _messageCtrl = TextEditingController();
+  String _subject = 'Report a problem';
+  bool _sending = false;
+
+  static const _subjects = {
+    'Report a problem': 'Report a problem',
+    'Feature request': 'Feature request',
+    'Billing question': 'Billing question',
+    'Other': 'Other',
+  };
+
+  @override
+  void dispose() {
+    _messageCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    if (_sending) return;
+    final message = _messageCtrl.text.trim();
+    if (message.isEmpty) {
+      showAppToast(context, 'Please enter a message.');
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      await ApiService.sendSupportRequest(subject: _subject, message: message);
+      if (!mounted) return;
+      Navigator.pop(context);
+      showAppToast(context, 'Message sent. We\'ll get back to you soon.');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _sending = false);
+        showAppToast(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.theme.colors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Contact Support',
+                    style: context.theme.typography.lg.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: context.theme.colors.foreground,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tell us what\'s going on. We\'ll reply to your account email.',
+                    style: context.theme.typography.sm.copyWith(
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'SUBJECT',
+                    style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  AppSelect<String>(
+                    items: _subjects,
+                    value: _subject,
+                    sheetTitle: 'Subject',
+                    onChanged: (v) => setState(() => _subject = v ?? _subject),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'MESSAGE',
+                    style: context.theme.typography.xs.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                      color: context.theme.colors.mutedForeground,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  AppInput(
+                    controller: _messageCtrl,
+                    hint: 'Describe your issue or feedback...',
+                    maxLines: 5,
+                  ),
+                  const SizedBox(height: 20),
+                  AppButton(
+                    label: 'SEND MESSAGE',
+                    onPressed: _sending ? null : _send,
+                    isLoading: _sending,
+                    fullWidth: true,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

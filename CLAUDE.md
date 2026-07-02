@@ -26,7 +26,7 @@ The wrappers already exist in `exono/lib/widgets/`. They wrap forui correctly an
 | Bottom sheet | `showAppSheet(...)` (`lib/widgets/app_feedback.dart`) | `showModalBottomSheet` |
 | Snackbar / toast | `showAppToast(context, 'msg')` (`lib/widgets/app_feedback.dart`) | `ScaffoldMessenger.of(context).showSnackBar` |
 | Confirm dialog | `showAppConfirmDialog(...)` (`lib/widgets/app_feedback.dart`) | `showDialog` + `AlertDialog` |
-| Divider | `FDivider()` | `Divider()`, 1px line `Container` (only when it's a separator) |
+| Divider / separator | 1px line `Container` (`Container(height: 1, color: context.theme.colors.border)`), inset with `Padding` when it's a list-row separator | `Divider()`, `FDivider()` — **do NOT use `FDivider` at all** |
 | Spinner | `FCircularProgress()` | `CircularProgressIndicator()` |
 | Shared chat body | `ExoChatView(config: ExoChatViewConfig(...))` (`lib/widgets/exo_chat_view.dart`) | reusable chat canvas + pill composer used by `ChatScreen` and `ExoChatSheet`; pass `lockedMention:` to lock an entity chip, `reserveBottomBarInset: false` inside sheets |
 | Exo AI sheet | `showExoSheet(context, entity: ChatMention(...))` (`lib/widgets/exo_chat_sheet.dart`) | entity-scoped Exo chat as a draggable bottom sheet (0.55→0.92, not full-screen); fresh conversation per open; own local providers — deliberately uses raw `showModalBottomSheet` (needs draggable handle + local provider scope, not `showAppSheet`) |
@@ -130,6 +130,7 @@ Rules for any widget rendered as a `showAppSheet` builder:
 - **Keep** `import 'package:flutter/material.dart';` — still needed for all layout/paint/gesture primitives above.
 
 ### Common mistakes
+- **Never use `FDivider` — it is banned.** For any separator (between list rows, sections, etc.) use a geometry line: `Container(height: 1, color: context.theme.colors.border)`, wrapped in `Padding` for an inset list-row divider (e.g. `EdgeInsets.only(left: 66, right: 16)` to clear a leading icon). This applies to ALL styling variants (`FDivider(style: ...)`, `Expanded(child: FDivider(...))` too).
 - `AppButton` uses `onPressed:`; raw `FButton` uses `onPress:`. `FHeader` has only `suffixes:`, `FHeader.nested` adds `prefixes:`.
 - `showAppSheet` takes named params: `showAppSheet(context: context, builder: (ctx) => Widget)` — NOT positional args.
 - `FCheckbox`/`AppCheckbox`: `value:` + `onChange:`/`onChanged:`, not a tappable Container.

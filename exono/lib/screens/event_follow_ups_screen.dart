@@ -751,11 +751,10 @@ class _ContactFollowUpCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Full-accent priority surface, but only while collapsed and actionable —
-    // an expanded composer (white inputs) or a sent/skipped card keeps the
-    // normal surface so its content stays legible.
-    final accentSurface =
-        fu.isPriority && !isExpanded && !isSent && !isSkipped;
+    // Full-accent priority surface whenever starred (matching the Follow-Ups
+    // tab, which blues priority cards regardless of status). Only an expanded
+    // composer keeps the normal surface so its white inputs stay legible.
+    final accentSurface = fu.isPriority && !isExpanded;
     final fg = accentSurface
         ? context.theme.colors.primaryForeground
         : context.theme.colors.foreground;
@@ -767,6 +766,11 @@ class _ContactFollowUpCard extends StatelessWidget {
         children: [
           // ── Header row (always visible) ─────────────────────────────────
           GestureDetector(
+            // Opaque so taps anywhere on the header (including empty padding
+            // between children) toggle the composer — with the default
+            // deferToChild behavior only the text/icons themselves were
+            // tappable, which made expansion feel broken.
+            behavior: HitTestBehavior.opaque,
             onTap: (isSent || isSkipped) ? null : onExpand,
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -779,35 +783,29 @@ class _ContactFollowUpCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        // Wrap (not Row) so the status chip sits beside the
+                        // name when there's room and flows below it on narrow
+                        // screens instead of crushing the name into a sliver.
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            Flexible(
-                              child: Text(
-                                fullName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: context.theme.typography.lg.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: fg,
-                                  letterSpacing: -0.2,
-                                  height: 1.1,
-                                ),
+                            Text(
+                              fullName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: context.theme.typography.lg.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: fg,
+                                letterSpacing: -0.2,
+                                height: 1.1,
                               ),
                             ),
-                            if (isSent) ...[
-                              const SizedBox(width: 8),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: AppChip.status('FOLLOWED UP', color: _c.success),
-                              ),
-                            ] else if (isSkipped) ...[
-                              const SizedBox(width: 8),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: AppChip.status('SKIPPED', color: context.theme.colors.mutedForeground),
-                              ),
-                            ],
+                            if (isSent)
+                              AppChip.status('FOLLOWED UP', color: _c.success)
+                            else if (isSkipped)
+                              AppChip.status('SKIPPED', color: context.theme.colors.mutedForeground),
                           ],
                         ),
                         if (role.isNotEmpty) ...[

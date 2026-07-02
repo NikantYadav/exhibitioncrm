@@ -8,6 +8,7 @@ import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_button.dart';
+import '../widgets/app_chip.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/entry_flow_components.dart';
 import '../utils/screen_logger.dart';
@@ -36,7 +37,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
   int _currentPage = 0;
   bool _isLoading = false;
 
-  String _profileType = 'company';
+  String _profileType = 'individual';
   String _aiTone = 'professional';
   String? _initialName;
   String? _initialEmail;
@@ -196,6 +197,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
     showAppToast(context, message);
   }
 
+  Future<void> _switchAccount() async {
+    final confirmed = await showAppConfirmDialog(
+      context: context,
+      title: 'Log in with a different account?',
+      message: 'You will be signed out of this account and returned to the login screen.',
+      confirmLabel: 'Log out',
+      destructive: true,
+    );
+    if (confirmed != true || !mounted) return;
+    await context.read<AuthProvider>().logout();
+    if (!mounted) return;
+    context.go('/auth');
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
@@ -208,10 +223,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
             padding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, 8, isMobile ? 16 : 24, 0),
             child: Column(
               children: [
-                const EntryFlowTopBar(
-                  leadingIcon: Icons.tune_rounded,
-                  title: 'EXONO',
-                  badgeLabel: 'Profile Setup',
+                EntryFlowTopBar(
+                  onSwitchAccount: _switchAccount,
                 ),
                 const SizedBox(height: 20),
                 _buildProgressHeader(),
@@ -318,6 +331,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
           label: 'Company',
           description: 'Best for founders, operators, and businesses representing a company profile.',
           icon: Icons.business_center_rounded,
+          comingSoon: true,
         ),
         const SizedBox(height: 12),
         _buildProfileTypeOption(
@@ -332,6 +346,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
           label: 'Employee',
           description: 'Best for team members working inside a broader company workflow.',
           icon: Icons.badge_outlined,
+          comingSoon: true,
         ),
       ],
     );
@@ -604,60 +619,73 @@ class _OnboardingScreenState extends State<OnboardingScreen> with ScreenLogger {
     required String label,
     required String description,
     required IconData icon,
+    bool comingSoon = false,
   }) {
     final colors = AppTheme.colorsOf(context);
     final isSelected = _profileType == value;
 
-    return GestureDetector(
-      onTap: () => setState(() => _profileType = value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: isSelected ? LinearGradient(colors: [colors.accentSoft, colors.surface]) : null,
-          color: isSelected ? null : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: isSelected ? colors.accent.withValues(alpha: 0.45) : colors.border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colors.border),
+    return Opacity(
+      opacity: comingSoon ? 0.5 : 1,
+      child: GestureDetector(
+        onTap: comingSoon ? null : () => setState(() => _profileType = value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: isSelected ? LinearGradient(colors: [colors.accentSoft, colors.surface]) : null,
+            color: isSelected ? null : colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: isSelected ? colors.accent.withValues(alpha: 0.45) : colors.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Icon(icon, size: 24, color: colors.accentStrong),
               ),
-              child: Icon(icon, size: 24, color: colors.accentStrong),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.theme.typography.lg.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: context.theme.colors.foreground)),
-                  const SizedBox(height: 5),
-                  Text(description,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.theme.typography.xs.copyWith(
-                      color: context.theme.colors.mutedForeground, height: 1.4)),
-                ],
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.theme.typography.lg.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: context.theme.colors.foreground)),
+                        if (comingSoon) ...[
+                          const SizedBox(width: 8),
+                          AppChip('COMING SOON'),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(description,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.theme.typography.xs.copyWith(
+                        color: context.theme.colors.mutedForeground, height: 1.4)),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Icon(
-              isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-              color: isSelected ? colors.accentStrong : context.theme.colors.mutedForeground,
-              size: 22,
-            ),
-          ],
+              const SizedBox(width: 12),
+              if (!comingSoon)
+                Icon(
+                  isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                  color: isSelected ? colors.accentStrong : context.theme.colors.mutedForeground,
+                  size: 22,
+                ),
+            ],
+          ),
         ),
       ),
     );

@@ -1,17 +1,19 @@
+// IMPORTANT: instrument.ts initializes Sentry and MUST be imported before any
+// other module so the SDK can instrument http/express/etc. at require-time.
+// Do not move this below the other imports or convert it to a re-ordered import.
+import './instrument';
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger, logInfo } from './middleware/logger';
 import routes from './routes';
 import { AI_PROVIDER } from './config/ai';
 import { supabase } from './config/supabase';
 import { initSchemaFlags } from './services/slayer-client';
-import { initSentry } from './config/sentry';
-
-dotenv.config();
-initSentry();
+import { isSentryEnabled } from './config/sentry';
+import * as Sentry from '@sentry/node';
 
 // Auto-derive the assistant's ownership / soft-delete table flags from the live
 // DB schema. Fire-and-forget at module load so it runs in both the long-lived
@@ -75,6 +77,13 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api', routes);
+
+// Sentry's Express error handler must run BEFORE our own error handler so it
+// can capture the thrown error before we turn it into a JSON response. No-op
+// when Sentry is disabled (no DSN configured).
+if (isSentryEnabled()) {
+  Sentry.setupExpressErrorHandler(app);
+}
 
 // Error handling
 app.use(errorHandler);

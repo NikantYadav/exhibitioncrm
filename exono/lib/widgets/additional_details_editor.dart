@@ -62,47 +62,62 @@ class _AdditionalDetailsEditorState extends State<AdditionalDetailsEditor> {
             style: theme.typography.sm.copyWith(color: theme.colors.mutedForeground),
           )
         else
-          AppCard(
-            radius: 20,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < _c.fields.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 12),
-                  _row(_c.fields[i]),
-                ],
-              ],
-            ),
-          ),
+          for (var i = 0; i < _c.fields.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            _row(_c.fields[i], i),
+          ],
       ],
     );
   }
 
-  Widget _row(DetailField field) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 2,
-          child: AppInput(label: 'Label', controller: field.labelCtrl),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          flex: 3,
-          child: AppInput(label: 'Value', controller: field.valueCtrl),
-        ),
-        const SizedBox(width: 4),
-        Padding(
-          padding: const EdgeInsets.only(top: 20),
-          child: AppButton(
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.sm,
-            onPressed: () => setState(() => _c.removeField(field)),
-            child: Icon(Icons.remove_circle_outline, size: 20, color: context.theme.colors.error),
+  Widget _row(DetailField field, int index) {
+    final theme = context.theme;
+    // Each detail is its own card with the Label and Value inputs stacked
+    // vertically so both fields get full width — no cramped side-by-side
+    // truncation on any screen size. Remove control lives in the row header.
+    return AppCard(
+      radius: 20,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Field ${index + 1}',
+                style: theme.typography.xs.copyWith(
+                  color: theme.colors.mutedForeground,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _c.removeField(field)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.remove_circle_outline, size: 16, color: theme.colors.error),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Remove',
+                        style: theme.typography.xs.copyWith(color: theme.colors.error),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 10),
+          AppInput(label: 'Label', controller: field.labelCtrl),
+          const SizedBox(height: 12),
+          AppInput(label: 'Value', controller: field.valueCtrl),
+        ],
+      ),
     );
   }
 }

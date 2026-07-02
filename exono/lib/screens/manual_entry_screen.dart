@@ -139,7 +139,9 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> with ScreenLogger
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
-                    16, 20, 16, bottomScrollInset(context, margin: 110),
+                    16, 20, 16,
+                    bottomScrollInset(context, margin: 110) +
+                        MediaQuery.of(context).viewInsets.bottom,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

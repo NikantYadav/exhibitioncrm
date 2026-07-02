@@ -258,6 +258,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Permanently deletes the account server-side, then clears the local session.
+  /// Throws if the server delete fails (session is left intact so the user can
+  /// retry); on success the local session is wiped exactly like [logout].
+  Future<void> deleteAccount() async {
+    await ApiService.deleteAccount();
+    await _clearSession();
+    clearExoSessions();
+    notifyListeners();
+  }
+
   Future<void> refreshProfile() async {
     if (_accessToken == null) return;
     try {

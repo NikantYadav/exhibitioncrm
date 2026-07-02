@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import * as Sentry from '@sentry/node';
+import { sentryLog } from '../config/sentry';
 import { litellm } from '../services/litellm-service';
 import { supabase as supabaseAdmin } from '../config/supabase';
 import { decodeAndValidateImage, ImageValidationError } from '../utils/imageValidation';
@@ -56,7 +56,7 @@ async function uploadCardImage(
   // gallery actually produced, pre-compression) and the stored size (post
   // compressImage()) so the Sentry data answers "what do we receive" and
   // "what do we actually bill for" separately.
-  Sentry.logger.info('card_image_size', {
+  void sentryLog('card_image_size', {
     raw_bytes: decoded.buffer.length,
     stored_bytes: buffer.length,
     raw_mime: decoded.type.mime,
@@ -306,9 +306,6 @@ router.post('/', async (req, res, next) => {
           job_title: extracted_data.job_title || extracted_data.title || null,
           linkedin_url: extracted_data.linkedin_url || null,
           company_id: companyId,
-          notes: eventName
-            ? `${raw_text}\n\n[System Note: Captured at ${eventName}]`
-            : raw_text || null,
           follow_up_status: 'not_contacted',
           is_priority: extracted_data.is_priority === true,
           ...(scannedDetails ? { scanned_details: scannedDetails } : {}),

@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -56,7 +57,15 @@ void _callbackDispatcher() {
 }
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final binding = WidgetsFlutterBinding.ensureInitialized();
+
+  // Keep the OS-level native splash (logo on the theme background) on screen
+  // through async startup AND the Dart splash's auth-wait, so the user sees one
+  // continuous logo screen. MotionSplashScreen removes it when it's ready to
+  // take over (see splash_screen_motion.dart). Web has no native splash.
+  if (!kIsWeb) {
+    FlutterNativeSplash.preserve(widgetsBinding: binding);
+  }
 
   Future<void> startApp() async {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);

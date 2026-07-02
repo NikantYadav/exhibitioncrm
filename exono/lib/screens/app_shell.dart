@@ -138,13 +138,21 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
     context.go(path);
   }
 
+  bool get _isHome => widget.location == '/' || widget.location.startsWith('/?');
+
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
     final hasNavBar = isMobile
         && _navBarPaths.any((p) => widget.location == p || widget.location.startsWith('$p?'))
         && !_isNoNavPath(widget.location);
-    return Scaffold(
+    return PopScope(
+      canPop: _isHome,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.go('/');
+      },
+      child: Scaffold(
       backgroundColor: _c.background,
       body: isMobile ? _mobile() : _desktop(),
       bottomNavigationBar: hasNavBar
@@ -152,7 +160,7 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
               valueListenable: appNavBarHidden,
               builder: (_, hidden, _) {
                 if (hidden) return const SizedBox.shrink();
-                final isHome = widget.location == '/' || widget.location.startsWith('/?');
+                final isHome = _isHome;
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -166,6 +174,7 @@ class _AppShellState extends State<AppShell> with ScreenLogger {
               },
             )
           : null,
+      ),
     );
   }
 

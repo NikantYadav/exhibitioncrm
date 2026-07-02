@@ -17,7 +17,7 @@ import 'screens/events_screen.dart';
 import 'screens/follow_ups_screen.dart';
 import 'screens/home_default_screen.dart';
 import 'screens/landing_screen.dart';
-import 'screens/splash_screen.dart';
+import 'screens/splash_screen_motion.dart';
 import 'screens/live_home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/account_settings_screen.dart';
@@ -55,7 +55,7 @@ GoRouter buildRouter(AuthProvider auth, {List<NavigatorObserver>? observers}) {
     },
     routes: [
       // ── Public / auth routes (no shell) ──────────────────────────────────
-      GoRoute(path: '/splash',     builder: (_, _) => const SplashScreen()),
+      GoRoute(path: '/splash',     builder: (_, _) => const MotionSplashScreen()),
       GoRoute(path: '/landing',    builder: (_, _) => const LandingScreen()),
       GoRoute(path: '/auth',       builder: (_, _) => const AuthScreen()),
       GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
