@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
+import { sentryLog } from '../config/sentry';
 
 const router = Router();
 
@@ -130,7 +131,38 @@ router.get('/', async (req, res) => {
     // `next_since`: cursor to pass back as `since` on the next page (only
     // meaningful while has_more). `server_time`: the watermark to commit once
     // has_more is false (delta path is unchanged — single page, has_more false).
-    res.json({ server_time: serverTime, next_since: maxUpdatedAt, has_more: hasMore, data });
+    const body = JSON.stringify({
+      server_time: serverTime,
+      next_since: maxUpdatedAt,
+      has_more: hasMore,
+      data,
+    });
+
+    // Cost-instrumentation: GB_egress driver for INFRASTRUCTURE_ANALYSIS.md.
+    // This single endpoint serves BOTH the initial full sync (since = epoch,
+    // possibly multiple paged responses) and realtime deltas (small since,
+    // single page). `sync_kind` splits the two so we can sum initial_sync_payload
+    // across a login's pages and measure realtime_deltas separately. Byte size is
+    // the serialized JSON length (what actually leaves the server). Serialize
+    // once here and send the string to avoid double-serializing in res.json.
+    // Attribute keys deliberately avoid scrubber-trigger words (token/auth/etc.).
+    const initialPull = since === new Date(0).toISOString();
+    const rowCount = Object.values(data).reduce(
+      (n, d) => n + d.upserts.length + d.deleted_ids.length,
+      0,
+    );
+    void sentryLog('sync_payload_size', {
+      sync_kind: initialPull ? 'initial' : 'delta',
+      // Named sync_egress_bytes (not payload_bytes) to avoid confusion with
+      // Sentry's own payload_size field, which measures the log entry itself.
+      // This is the GB_egress driver: the response body size that left the server.
+      sync_egress_bytes: Buffer.byteLength(body),
+      row_count: rowCount,
+      table_count: Object.keys(data).length,
+      has_more: hasMore,
+    });
+
+    res.type('application/json').send(body);
   } catch (error) {
     console.error('GET /sync failed:', error);
     res.status(500).json({ error: 'Failed to fetch sync delta' });
